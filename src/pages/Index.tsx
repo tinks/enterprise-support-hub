@@ -6,8 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Settings, RefreshCw, Save, Link, Play } from "lucide-react";
+import { Settings, RefreshCw, Save, Link, Play, Search, Users, Hash } from "lucide-react";
 
 interface SettingsData {
   id: string;
@@ -27,6 +28,20 @@ interface ConversationMapping {
   created_at: string;
 }
 
+interface SlackChannel {
+  id: string;
+  name: string;
+  is_member: boolean;
+  num_members: number;
+}
+
+interface SlackUser {
+  id: string;
+  name: string;
+  real_name: string;
+  display_name: string;
+}
+
 const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 
 const Index = () => {
@@ -35,6 +50,16 @@ const Index = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [polling, setPolling] = useState(false);
+
+  const [channelsOpen, setChannelsOpen] = useState(false);
+  const [channels, setChannels] = useState<SlackChannel[]>([]);
+  const [channelsLoading, setChannelsLoading] = useState(false);
+  const [channelSearch, setChannelSearch] = useState("");
+
+  const [usersOpen, setUsersOpen] = useState(false);
+  const [users, setUsers] = useState<SlackUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [userSearch, setUserSearch] = useState("");
 
   const edgeFunctionBaseUrl = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1`;
 
@@ -100,6 +125,72 @@ const Index = () => {
     setPolling(false);
   };
 
+  const browseChannels = async () => {
+    setChannelsOpen(true);
+    setChannelsLoading(true);
+    setChannelSearch("");
+    try {
+      const res = await fetch(`${edgeFunctionBaseUrl}/list-slack-channels`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (data.error) {
+        toast.error("Failed to load channels: " + data.error);
+        setChannels([]);
+      } else {
+        setChannels(data.channels || []);
+      }
+    } catch (err) {
+      toast.error("Request failed: " + (err instanceof Error ? err.message : "Unknown error"));
+      setChannels([]);
+    }
+    setChannelsLoading(false);
+  };
+
+  const selectChannel = (channelId: string) => {
+    setSettings((s) => {
+      if (!s) return s;
+      const existing = s.monitored_channels
+        .split(",")
+        .map((c) => c.trim())
+        .filter(Boolean);
+      if (existing.includes(channelId)) return s;
+      return { ...s, monitored_channels: [...existing, channelId].join(", ") };
+    });
+    toast.success(`Added channel ${channelId}`);
+    setChannelsOpen(false);
+  };
+
+  const browseUsers = async () => {
+    setUsersOpen(true);
+    setUsersLoading(true);
+    setUserSearch("");
+    try {
+      const res = await fetch(`${edgeFunctionBaseUrl}/list-slack-users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (data.error) {
+        toast.error("Failed to load users: " + data.error);
+        setUsers([]);
+      } else {
+        setUsers(data.users || []);
+      }
+    } catch (err) {
+      toast.error("Request failed: " + (err instanceof Error ? err.message : "Unknown error"));
+      setUsers([]);
+    }
+    setUsersLoading(false);
+  };
+
+  const selectUser = (userId: string) => {
+    setSettings((s) => (s ? { ...s, slack_bot_user_id: userId } : s));
+    toast.success(`Set user ID to ${userId}`);
+    setUsersOpen(false);
+  };
+
   const statusColor = (status: string) => {
     switch (status) {
       case "active": return "default" as const;
@@ -108,6 +199,18 @@ const Index = () => {
       default: return "outline" as const;
     }
   };
+
+  const filteredChannels = channels.filter(
+    (ch) => ch.name.toLowerCase().includes(channelSearch.toLowerCase()) || ch.id.includes(channelSearch)
+  );
+
+  const filteredUsers = users.filter(
+    (u) =>
+      u.real_name.toLowerCase().includes(userSearch.toLowerCase()) ||
+      u.display_name.toLowerCase().includes(userSearch.toLowerCase()) ||
+      u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+      u.id.includes(userSearch)
+  );
 
   if (loading) {
     return (
@@ -143,16 +246,23 @@ const Index = () => {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="channels">Monitored Slack Channel IDs</Label>
-              <Input
-                id="channels"
-                placeholder="C1234567890, C0987654321"
-                value={settings?.monitored_channels || ""}
-                onChange={(e) =>
-                  setSettings((s) =>
-                    s ? { ...s, monitored_channels: e.target.value } : s
-                  )
-                }
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="channels"
+                  placeholder="C1234567890, C0987654321"
+                  value={settings?.monitored_channels || ""}
+                  onChange={(e) =>
+                    setSettings((s) =>
+                      s ? { ...s, monitored_channels: e.target.value } : s
+                    )
+                  }
+                  className="flex-1"
+                />
+                <Button variant="outline" size="sm" onClick={browseChannels} className="shrink-0">
+                  <Hash className="mr-1 h-4 w-4" />
+                  Browse
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground">
                 Comma-separated Slack channel IDs to poll for mentions
               </p>
@@ -189,16 +299,23 @@ const Index = () => {
 
             <div className="space-y-2">
               <Label htmlFor="botuser">Slack User ID to Monitor</Label>
-              <Input
-                id="botuser"
-                placeholder="U1234567890"
-                value={settings?.slack_bot_user_id || ""}
-                onChange={(e) =>
-                  setSettings((s) =>
-                    s ? { ...s, slack_bot_user_id: e.target.value } : s
-                  )
-                }
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="botuser"
+                  placeholder="U1234567890"
+                  value={settings?.slack_bot_user_id || ""}
+                  onChange={(e) =>
+                    setSettings((s) =>
+                      s ? { ...s, slack_bot_user_id: e.target.value } : s
+                    )
+                  }
+                  className="flex-1"
+                />
+                <Button variant="outline" size="sm" onClick={browseUsers} className="shrink-0">
+                  <Users className="mr-1 h-4 w-4" />
+                  Lookup
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground">
                 Messages mentioning this user (@mention) will create Intercom tickets
               </p>
@@ -331,6 +448,88 @@ const Index = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Channel Browser Dialog */}
+      <Dialog open={channelsOpen} onOpenChange={setChannelsOpen}>
+        <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Browse Slack Channels</DialogTitle>
+          </DialogHeader>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search channels..."
+              value={channelSearch}
+              onChange={(e) => setChannelSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <div className="flex-1 overflow-y-auto min-h-0 space-y-1 max-h-[50vh]">
+            {channelsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : filteredChannels.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">No channels found</p>
+            ) : (
+              filteredChannels.map((ch) => (
+                <button
+                  key={ch.id}
+                  onClick={() => selectChannel(ch.id)}
+                  className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-accent transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <Hash className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{ch.name}</span>
+                  </span>
+                  <span className="font-mono text-xs text-muted-foreground">{ch.id}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* User Lookup Dialog */}
+      <Dialog open={usersOpen} onOpenChange={setUsersOpen}>
+        <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Lookup Slack Users</DialogTitle>
+          </DialogHeader>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search users..."
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <div className="flex-1 overflow-y-auto min-h-0 space-y-1 max-h-[50vh]">
+            {usersLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">No users found</p>
+            ) : (
+              filteredUsers.map((u) => (
+                <button
+                  key={u.id}
+                  onClick={() => selectUser(u.id)}
+                  className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-accent transition-colors"
+                >
+                  <span className="flex flex-col items-start">
+                    <span className="font-medium">{u.real_name}</span>
+                    <span className="text-xs text-muted-foreground">@{u.name}</span>
+                  </span>
+                  <span className="font-mono text-xs text-muted-foreground">{u.id}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

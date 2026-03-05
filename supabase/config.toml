@@ -1,10 +1,16 @@
 project_id = "dzwcgqyznzrntkbobejo"
 
-[functions.slack-events]
-verify_jwt = false
-
 [functions.intercom-webhook]
 verify_jwt = false
 
 [functions.slack-interactions]
+verify_jwt = false
+
+[functions.poll-slack]
+verify_jwt = false
+
+[functions.list-slack-channels]
+verify_jwt = false
+
+[functions.list-slack-users]
 verify_jwt = false
