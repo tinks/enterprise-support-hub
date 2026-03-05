@@ -424,30 +424,8 @@ Deno.serve(async (req) => {
         }),
       });
 
-      const settings = await getSettings(supabase);
-      await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          message_type: "close",
-          type: "admin",
-          admin_id: settings.intercom_assignee_id,
-          body: "Resolved via Slack feedback (👍)",
-        }),
-      });
-
-      await supabase
-        .from("conversation_mappings")
-        .update({ status: "resolved" })
-        .eq("intercom_conversation_id", conversationId);
-
-    } else if (actionId === "feedback_negative") {
-      const settings = await getSettings(supabase);
-
+      // Assign to admin 8430778 then close — avoids bot-triggered reopens
+      const ADMIN_ID = "8430778";
       await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
         method: "POST",
         headers: {
@@ -458,12 +436,33 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           message_type: "assignment",
           type: "admin",
-          assignee_id: "0",
-          admin_id: settings.intercom_assignee_id,
-          body: "Escalated to human support via Slack feedback (👎)",
+          assignee_id: ADMIN_ID,
+          admin_id: ADMIN_ID,
         }),
       });
 
+      await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          message_type: "close",
+          type: "admin",
+          admin_id: ADMIN_ID,
+          body: "Resolved via Slack feedback (👍)",
+        }),
+      });
+
+      await supabase
+        .from("conversation_mappings")
+        .update({ status: "resolved" })
+        .eq("intercom_conversation_id", conversationId);
+
+    } else if (actionId === "feedback_negative") {
+      // No Intercom changes — just notify human in Slack
       await fetch(`${SLACK_API_URL}/chat.postMessage`, {
         method: "POST",
         headers: {

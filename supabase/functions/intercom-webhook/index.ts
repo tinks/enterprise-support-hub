@@ -182,44 +182,7 @@ Deno.serve(async (req) => {
       `Sent reply to Slack channel ${mapping.slack_channel_id}, thread ${mapping.slack_thread_ts}`
     );
 
-    // Reassign conversation to team inbox
-    const { data: settings } = await supabase
-      .from("settings")
-      .select("intercom_inbox_id, intercom_assignee_id")
-      .limit(1)
-      .maybeSingle();
-
-    if (settings?.intercom_inbox_id && settings?.intercom_assignee_id) {
-      try {
-        const assignResponse = await fetch(
-          `https://api.intercom.io/conversations/${conversationId}/parts`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
-            body: JSON.stringify({
-              message_type: "assignment",
-              type: "team",
-              assignee_id: settings.intercom_inbox_id,
-              admin_id: settings.intercom_assignee_id,
-              body: "",
-            }),
-          }
-        );
-
-        if (!assignResponse.ok) {
-          const errData = await assignResponse.text();
-          console.error(`Failed to reassign Intercom conversation: ${assignResponse.status} ${errData}`);
-        } else {
-          console.log(`Reassigned conversation ${conversationId} to team inbox ${settings.intercom_inbox_id}`);
-        }
-      } catch (assignError) {
-        console.error("Error reassigning Intercom conversation:", assignError);
-      }
-    }
+    // No reassignment after AI response — leave ticket as-is in Intercom
 
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
