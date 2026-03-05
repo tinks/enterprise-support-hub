@@ -8,6 +8,9 @@ const corsHeaders = {
 
 const SLACK_GATEWAY_URL = "https://connector-gateway.lovable.dev/slack/api";
 
+const BOT_USERNAME = "Lovable Support Bot";
+const BOT_ICON = ":heart:";
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -38,6 +41,12 @@ Deno.serve(async (req) => {
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+  const slackHeaders = {
+    Authorization: `Bearer ${LOVABLE_API_KEY}`,
+    "X-Connection-Api-Key": SLACK_API_KEY,
+    "Content-Type": "application/json",
+  };
+
   try {
     // Load settings
     const { data: settings, error: settingsErr } = await supabase
@@ -65,25 +74,17 @@ Deno.serve(async (req) => {
     }
 
     const lastPolledTs = (settings.last_polled_ts as string) || "0";
-    const results: Array<{ channel: string; thread_ts: string; intercom_id: string }> = [];
+    const results: Array<{ channel: string; thread_ts: string; action: string }> = [];
 
+    // ==================== PASS 1: Detect new mentions, send auto-reply ====================
     for (const channelId of monitoredChannels) {
-      // Fetch recent messages using Slack connector gateway
       const historyRes = await fetch(
         `${SLACK_GATEWAY_URL}/conversations.history?channel=${channelId}&oldest=${lastPolledTs}&limit=100`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "X-Connection-Api-Key": SLACK_API_KEY,
-            "Content-Type": "application/json",
-          },
-        }
+        { method: "GET", headers: slackHeaders }
       );
 
       if (!historyRes.ok) {
-        const errBody = await historyRes.text();
-        console.error(`Slack history failed for ${channelId} [${historyRes.status}]: ${errBody}`);
+        console.error(`Slack history failed for ${channelId} [${historyRes.status}]: ${await historyRes.text()}`);
         continue;
       }
 
@@ -93,7 +94,6 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Filter messages mentioning the target user
       const mentionPattern = `<@${targetUserId}>`;
       const mentionMessages = historyData.messages.filter(
         (msg: { text?: string; subtype?: string }) =>
@@ -113,30 +113,118 @@ Deno.serve(async (req) => {
 
         if (existing) continue;
 
-        // Strip the mention and create Intercom conversation
         const messageText = (msg.text as string).replace(/<@[A-Z0-9]+>/g, "").trim();
         const slackUserId = msg.user as string;
 
-        // Find or create Intercom contact
-        const contactRes = await fetch("https://api.intercom.io/contacts/search", {
+        // Send auto-reply asking for context
+        const autoReplyRes = await fetch(`${SLACK_GATEWAY_URL}/chat.postMessage`, {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
+          headers: slackHeaders,
           body: JSON.stringify({
-            query: { field: "external_id", operator: "=", value: slackUserId },
+            channel: channelId,
+            thread_ts: threadTs,
+            username: BOT_USERNAME,
+            icon_emoji: BOT_ICON,
+            text: "👋 Thanks for reaching out! To help us assist you faster, please reply in this thread with:\n\n• *Lovable account email* (optional)\n• *Project link or ID* (optional)\n• *Detailed description of your issue*",
           }),
         });
 
-        const contactData = await contactRes.json();
+        if (!autoReplyRes.ok) {
+          console.error(`Failed to send auto-reply [${autoReplyRes.status}]: ${await autoReplyRes.text()}`);
+        }
+
+        // Store mapping with awaiting_context status (no Intercom conversation yet)
+        await supabase.from("conversation_mappings").insert({
+          slack_channel_id: channelId,
+          slack_thread_ts: threadTs,
+          intercom_conversation_id: "",
+          status: "awaiting_context",
+          original_message_text: messageText,
+          slack_user_id: slackUserId,
+        });
+
+        results.push({ channel: channelId, thread_ts: threadTs, action: "auto_reply_sent" });
+        console.log(`Sent auto-reply for ${channelId}/${threadTs}`);
+      }
+    }
+
+    // ==================== PASS 2: Check awaiting_context threads for replies ====================
+    const { data: pendingMappings } = await supabase
+      .from("conversation_mappings")
+      .select("*")
+      .eq("status", "awaiting_context");
+
+    if (pendingMappings && pendingMappings.length > 0) {
+      for (const mapping of pendingMappings) {
+        // Fetch thread replies
+        const repliesRes = await fetch(
+          `${SLACK_GATEWAY_URL}/conversations.replies?channel=${mapping.slack_channel_id}&ts=${mapping.slack_thread_ts}&limit=50`,
+          { method: "GET", headers: slackHeaders }
+        );
+
+        if (!repliesRes.ok) {
+          console.error(`Failed to fetch replies for ${mapping.slack_channel_id}/${mapping.slack_thread_ts}`);
+          continue;
+        }
+
+        const repliesData = await repliesRes.json();
+        if (!repliesData.ok || !repliesData.messages) continue;
+
+        // Find replies from the original user (skip the initial mention and bot messages)
+        const userReplies = repliesData.messages.filter(
+          (m: { user?: string; bot_id?: string; ts: string }) =>
+            m.user === mapping.slack_user_id && m.ts !== mapping.slack_thread_ts && !m.bot_id
+        );
+
+        // Also check fallback: if thread is old (>10 min), create ticket anyway
+        const threadAge = Date.now() / 1000 - parseFloat(mapping.slack_thread_ts);
+        const hasTimedOut = threadAge > 600; // 10 minutes
+
+        if (userReplies.length === 0 && !hasTimedOut) continue;
+
+        // Parse context from user replies
+        let contextEmail = "";
+        let contextProjectLink = "";
+        let contextDescription = "";
+        const allReplyText: string[] = [];
+
+        for (const reply of userReplies) {
+          const text = (reply.text || "") as string;
+          allReplyText.push(text);
+
+          // Try to extract email
+          const emailMatch = text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+          if (emailMatch && !contextEmail) {
+            contextEmail = emailMatch[0];
+          }
+
+          // Try to extract project link/ID
+          const projectMatch = text.match(/(?:https?:\/\/[^\s]*lovable[^\s]*|[a-f0-9-]{36})/i);
+          if (projectMatch && !contextProjectLink) {
+            contextProjectLink = projectMatch[0];
+          }
+        }
+
+        contextDescription = allReplyText.join("\n").trim();
+
+        // Build enriched message body for Intercom
+        const bodyParts: string[] = [];
+        bodyParts.push(`Original message: ${mapping.original_message_text}`);
+        if (contextEmail) bodyParts.push(`Lovable account email: ${contextEmail}`);
+        if (contextProjectLink) bodyParts.push(`Project: ${contextProjectLink}`);
+        if (contextDescription) bodyParts.push(`Additional context: ${contextDescription}`);
+        if (hasTimedOut && userReplies.length === 0) {
+          bodyParts.push("(No additional context provided — auto-created after timeout)");
+        }
+        const fullBody = bodyParts.join("\n\n");
+
+        // Find or create Intercom contact
+        const slackUserId = mapping.slack_user_id as string;
         let contactId: string;
 
-        if (contactData.data?.length > 0) {
-          contactId = contactData.data[0].id;
-        } else {
-          const createRes = await fetch("https://api.intercom.io/contacts", {
+        // Search by email first if available
+        if (contextEmail) {
+          const contactRes = await fetch("https://api.intercom.io/contacts/search", {
             method: "POST",
             headers: {
               Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
@@ -144,20 +232,70 @@ Deno.serve(async (req) => {
               Accept: "application/json",
             },
             body: JSON.stringify({
-              role: "user",
-              external_id: slackUserId,
-              name: `Slack User ${slackUserId}`,
+              query: { field: "email", operator: "=", value: contextEmail },
             }),
           });
-
-          if (!createRes.ok) {
-            const errBody = await createRes.text();
-            console.error(`Failed to create Intercom contact [${createRes.status}]: ${errBody}`);
-            continue;
+          const contactData = await contactRes.json();
+          if (contactData.data?.length > 0) {
+            contactId = contactData.data[0].id;
+          } else {
+            // Create with email
+            const createRes = await fetch("https://api.intercom.io/contacts", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+              body: JSON.stringify({
+                role: "user",
+                external_id: slackUserId,
+                email: contextEmail,
+                name: contextEmail,
+              }),
+            });
+            if (!createRes.ok) {
+              console.error(`Failed to create Intercom contact [${createRes.status}]: ${await createRes.text()}`);
+              continue;
+            }
+            contactId = (await createRes.json()).id;
           }
-
-          const newContact = await createRes.json();
-          contactId = newContact.id;
+        } else {
+          // Fallback: search by external_id
+          const contactRes = await fetch("https://api.intercom.io/contacts/search", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify({
+              query: { field: "external_id", operator: "=", value: slackUserId },
+            }),
+          });
+          const contactData = await contactRes.json();
+          if (contactData.data?.length > 0) {
+            contactId = contactData.data[0].id;
+          } else {
+            const createRes = await fetch("https://api.intercom.io/contacts", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+              body: JSON.stringify({
+                role: "user",
+                external_id: slackUserId,
+                name: `Slack User ${slackUserId}`,
+              }),
+            });
+            if (!createRes.ok) {
+              console.error(`Failed to create Intercom contact [${createRes.status}]: ${await createRes.text()}`);
+              continue;
+            }
+            contactId = (await createRes.json()).id;
+          }
         }
 
         // Create Intercom conversation
@@ -170,13 +308,12 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             from: { type: "user", id: contactId },
-            body: messageText,
+            body: fullBody,
           }),
         });
 
         if (!convRes.ok) {
-          const errBody = await convRes.text();
-          console.error(`Failed to create Intercom conversation [${convRes.status}]: ${errBody}`);
+          console.error(`Failed to create Intercom conversation [${convRes.status}]: ${await convRes.text()}`);
           continue;
         }
 
@@ -204,20 +341,21 @@ Deno.serve(async (req) => {
           );
 
           if (!assignRes.ok) {
-            const errBody = await assignRes.text();
-            console.error(`Failed to assign conversation [${assignRes.status}]: ${errBody}`);
+            console.error(`Failed to assign conversation [${assignRes.status}]: ${await assignRes.text()}`);
           }
         }
 
-        // Store mapping
-        await supabase.from("conversation_mappings").insert({
-          slack_channel_id: channelId,
-          slack_thread_ts: threadTs,
-          intercom_conversation_id: conversationId,
-        });
+        // Update mapping with Intercom conversation ID and active status
+        await supabase
+          .from("conversation_mappings")
+          .update({
+            intercom_conversation_id: conversationId,
+            status: "active",
+          })
+          .eq("id", mapping.id);
 
-        results.push({ channel: channelId, thread_ts: threadTs, intercom_id: conversationId });
-        console.log(`Created Intercom conversation ${conversationId} from Slack ${channelId}/${threadTs}`);
+        results.push({ channel: mapping.slack_channel_id, thread_ts: mapping.slack_thread_ts, action: `intercom_created_${conversationId}` });
+        console.log(`Created Intercom conversation ${conversationId} from ${mapping.slack_channel_id}/${mapping.slack_thread_ts} (email: ${contextEmail || "none"})`);
       }
     }
 
