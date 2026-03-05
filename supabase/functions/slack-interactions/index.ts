@@ -406,6 +406,27 @@ Deno.serve(async (req) => {
     // Remove feedback buttons when clicked
     if (actionId === "feedback_positive" || actionId === "feedback_negative") {
       await removeButtonsFromMessage(channel, payload.message?.ts);
+
+      // Reassign to enterprise team inbox on any feedback click
+      const settings = await getSettings(supabase);
+      if (settings.intercom_inbox_id && settings.intercom_assignee_id) {
+        await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            message_type: "assignment",
+            type: "team",
+            assignee_id: settings.intercom_inbox_id,
+            admin_id: settings.intercom_assignee_id,
+            body: "",
+          }),
+        });
+        console.log(`Reassigned conversation ${conversationId} to team inbox ${settings.intercom_inbox_id}`);
+      }
     }
 
     if (actionId === "feedback_positive") {
