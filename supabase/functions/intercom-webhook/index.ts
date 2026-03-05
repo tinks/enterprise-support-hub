@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
-    const body = await req.json();
+    const body = JSON.parse(rawBody);
     console.log("Intercom webhook received:", JSON.stringify(body).substring(0, 500));
 
     const topic = body.topic;
