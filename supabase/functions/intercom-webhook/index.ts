@@ -72,6 +72,14 @@ Deno.serve(async (req) => {
     });
   }
 
+  const INTERCOM_API_TOKEN = Deno.env.get("INTERCOM_API_TOKEN");
+  if (!INTERCOM_API_TOKEN) {
+    return new Response(JSON.stringify({ error: "INTERCOM_API_TOKEN not configured" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -194,6 +202,47 @@ Deno.serve(async (req) => {
     console.log(
       `Sent reply to Slack channel ${mapping.slack_channel_id}, thread ${mapping.slack_thread_ts}`
     );
+
+    // Reassign conversation to team inbox and unassign individual owner
+    const { data: settings } = await supabase
+      .from("settings")
+      .select("intercom_inbox_id, intercom_assignee_id")
+      .limit(1)
+      .maybeSingle();
+
+    if (settings?.intercom_inbox_id && settings?.intercom_assignee_id) {
+      try {
+        const assignResponse = await fetch(
+          `https://api.intercom.io/conversations/${conversationId}/parts`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify({
+              message_type: "assignment",
+              type: "team",
+              assignee_id: settings.intercom_inbox_id,
+              admin_id: settings.intercom_assignee_id,
+              body: "",
+            }),
+          }
+        );
+
+        if (!assignResponse.ok) {
+          const errData = await assignResponse.text();
+          console.error(`Failed to reassign Intercom conversation: ${assignResponse.status} ${errData}`);
+        } else {
+          console.log(`Reassigned conversation ${conversationId} to team inbox ${settings.intercom_inbox_id}`);
+        }
+      } catch (assignError) {
+        console.error("Error reassigning Intercom conversation:", assignError);
+      }
+    } else {
+      console.log("Skipping reassignment: intercom_inbox_id or intercom_assignee_id not configured in settings");
+    }
 
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
