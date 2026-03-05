@@ -8,15 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Settings, RefreshCw, Save, Link, Play, Search, Users, Hash } from "lucide-react";
+import { Settings, RefreshCw, Save, Link, Search, Hash } from "lucide-react";
 
 interface SettingsData {
   id: string;
   monitored_channels: string;
   intercom_inbox_id: string;
   intercom_assignee_id: string;
-  slack_bot_user_id: string;
-  last_polled_ts: string;
 }
 
 interface ConversationMapping {
@@ -35,13 +33,6 @@ interface SlackChannel {
   num_members: number;
 }
 
-interface SlackUser {
-  id: string;
-  name: string;
-  real_name: string;
-  display_name: string;
-}
-
 const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 
 const Index = () => {
@@ -49,17 +40,11 @@ const Index = () => {
   const [mappings, setMappings] = useState<ConversationMapping[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [polling, setPolling] = useState(false);
 
   const [channelsOpen, setChannelsOpen] = useState(false);
   const [channels, setChannels] = useState<SlackChannel[]>([]);
   const [channelsLoading, setChannelsLoading] = useState(false);
   const [channelSearch, setChannelSearch] = useState("");
-
-  const [usersOpen, setUsersOpen] = useState(false);
-  const [users, setUsers] = useState<SlackUser[]>([]);
-  const [usersLoading, setUsersLoading] = useState(false);
-  const [userSearch, setUserSearch] = useState("");
 
   const edgeFunctionBaseUrl = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1`;
 
@@ -92,7 +77,6 @@ const Index = () => {
         monitored_channels: settings.monitored_channels,
         intercom_inbox_id: settings.intercom_inbox_id,
         intercom_assignee_id: settings.intercom_assignee_id,
-        slack_bot_user_id: settings.slack_bot_user_id,
       })
       .eq("id", settings.id);
 
@@ -102,27 +86,6 @@ const Index = () => {
       toast.success("Settings saved!");
     }
     setSaving(false);
-  };
-
-  const pollNow = async () => {
-    setPolling(true);
-    try {
-      const res = await fetch(`${edgeFunctionBaseUrl}/poll-slack`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error("Poll failed: " + (data.error || res.statusText));
-      } else {
-        toast.success(`Poll complete — ${data.processed || 0} new conversation(s) created`);
-        loadData();
-      }
-    } catch (err) {
-      toast.error("Poll request failed: " + (err instanceof Error ? err.message : "Unknown error"));
-    }
-    setPolling(false);
   };
 
   const browseChannels = async () => {
@@ -162,35 +125,6 @@ const Index = () => {
     setChannelsOpen(false);
   };
 
-  const browseUsers = async () => {
-    setUsersOpen(true);
-    setUsersLoading(true);
-    setUserSearch("");
-    try {
-      const res = await fetch(`${edgeFunctionBaseUrl}/list-slack-users`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await res.json();
-      if (data.error) {
-        toast.error("Failed to load users: " + data.error);
-        setUsers([]);
-      } else {
-        setUsers(data.users || []);
-      }
-    } catch (err) {
-      toast.error("Request failed: " + (err instanceof Error ? err.message : "Unknown error"));
-      setUsers([]);
-    }
-    setUsersLoading(false);
-  };
-
-  const selectUser = (userId: string) => {
-    setSettings((s) => (s ? { ...s, slack_bot_user_id: userId } : s));
-    toast.success(`Set user ID to ${userId}`);
-    setUsersOpen(false);
-  };
-
   const statusColor = (status: string) => {
     switch (status) {
       case "active": return "default" as const;
@@ -202,14 +136,6 @@ const Index = () => {
 
   const filteredChannels = channels.filter(
     (ch) => ch.name.toLowerCase().includes(channelSearch.toLowerCase()) || ch.id.includes(channelSearch)
-  );
-
-  const filteredUsers = users.filter(
-    (u) =>
-      u.real_name.toLowerCase().includes(userSearch.toLowerCase()) ||
-      u.display_name.toLowerCase().includes(userSearch.toLowerCase()) ||
-      u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
-      u.id.includes(userSearch)
   );
 
   if (loading) {
@@ -230,7 +156,7 @@ const Index = () => {
               Slack ↔ Intercom Bridge
             </h1>
             <p className="text-sm text-muted-foreground">
-              Configure your support bridge settings
+              Event-driven support bridge — @mention the bot to create tickets
             </p>
           </div>
         </div>
@@ -240,7 +166,7 @@ const Index = () => {
           <CardHeader>
             <CardTitle className="text-lg">Configuration</CardTitle>
             <CardDescription>
-              Set the channel IDs, Intercom inbox, and user to monitor for mentions
+              Set the channel IDs and Intercom settings
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -264,7 +190,7 @@ const Index = () => {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Comma-separated Slack channel IDs to poll for mentions
+                Comma-separated Slack channel IDs where @mentions will be monitored
               </p>
             </div>
 
@@ -297,67 +223,10 @@ const Index = () => {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="botuser">Slack User ID to Monitor</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="botuser"
-                  placeholder="U1234567890"
-                  value={settings?.slack_bot_user_id || ""}
-                  onChange={(e) =>
-                    setSettings((s) =>
-                      s ? { ...s, slack_bot_user_id: e.target.value } : s
-                    )
-                  }
-                  className="flex-1"
-                />
-                <Button variant="outline" size="sm" onClick={browseUsers} className="shrink-0">
-                  <Users className="mr-1 h-4 w-4" />
-                  Lookup
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Messages mentioning this user (@mention) will create Intercom tickets
-              </p>
-            </div>
-
             <Button onClick={saveSettings} disabled={saving} className="w-full">
               <Save className="mr-2 h-4 w-4" />
               {saving ? "Saving..." : "Save Settings"}
             </Button>
-          </CardContent>
-        </Card>
-
-        {/* Poll Control Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Play className="h-5 w-5" />
-              Poll Slack
-            </CardTitle>
-            <CardDescription>
-              Manually trigger polling to check monitored channels for new mentions
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button onClick={pollNow} disabled={polling} className="w-full" variant="secondary">
-              {polling ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Polling...
-                </>
-              ) : (
-                <>
-                  <Play className="mr-2 h-4 w-4" />
-                  Poll Now
-                </>
-              )}
-            </Button>
-            {settings?.last_polled_ts && settings.last_polled_ts !== "" && (
-              <p className="text-xs text-muted-foreground text-center">
-                Last polled: {new Date(parseFloat(settings.last_polled_ts) * 1000).toLocaleString()}
-              </p>
-            )}
           </CardContent>
         </Card>
 
@@ -369,24 +238,32 @@ const Index = () => {
               Webhook URLs
             </CardTitle>
             <CardDescription>
-              Use these URLs when configuring your Intercom webhooks
+              Use these URLs when configuring your Slack app and Intercom webhooks
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-muted-foreground">
+                Slack Event Subscriptions URL
+              </Label>
+              <code className="block rounded bg-muted p-2 text-xs break-all">
+                {edgeFunctionBaseUrl}/slack-events
+              </code>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-muted-foreground">
+                Slack Interactivity URL
+              </Label>
+              <code className="block rounded bg-muted p-2 text-xs break-all">
+                {edgeFunctionBaseUrl}/slack-interactions
+              </code>
+            </div>
             <div className="space-y-1">
               <Label className="text-xs font-medium text-muted-foreground">
                 Intercom Webhook URL
               </Label>
               <code className="block rounded bg-muted p-2 text-xs break-all">
                 {edgeFunctionBaseUrl}/intercom-webhook
-              </code>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-muted-foreground">
-                Slack Interactions URL (requires custom Slack app)
-              </Label>
-              <code className="block rounded bg-muted p-2 text-xs break-all">
-                {edgeFunctionBaseUrl}/slack-interactions
               </code>
             </div>
           </CardContent>
@@ -409,7 +286,7 @@ const Index = () => {
           <CardContent>
             {mappings.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
-                No conversations yet. Tag the monitored user in a channel and click Poll Now.
+                No conversations yet. @mention the bot in a monitored channel to get started.
               </p>
             ) : (
               <Table>
@@ -483,47 +360,6 @@ const Index = () => {
                     <span className="font-medium">{ch.name}</span>
                   </span>
                   <span className="font-mono text-xs text-muted-foreground">{ch.id}</span>
-                </button>
-              ))
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* User Lookup Dialog */}
-      <Dialog open={usersOpen} onOpenChange={setUsersOpen}>
-        <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Lookup Slack Users</DialogTitle>
-          </DialogHeader>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search users..."
-              value={userSearch}
-              onChange={(e) => setUserSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <div className="flex-1 overflow-y-auto min-h-0 space-y-1 max-h-[50vh]">
-            {usersLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <RefreshCw className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            ) : filteredUsers.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">No users found</p>
-            ) : (
-              filteredUsers.map((u) => (
-                <button
-                  key={u.id}
-                  onClick={() => selectUser(u.id)}
-                  className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-accent transition-colors"
-                >
-                  <span className="flex flex-col items-start">
-                    <span className="font-medium">{u.real_name}</span>
-                    <span className="text-xs text-muted-foreground">@{u.name}</span>
-                  </span>
-                  <span className="font-mono text-xs text-muted-foreground">{u.id}</span>
                 </button>
               ))
             )}
