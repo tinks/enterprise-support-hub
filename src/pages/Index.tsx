@@ -369,6 +369,7 @@ const Index = () => {
         </DialogContent>
       </Dialog>
     </div>
+    </AppLayout>
   );
 };
 
