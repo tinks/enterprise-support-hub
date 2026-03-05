@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { crypto } from "https://deno.land/std@0.208.0/crypto/mod.ts";
+import { encode as hexEncode } from "https://deno.land/std@0.208.0/encoding/hex.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,11 +8,50 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-slack-signature, x-slack-request-timestamp",
 };
 
-const SLACK_GATEWAY_URL = "https://connector-gateway.lovable.dev/slack/api";
+const SLACK_API_URL = "https://slack.com/api";
+
+async function verifySlackSignature(
+  rawBody: string,
+  signature: string | null,
+  timestamp: string | null,
+  signingSecret: string
+): Promise<boolean> {
+  if (!signature || !timestamp) return false;
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - parseInt(timestamp)) > 300) return false;
+
+  const baseString = `v0:${timestamp}:${rawBody}`;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(signingSecret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(baseString));
+  const computed = `v0=${new TextDecoder().decode(hexEncode(new Uint8Array(sig)))}`;
+  return computed === signature;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN");
+  if (!SLACK_BOT_TOKEN) {
+    return new Response(JSON.stringify({ error: "SLACK_BOT_TOKEN not configured" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const SLACK_SIGNING_SECRET = Deno.env.get("SLACK_SIGNING_SECRET");
+  if (!SLACK_SIGNING_SECRET) {
+    return new Response(JSON.stringify({ error: "SLACK_SIGNING_SECRET not configured" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   const INTERCOM_API_TOKEN = Deno.env.get("INTERCOM_API_TOKEN");
@@ -21,30 +62,30 @@ Deno.serve(async (req) => {
     });
   }
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
-    return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY");
-  if (!SLACK_API_KEY) {
-    return new Response(JSON.stringify({ error: "SLACK_API_KEY not configured" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
+    // Read raw body for signature verification
+    const rawBody = await req.text();
+
+    // Verify Slack signature
+    const slackSignature = req.headers.get("x-slack-signature");
+    const slackTimestamp = req.headers.get("x-slack-request-timestamp");
+
+    const isValid = await verifySlackSignature(rawBody, slackSignature, slackTimestamp, SLACK_SIGNING_SECRET);
+    if (!isValid) {
+      console.error("Invalid Slack interaction signature");
+      return new Response(JSON.stringify({ error: "Invalid signature" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Slack sends interaction payloads as application/x-www-form-urlencoded
-    const formData = await req.formData();
-    const payloadStr = formData.get("payload") as string;
+    const params = new URLSearchParams(rawBody);
+    const payloadStr = params.get("payload");
 
     if (!payloadStr) {
       return new Response(JSON.stringify({ error: "No payload" }), {
@@ -75,12 +116,10 @@ Deno.serve(async (req) => {
     const threadTs = payload.message?.thread_ts || payload.message?.ts;
 
     if (actionId === "feedback_positive") {
-      // Thumbs up — send acknowledgement in thread
-      await fetch(`${SLACK_GATEWAY_URL}/chat.postMessage`, {
+      await fetch(`${SLACK_API_URL}/chat.postMessage`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "X-Connection-Api-Key": SLACK_API_KEY,
+          Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -92,7 +131,6 @@ Deno.serve(async (req) => {
         }),
       });
 
-      // Optionally close/resolve the Intercom conversation
       await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
         method: "POST",
         headers: {
@@ -108,18 +146,14 @@ Deno.serve(async (req) => {
         }),
       });
 
-      // Update mapping status
       await supabase
         .from("conversation_mappings")
         .update({ status: "resolved" })
         .eq("intercom_conversation_id", conversationId);
 
     } else if (actionId === "feedback_negative") {
-      // Thumbs down — unassign from AI bot, route to human
-      // Get settings for admin ID
       const settings = await getSettings(supabase);
 
-      // Unassign (assign to nobody / inbox)
       await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
         method: "POST",
         headers: {
@@ -130,18 +164,16 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           message_type: "assignment",
           type: "admin",
-          assignee_id: "0", // Unassigned
+          assignee_id: "0",
           admin_id: settings.intercom_assignee_id,
           body: "Escalated to human support via Slack feedback (👎)",
         }),
       });
 
-      // Send message in Slack thread
-      await fetch(`${SLACK_GATEWAY_URL}/chat.postMessage`, {
+      await fetch(`${SLACK_API_URL}/chat.postMessage`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "X-Connection-Api-Key": SLACK_API_KEY,
+          Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -153,14 +185,12 @@ Deno.serve(async (req) => {
         }),
       });
 
-      // Update mapping status
       await supabase
         .from("conversation_mappings")
         .update({ status: "escalated" })
         .eq("intercom_conversation_id", conversationId);
     }
 
-    // Respond with 200 to acknowledge the interaction
     return new Response("", {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "text/plain" },

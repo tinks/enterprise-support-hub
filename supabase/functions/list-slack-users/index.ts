@@ -1,29 +1,19 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
 };
 
-const GATEWAY_URL = "https://connector-gateway.lovable.dev/slack/api";
+const SLACK_API_URL = "https://slack.com/api";
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
-    return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY");
-  if (!SLACK_API_KEY) {
-    return new Response(JSON.stringify({ error: "SLACK_API_KEY not configured" }), {
+  const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN");
+  if (!SLACK_BOT_TOKEN) {
+    return new Response(JSON.stringify({ error: "SLACK_BOT_TOKEN not configured" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -37,10 +27,9 @@ serve(async (req) => {
       const params = new URLSearchParams({ limit: "200" });
       if (cursor) params.set("cursor", cursor);
 
-      const res = await fetch(`${GATEWAY_URL}/users.list?${params}`, {
+      const res = await fetch(`${SLACK_API_URL}/users.list?${params}`, {
         headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "X-Connection-Api-Key": SLACK_API_KEY,
+          Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
         },
       });
 

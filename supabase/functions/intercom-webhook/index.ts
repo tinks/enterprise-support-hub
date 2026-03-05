@@ -8,7 +8,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-hub-signature",
 };
 
-const SLACK_GATEWAY_URL = "https://connector-gateway.lovable.dev/slack/api";
+const SLACK_API_URL = "https://slack.com/api";
 
 async function verifyIntercomSignature(
   rawBody: string,
@@ -16,7 +16,6 @@ async function verifyIntercomSignature(
   secret: string
 ): Promise<boolean> {
   if (!signature) return false;
-  // Intercom sends: sha1=<hex>
   const expected = signature.replace("sha1=", "");
   const key = await crypto.subtle.importKey(
     "raw",
@@ -43,7 +42,6 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Read raw body for signature verification
   const rawBody = await req.text();
   const hubSignature = req.headers.get("x-hub-signature");
 
@@ -56,17 +54,9 @@ Deno.serve(async (req) => {
     });
   }
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
-    return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY");
-  if (!SLACK_API_KEY) {
-    return new Response(JSON.stringify({ error: "SLACK_API_KEY not configured" }), {
+  const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN");
+  if (!SLACK_BOT_TOKEN) {
+    return new Response(JSON.stringify({ error: "SLACK_BOT_TOKEN not configured" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
@@ -90,7 +80,6 @@ Deno.serve(async (req) => {
 
     const topic = body.topic;
 
-    // Handle conversation.admin.replied and conversation.admin.noted
     if (
       topic !== "conversation.admin.replied" &&
       topic !== "conversation.admin.single.reply"
@@ -110,7 +99,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Look up the Slack thread mapping
     const { data: mapping } = await supabase
       .from("conversation_mappings")
       .select("*")
@@ -124,13 +112,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Extract the reply text from the webhook payload
     const conversationParts = body.data?.item?.conversation_parts?.conversation_parts;
     let replyText = "";
 
     if (conversationParts && conversationParts.length > 0) {
       const lastPart = conversationParts[conversationParts.length - 1];
-      // Strip HTML tags from the reply
       replyText = (lastPart.body || "").replace(/<[^>]*>/g, "").trim();
     }
 
@@ -142,11 +128,10 @@ Deno.serve(async (req) => {
     }
 
     // Send threaded reply to Slack with feedback buttons
-    const slackResponse = await fetch(`${SLACK_GATEWAY_URL}/chat.postMessage`, {
+    const slackResponse = await fetch(`${SLACK_API_URL}/chat.postMessage`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "X-Connection-Api-Key": SLACK_API_KEY,
+        Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -168,22 +153,14 @@ Deno.serve(async (req) => {
             elements: [
               {
                 type: "button",
-                text: {
-                  type: "plain_text",
-                  text: "👍",
-                  emoji: true,
-                },
+                text: { type: "plain_text", text: "👍", emoji: true },
                 action_id: "feedback_positive",
                 value: conversationId,
                 style: "primary",
               },
               {
                 type: "button",
-                text: {
-                  type: "plain_text",
-                  text: "👎",
-                  emoji: true,
-                },
+                text: { type: "plain_text", text: "👎", emoji: true },
                 action_id: "feedback_negative",
                 value: conversationId,
                 style: "danger",
@@ -205,7 +182,7 @@ Deno.serve(async (req) => {
       `Sent reply to Slack channel ${mapping.slack_channel_id}, thread ${mapping.slack_thread_ts}`
     );
 
-    // Reassign conversation to team inbox and unassign individual owner
+    // Reassign conversation to team inbox
     const { data: settings } = await supabase
       .from("settings")
       .select("intercom_inbox_id, intercom_assignee_id")
@@ -242,8 +219,6 @@ Deno.serve(async (req) => {
       } catch (assignError) {
         console.error("Error reassigning Intercom conversation:", assignError);
       }
-    } else {
-      console.log("Skipping reassignment: intercom_inbox_id or intercom_assignee_id not configured in settings");
     }
 
     return new Response(JSON.stringify({ ok: true }), {
