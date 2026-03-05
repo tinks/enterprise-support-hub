@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -147,7 +148,8 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background p-6">
+    <AppLayout>
+    <div className="bg-background p-6">
       <div className="mx-auto max-w-4xl space-y-6">
         <div className="flex items-center gap-3">
           <Settings className="h-8 w-8 text-primary" />
@@ -367,6 +369,7 @@ const Index = () => {
         </DialogContent>
       </Dialog>
     </div>
+    </AppLayout>
   );
 };
 
