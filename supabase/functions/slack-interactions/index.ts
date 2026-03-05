@@ -348,6 +348,8 @@ Deno.serve(async (req) => {
     // ===== "Add Details" button — open modal =====
     if (actionId === "add_details") {
       const [channelId, threadTs] = (action.value || "").split("|");
+
+      await removeButtonsFromMessage(channelId, payload.message?.ts);
       const triggerId = payload.trigger_id;
 
       await fetch(`${SLACK_API_URL}/views.open`, {
