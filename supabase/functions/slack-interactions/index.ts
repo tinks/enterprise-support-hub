@@ -403,6 +403,11 @@ Deno.serve(async (req) => {
     const channel = payload.channel?.id;
     const threadTs = payload.message?.thread_ts || payload.message?.ts;
 
+    // Remove feedback buttons when clicked
+    if (actionId === "feedback_positive" || actionId === "feedback_negative") {
+      await removeButtonsFromMessage(channel, payload.message?.ts);
+    }
+
     if (actionId === "feedback_positive") {
       await fetch(`${SLACK_API_URL}/chat.postMessage`, {
         method: "POST",
