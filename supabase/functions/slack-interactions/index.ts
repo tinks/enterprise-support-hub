@@ -72,7 +72,7 @@ async function createIntercomTicket(opts: {
       thread_ts: threadTs,
       username: BOT_USERNAME,
       icon_emoji: BOT_ICON,
-      text: "✅ Thanks! Generating a response...",
+      text: "✅ Thanks! Generating a response... Should take about 3-4 minutes.",
     }),
   });
 
