@@ -72,7 +72,7 @@ async function createIntercomTicket(opts: {
       thread_ts: threadTs,
       username: BOT_USERNAME,
       icon_emoji: BOT_ICON,
-      text: "✅ Thanks! Generating a response...",
+      text: "✅ Thanks! Generating a response... Should take about 3-4 minutes.",
     }),
   });
 
@@ -286,9 +286,41 @@ Deno.serve(async (req) => {
 
     const actionId = action.action_id;
 
+    // ===== Helper: remove buttons from the original message =====
+    async function removeButtonsFromMessage(channelId: string, messageTs: string) {
+      const msgTs = payload.message?.ts;
+      if (!msgTs) return;
+      try {
+        // Get original message text to preserve it
+        const originalText = payload.message?.blocks?.[0]?.text?.text || payload.message?.text || "";
+        await fetch(`${SLACK_API_URL}/chat.update`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            channel: channelId,
+            ts: msgTs,
+            text: originalText,
+            blocks: [
+              {
+                type: "section",
+                text: { type: "mrkdwn", text: originalText },
+              },
+            ],
+          }),
+        });
+      } catch (e) {
+        console.error("Failed to remove buttons:", e);
+      }
+    }
+
     // ===== "Proceed" button =====
     if (actionId === "proceed_without_context") {
       const [channelId, threadTs] = (action.value || "").split("|");
+
+      await removeButtonsFromMessage(channelId, payload.message?.ts);
 
       const { data: mapping } = await supabase
         .from("conversation_mappings")
@@ -316,6 +348,8 @@ Deno.serve(async (req) => {
     // ===== "Add Details" button — open modal =====
     if (actionId === "add_details") {
       const [channelId, threadTs] = (action.value || "").split("|");
+
+      await removeButtonsFromMessage(channelId, payload.message?.ts);
       const triggerId = payload.trigger_id;
 
       await fetch(`${SLACK_API_URL}/views.open`, {
@@ -368,6 +402,11 @@ Deno.serve(async (req) => {
     const conversationId = action.value;
     const channel = payload.channel?.id;
     const threadTs = payload.message?.thread_ts || payload.message?.ts;
+
+    // Remove feedback buttons when clicked
+    if (actionId === "feedback_positive" || actionId === "feedback_negative") {
+      await removeButtonsFromMessage(channel, payload.message?.ts);
+    }
 
     if (actionId === "feedback_positive") {
       await fetch(`${SLACK_API_URL}/chat.postMessage`, {
@@ -436,7 +475,7 @@ Deno.serve(async (req) => {
           thread_ts: threadTs,
           username: BOT_USERNAME,
           icon_emoji: BOT_ICON,
-          text: "🔄 Routing to a human support agent. Someone will follow up shortly.",
+          text: "🔄 Escalating to human support. <@U091GANMA2U> will follow up shortly.",
         }),
       });
 

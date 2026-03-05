@@ -153,14 +153,14 @@ Deno.serve(async (req) => {
             elements: [
               {
                 type: "button",
-                text: { type: "plain_text", text: "👍", emoji: true },
+                text: { type: "plain_text", text: "👍 This resolved my issue", emoji: true },
                 action_id: "feedback_positive",
                 value: conversationId,
                 style: "primary",
               },
               {
                 type: "button",
-                text: { type: "plain_text", text: "👎", emoji: true },
+                text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
                 action_id: "feedback_negative",
                 value: conversationId,
                 style: "danger",
