@@ -50,6 +50,7 @@ export type Database = {
           id: string
           intercom_assignee_id: string
           intercom_inbox_id: string
+          last_polled_ts: string
           monitored_channels: string
           slack_bot_user_id: string
           updated_at: string
@@ -59,6 +60,7 @@ export type Database = {
           id?: string
           intercom_assignee_id?: string
           intercom_inbox_id?: string
+          last_polled_ts?: string
           monitored_channels?: string
           slack_bot_user_id?: string
           updated_at?: string
@@ -68,6 +70,7 @@ export type Database = {
           id?: string
           intercom_assignee_id?: string
           intercom_inbox_id?: string
+          last_polled_ts?: string
           monitored_channels?: string
           slack_bot_user_id?: string
           updated_at?: string

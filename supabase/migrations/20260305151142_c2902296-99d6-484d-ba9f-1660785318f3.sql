@@ -1,0 +1,1 @@
+ALTER TABLE public.settings ADD COLUMN last_polled_ts text NOT NULL DEFAULT '';
