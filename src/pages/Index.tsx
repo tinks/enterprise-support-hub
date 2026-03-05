@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Settings, RefreshCw, Save, Link } from "lucide-react";
+import { Settings, RefreshCw, Save, Link, Play } from "lucide-react";
 
 interface SettingsData {
   id: string;
@@ -15,6 +15,7 @@ interface SettingsData {
   intercom_inbox_id: string;
   intercom_assignee_id: string;
   slack_bot_user_id: string;
+  last_polled_ts: string;
 }
 
 interface ConversationMapping {
@@ -33,6 +34,7 @@ const Index = () => {
   const [mappings, setMappings] = useState<ConversationMapping[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [polling, setPolling] = useState(false);
 
   const edgeFunctionBaseUrl = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1`;
 
@@ -77,6 +79,27 @@ const Index = () => {
     setSaving(false);
   };
 
+  const pollNow = async () => {
+    setPolling(true);
+    try {
+      const res = await fetch(`${edgeFunctionBaseUrl}/poll-slack`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error("Poll failed: " + (data.error || res.statusText));
+      } else {
+        toast.success(`Poll complete — ${data.processed || 0} new conversation(s) created`);
+        loadData();
+      }
+    } catch (err) {
+      toast.error("Poll request failed: " + (err instanceof Error ? err.message : "Unknown error"));
+    }
+    setPolling(false);
+  };
+
   const statusColor = (status: string) => {
     switch (status) {
       case "active": return "default" as const;
@@ -114,7 +137,7 @@ const Index = () => {
           <CardHeader>
             <CardTitle className="text-lg">Configuration</CardTitle>
             <CardDescription>
-              Set the channel IDs, Intercom inbox, and bot user to monitor
+              Set the channel IDs, Intercom inbox, and user to monitor for mentions
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -131,7 +154,7 @@ const Index = () => {
                 }
               />
               <p className="text-xs text-muted-foreground">
-                Comma-separated Slack channel IDs to watch for mentions
+                Comma-separated Slack channel IDs to poll for mentions
               </p>
             </div>
 
@@ -165,7 +188,7 @@ const Index = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="botuser">Slack Bot User ID</Label>
+              <Label htmlFor="botuser">Slack User ID to Monitor</Label>
               <Input
                 id="botuser"
                 placeholder="U1234567890"
@@ -177,7 +200,7 @@ const Index = () => {
                 }
               />
               <p className="text-xs text-muted-foreground">
-                The Slack user ID that triggers ticket creation when mentioned
+                Messages mentioning this user (@mention) will create Intercom tickets
               </p>
             </div>
 
@@ -185,6 +208,39 @@ const Index = () => {
               <Save className="mr-2 h-4 w-4" />
               {saving ? "Saving..." : "Save Settings"}
             </Button>
+          </CardContent>
+        </Card>
+
+        {/* Poll Control Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Play className="h-5 w-5" />
+              Poll Slack
+            </CardTitle>
+            <CardDescription>
+              Manually trigger polling to check monitored channels for new mentions
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button onClick={pollNow} disabled={polling} className="w-full" variant="secondary">
+              {polling ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Polling...
+                </>
+              ) : (
+                <>
+                  <Play className="mr-2 h-4 w-4" />
+                  Poll Now
+                </>
+              )}
+            </Button>
+            {settings?.last_polled_ts && settings.last_polled_ts !== "" && (
+              <p className="text-xs text-muted-foreground text-center">
+                Last polled: {new Date(parseFloat(settings.last_polled_ts) * 1000).toLocaleString()}
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -196,32 +252,24 @@ const Index = () => {
               Webhook URLs
             </CardTitle>
             <CardDescription>
-              Use these URLs when configuring your Slack app and Intercom webhooks
+              Use these URLs when configuring your Intercom webhooks
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-muted-foreground">
-                Slack Events URL
-              </Label>
-              <code className="block rounded bg-muted p-2 text-xs break-all">
-                {edgeFunctionBaseUrl}/slack-events
-              </code>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-muted-foreground">
-                Slack Interactions URL
-              </Label>
-              <code className="block rounded bg-muted p-2 text-xs break-all">
-                {edgeFunctionBaseUrl}/slack-interactions
-              </code>
-            </div>
             <div className="space-y-1">
               <Label className="text-xs font-medium text-muted-foreground">
                 Intercom Webhook URL
               </Label>
               <code className="block rounded bg-muted p-2 text-xs break-all">
                 {edgeFunctionBaseUrl}/intercom-webhook
+              </code>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-muted-foreground">
+                Slack Interactions URL (requires custom Slack app)
+              </Label>
+              <code className="block rounded bg-muted p-2 text-xs break-all">
+                {edgeFunctionBaseUrl}/slack-interactions
               </code>
             </div>
           </CardContent>
@@ -244,8 +292,7 @@ const Index = () => {
           <CardContent>
             {mappings.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
-                No conversations yet. Mention the bot in a monitored channel to get
-                started.
+                No conversations yet. Tag the monitored user in a channel and click Poll Now.
               </p>
             ) : (
               <Table>
