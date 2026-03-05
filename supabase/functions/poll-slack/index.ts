@@ -11,6 +11,15 @@ const SLACK_GATEWAY_URL = "https://connector-gateway.lovable.dev/slack/api";
 const BOT_USERNAME = "Lovable Support Bot";
 const BOT_ICON = ":heart:";
 
+function cleanSlackMarkup(text: string): string {
+  return text
+    .replace(/<mailto:([^|>]+)\|[^>]+>/g, '$1')
+    .replace(/<(https?:\/\/[^|>]+)\|[^>]+>/g, '$1')
+    .replace(/<(https?:\/\/[^>]+)>/g, '$1')
+    .replace(/<@[A-Z0-9]+>/g, '')
+    .trim();
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
