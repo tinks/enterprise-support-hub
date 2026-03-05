@@ -1,1 +1,10 @@
 project_id = "dzwcgqyznzrntkbobejo"
+
+[functions.slack-events]
+verify_jwt = false
+
+[functions.intercom-webhook]
+verify_jwt = false
+
+[functions.slack-interactions]
+verify_jwt = false
