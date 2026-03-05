@@ -198,7 +198,7 @@ Deno.serve(async (req) => {
         const allReplyText: string[] = [];
 
         for (const reply of userReplies) {
-          const text = (reply.text || "") as string;
+          const text = cleanSlackMarkup((reply.text || "") as string);
           allReplyText.push(text);
 
           // Try to extract email
