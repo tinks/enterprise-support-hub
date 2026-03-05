@@ -18,27 +18,33 @@ export type Database = {
         Row: {
           created_at: string
           id: string
-          intercom_conversation_id: string
+          intercom_conversation_id: string | null
+          original_message_text: string
           slack_channel_id: string
           slack_thread_ts: string
+          slack_user_id: string
           status: string
           updated_at: string
         }
         Insert: {
           created_at?: string
           id?: string
-          intercom_conversation_id: string
+          intercom_conversation_id?: string | null
+          original_message_text?: string
           slack_channel_id: string
           slack_thread_ts: string
+          slack_user_id?: string
           status?: string
           updated_at?: string
         }
         Update: {
           created_at?: string
           id?: string
-          intercom_conversation_id?: string
+          intercom_conversation_id?: string | null
+          original_message_text?: string
           slack_channel_id?: string
           slack_thread_ts?: string
+          slack_user_id?: string
           status?: string
           updated_at?: string
         }

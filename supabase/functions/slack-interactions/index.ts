@@ -86,6 +86,8 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           channel: channel,
           thread_ts: threadTs,
+          username: "Lovable Support Bot",
+          icon_emoji: ":heart:",
           text: "✅ Glad that helped! Marking as resolved.",
         }),
       });
@@ -145,6 +147,8 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           channel: channel,
           thread_ts: threadTs,
+          username: "Lovable Support Bot",
+          icon_emoji: ":heart:",
           text: "🔄 Routing to a human support agent. Someone will follow up shortly.",
         }),
       });
