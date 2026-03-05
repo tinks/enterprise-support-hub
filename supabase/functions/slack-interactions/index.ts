@@ -475,7 +475,7 @@ Deno.serve(async (req) => {
           thread_ts: threadTs,
           username: BOT_USERNAME,
           icon_emoji: BOT_ICON,
-          text: "🔄 Routing to a human support agent. Someone will follow up shortly.",
+          text: "🔄 Escalating to human support. <@U091GANMA2U> will follow up shortly.",
         }),
       });
 
