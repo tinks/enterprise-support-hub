@@ -9,6 +9,8 @@ const corsHeaders = {
 };
 
 const SLACK_API_URL = "https://slack.com/api";
+const BOT_USERNAME = "Lovable Support Bot";
+const BOT_ICON = ":heart:";
 
 async function verifySlackSignature(
   rawBody: string,
@@ -31,6 +33,143 @@ async function verifySlackSignature(
   const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(baseString));
   const computed = `v0=${new TextDecoder().decode(hexEncode(new Uint8Array(sig)))}`;
   return computed === signature;
+}
+
+// ===== Shared helper: create Intercom ticket =====
+async function createIntercomTicket(opts: {
+  supabase: ReturnType<typeof createClient>;
+  intercomToken: string;
+  slackBotToken: string;
+  channelId: string;
+  threadTs: string;
+  mappingId: string;
+  originalMessage: string;
+  slackUserId: string;
+  email?: string;
+  projectLink?: string;
+}) {
+  const {
+    supabase, intercomToken, slackBotToken,
+    channelId, threadTs, mappingId,
+    originalMessage, slackUserId, email, projectLink,
+  } = opts;
+
+  const intercomHeaders = {
+    Authorization: `Bearer ${intercomToken}`,
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+
+  // Post acknowledgment in thread
+  await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${slackBotToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      channel: channelId,
+      thread_ts: threadTs,
+      username: BOT_USERNAME,
+      icon_emoji: BOT_ICON,
+      text: "✅ Thanks! Generating a response...",
+    }),
+  });
+
+  // Build body
+  const bodyParts: string[] = [`Original message: ${originalMessage}`];
+  if (email) bodyParts.push(`Lovable account email: ${email}`);
+  if (projectLink) bodyParts.push(`Project: ${projectLink}`);
+  const fullBody = bodyParts.join("\n\n");
+
+  // Find or create Intercom contact
+  let contactId: string;
+  const searchField = email ? "email" : "external_id";
+  const searchValue = email || slackUserId;
+
+  const contactRes = await fetch("https://api.intercom.io/contacts/search", {
+    method: "POST",
+    headers: intercomHeaders,
+    body: JSON.stringify({
+      query: { field: searchField, operator: "=", value: searchValue },
+    }),
+  });
+  const contactData = await contactRes.json();
+
+  if (contactData.data?.length > 0) {
+    contactId = contactData.data[0].id;
+  } else {
+    const createBody: Record<string, string> = {
+      role: "user",
+      external_id: slackUserId,
+    };
+    if (email) {
+      createBody.email = email;
+      createBody.name = email;
+    } else {
+      createBody.name = `Slack User ${slackUserId}`;
+    }
+
+    const createRes = await fetch("https://api.intercom.io/contacts", {
+      method: "POST",
+      headers: intercomHeaders,
+      body: JSON.stringify(createBody),
+    });
+    if (!createRes.ok) {
+      console.error(`Failed to create Intercom contact: ${await createRes.text()}`);
+      return;
+    }
+    contactId = (await createRes.json()).id;
+  }
+
+  // Create conversation
+  const convRes = await fetch("https://api.intercom.io/conversations", {
+    method: "POST",
+    headers: intercomHeaders,
+    body: JSON.stringify({
+      from: { type: "user", id: contactId },
+      body: fullBody,
+    }),
+  });
+
+  if (!convRes.ok) {
+    console.error(`Failed to create Intercom conversation: ${await convRes.text()}`);
+    return;
+  }
+
+  const conversation = await convRes.json();
+  const conversationId = conversation.conversation_id || conversation.id;
+
+  // Assign if configured
+  const settings = await getSettings(supabase);
+  if (settings.intercom_assignee_id) {
+    await fetch(
+      `https://api.intercom.io/conversations/${conversationId}/parts`,
+      {
+        method: "POST",
+        headers: intercomHeaders,
+        body: JSON.stringify({
+          message_type: "assignment",
+          type: "admin",
+          assignee_id: settings.intercom_assignee_id,
+          admin_id: settings.intercom_assignee_id,
+        }),
+      }
+    );
+  }
+
+  // Update mapping
+  await supabase
+    .from("conversation_mappings")
+    .update({ intercom_conversation_id: conversationId, status: "active" })
+    .eq("id", mappingId);
+
+  console.log(`Created Intercom conversation ${conversationId} for mapping ${mappingId}`);
+}
+
+async function getSettings(supabase: ReturnType<typeof createClient>) {
+  const { data } = await supabase.from("settings").select("*").limit(1).single();
+  return data || { intercom_assignee_id: "" };
 }
 
 Deno.serve(async (req) => {
@@ -67,7 +206,6 @@ Deno.serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
-    // Read raw body for signature verification
     const rawBody = await req.text();
 
     // Verify Slack signature
@@ -83,7 +221,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Slack sends interaction payloads as application/x-www-form-urlencoded
     const params = new URLSearchParams(rawBody);
     const payloadStr = params.get("payload");
 
@@ -97,6 +234,43 @@ Deno.serve(async (req) => {
     const payload = JSON.parse(payloadStr);
     console.log("Slack interaction received:", JSON.stringify(payload).substring(0, 500));
 
+    // ===== Handle view_submission (modal) =====
+    if (payload.type === "view_submission") {
+      const metadata = JSON.parse(payload.view.private_metadata || "{}");
+      const { channelId, threadTs } = metadata;
+
+      const values = payload.view.state?.values || {};
+      const email = values.email_block?.email_input?.value || "";
+      const projectLink = values.project_block?.project_input?.value || "";
+
+      // Look up mapping
+      const { data: mapping } = await supabase
+        .from("conversation_mappings")
+        .select("*")
+        .eq("slack_channel_id", channelId)
+        .eq("slack_thread_ts", threadTs)
+        .maybeSingle();
+
+      if (mapping) {
+        await createIntercomTicket({
+          supabase,
+          intercomToken: INTERCOM_API_TOKEN,
+          slackBotToken: SLACK_BOT_TOKEN,
+          channelId,
+          threadTs,
+          mappingId: mapping.id,
+          originalMessage: mapping.original_message_text,
+          slackUserId: mapping.slack_user_id,
+          email: email || undefined,
+          projectLink: projectLink || undefined,
+        });
+      }
+
+      // Must return empty 200 to close the modal
+      return new Response("", { status: 200 });
+    }
+
+    // ===== Handle block_actions =====
     if (payload.type !== "block_actions") {
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -110,8 +284,88 @@ Deno.serve(async (req) => {
       });
     }
 
-    const conversationId = action.value;
     const actionId = action.action_id;
+
+    // ===== "Proceed" button =====
+    if (actionId === "proceed_without_context") {
+      const [channelId, threadTs] = (action.value || "").split("|");
+
+      const { data: mapping } = await supabase
+        .from("conversation_mappings")
+        .select("*")
+        .eq("slack_channel_id", channelId)
+        .eq("slack_thread_ts", threadTs)
+        .maybeSingle();
+
+      if (mapping) {
+        await createIntercomTicket({
+          supabase,
+          intercomToken: INTERCOM_API_TOKEN,
+          slackBotToken: SLACK_BOT_TOKEN,
+          channelId,
+          threadTs,
+          mappingId: mapping.id,
+          originalMessage: mapping.original_message_text,
+          slackUserId: mapping.slack_user_id,
+        });
+      }
+
+      return new Response("", { status: 200 });
+    }
+
+    // ===== "Add Details" button — open modal =====
+    if (actionId === "add_details") {
+      const [channelId, threadTs] = (action.value || "").split("|");
+      const triggerId = payload.trigger_id;
+
+      await fetch(`${SLACK_API_URL}/views.open`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          trigger_id: triggerId,
+          view: {
+            type: "modal",
+            callback_id: "add_details_modal",
+            private_metadata: JSON.stringify({ channelId, threadTs }),
+            title: { type: "plain_text", text: "Add Details" },
+            submit: { type: "plain_text", text: "Submit" },
+            close: { type: "plain_text", text: "Cancel" },
+            blocks: [
+              {
+                type: "input",
+                block_id: "email_block",
+                optional: true,
+                element: {
+                  type: "plain_text_input",
+                  action_id: "email_input",
+                  placeholder: { type: "plain_text", text: "your@email.com" },
+                },
+                label: { type: "plain_text", text: "Lovable Account Email" },
+              },
+              {
+                type: "input",
+                block_id: "project_block",
+                optional: true,
+                element: {
+                  type: "plain_text_input",
+                  action_id: "project_input",
+                  placeholder: { type: "plain_text", text: "https://lovable.dev/projects/..." },
+                },
+                label: { type: "plain_text", text: "Project Link or ID" },
+              },
+            ],
+          },
+        }),
+      });
+
+      return new Response("", { status: 200 });
+    }
+
+    // ===== Existing feedback handlers =====
+    const conversationId = action.value;
     const channel = payload.channel?.id;
     const threadTs = payload.message?.thread_ts || payload.message?.ts;
 
@@ -123,14 +377,15 @@ Deno.serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          channel: channel,
+          channel,
           thread_ts: threadTs,
-          username: "Lovable Support Bot",
-          icon_emoji: ":heart:",
+          username: BOT_USERNAME,
+          icon_emoji: BOT_ICON,
           text: "✅ Glad that helped! Marking as resolved.",
         }),
       });
 
+      const settings = await getSettings(supabase);
       await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
         method: "POST",
         headers: {
@@ -141,7 +396,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           message_type: "close",
           type: "admin",
-          admin_id: (await getSettings(supabase)).intercom_assignee_id,
+          admin_id: settings.intercom_assignee_id,
           body: "Resolved via Slack feedback (👍)",
         }),
       });
@@ -177,10 +432,10 @@ Deno.serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          channel: channel,
+          channel,
           thread_ts: threadTs,
-          username: "Lovable Support Bot",
-          icon_emoji: ":heart:",
+          username: BOT_USERNAME,
+          icon_emoji: BOT_ICON,
           text: "🔄 Routing to a human support agent. Someone will follow up shortly.",
         }),
       });
@@ -204,8 +459,3 @@ Deno.serve(async (req) => {
     });
   }
 });
-
-async function getSettings(supabase: ReturnType<typeof createClient>) {
-  const { data } = await supabase.from("settings").select("*").limit(1).single();
-  return data || { intercom_assignee_id: "" };
-}
