@@ -286,9 +286,41 @@ Deno.serve(async (req) => {
 
     const actionId = action.action_id;
 
+    // ===== Helper: remove buttons from the original message =====
+    async function removeButtonsFromMessage(channelId: string, messageTs: string) {
+      const msgTs = payload.message?.ts;
+      if (!msgTs) return;
+      try {
+        // Get original message text to preserve it
+        const originalText = payload.message?.blocks?.[0]?.text?.text || payload.message?.text || "";
+        await fetch(`${SLACK_API_URL}/chat.update`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            channel: channelId,
+            ts: msgTs,
+            text: originalText,
+            blocks: [
+              {
+                type: "section",
+                text: { type: "mrkdwn", text: originalText },
+              },
+            ],
+          }),
+        });
+      } catch (e) {
+        console.error("Failed to remove buttons:", e);
+      }
+    }
+
     // ===== "Proceed" button =====
     if (actionId === "proceed_without_context") {
       const [channelId, threadTs] = (action.value || "").split("|");
+
+      await removeButtonsFromMessage(channelId, payload.message?.ts);
 
       const { data: mapping } = await supabase
         .from("conversation_mappings")
