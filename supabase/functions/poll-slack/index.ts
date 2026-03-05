@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
 
         if (existing) continue;
 
-        const messageText = (msg.text as string).replace(/<@[A-Z0-9]+>/g, "").trim();
+        const messageText = cleanSlackMarkup(msg.text as string);
         const slackUserId = msg.user as string;
 
         // Send auto-reply asking for context
