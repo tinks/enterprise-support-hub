@@ -1,0 +1,166 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
+const SLACK_GATEWAY_URL = "https://connector-gateway.lovable.dev/slack/api";
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) {
+    return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY");
+  if (!SLACK_API_KEY) {
+    return new Response(JSON.stringify({ error: "SLACK_API_KEY not configured" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+  try {
+    const body = await req.json();
+    console.log("Intercom webhook received:", JSON.stringify(body).substring(0, 500));
+
+    const topic = body.topic;
+
+    // Handle conversation.admin.replied and conversation.admin.noted
+    if (
+      topic !== "conversation.admin.replied" &&
+      topic !== "conversation.admin.single.reply"
+    ) {
+      console.log(`Ignoring topic: ${topic}`);
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const conversationId = body.data?.item?.id;
+    if (!conversationId) {
+      console.error("No conversation ID found in webhook payload");
+      return new Response(JSON.stringify({ error: "No conversation ID" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Look up the Slack thread mapping
+    const { data: mapping } = await supabase
+      .from("conversation_mappings")
+      .select("*")
+      .eq("intercom_conversation_id", String(conversationId))
+      .maybeSingle();
+
+    if (!mapping) {
+      console.log(`No mapping found for Intercom conversation ${conversationId}`);
+      return new Response(JSON.stringify({ ok: true, message: "No mapping found" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Extract the reply text from the webhook payload
+    const conversationParts = body.data?.item?.conversation_parts?.conversation_parts;
+    let replyText = "";
+
+    if (conversationParts && conversationParts.length > 0) {
+      const lastPart = conversationParts[conversationParts.length - 1];
+      // Strip HTML tags from the reply
+      replyText = (lastPart.body || "").replace(/<[^>]*>/g, "").trim();
+    }
+
+    if (!replyText) {
+      console.log("No reply text found");
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Send threaded reply to Slack with feedback buttons
+    const slackResponse = await fetch(`${SLACK_GATEWAY_URL}/chat.postMessage`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "X-Connection-Api-Key": SLACK_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        channel: mapping.slack_channel_id,
+        thread_ts: mapping.slack_thread_ts,
+        text: replyText,
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: replyText,
+            },
+          },
+          {
+            type: "actions",
+            elements: [
+              {
+                type: "button",
+                text: {
+                  type: "plain_text",
+                  text: "👍",
+                  emoji: true,
+                },
+                action_id: "feedback_positive",
+                value: conversationId,
+                style: "primary",
+              },
+              {
+                type: "button",
+                text: {
+                  type: "plain_text",
+                  text: "👎",
+                  emoji: true,
+                },
+                action_id: "feedback_negative",
+                value: conversationId,
+                style: "danger",
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    const slackData = await slackResponse.json();
+    if (!slackResponse.ok || !slackData.ok) {
+      throw new Error(
+        `Slack API call failed [${slackResponse.status}]: ${JSON.stringify(slackData)}`
+      );
+    }
+
+    console.log(
+      `Sent reply to Slack channel ${mapping.slack_channel_id}, thread ${mapping.slack_thread_ts}`
+    );
+
+    return new Response(JSON.stringify({ ok: true }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (error: unknown) {
+    console.error("Error in intercom-webhook:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return new Response(JSON.stringify({ error: errorMessage }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});

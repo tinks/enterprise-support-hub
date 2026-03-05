@@ -14,7 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      conversation_mappings: {
+        Row: {
+          created_at: string
+          id: string
+          intercom_conversation_id: string
+          slack_channel_id: string
+          slack_thread_ts: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          intercom_conversation_id: string
+          slack_channel_id: string
+          slack_thread_ts: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          intercom_conversation_id?: string
+          slack_channel_id?: string
+          slack_thread_ts?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      settings: {
+        Row: {
+          created_at: string
+          id: string
+          intercom_assignee_id: string
+          intercom_inbox_id: string
+          monitored_channels: string
+          slack_bot_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          intercom_assignee_id?: string
+          intercom_inbox_id?: string
+          monitored_channels?: string
+          slack_bot_user_id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          intercom_assignee_id?: string
+          intercom_inbox_id?: string
+          monitored_channels?: string
+          slack_bot_user_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
