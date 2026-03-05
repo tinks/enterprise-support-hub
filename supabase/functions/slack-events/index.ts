@@ -184,12 +184,11 @@ Deno.serve(async (req) => {
       const messageText = cleanSlackMarkup(event.text || "");
 
       // Send ephemeral auto-reply (only visible to the mentioning user)
-      await fetch(`${SLACK_API_URL}/chat.postEphemeral`, {
+      await fetch(`${SLACK_API_URL}/chat.postMessage`, {
         method: "POST",
         headers: slackHeaders,
         body: JSON.stringify({
           channel: channelId,
-          user: slackUserId,
           thread_ts: threadTs,
           username: BOT_USERNAME,
           icon_emoji: BOT_ICON,
