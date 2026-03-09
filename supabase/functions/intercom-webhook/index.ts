@@ -135,7 +135,41 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Send threaded reply to Slack with feedback buttons
+    // Build Slack message blocks
+    const blocks: Record<string, unknown>[] = [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: replyText,
+        },
+      },
+    ];
+
+    // Only show feedback buttons for non-escalated conversations
+    if (mapping.status !== "escalated") {
+      blocks.push({
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: { type: "plain_text", text: "👍 This resolved my issue", emoji: true },
+            action_id: "feedback_positive",
+            value: conversationId,
+            style: "primary",
+          },
+          {
+            type: "button",
+            text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
+            action_id: "feedback_negative",
+            value: conversationId,
+            style: "danger",
+          },
+        ],
+      });
+    }
+
+    // Send threaded reply to Slack
     const slackResponse = await fetch(`${SLACK_API_URL}/chat.postMessage`, {
       method: "POST",
       headers: {
@@ -148,34 +182,7 @@ Deno.serve(async (req) => {
         username: "Lovable Support Bot",
         icon_emoji: ":heart:",
         text: replyText,
-        blocks: [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: replyText,
-            },
-          },
-          {
-            type: "actions",
-            elements: [
-              {
-                type: "button",
-                text: { type: "plain_text", text: "👍 This resolved my issue", emoji: true },
-                action_id: "feedback_positive",
-                value: conversationId,
-                style: "primary",
-              },
-              {
-                type: "button",
-                text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
-                action_id: "feedback_negative",
-                value: conversationId,
-                style: "danger",
-              },
-            ],
-          },
-        ],
+        blocks,
       }),
     });
 
