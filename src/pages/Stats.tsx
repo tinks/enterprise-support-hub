@@ -88,7 +88,14 @@ const Stats = () => {
   return (
     <AppLayout>
       <div className="mx-auto max-w-4xl space-y-6 p-6">
-        <h1 className="text-2xl font-bold text-foreground">Stats Dashboard</h1>
+        {/* Hero Banner */}
+        <div className="flex items-center gap-4 rounded-xl border border-border bg-card p-6">
+          <img src="/lovable-logo.png" alt="Lovable logo" className="h-12 w-12 rounded-lg" />
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Lovable Support Hub</h1>
+            <p className="text-sm text-muted-foreground">Real-time analytics for your Slack ↔ Intercom support pipeline</p>
+          </div>
+        </div>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
