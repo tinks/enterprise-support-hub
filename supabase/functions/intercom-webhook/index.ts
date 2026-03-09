@@ -203,8 +203,8 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         channel: mapping.slack_channel_id,
         thread_ts: mapping.slack_thread_ts,
-        username: "Lovable Support Bot",
-        icon_emoji: ":heart:",
+        username: adminName,
+        icon_emoji: ":speech_balloon:",
         text: replyText,
         blocks,
       }),
