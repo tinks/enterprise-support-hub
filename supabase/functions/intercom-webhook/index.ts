@@ -135,16 +135,34 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Build Slack message blocks
-    const blocks: Record<string, unknown>[] = [
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: replyText,
-        },
-      },
-    ];
+    // Strip sign-off lines and AI attribution
+    replyText = replyText
+      .replace(/\n*This message was composed by Lovable's AI Support Agent\.?\s*$/i, "")
+      .replace(/\n*(Best|Regards|Thanks|Cheers),?\n+\w+\s*$/i, "")
+      .trim();
+
+    // Split long text into chunks at paragraph boundaries to avoid Slack's 3000-char block limit
+    const MAX_CHUNK = 2900;
+    const chunks: string[] = [];
+    if (replyText.length <= MAX_CHUNK) {
+      chunks.push(replyText);
+    } else {
+      let remaining = replyText;
+      while (remaining.length > MAX_CHUNK) {
+        let splitIdx = remaining.lastIndexOf("\n\n", MAX_CHUNK);
+        if (splitIdx <= 0) splitIdx = remaining.lastIndexOf("\n", MAX_CHUNK);
+        if (splitIdx <= 0) splitIdx = MAX_CHUNK;
+        chunks.push(remaining.substring(0, splitIdx).trim());
+        remaining = remaining.substring(splitIdx).trim();
+      }
+      if (remaining) chunks.push(remaining);
+    }
+
+    // Build Slack message blocks — one section per chunk
+    const blocks: Record<string, unknown>[] = chunks.map((chunk) => ({
+      type: "section",
+      text: { type: "mrkdwn", text: chunk },
+    }));
 
     // Only show feedback buttons for non-escalated conversations
     if (mapping.status !== "escalated") {
