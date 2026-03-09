@@ -122,10 +122,16 @@ Deno.serve(async (req) => {
 
     const conversationParts = body.data?.item?.conversation_parts?.conversation_parts;
     let replyText = "";
+    let adminName = "Lovable Support Bot";
 
     if (conversationParts && conversationParts.length > 0) {
       const lastPart = conversationParts[conversationParts.length - 1];
       replyText = (lastPart.body || "").replace(/<[^>]*>/g, "").trim();
+      // Extract admin author name for Slack display
+      const author = lastPart.author;
+      if (author && author.name) {
+        adminName = author.name;
+      }
     }
 
     if (!replyText) {
@@ -138,7 +144,8 @@ Deno.serve(async (req) => {
     // Strip sign-off lines and AI attribution
     replyText = replyText
       .replace(/\n*This message was composed by Lovable's AI Support Agent\.?\s*$/i, "")
-      .replace(/\n*(Best|Regards|Thanks|Cheers),?\n+\w+\s*$/i, "")
+      .replace(/\n*(Best|Regards|Thanks|Cheers|Kind regards),?\n+\w+\s*$/i, "")
+      .replace(/\n*(Best|Regards|Thanks|Cheers|Kind regards),?\s*$/i, "")
       .trim();
 
     // Split long text into chunks at paragraph boundaries to avoid Slack's 3000-char block limit
@@ -197,8 +204,8 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         channel: mapping.slack_channel_id,
         thread_ts: mapping.slack_thread_ts,
-        username: "Lovable Support Bot",
-        icon_emoji: ":heart:",
+        username: adminName,
+        icon_emoji: ":speech_balloon:",
         text: replyText,
         blocks,
       }),
