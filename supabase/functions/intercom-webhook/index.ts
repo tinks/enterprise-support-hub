@@ -122,15 +122,20 @@ Deno.serve(async (req) => {
 
     const conversationParts = body.data?.item?.conversation_parts?.conversation_parts;
     let replyText = "";
-    let adminName = "Lovable Support Bot";
+    let adminName = "Lovable Support";
+    let iconUrl: string | undefined = "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/lovable-logo.png";
+    let isHumanAdmin = false;
 
     if (conversationParts && conversationParts.length > 0) {
       const lastPart = conversationParts[conversationParts.length - 1];
       replyText = (lastPart.body || "").replace(/<[^>]*>/g, "").trim();
-      // Extract admin author name for Slack display
       const author = lastPart.author;
-      if (author && author.name) {
-        adminName = author.name;
+      if (author) {
+        // Intercom author type: "admin" for humans, "bot" for bots
+        if (author.type === "admin" && author.name) {
+          adminName = author.name;
+          isHumanAdmin = true;
+        }
       }
     }
 
