@@ -170,6 +170,26 @@ Deno.serve(async (req) => {
       if (remaining) chunks.push(remaining);
     }
 
+    // If human admin, try to find their Slack profile for avatar
+    if (isHumanAdmin) {
+      try {
+        // Look up admin email from Intercom conversation parts
+        const lastPart = conversationParts[conversationParts.length - 1];
+        const adminEmail = lastPart?.author?.email;
+        if (adminEmail) {
+          const lookupRes = await fetch(`${SLACK_API_URL}/users.lookupByEmail?email=${encodeURIComponent(adminEmail)}`, {
+            headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+          });
+          const lookupData = await lookupRes.json();
+          if (lookupData.ok && lookupData.user) {
+            iconUrl = lookupData.user.profile?.image_72 || lookupData.user.profile?.image_48;
+          }
+        }
+      } catch (e) {
+        console.log("Could not look up Slack user for admin avatar:", e);
+      }
+    }
+
     // Build Slack message blocks — one section per chunk
     const blocks: Record<string, unknown>[] = chunks.map((chunk) => ({
       type: "section",
@@ -199,6 +219,18 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Build Slack post payload
+    const slackPayload: Record<string, unknown> = {
+      channel: mapping.slack_channel_id,
+      thread_ts: mapping.slack_thread_ts,
+      username: adminName,
+      text: replyText,
+      blocks,
+    };
+    if (iconUrl) {
+      slackPayload.icon_url = iconUrl;
+    }
+
     // Send threaded reply to Slack
     const slackResponse = await fetch(`${SLACK_API_URL}/chat.postMessage`, {
       method: "POST",
@@ -206,14 +238,7 @@ Deno.serve(async (req) => {
         Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        channel: mapping.slack_channel_id,
-        thread_ts: mapping.slack_thread_ts,
-        username: adminName,
-        icon_emoji: ":speech_balloon:",
-        text: replyText,
-        blocks,
-      }),
+      body: JSON.stringify(slackPayload),
     });
 
     const slackData = await slackResponse.json();
