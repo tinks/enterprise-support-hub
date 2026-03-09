@@ -144,8 +144,8 @@ Deno.serve(async (req) => {
     // Strip sign-off lines and AI attribution
     replyText = replyText
       .replace(/\n*This message was composed by Lovable's AI Support Agent\.?\s*$/i, "")
-      .replace(/\n*(Best|Regards|Thanks|Cheers),?\n+\w+\s*$/i, "")
-      .trim();
+      .replace(/\n*(Best|Regards|Thanks|Cheers|Kind regards),?\n+\w+\s*$/i, "")
+      .replace(/\n*(Best|Regards|Thanks|Cheers|Kind regards),?\s*$/i, "")
 
     // Split long text into chunks at paragraph boundaries to avoid Slack's 3000-char block limit
     const MAX_CHUNK = 2900;
