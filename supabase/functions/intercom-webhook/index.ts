@@ -122,6 +122,7 @@ Deno.serve(async (req) => {
 
     const conversationParts = body.data?.item?.conversation_parts?.conversation_parts;
     let replyText = "";
+    let adminName = "Lovable Support Bot";
 
     if (conversationParts && conversationParts.length > 0) {
       const lastPart = conversationParts[conversationParts.length - 1];
