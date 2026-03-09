@@ -126,6 +126,11 @@ Deno.serve(async (req) => {
     if (conversationParts && conversationParts.length > 0) {
       const lastPart = conversationParts[conversationParts.length - 1];
       replyText = (lastPart.body || "").replace(/<[^>]*>/g, "").trim();
+      // Extract admin author name for Slack display
+      const author = lastPart.author;
+      if (author && author.name) {
+        adminName = author.name;
+      }
     }
 
     if (!replyText) {
