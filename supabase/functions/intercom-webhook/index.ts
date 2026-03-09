@@ -112,9 +112,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Skip if conversation is already resolved or escalated
-    if (mapping.status === "resolved" || mapping.status === "escalated") {
-      console.log(`Ignoring reply for ${conversationId} — status is already ${mapping.status}`);
+    // Skip if conversation is already resolved
+    if (mapping.status === "resolved") {
+      console.log(`Ignoring reply for ${conversationId} — status is already resolved`);
       return new Response(JSON.stringify({ ok: true, message: "Already closed" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
