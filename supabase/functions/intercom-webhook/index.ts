@@ -80,10 +80,10 @@ Deno.serve(async (req) => {
 
     const topic = body.topic;
 
-    if (
-      topic !== "conversation.admin.replied" &&
-      topic !== "conversation.admin.single.reply"
-    ) {
+    const REPLY_TOPICS = ["conversation.admin.replied", "conversation.admin.single.reply"];
+    const CLOSED_TOPICS = ["conversation.admin.closed"];
+
+    if (!REPLY_TOPICS.includes(topic) && !CLOSED_TOPICS.includes(topic)) {
       console.log(`Ignoring topic: ${topic}`);
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
