@@ -52,15 +52,15 @@ const Stats = () => {
   }, [data, view]);
 
   const stats = useMemo(() => {
-    const total = data.length;
-    const resolved = data.filter((m) => m.status === "resolved").length;
-    const escalated = data.filter((m) => m.status === "escalated").length;
-    const active = data.filter((m) => m.status === "active").length;
-    const awaiting = data.filter((m) => m.status === "awaiting_context").length;
+    const total = filtered.length;
+    const resolved = filtered.filter((m) => m.status === "resolved").length;
+    const escalated = filtered.filter((m) => m.status === "escalated").length;
+    const active = filtered.filter((m) => m.status === "active").length;
+    const awaiting = filtered.filter((m) => m.status === "awaiting_context").length;
     const feedbackTotal = resolved + escalated;
     const resolvedPct = feedbackTotal ? Math.round((resolved / feedbackTotal) * 100) : 0;
     return { total, resolved, escalated, active, awaiting, resolvedPct };
-  }, [data]);
+  }, [filtered]);
 
   const dailyData = useMemo(() => {
     const byDay: Record<string, { date: string; resolved: number; escalated: number }> = {};
