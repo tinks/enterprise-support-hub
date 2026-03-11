@@ -183,7 +183,7 @@ Deno.serve(async (req) => {
           const repliesData = await repliesRes.json();
           console.log(`conversations.replies response ok=${repliesData.ok}, messages=${repliesData.messages?.length}`);
           if (!repliesData.ok) {
-            console.error(`conversations.replies error: ${repliesData.error}`);
+            console.error(`conversations.replies error: ${repliesData.error}, needed: ${repliesData.needed}, metadata: ${JSON.stringify(repliesData.response_metadata)}`);
           }
           const threadMessages = (repliesData.messages || [])
             .filter((m: any) => !m.bot_id && m.subtype !== "bot_message");
