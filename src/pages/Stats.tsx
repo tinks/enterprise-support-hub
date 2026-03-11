@@ -31,6 +31,7 @@ const chartConfig = {
 const Stats = () => {
   const [data, setData] = useState<Mapping[]>([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<"real" | "test">("real");
 
   useEffect(() => {
     loadStats();
@@ -40,11 +41,15 @@ const Stats = () => {
     setLoading(true);
     const { data: mappings } = await supabase
       .from("conversation_mappings")
-      .select("status, created_at")
+      .select("status, created_at, is_test")
       .order("created_at", { ascending: true });
     setData((mappings as Mapping[]) || []);
     setLoading(false);
   };
+
+  const filtered = useMemo(() => {
+    return data.filter((m) => (view === "test" ? m.is_test : !m.is_test));
+  }, [data, view]);
 
   const stats = useMemo(() => {
     const total = data.length;
