@@ -74,6 +74,10 @@ Deno.serve(async (req) => {
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+  // Fetch settings for testing_mode
+  const { data: appSettings } = await supabase.from("settings").select("*").limit(1).single();
+  const testingMode = appSettings?.testing_mode === true;
+
   try {
     const body = JSON.parse(rawBody);
     console.log("Intercom webhook received:", JSON.stringify(body).substring(0, 500));
