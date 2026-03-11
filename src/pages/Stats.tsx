@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock } from "lucide-react";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
@@ -10,6 +11,7 @@ import { format, parseISO } from "date-fns";
 interface Mapping {
   status: string;
   created_at: string;
+  is_test: boolean;
 }
 
 const COLORS = {
@@ -29,6 +31,7 @@ const chartConfig = {
 const Stats = () => {
   const [data, setData] = useState<Mapping[]>([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<"real" | "test">("real");
 
   useEffect(() => {
     loadStats();
@@ -38,33 +41,37 @@ const Stats = () => {
     setLoading(true);
     const { data: mappings } = await supabase
       .from("conversation_mappings")
-      .select("status, created_at")
+      .select("status, created_at, is_test")
       .order("created_at", { ascending: true });
     setData((mappings as Mapping[]) || []);
     setLoading(false);
   };
 
+  const filtered = useMemo(() => {
+    return data.filter((m) => (view === "test" ? m.is_test : !m.is_test));
+  }, [data, view]);
+
   const stats = useMemo(() => {
-    const total = data.length;
-    const resolved = data.filter((m) => m.status === "resolved").length;
-    const escalated = data.filter((m) => m.status === "escalated").length;
-    const active = data.filter((m) => m.status === "active").length;
-    const awaiting = data.filter((m) => m.status === "awaiting_context").length;
+    const total = filtered.length;
+    const resolved = filtered.filter((m) => m.status === "resolved").length;
+    const escalated = filtered.filter((m) => m.status === "escalated").length;
+    const active = filtered.filter((m) => m.status === "active").length;
+    const awaiting = filtered.filter((m) => m.status === "awaiting_context").length;
     const feedbackTotal = resolved + escalated;
     const resolvedPct = feedbackTotal ? Math.round((resolved / feedbackTotal) * 100) : 0;
     return { total, resolved, escalated, active, awaiting, resolvedPct };
-  }, [data]);
+  }, [filtered]);
 
   const dailyData = useMemo(() => {
     const byDay: Record<string, { date: string; resolved: number; escalated: number }> = {};
-    data.forEach((m) => {
+    filtered.forEach((m) => {
       if (m.status !== "resolved" && m.status !== "escalated") return;
       const day = format(parseISO(m.created_at), "MMM dd");
       if (!byDay[day]) byDay[day] = { date: day, resolved: 0, escalated: 0 };
       byDay[day][m.status as "resolved" | "escalated"]++;
     });
     return Object.values(byDay);
-  }, [data]);
+  }, [filtered]);
 
   const pieData = useMemo(() => {
     return [
@@ -96,6 +103,13 @@ const Stats = () => {
             <p className="text-sm text-muted-foreground">Real-time analytics for your Slack ↔ Intercom support pipeline</p>
           </div>
         </div>
+        {/* View Toggle */}
+        <Tabs value={view} onValueChange={(v) => setView(v as "real" | "test")} className="w-full">
+          <TabsList>
+            <TabsTrigger value="real">Production</TabsTrigger>
+            <TabsTrigger value="test">Test</TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
