@@ -64,14 +64,14 @@ const Stats = () => {
 
   const dailyData = useMemo(() => {
     const byDay: Record<string, { date: string; resolved: number; escalated: number }> = {};
-    data.forEach((m) => {
+    filtered.forEach((m) => {
       if (m.status !== "resolved" && m.status !== "escalated") return;
       const day = format(parseISO(m.created_at), "MMM dd");
       if (!byDay[day]) byDay[day] = { date: day, resolved: 0, escalated: 0 };
       byDay[day][m.status as "resolved" | "escalated"]++;
     });
     return Object.values(byDay);
-  }, [data]);
+  }, [filtered]);
 
   const pieData = useMemo(() => {
     return [
