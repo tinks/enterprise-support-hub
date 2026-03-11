@@ -330,7 +330,18 @@ const Index = () => {
                         {m.slack_thread_ts}
                       </TableCell>
                       <TableCell className="font-mono text-xs">
-                        {m.intercom_conversation_id}
+                        {m.intercom_conversation_id ? (
+                          <a
+                            href={`https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${m.intercom_conversation_id}?view=List`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary underline hover:text-primary/80 transition-colors"
+                          >
+                            {m.intercom_conversation_id}
+                          </a>
+                        ) : (
+                          "—"
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant={statusColor(m.status)}>{m.status}</Badge>
