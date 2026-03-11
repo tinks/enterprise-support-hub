@@ -174,17 +174,22 @@ Deno.serve(async (req) => {
 
       // If the mention is a thread reply, fetch the parent message as the actual question
       if (event.thread_ts) {
+        console.log(`Mention is a thread reply, fetching parent message for thread ${event.thread_ts}`);
         try {
-          const historyRes = await fetch(
-            `${SLACK_API_URL}/conversations.history?channel=${channelId}&latest=${event.thread_ts}&limit=1&inclusive=true`,
+          const repliesRes = await fetch(
+            `${SLACK_API_URL}/conversations.replies?channel=${channelId}&ts=${event.thread_ts}&limit=1&inclusive=true`,
             { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
           );
-          const historyData = await historyRes.json();
-          const parentMessage = historyData.messages?.[0];
+          const repliesData = await repliesRes.json();
+          console.log(`conversations.replies response ok=${repliesData.ok}, messages=${repliesData.messages?.length}`);
+          if (!repliesData.ok) {
+            console.error(`conversations.replies error: ${repliesData.error}`);
+          }
+          const parentMessage = repliesData.messages?.[0];
           if (parentMessage) {
             messageText = cleanSlackMarkup(parentMessage.text || "");
             slackUserId = parentMessage.user || slackUserId;
-            console.log(`Fetched parent message from ${slackUserId} in thread ${event.thread_ts}`);
+            console.log(`Fetched parent message from user ${slackUserId}: "${messageText.substring(0, 100)}"`);
           }
         } catch (err) {
           console.error("Failed to fetch parent message:", err);
