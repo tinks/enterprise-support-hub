@@ -59,6 +59,7 @@ export type Database = {
           last_polled_ts: string
           monitored_channels: string
           slack_bot_user_id: string
+          testing_mode: boolean
           updated_at: string
         }
         Insert: {
@@ -69,6 +70,7 @@ export type Database = {
           last_polled_ts?: string
           monitored_channels?: string
           slack_bot_user_id?: string
+          testing_mode?: boolean
           updated_at?: string
         }
         Update: {
@@ -79,6 +81,7 @@ export type Database = {
           last_polled_ts?: string
           monitored_channels?: string
           slack_bot_user_id?: string
+          testing_mode?: boolean
           updated_at?: string
         }
         Relationships: []

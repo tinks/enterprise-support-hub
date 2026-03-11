@@ -74,6 +74,10 @@ Deno.serve(async (req) => {
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+  // Fetch settings for testing_mode
+  const { data: appSettings } = await supabase.from("settings").select("*").limit(1).single();
+  const testingMode = appSettings?.testing_mode === true;
+
   try {
     const body = JSON.parse(rawBody);
     console.log("Intercom webhook received:", JSON.stringify(body).substring(0, 500));
@@ -260,6 +264,15 @@ Deno.serve(async (req) => {
       username: adminName,
     };
     if (iconUrl) basePayload.icon_url = iconUrl;
+
+    // If testing mode, prepend debug info as first message
+    if (testingMode) {
+      await postSlackMessage({
+        ...basePayload,
+        text: `🔧 *Debug:* Intercom Conversation ID: \`${conversationId}\``,
+        blocks: [{ type: "section", text: { type: "mrkdwn", text: `🔧 *Debug:* Intercom Conversation ID: \`${conversationId}\`` } }],
+      });
+    }
 
     // Send each chunk as a separate threaded message to avoid Slack's "See more" collapse
     for (let i = 0; i < chunks.length; i++) {

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Settings, RefreshCw, Save, Link, Search, Hash } from "lucide-react";
 
@@ -16,6 +17,7 @@ interface SettingsData {
   monitored_channels: string;
   intercom_inbox_id: string;
   intercom_assignee_id: string;
+  testing_mode: boolean;
 }
 
 interface ConversationMapping {
@@ -78,6 +80,7 @@ const Index = () => {
         monitored_channels: settings.monitored_channels,
         intercom_inbox_id: settings.intercom_inbox_id,
         intercom_assignee_id: settings.intercom_assignee_id,
+        testing_mode: settings.testing_mode,
       })
       .eq("id", settings.id);
 
@@ -223,6 +226,22 @@ const Index = () => {
                   }
                 />
               </div>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="testing-mode" className="text-sm font-medium">Testing Mode</Label>
+                <p className="text-xs text-muted-foreground">
+                  Show Intercom conversation IDs in Slack messages for debugging
+                </p>
+              </div>
+              <Switch
+                id="testing-mode"
+                checked={settings?.testing_mode || false}
+                onCheckedChange={(checked) =>
+                  setSettings((s) => s ? { ...s, testing_mode: checked } : s)
+                }
+              />
             </div>
 
             <Button onClick={saveSettings} disabled={saving} className="w-full">
