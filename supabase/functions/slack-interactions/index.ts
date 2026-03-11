@@ -165,6 +165,24 @@ async function createIntercomTicket(opts: {
     .eq("id", mappingId);
 
   console.log(`Created Intercom conversation ${conversationId} for mapping ${mappingId}`);
+
+  // If testing mode is enabled, post debug message with Intercom conversation ID
+  if (settings.testing_mode) {
+    await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${slackBotToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        channel: channelId,
+        thread_ts: threadTs,
+        username: BOT_USERNAME,
+        icon_url: BOT_ICON_URL,
+        text: `🔧 *Debug:* Intercom Conversation ID: \`${conversationId}\``,
+      }),
+    });
+  }
 }
 
 async function getSettings(supabase: ReturnType<typeof createClient>) {

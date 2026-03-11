@@ -228,6 +228,22 @@ const Index = () => {
               </div>
             </div>
 
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="testing-mode" className="text-sm font-medium">Testing Mode</Label>
+                <p className="text-xs text-muted-foreground">
+                  Show Intercom conversation IDs in Slack messages for debugging
+                </p>
+              </div>
+              <Switch
+                id="testing-mode"
+                checked={settings?.testing_mode || false}
+                onCheckedChange={(checked) =>
+                  setSettings((s) => s ? { ...s, testing_mode: checked } : s)
+                }
+              />
+            </div>
+
             <Button onClick={saveSettings} disabled={saving} className="w-full">
               <Save className="mr-2 h-4 w-4" />
               {saving ? "Saving..." : "Save Settings"}

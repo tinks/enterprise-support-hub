@@ -265,6 +265,15 @@ Deno.serve(async (req) => {
     };
     if (iconUrl) basePayload.icon_url = iconUrl;
 
+    // If testing mode, prepend debug info as first message
+    if (testingMode) {
+      await postSlackMessage({
+        ...basePayload,
+        text: `🔧 *Debug:* Intercom Conversation ID: \`${conversationId}\``,
+        blocks: [{ type: "section", text: { type: "mrkdwn", text: `🔧 *Debug:* Intercom Conversation ID: \`${conversationId}\`` } }],
+      });
+    }
+
     // Send each chunk as a separate threaded message to avoid Slack's "See more" collapse
     for (let i = 0; i < chunks.length; i++) {
       const isLastChunk = i === chunks.length - 1;
