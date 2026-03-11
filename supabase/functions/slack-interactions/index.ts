@@ -71,7 +71,7 @@ async function createIntercomTicket(opts: {
       channel: channelId,
       thread_ts: threadTs,
       username: BOT_USERNAME,
-      icon_emoji: BOT_ICON,
+      icon_url: BOT_ICON_URL,
       text: "✅ Thanks! Generating a response... Should take about 3-4 minutes.",
     }),
   });
