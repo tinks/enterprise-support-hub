@@ -19,6 +19,7 @@ export type Database = {
           created_at: string
           id: string
           intercom_conversation_id: string | null
+          is_test: boolean
           original_message_text: string
           slack_channel_id: string
           slack_thread_ts: string
@@ -30,6 +31,7 @@ export type Database = {
           created_at?: string
           id?: string
           intercom_conversation_id?: string | null
+          is_test?: boolean
           original_message_text?: string
           slack_channel_id: string
           slack_thread_ts: string
@@ -41,6 +43,7 @@ export type Database = {
           created_at?: string
           id?: string
           intercom_conversation_id?: string | null
+          is_test?: boolean
           original_message_text?: string
           slack_channel_id?: string
           slack_thread_ts?: string
