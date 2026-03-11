@@ -164,6 +164,21 @@ async function createIntercomTicket(opts: {
     .update({ intercom_conversation_id: conversationId, status: "active" })
     .eq("id", mappingId);
 
+  // Tag conversation with "Slack" in Intercom
+  try {
+    await fetch("https://api.intercom.io/tags", {
+      method: "POST",
+      headers: intercomHeaders,
+      body: JSON.stringify({
+        name: "Slack",
+        conversations: [{ id: conversationId }],
+      }),
+    });
+    console.log(`Tagged Intercom conversation ${conversationId} with "Slack"`);
+  } catch (tagErr) {
+    console.error(`Failed to tag conversation ${conversationId}:`, tagErr);
+  }
+
   console.log(`Created Intercom conversation ${conversationId} for mapping ${mappingId}`);
 
   // If testing mode is enabled, post debug message with Intercom conversation ID
