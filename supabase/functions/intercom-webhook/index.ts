@@ -268,27 +268,29 @@ Deno.serve(async (req) => {
         { type: "section", text: { type: "mrkdwn", text: chunks[i] } },
       ];
 
-      // Attach feedback buttons to the last message only
-      if (isLastChunk && mapping.status !== "escalated") {
-        blocks.push({
-          type: "actions",
-          elements: [
-            {
-              type: "button",
-              text: { type: "plain_text", text: "👍 This resolved my issue", emoji: true },
-              action_id: "feedback_positive",
-              value: conversationId,
-              style: "primary",
-            },
-            {
-              type: "button",
-              text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
-              action_id: "feedback_negative",
-              value: conversationId,
-              style: "danger",
-            },
-          ],
-        });
+      // Always show 👍 resolve button; show 👎 escalate only if not already escalated
+      if (isLastChunk) {
+        const actionElements: Record<string, unknown>[] = [
+          {
+            type: "button",
+            text: { type: "plain_text", text: "👍 This resolved my issue", emoji: true },
+            action_id: "feedback_positive",
+            value: conversationId,
+            style: "primary",
+          },
+        ];
+
+        if (mapping.status !== "escalated") {
+          actionElements.push({
+            type: "button",
+            text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
+            action_id: "feedback_negative",
+            value: conversationId,
+            style: "danger",
+          });
+        }
+
+        blocks.push({ type: "actions", elements: actionElements });
       }
 
       await postSlackMessage({ ...basePayload, text: chunks[i], blocks });
