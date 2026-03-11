@@ -10,7 +10,7 @@ const corsHeaders = {
 
 const SLACK_API_URL = "https://slack.com/api";
 const BOT_USERNAME = "Lovable Support Bot";
-const BOT_ICON = ":heart:";
+const BOT_ICON_URL = "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/lovable-logo.png";
 
 async function verifySlackSignature(
   rawBody: string,
