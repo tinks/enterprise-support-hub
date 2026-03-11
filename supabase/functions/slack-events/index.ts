@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
       }
 
       const threadTs = event.thread_ts || event.ts;
-      const slackUserId = event.user;
+      let slackUserId = event.user;
 
       // Check if already processed
       const { data: existing } = await supabase
@@ -170,7 +170,27 @@ Deno.serve(async (req) => {
         });
       }
 
-      const messageText = cleanSlackMarkup(event.text || "");
+      let messageText = cleanSlackMarkup(event.text || "");
+
+      // If the mention is a thread reply, fetch the parent message as the actual question
+      if (event.thread_ts) {
+        try {
+          const historyRes = await fetch(
+            `${SLACK_API_URL}/conversations.history?channel=${channelId}&latest=${event.thread_ts}&limit=1&inclusive=true`,
+            { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
+          );
+          const historyData = await historyRes.json();
+          const parentMessage = historyData.messages?.[0];
+          if (parentMessage) {
+            messageText = cleanSlackMarkup(parentMessage.text || "");
+            slackUserId = parentMessage.user || slackUserId;
+            console.log(`Fetched parent message from ${slackUserId} in thread ${event.thread_ts}`);
+          }
+        } catch (err) {
+          console.error("Failed to fetch parent message:", err);
+          // Fall back to the mention text
+        }
+      }
 
       // Send Block Kit message with buttons
       const buttonValue = `${channelId}|${threadTs}`;
