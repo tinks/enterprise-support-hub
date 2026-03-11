@@ -190,62 +190,61 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Build Slack message blocks — one section per chunk
-    const blocks: Record<string, unknown>[] = chunks.map((chunk) => ({
-      type: "section",
-      text: { type: "mrkdwn", text: chunk },
-    }));
-
-    // Only show feedback buttons for non-escalated conversations
-    if (mapping.status !== "escalated") {
-      blocks.push({
-        type: "actions",
-        elements: [
-          {
-            type: "button",
-            text: { type: "plain_text", text: "👍 This resolved my issue", emoji: true },
-            action_id: "feedback_positive",
-            value: conversationId,
-            style: "primary",
-          },
-          {
-            type: "button",
-            text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
-            action_id: "feedback_negative",
-            value: conversationId,
-            style: "danger",
-          },
-        ],
+    // Helper to post a single Slack message
+    async function postSlackMessage(payload: Record<string, unknown>) {
+      const res = await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(`Slack API call failed [${res.status}]: ${JSON.stringify(data)}`);
+      }
+      return data;
     }
 
-    // Build Slack post payload
-    const slackPayload: Record<string, unknown> = {
+    const basePayload: Record<string, unknown> = {
       channel: mapping.slack_channel_id,
       thread_ts: mapping.slack_thread_ts,
       username: adminName,
-      text: replyText,
-      blocks,
     };
-    if (iconUrl) {
-      slackPayload.icon_url = iconUrl;
-    }
+    if (iconUrl) basePayload.icon_url = iconUrl;
 
-    // Send threaded reply to Slack
-    const slackResponse = await fetch(`${SLACK_API_URL}/chat.postMessage`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(slackPayload),
-    });
+    // Send each chunk as a separate threaded message to avoid Slack's "See more" collapse
+    for (let i = 0; i < chunks.length; i++) {
+      const isLastChunk = i === chunks.length - 1;
+      const blocks: Record<string, unknown>[] = [
+        { type: "section", text: { type: "mrkdwn", text: chunks[i] } },
+      ];
 
-    const slackData = await slackResponse.json();
-    if (!slackResponse.ok || !slackData.ok) {
-      throw new Error(
-        `Slack API call failed [${slackResponse.status}]: ${JSON.stringify(slackData)}`
-      );
+      // Attach feedback buttons to the last message only
+      if (isLastChunk && mapping.status !== "escalated") {
+        blocks.push({
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: "👍 This resolved my issue", emoji: true },
+              action_id: "feedback_positive",
+              value: conversationId,
+              style: "primary",
+            },
+            {
+              type: "button",
+              text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
+              action_id: "feedback_negative",
+              value: conversationId,
+              style: "danger",
+            },
+          ],
+        });
+      }
+
+      await postSlackMessage({ ...basePayload, text: chunks[i], blocks });
     }
 
     console.log(
