@@ -103,6 +103,13 @@ const Stats = () => {
             <p className="text-sm text-muted-foreground">Real-time analytics for your Slack ↔ Intercom support pipeline</p>
           </div>
         </div>
+        {/* View Toggle */}
+        <Tabs value={view} onValueChange={(v) => setView(v as "real" | "test")} className="w-full">
+          <TabsList>
+            <TabsTrigger value="real">Production</TabsTrigger>
+            <TabsTrigger value="test">Test</TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
