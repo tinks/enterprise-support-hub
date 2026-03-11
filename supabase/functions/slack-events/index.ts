@@ -255,6 +255,7 @@ Deno.serve(async (req) => {
         status: "awaiting_context",
         original_message_text: messageText,
         slack_user_id: slackUserId,
+        is_test: settings.testing_mode ?? false,
       });
 
       console.log(`Created mapping for mention in ${channelId}/${threadTs}`);
