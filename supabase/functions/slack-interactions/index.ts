@@ -440,7 +440,7 @@ Deno.serve(async (req) => {
           channel,
           thread_ts: threadTs,
           username: BOT_USERNAME,
-          icon_emoji: BOT_ICON,
+           icon_url: BOT_ICON_URL,
           text: "✅ Glad that helped! Marking as resolved.",
         }),
       });
