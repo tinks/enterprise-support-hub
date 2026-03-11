@@ -112,7 +112,54 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Skip if conversation is already resolved
+    // Handle conversation closed/resolved in Intercom
+    if (CLOSED_TOPICS.includes(topic)) {
+      if (mapping.status !== "resolved") {
+        // Helper to post a single Slack message
+        async function postClosedMessage(payload: Record<string, unknown>) {
+          const res = await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) {
+            throw new Error(`Slack API call failed [${res.status}]: ${JSON.stringify(data)}`);
+          }
+          return data;
+        }
+
+        const BOT_ICON_URL = "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/lovable-logo.png";
+        const closedText = "✅ This issue has been marked as resolved. If you need further help, reply in this thread to start the conversation again.";
+
+        await postClosedMessage({
+          channel: mapping.slack_channel_id,
+          thread_ts: mapping.slack_thread_ts,
+          username: "Lovable Support Bot",
+          icon_url: BOT_ICON_URL,
+          text: closedText,
+          blocks: [{ type: "section", text: { type: "mrkdwn", text: closedText } }],
+        });
+
+        await supabase
+          .from("conversation_mappings")
+          .update({ status: "resolved" })
+          .eq("id", mapping.id);
+
+        console.log(`Marked conversation ${conversationId} as resolved and notified Slack`);
+      } else {
+        console.log(`Conversation ${conversationId} already resolved, skipping`);
+      }
+
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Skip if conversation is already resolved (for reply topics)
     if (mapping.status === "resolved") {
       console.log(`Ignoring reply for ${conversationId} — status is already resolved`);
       return new Response(JSON.stringify({ ok: true, message: "Already closed" }), {
