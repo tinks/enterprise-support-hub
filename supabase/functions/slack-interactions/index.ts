@@ -10,7 +10,7 @@ const corsHeaders = {
 
 const SLACK_API_URL = "https://slack.com/api";
 const BOT_USERNAME = "Lovable Support Bot";
-const BOT_ICON = ":heart:";
+const BOT_ICON_URL = "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/lovable-logo.png";
 
 async function verifySlackSignature(
   rawBody: string,
@@ -71,7 +71,7 @@ async function createIntercomTicket(opts: {
       channel: channelId,
       thread_ts: threadTs,
       username: BOT_USERNAME,
-      icon_emoji: BOT_ICON,
+      icon_url: BOT_ICON_URL,
       text: "✅ Thanks! Generating a response... Should take about 3-4 minutes.",
     }),
   });
@@ -440,7 +440,7 @@ Deno.serve(async (req) => {
           channel,
           thread_ts: threadTs,
           username: BOT_USERNAME,
-          icon_emoji: BOT_ICON,
+           icon_url: BOT_ICON_URL,
           text: "✅ Glad that helped! Marking as resolved.",
         }),
       });
@@ -494,7 +494,7 @@ Deno.serve(async (req) => {
           channel,
           thread_ts: threadTs,
           username: BOT_USERNAME,
-          icon_emoji: BOT_ICON,
+          icon_url: BOT_ICON_URL,
           text: "🔄 Escalating to human support. <@U091GANMA2U> will follow up shortly.",
         }),
       });
