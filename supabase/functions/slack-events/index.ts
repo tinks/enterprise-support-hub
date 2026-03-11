@@ -174,10 +174,10 @@ Deno.serve(async (req) => {
 
       // If the mention is a thread reply, fetch the parent message as the actual question
       if (event.thread_ts) {
-        console.log(`Mention is a thread reply, fetching parent message for thread ${event.thread_ts}`);
+        console.log(`Mention is a thread reply, fetching full thread for ${event.thread_ts}`);
         try {
           const repliesRes = await fetch(
-            `${SLACK_API_URL}/conversations.replies?channel=${channelId}&ts=${event.thread_ts}&limit=1&inclusive=true`,
+            `${SLACK_API_URL}/conversations.replies?channel=${channelId}&ts=${event.thread_ts}&inclusive=true`,
             { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
           );
           const repliesData = await repliesRes.json();
@@ -185,15 +185,24 @@ Deno.serve(async (req) => {
           if (!repliesData.ok) {
             console.error(`conversations.replies error: ${repliesData.error}`);
           }
-          const parentMessage = repliesData.messages?.[0];
-          if (parentMessage) {
-            messageText = cleanSlackMarkup(parentMessage.text || "");
-            slackUserId = parentMessage.user || slackUserId;
-            console.log(`Fetched parent message from user ${slackUserId}: "${messageText.substring(0, 100)}"`);
+          const threadMessages = (repliesData.messages || [])
+            .filter((m: any) => !m.bot_id && m.subtype !== "bot_message");
+
+          if (threadMessages.length > 0) {
+            // Attribute ticket to the original poster (first message in thread)
+            slackUserId = threadMessages[0].user || slackUserId;
+
+            // Build a full transcript for Intercom context
+            const transcript = threadMessages
+              .map((m: any) => cleanSlackMarkup(m.text || ""))
+              .filter(Boolean)
+              .join("\n\n");
+            messageText = transcript;
+            console.log(`Built thread transcript (${threadMessages.length} msgs, ${messageText.length} chars) from user ${slackUserId}`);
           }
         } catch (err) {
-          console.error("Failed to fetch parent message:", err);
-          // Fall back to the mention text
+          console.error("Failed to fetch thread messages:", err);
+          messageText = `[incomplete context] ${messageText}`;
         }
       }
 
