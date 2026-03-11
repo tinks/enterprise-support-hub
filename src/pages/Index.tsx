@@ -16,6 +16,7 @@ interface SettingsData {
   monitored_channels: string;
   intercom_inbox_id: string;
   intercom_assignee_id: string;
+  testing_mode: boolean;
 }
 
 interface ConversationMapping {
