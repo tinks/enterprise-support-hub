@@ -80,6 +80,7 @@ const Index = () => {
         monitored_channels: settings.monitored_channels,
         intercom_inbox_id: settings.intercom_inbox_id,
         intercom_assignee_id: settings.intercom_assignee_id,
+        testing_mode: settings.testing_mode,
       })
       .eq("id", settings.id);
 
