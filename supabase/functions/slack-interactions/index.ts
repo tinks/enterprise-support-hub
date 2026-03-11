@@ -77,7 +77,7 @@ async function createIntercomTicket(opts: {
   });
 
   // Build body
-  const bodyParts: string[] = [`Original message: ${originalMessage}`];
+  const bodyParts: string[] = [`Message: ${originalMessage}`];
   if (email) bodyParts.push(`Lovable account email: ${email}`);
   if (projectLink) bodyParts.push(`Project: ${projectLink}`);
   const fullBody = bodyParts.join("\n\n");
