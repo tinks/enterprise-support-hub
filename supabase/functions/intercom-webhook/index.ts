@@ -80,10 +80,10 @@ Deno.serve(async (req) => {
 
     const topic = body.topic;
 
-    if (
-      topic !== "conversation.admin.replied" &&
-      topic !== "conversation.admin.single.reply"
-    ) {
+    const REPLY_TOPICS = ["conversation.admin.replied", "conversation.admin.single.reply"];
+    const CLOSED_TOPICS = ["conversation.admin.closed"];
+
+    if (!REPLY_TOPICS.includes(topic) && !CLOSED_TOPICS.includes(topic)) {
       console.log(`Ignoring topic: ${topic}`);
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -112,7 +112,54 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Skip if conversation is already resolved
+    // Handle conversation closed/resolved in Intercom
+    if (CLOSED_TOPICS.includes(topic)) {
+      if (mapping.status !== "resolved") {
+        // Helper to post a single Slack message
+        async function postClosedMessage(payload: Record<string, unknown>) {
+          const res = await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) {
+            throw new Error(`Slack API call failed [${res.status}]: ${JSON.stringify(data)}`);
+          }
+          return data;
+        }
+
+        const BOT_ICON_URL = "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/lovable-logo.png";
+        const closedText = "✅ This issue has been marked as resolved. If you need further help, reply in this thread to start the conversation again.";
+
+        await postClosedMessage({
+          channel: mapping.slack_channel_id,
+          thread_ts: mapping.slack_thread_ts,
+          username: "Lovable Support Bot",
+          icon_url: BOT_ICON_URL,
+          text: closedText,
+          blocks: [{ type: "section", text: { type: "mrkdwn", text: closedText } }],
+        });
+
+        await supabase
+          .from("conversation_mappings")
+          .update({ status: "resolved" })
+          .eq("id", mapping.id);
+
+        console.log(`Marked conversation ${conversationId} as resolved and notified Slack`);
+      } else {
+        console.log(`Conversation ${conversationId} already resolved, skipping`);
+      }
+
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Skip if conversation is already resolved (for reply topics)
     if (mapping.status === "resolved") {
       console.log(`Ignoring reply for ${conversationId} — status is already resolved`);
       return new Response(JSON.stringify({ ok: true, message: "Already closed" }), {
@@ -221,27 +268,29 @@ Deno.serve(async (req) => {
         { type: "section", text: { type: "mrkdwn", text: chunks[i] } },
       ];
 
-      // Attach feedback buttons to the last message only
-      if (isLastChunk && mapping.status !== "escalated") {
-        blocks.push({
-          type: "actions",
-          elements: [
-            {
-              type: "button",
-              text: { type: "plain_text", text: "👍 This resolved my issue", emoji: true },
-              action_id: "feedback_positive",
-              value: conversationId,
-              style: "primary",
-            },
-            {
-              type: "button",
-              text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
-              action_id: "feedback_negative",
-              value: conversationId,
-              style: "danger",
-            },
-          ],
-        });
+      // Always show 👍 resolve button; show 👎 escalate only if not already escalated
+      if (isLastChunk) {
+        const actionElements: Record<string, unknown>[] = [
+          {
+            type: "button",
+            text: { type: "plain_text", text: "👍 This resolved my issue", emoji: true },
+            action_id: "feedback_positive",
+            value: conversationId,
+            style: "primary",
+          },
+        ];
+
+        if (mapping.status !== "escalated") {
+          actionElements.push({
+            type: "button",
+            text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
+            action_id: "feedback_negative",
+            value: conversationId,
+            style: "danger",
+          });
+        }
+
+        blocks.push({ type: "actions", elements: actionElements });
       }
 
       await postSlackMessage({ ...basePayload, text: chunks[i], blocks });
