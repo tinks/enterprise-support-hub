@@ -445,23 +445,9 @@ Deno.serve(async (req) => {
         }),
       });
 
-      // Assign to admin 8430778 then close — avoids bot-triggered reopens
-      const ADMIN_ID = "8430778";
-      await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          message_type: "assignment",
-          type: "admin",
-          assignee_id: ADMIN_ID,
-          admin_id: ADMIN_ID,
-        }),
-      });
-
+      // Close conversation as unassigned using settings admin ID
+      const closeSettings = await getSettings(supabase);
+      const adminId = closeSettings.intercom_assignee_id || "8430778";
       await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
         method: "POST",
         headers: {
@@ -472,7 +458,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           message_type: "close",
           type: "admin",
-          admin_id: ADMIN_ID,
+          admin_id: adminId,
           body: "Resolved via Slack feedback (👍)",
         }),
       });
