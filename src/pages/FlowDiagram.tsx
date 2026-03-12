@@ -47,7 +47,7 @@ const DEFAULT_MESSAGES: Record<string, string> = {
 };
 
 const ASK_LOVABLE = { name: "Ask Lovable", avatarUrl: "/lovable-logo.png" };
-const ADMIN_IDENTITY = { name: "Sam", avatarUrl: "/lovable-smiley-logo.png" };
+
 
 /* ------------------------------------------------------------------ */
 /*  Build nodes — uses message map so they update from DB              */
@@ -257,7 +257,7 @@ function buildNodes(
         ],
         message:
           "[Agent reply text...]\n\n[ 👍 This resolved my issue ]",
-        botIdentity: ADMIN_IDENTITY,
+        botIdentity: ASK_LOVABLE,
         accent: "orange",
       },
     },
