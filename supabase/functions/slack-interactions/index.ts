@@ -546,6 +546,8 @@ Deno.serve(async (req) => {
 
     } else if (actionId === "feedback_negative") {
       // No Intercom changes — just notify human in Slack
+      await addReaction(SLACK_BOT_TOKEN, channel, threadTs, "hourglass_flowing_sand");
+
       await fetch(`${SLACK_API_URL}/chat.postMessage`, {
         method: "POST",
         headers: {
