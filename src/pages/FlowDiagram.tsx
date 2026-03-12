@@ -319,7 +319,7 @@ const initialNodes: Node<FlowNodeData>[] = [
         "Posts reply with admin identity",
         'Shows only "Resolved" button (no escalate)',
       ],
-      message: "[Agent]: I've looked into your project...\n[ ✅ Resolved ]",
+      message: "[Agent reply text...]\n\n[ 👍 This resolved my issue ]",
       accent: "orange",
     },
   },
