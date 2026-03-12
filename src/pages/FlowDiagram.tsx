@@ -257,6 +257,7 @@ const ADMIN_IDENTITY = { name: "Sam", avatarUrl: "/lovable-smiley-logo.png" };
         ],
         message:
           "[Agent reply text...]\n\n[ 👍 This resolved my issue ]",
+        botIdentity: ADMIN_IDENTITY,
         accent: "orange",
       },
     },
