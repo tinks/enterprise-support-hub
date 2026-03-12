@@ -46,6 +46,9 @@ const DEFAULT_MESSAGES: Record<string, string> = {
     "✅ This issue has been marked as resolved. If you need further help, reply in this thread to start the conversation again.",
 };
 
+const ASK_LOVABLE = { name: "Ask Lovable", avatarUrl: "/lovable-logo.png" };
+const ADMIN_IDENTITY = { name: "Sam", avatarUrl: "/lovable-smiley-logo.png" };
+
 /* ------------------------------------------------------------------ */
 /*  Build nodes — uses message map so they update from DB              */
 /* ------------------------------------------------------------------ */
@@ -85,6 +88,7 @@ function buildNodes(
         message: msgs.context_prompt,
         messageKey: "context_prompt",
         onMessageSave: onSave,
+        botIdentity: ASK_LOVABLE,
         status: "awaiting_context",
         accent: "blue",
       },
@@ -141,6 +145,7 @@ function buildNodes(
         message: msgs.ticket_created_ack,
         messageKey: "ticket_created_ack",
         onMessageSave: onSave,
+        botIdentity: ASK_LOVABLE,
         reactions: ["👀"],
         status: "active",
         accent: "blue",
@@ -163,6 +168,7 @@ function buildNodes(
         ],
         message:
           "[AI reply text...]\n\n[ 👍 This resolved my issue ]  [ 👎 Escalate to human ]",
+        botIdentity: ASK_LOVABLE,
         accent: "blue",
         wide: true,
       },
@@ -184,6 +190,7 @@ function buildNodes(
         message: msgs.feedback_positive,
         messageKey: "feedback_positive",
         onMessageSave: onSave,
+        botIdentity: ASK_LOVABLE,
         reactions: ["✅"],
         status: "resolved",
         accent: "green",
@@ -207,6 +214,7 @@ function buildNodes(
         message: msgs.escalation_notice,
         messageKey: "escalation_notice",
         onMessageSave: onSave,
+        botIdentity: ASK_LOVABLE,
         reactions: ["⏳"],
         status: "escalated",
         accent: "orange",
@@ -229,6 +237,7 @@ function buildNodes(
         message: msgs.reply_forwarded,
         messageKey: "reply_forwarded",
         onMessageSave: onSave,
+        botIdentity: ASK_LOVABLE,
         accent: "orange",
       },
     },
@@ -248,6 +257,7 @@ function buildNodes(
         ],
         message:
           "[Agent reply text...]\n\n[ 👍 This resolved my issue ]",
+        botIdentity: ADMIN_IDENTITY,
         accent: "orange",
       },
     },
@@ -268,6 +278,7 @@ function buildNodes(
         message: msgs.conversation_closed,
         messageKey: "conversation_closed",
         onMessageSave: onSave,
+        botIdentity: ASK_LOVABLE,
         reactions: ["✅"],
         status: "resolved",
         accent: "green",
