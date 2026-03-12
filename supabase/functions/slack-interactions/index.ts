@@ -569,7 +569,27 @@ Deno.serve(async (req) => {
         .eq("intercom_conversation_id", conversationId);
 
     } else if (actionId === "feedback_negative") {
-      // No Intercom changes — just notify human in Slack
+      // Reassign to enterprise team inbox on escalation only
+      const negSettings = await getSettings(supabase);
+      if (negSettings.intercom_inbox_id && negSettings.intercom_assignee_id) {
+        await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            message_type: "assignment",
+            type: "team",
+            assignee_id: negSettings.intercom_inbox_id,
+            admin_id: negSettings.intercom_assignee_id,
+            body: "",
+          }),
+        });
+        console.log(`Reassigned conversation ${conversationId} to team inbox ${negSettings.intercom_inbox_id}`);
+      }
+
       await removeReaction(SLACK_BOT_TOKEN, channel, threadTs, "eyes");
       await addReaction(SLACK_BOT_TOKEN, channel, threadTs, "hourglass_flowing_sand");
 
