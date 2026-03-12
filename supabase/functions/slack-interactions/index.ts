@@ -211,8 +211,6 @@ async function createIntercomTicket(opts: {
       body: JSON.stringify({
         channel: channelId,
         thread_ts: threadTs,
-        username: BOT_USERNAME,
-        icon_url: BOT_ICON_URL,
         text: `🔧 *Debug:* Intercom Conversation ID: \`${conversationId}\``,
       }),
     });
