@@ -527,8 +527,6 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           channel,
           thread_ts: threadTs,
-          username: BOT_USERNAME,
-          icon_url: BOT_ICON_URL,
           text: "🔄 Escalating to human support. <@U091GANMA2U> will follow up shortly.",
         }),
       });

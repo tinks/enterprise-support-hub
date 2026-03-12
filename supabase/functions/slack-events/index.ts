@@ -214,8 +214,6 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           channel: channelId,
           thread_ts: threadTs,
-          username: BOT_USERNAME,
-          icon_url: BOT_ICON_URL,
           text: "Optionally add your Lovable account email and/or project link to improve support. If you don't want to share this, just click Proceed.",
           blocks: [
             {
