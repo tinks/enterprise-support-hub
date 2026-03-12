@@ -158,11 +158,27 @@ async function createIntercomTicket(opts: {
       headers: intercomHeaders,
       body: JSON.stringify(createBody),
     });
+    const createResText = await createRes.text();
     if (!createRes.ok) {
-      console.error(`Failed to create Intercom contact: ${await createRes.text()}`);
-      return;
+      // Handle conflict — contact already exists, extract ID from error
+      let conflictId: string | null = null;
+      try {
+        const errData = JSON.parse(createResText);
+        const conflictMsg = errData.errors?.[0]?.message || "";
+        const idMatch = conflictMsg.match(/id=([a-f0-9]+)/);
+        if (idMatch) conflictId = idMatch[1];
+      } catch (_) { /* ignore parse error */ }
+
+      if (conflictId) {
+        console.log(`Contact conflict resolved — using existing id=${conflictId}`);
+        contactId = conflictId;
+      } else {
+        console.error(`Failed to create Intercom contact: ${createResText}`);
+        return;
+      }
+    } else {
+      contactId = JSON.parse(createResText).id;
     }
-    contactId = (await createRes.json()).id;
   }
 
   // Create conversation
