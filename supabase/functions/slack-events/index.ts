@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
       "Content-Type": "application/json",
     };
 
-    // Load settings
+    // Load settings (moved before identity guard)
     const { data: settings } = await supabase
       .from("settings")
       .select("*")
