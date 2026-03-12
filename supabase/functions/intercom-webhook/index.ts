@@ -273,6 +273,11 @@ Deno.serve(async (req) => {
       .replace(/\n*(Best|Regards|Thanks|Cheers|Kind regards|Warm regards|All the best),?\s*$/i, "")
       .trim();
 
+    // Prepend admin name for human replies so users know who responded
+    if (isHumanAdmin && adminName) {
+      replyText = `*${adminName}:*\n${replyText}`;
+    }
+
     // Split long text into chunks to avoid Slack's "See more" collapse.
     // Slack truncates at ~3000 chars OR ~40 lines — use whichever limit is hit first.
     const MAX_CHUNK_CHARS = 2500;
@@ -287,12 +292,10 @@ Deno.serve(async (req) => {
     } else {
       let remaining = replyText;
       while (needsSplit(remaining)) {
-        // Try paragraph boundary first, then line, then hard char limit
         let splitIdx = remaining.lastIndexOf("\n\n", MAX_CHUNK_CHARS);
         if (splitIdx <= 0) splitIdx = remaining.lastIndexOf("\n", MAX_CHUNK_CHARS);
         if (splitIdx <= 0) splitIdx = MAX_CHUNK_CHARS;
 
-        // Also check line count limit
         const lines = remaining.substring(0, splitIdx).split("\n");
         if (lines.length > MAX_CHUNK_LINES) {
           splitIdx = lines.slice(0, MAX_CHUNK_LINES).join("\n").length;
@@ -302,11 +305,6 @@ Deno.serve(async (req) => {
         remaining = remaining.substring(splitIdx).trim();
       }
       if (remaining) chunks.push(remaining);
-    }
-
-    // Prepend admin name for human replies so users know who responded
-    if (isHumanAdmin && adminName) {
-      replyText = `*${adminName}:*\n${replyText}`;
     }
 
     // Helper to post a single Slack message
