@@ -252,26 +252,10 @@ Deno.serve(async (req) => {
 
     const conversationParts = body.data?.item?.conversation_parts?.conversation_parts;
     let replyText = "";
-    let adminName = "Lovable Support";
-    let adminAvatarUrl: string | null = null;
-    let slackUserId: string | null = null;
-    let isHumanAdmin = false;
 
     if (conversationParts && conversationParts.length > 0) {
       const lastPart = conversationParts[conversationParts.length - 1];
       replyText = (lastPart.body || "").replace(/<[^>]*>/g, "").trim();
-      const author = lastPart.author;
-      if (author) {
-        // Intercom author type: "admin" for humans, "bot" for bots
-        if (author.type === "admin" && author.name) {
-          adminName = author.name;
-          isHumanAdmin = true;
-          // Grab avatar from webhook payload if available
-          if (author.avatar?.image_url) {
-            adminAvatarUrl = author.avatar.image_url;
-          }
-        }
-      }
     }
 
     if (!replyText) {
@@ -317,53 +301,6 @@ Deno.serve(async (req) => {
         remaining = remaining.substring(splitIdx).trim();
       }
       if (remaining) chunks.push(remaining);
-    }
-
-    if (isHumanAdmin) {
-      try {
-        const lastPart = conversationParts[conversationParts.length - 1];
-        const adminEmail = lastPart?.author?.email;
-        if (adminEmail) {
-          const lookupRes = await fetch(`${SLACK_API_URL}/users.lookupByEmail?email=${encodeURIComponent(adminEmail)}`, {
-            headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
-          });
-          const lookupData = await lookupRes.json();
-          if (lookupData.ok && lookupData.user) {
-            slackUserId = lookupData.user.id;
-            // Use Slack profile picture if available
-            const profile = lookupData.user.profile;
-            if (profile?.image_192) {
-              adminAvatarUrl = profile.image_192;
-            } else if (profile?.image_72) {
-              adminAvatarUrl = profile.image_72;
-            }
-          }
-        }
-        // Fallback: fetch avatar from Intercom API if still missing
-        if (!adminAvatarUrl) {
-          const adminId = lastPart?.author?.id;
-          if (adminId) {
-            const adminRes = await fetch(`https://api.intercom.io/admins/${adminId}`, {
-              headers: {
-                Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
-                Accept: "application/json",
-              },
-            });
-            if (adminRes.ok) {
-              const adminData = await adminRes.json();
-              if (adminData.avatar?.image_url) {
-                adminAvatarUrl = adminData.avatar.image_url;
-              }
-            }
-          }
-        }
-      } catch (e) {
-        console.log("Could not look up avatar for admin:", e);
-      }
-      // Final fallback: use the lovable smiley logo from public assets
-      if (!adminAvatarUrl) {
-        adminAvatarUrl = `${SUPABASE_URL}/storage/v1/object/public/public-assets/lovable-smiley-logo.png`;
-      }
     }
 
     // Helper to post a single Slack message
