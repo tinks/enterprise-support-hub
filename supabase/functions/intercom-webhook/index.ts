@@ -281,15 +281,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Strip sign-off lines and AI attribution
+    // Strip sign-off lines and AI attribution (handle various Intercom AI footers)
     replyText = replyText
-      .replace(/\n*This message was composed by Lovable's AI Support Agent\.?\s*$/i, "")
-      .replace(/\n*(Best|Regards|Thanks|Cheers|Kind regards),?\n+\w+\s*$/i, "")
-      .replace(/\n*(Best|Regards|Thanks|Cheers|Kind regards),?\s*$/i, "")
+      .replace(/\n*This message was.*$/is, "")
+      .replace(/\n*(Best|Regards|Thanks|Cheers|Kind regards|Warm regards|All the best),?\n+\w+\s*$/i, "")
+      .replace(/\n*(Best|Regards|Thanks|Cheers|Kind regards|Warm regards|All the best),?\s*$/i, "")
       .trim();
 
-    // Split long text into chunks at paragraph boundaries to avoid Slack's 3000-char block limit
-    const MAX_CHUNK = 2900;
+    // Split long text into chunks to avoid Slack's "See more" collapse.
+    // Slack truncates at ~3000 chars OR ~40 lines — use whichever limit is hit first.
+    const MAX_CHUNK_CHARS = 2500;
+    const MAX_CHUNK_LINES = 35;
     const chunks: string[] = [];
     if (replyText.length <= MAX_CHUNK) {
       chunks.push(replyText);
