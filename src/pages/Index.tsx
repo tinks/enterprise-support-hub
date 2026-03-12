@@ -308,6 +308,9 @@ const Index = () => {
           </CardContent>
         </Card>
 
+        {/* Bot Identity Card */}
+        <BotIdentityCard />
+
         {/* Webhook URLs Card */}
         <Card>
           <CardHeader>
