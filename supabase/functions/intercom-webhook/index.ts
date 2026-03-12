@@ -253,6 +253,7 @@ Deno.serve(async (req) => {
       const lastPart = conversationParts[conversationParts.length - 1];
       replyText = (lastPart.body || "").replace(/<[^>]*>/g, "").trim();
       const author = lastPart.author;
+      // Intercom AI bots have type "bot"; human teammates have type "admin"
       if (author && author.type === "admin" && author.name) {
         adminName = author.name;
         isHumanAdmin = true;
