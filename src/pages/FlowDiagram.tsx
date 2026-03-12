@@ -337,7 +337,7 @@ const initialNodes: Node<FlowNodeData>[] = [
         "Removes 👀 and ⏳, adds ✅",
         "Posts resolution notice",
       ],
-      message: "This issue has been marked as resolved. ✅",
+      message: "✅ This issue has been marked as resolved. If you need further help, reply in this thread to start the conversation again.",
       reactions: ["✅"],
       status: "resolved",
       accent: "green",
