@@ -356,14 +356,7 @@ Deno.serve(async (req) => {
       ...(isHumanAdmin && adminAvatarUrl && { icon_url: adminAvatarUrl }),
     };
 
-    // If testing mode, prepend debug info as first message
-    if (testingMode) {
-      await postSlackMessage({
-        ...basePayload,
-        text: `🔧 *Debug:* Intercom Conversation ID: \`${conversationId}\``,
-        blocks: [{ type: "section", text: { type: "mrkdwn", text: `🔧 *Debug:* Intercom Conversation ID: \`${conversationId}\`` } }],
-      });
-    }
+    // Debug message is already posted by slack-interactions when the ticket is created
 
     // Send each chunk as a separate threaded message to avoid Slack's "See more" collapse
     for (let i = 0; i < chunks.length; i++) {
