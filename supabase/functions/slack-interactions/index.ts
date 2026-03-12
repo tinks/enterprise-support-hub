@@ -378,7 +378,7 @@ Deno.serve(async (req) => {
     if (actionId === "proceed_without_context") {
       const [channelId, threadTs] = (action.value || "").split("|");
 
-      await removeButtonsFromMessage(channelId, payload.message?.ts);
+      await deletePromptMessage(channelId);
 
       // Atomic guard: only proceed if status is still awaiting_context
       const { data: updated } = await supabase
