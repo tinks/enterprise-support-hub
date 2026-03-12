@@ -71,6 +71,9 @@ async function createIntercomTicket(opts: {
     "Intercom-Version": "2.11",
   };
 
+  // Add eyes reaction to original message
+  await addReaction(slackBotToken, channelId, threadTs, "eyes");
+
   // Post acknowledgment in thread
   await fetch(`${SLACK_API_URL}/chat.postMessage`, {
     method: "POST",
