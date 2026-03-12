@@ -27,6 +27,22 @@ async function addReaction(token: string, channel: string, timestamp: string, em
   }
 }
 
+async function removeReaction(token: string, channel: string, timestamp: string, emoji: string) {
+  try {
+    const res = await fetch(`${SLACK_API_URL}/reactions.remove`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ channel, timestamp, name: emoji }),
+    });
+    const data = await res.json();
+    if (!data.ok && data.error !== "no_reaction") {
+      console.error(`Slack reactions.remove failed for ${emoji}:`, data.error);
+    }
+  } catch (e) {
+    console.error(`Failed to remove reaction ${emoji}:`, e);
+  }
+}
+
 async function verifySlackSignature(
   rawBody: string,
   signature: string | null,
