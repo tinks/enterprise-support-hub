@@ -39,7 +39,7 @@ const DEFAULT_MESSAGES: Record<string, string> = {
     "Thanks for sharing those details! You're now being redirected to Sam, Lovable's AI Support Agent. Please note that Sam may take 3–4 minutes to come back to you with a response. Hang tight!",
   feedback_positive: "Glad to hear your issue is resolved! We'll now close this conversation. Should you need any further assistance, please start a new thread. Replies to a closed conversation won't reach our team. We're always happy to help!",
   escalation_notice:
-    "🔄 Escalating to human support. A ticket has been created and a member of our Enterprise support team will follow up shortly.",
+    "Your query has been escalated to our Enterprise Support Team. A member of the team will follow up with you shortly.",
   reply_forwarded:
     "Thanks for your reply! We will be back to you with an answer in a few minutes.",
   conversation_closed:
