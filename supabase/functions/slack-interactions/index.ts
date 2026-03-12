@@ -351,32 +351,43 @@ Deno.serve(async (req) => {
       const email = values.email_block?.email_input?.value || "";
       const projectLink = values.project_block?.project_input?.value || "";
 
-      // Atomic guard: only proceed if status is still awaiting_context
-      const { data: updated } = await supabase
-        .from("conversation_mappings")
-        .update({ status: "processing" })
-        .eq("slack_channel_id", channelId)
-        .eq("slack_thread_ts", threadTs)
-        .eq("status", "awaiting_context")
-        .select()
-        .maybeSingle();
+      // Fire-and-forget: do heavy work in background so Slack gets the 200 within 3s
+      const bgWork = (async () => {
+        try {
+          // Atomic guard: only proceed if status is still awaiting_context
+          const { data: updated } = await supabase
+            .from("conversation_mappings")
+            .update({ status: "processing" })
+            .eq("slack_channel_id", channelId)
+            .eq("slack_thread_ts", threadTs)
+            .eq("status", "awaiting_context")
+            .select()
+            .maybeSingle();
 
-      if (updated) {
-        await createIntercomTicket({
-          supabase,
-          intercomToken: INTERCOM_API_TOKEN,
-          slackBotToken: SLACK_BOT_TOKEN,
-          channelId,
-          threadTs,
-          mappingId: updated.id,
-          originalMessage: updated.original_message_text,
-          slackUserId: updated.slack_user_id,
-          email: email || undefined,
-          projectLink: projectLink || undefined,
-        });
+          if (updated) {
+            await createIntercomTicket({
+              supabase,
+              intercomToken: INTERCOM_API_TOKEN,
+              slackBotToken: SLACK_BOT_TOKEN,
+              channelId,
+              threadTs,
+              mappingId: updated.id,
+              originalMessage: updated.original_message_text,
+              slackUserId: updated.slack_user_id,
+              email: email || undefined,
+              projectLink: projectLink || undefined,
+            });
+          }
+        } catch (e) {
+          console.error("Background view_submission work failed:", e);
+        }
+      })();
+      // Keep the isolate alive until background work completes
+      if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+        EdgeRuntime.waitUntil(bgWork);
       }
 
-      // Must return empty 200 to close the modal
+      // Return immediately to close the modal (Slack 3s timeout)
       return new Response("", { status: 200 });
     }
 
