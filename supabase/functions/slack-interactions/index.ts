@@ -253,7 +253,23 @@ Deno.serve(async (req) => {
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  try {
+    // Identity guard: verify token matches expected bot
+    const guardSettings = await getSettings(supabase);
+    const expectedBotId = guardSettings.slack_bot_user_id;
+    if (expectedBotId) {
+      const authCheck = await fetch("https://slack.com/api/auth.test", {
+        headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+      });
+      const authCheckData = await authCheck.json();
+      if (!authCheckData.ok || authCheckData.user_id !== expectedBotId) {
+        console.error(`IDENTITY GUARD: Token belongs to ${authCheckData.user_id || "unknown"}, expected ${expectedBotId}. Blocking.`);
+        return new Response(JSON.stringify({ error: "Bot identity mismatch — refusing to process" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const rawBody = await req.text();
 
     // Verify Slack signature
