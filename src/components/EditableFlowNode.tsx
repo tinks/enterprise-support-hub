@@ -89,6 +89,17 @@ export default function EditableFlowNode({ data }: { data: FlowNodeData }) {
 
           {data.message && (
             <div className="mt-2 group relative">
+              {data.botIdentity && (
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <img
+                    src={data.botIdentity.avatarUrl}
+                    alt={data.botIdentity.name}
+                    className="h-4 w-4 rounded-sm"
+                  />
+                  <span className="text-[9px] font-semibold text-foreground">{data.botIdentity.name}</span>
+                  <span className="rounded bg-muted px-1 py-px text-[8px] font-medium text-muted-foreground leading-none">APP</span>
+                </div>
+              )}
               {editing ? (
                 <div className="space-y-1.5">
                   <Textarea
