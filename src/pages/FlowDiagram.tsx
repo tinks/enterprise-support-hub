@@ -52,6 +52,9 @@ const DEFAULT_MESSAGES: Record<string, string> = {
 function buildNodes(
   msgs: Record<string, string>,
   onSave: (key: string, text: string) => void
+const ASK_LOVABLE = { name: "Ask Lovable", avatarUrl: "/lovable-logo.png" };
+const ADMIN_IDENTITY = { name: "Sam", avatarUrl: "/lovable-smiley-logo.png" };
+
 ): Node<FlowNodeData>[] {
   return [
     {
