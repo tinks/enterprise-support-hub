@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
         await postClosedMessage({
           channel: mapping.slack_channel_id,
           thread_ts: mapping.slack_thread_ts,
-          username: "Lovable Support Bot",
+          username: "Ask Lovable",
           icon_url: BOT_ICON_URL,
           text: closedText,
           blocks: [{ type: "section", text: { type: "mrkdwn", text: closedText } }],
