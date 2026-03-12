@@ -16,6 +16,7 @@ export type FlowNodeData = {
   accent?: "blue" | "green" | "orange" | "default";
   wide?: boolean;
   onMessageSave?: (key: string, text: string) => void;
+  botIdentity?: { name: string; avatarUrl: string };
 };
 
 const accentBorder: Record<string, string> = {
