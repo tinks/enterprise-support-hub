@@ -168,6 +168,7 @@ const ADMIN_IDENTITY = { name: "Sam", avatarUrl: "/lovable-smiley-logo.png" };
         ],
         message:
           "[AI reply text...]\n\n[ 👍 This resolved my issue ]  [ 👎 Escalate to human ]",
+        botIdentity: ASK_LOVABLE,
         accent: "blue",
         wide: true,
       },
