@@ -489,8 +489,6 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           channel,
           thread_ts: threadTs,
-          username: BOT_USERNAME,
-           icon_url: BOT_ICON_URL,
           text: "✅ Glad that helped! Marking as resolved.",
         }),
       });
