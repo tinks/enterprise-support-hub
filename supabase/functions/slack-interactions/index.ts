@@ -548,6 +548,8 @@ Deno.serve(async (req) => {
     }
 
     if (actionId === "feedback_positive") {
+      await removeReaction(SLACK_BOT_TOKEN, channel, threadTs, "eyes");
+      await removeReaction(SLACK_BOT_TOKEN, channel, threadTs, "hourglass_flowing_sand");
       await addReaction(SLACK_BOT_TOKEN, channel, threadTs, "white_check_mark");
 
       await fetch(`${SLACK_API_URL}/chat.postMessage`, {
