@@ -428,6 +428,28 @@ Deno.serve(async (req) => {
           await removeReaction(SLACK_BOT_TOKEN, channelId, threadTs, "eyes");
           await addReaction(SLACK_BOT_TOKEN, channelId, threadTs, "hourglass_flowing_sand");
 
+          // Reassign to enterprise team inbox
+          if (intercomSettings.data?.intercom_inbox_id && adminId) {
+            await fetch(
+              `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/parts`,
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                  "Content-Type": "application/json",
+                  Accept: "application/json",
+                },
+                body: JSON.stringify({
+                  message_type: "assignment",
+                  type: "team",
+                  assignee_id: intercomSettings.data.intercom_inbox_id,
+                  admin_id: adminId,
+                  body: "",
+                }),
+              }
+            );
+          }
+
           await supabase
             .from("conversation_mappings")
             .update({ status: "escalated" })
