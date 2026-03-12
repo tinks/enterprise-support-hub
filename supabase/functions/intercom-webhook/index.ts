@@ -187,7 +187,7 @@ Deno.serve(async (req) => {
     const conversationParts = body.data?.item?.conversation_parts?.conversation_parts;
     let replyText = "";
     let adminName = "Lovable Support";
-    let iconUrl: string | undefined = "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/lovable-smiley-logo.png";
+    let slackUserId: string | null = null;
     let isHumanAdmin = false;
 
     if (conversationParts && conversationParts.length > 0) {
