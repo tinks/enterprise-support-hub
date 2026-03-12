@@ -187,7 +187,7 @@ Deno.serve(async (req) => {
     const conversationParts = body.data?.item?.conversation_parts?.conversation_parts;
     let replyText = "";
     let adminName = "Lovable Support";
-    let iconUrl: string | undefined = "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/lovable-smiley-logo.png";
+    let slackUserId: string | null = null;
     let isHumanAdmin = false;
 
     if (conversationParts && conversationParts.length > 0) {
@@ -234,10 +234,8 @@ Deno.serve(async (req) => {
       if (remaining) chunks.push(remaining);
     }
 
-    // If human admin, try to find their Slack profile for avatar
     if (isHumanAdmin) {
       try {
-        // Look up admin email from Intercom conversation parts
         const lastPart = conversationParts[conversationParts.length - 1];
         const adminEmail = lastPart?.author?.email;
         if (adminEmail) {
@@ -246,11 +244,11 @@ Deno.serve(async (req) => {
           });
           const lookupData = await lookupRes.json();
           if (lookupData.ok && lookupData.user) {
-            iconUrl = lookupData.user.profile?.image_72 || lookupData.user.profile?.image_48;
+            slackUserId = lookupData.user.id;
           }
         }
       } catch (e) {
-        console.log("Could not look up Slack user for admin avatar:", e);
+        console.log("Could not look up Slack user for admin:", e);
       }
     }
 
@@ -274,9 +272,13 @@ Deno.serve(async (req) => {
     const basePayload: Record<string, unknown> = {
       channel: mapping.slack_channel_id,
       thread_ts: mapping.slack_thread_ts,
-      username: adminName,
     };
-    if (iconUrl) basePayload.icon_url = iconUrl;
+
+    // Prepend inline attribution for human admin replies
+    if (isHumanAdmin && chunks.length > 0) {
+      const attribution = slackUserId ? `<@${slackUserId}>` : adminName;
+      chunks[0] = `*🧑‍💼 ${attribution} replied:*\n${chunks[0]}`;
+    }
 
     // If testing mode, prepend debug info as first message
     if (testingMode) {
