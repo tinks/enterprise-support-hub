@@ -247,7 +247,6 @@ Deno.serve(async (req) => {
     const conversationParts = body.data?.item?.conversation_parts?.conversation_parts;
     let replyText = "";
     let adminName = "";
-    let adminAvatarUrl: string | null = null;
     let isHumanAdmin = false;
 
     if (conversationParts && conversationParts.length > 0) {
@@ -257,9 +256,6 @@ Deno.serve(async (req) => {
       if (author && author.type === "admin" && author.name) {
         adminName = author.name;
         isHumanAdmin = true;
-        if (author.avatar?.image_url) {
-          adminAvatarUrl = author.avatar.image_url;
-        }
       }
     }
 
@@ -308,39 +304,9 @@ Deno.serve(async (req) => {
       if (remaining) chunks.push(remaining);
     }
 
-    // Resolve human admin avatar from Slack profile or Intercom
-    if (isHumanAdmin) {
-      try {
-        const lastPart = conversationParts[conversationParts.length - 1];
-        const adminEmail = lastPart?.author?.email;
-        if (adminEmail) {
-          const lookupRes = await fetch(`${SLACK_API_URL}/users.lookupByEmail?email=${encodeURIComponent(adminEmail)}`, {
-            headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
-          });
-          const lookupData = await lookupRes.json();
-          if (lookupData.ok && lookupData.user?.profile) {
-            const profile = lookupData.user.profile;
-            adminAvatarUrl = profile.image_192 || profile.image_72 || adminAvatarUrl;
-          }
-        }
-        // Fallback: fetch avatar from Intercom API
-        if (!adminAvatarUrl && INTERCOM_API_TOKEN) {
-          const adminId = lastPart?.author?.id;
-          if (adminId) {
-            const adminRes = await fetch(`https://api.intercom.io/admins/${adminId}`, {
-              headers: { Authorization: `Bearer ${INTERCOM_API_TOKEN}`, Accept: "application/json" },
-            });
-            if (adminRes.ok) {
-              const adminData = await adminRes.json();
-              if (adminData.avatar?.image_url) {
-                adminAvatarUrl = adminData.avatar.image_url;
-              }
-            }
-          }
-        }
-      } catch (e) {
-        console.log("Could not look up avatar for admin:", e);
-      }
+    // Prepend admin name for human replies so users know who responded
+    if (isHumanAdmin && adminName) {
+      replyText = `*${adminName}:*\n${replyText}`;
     }
 
     // Helper to post a single Slack message
@@ -363,8 +329,8 @@ Deno.serve(async (req) => {
     const basePayload: Record<string, unknown> = {
       channel: mapping.slack_channel_id,
       thread_ts: mapping.slack_thread_ts,
-      ...(isHumanAdmin && adminName && { username: adminName }),
-      ...(isHumanAdmin && adminAvatarUrl && { icon_url: adminAvatarUrl }),
+      // Always post as the bot app — no username/icon_url overrides
+      // to keep a single consistent avatar in the thread
     };
 
     // Debug message is already posted by slack-interactions when the ticket is created
