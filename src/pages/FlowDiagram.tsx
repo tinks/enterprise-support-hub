@@ -301,6 +301,7 @@ const initialNodes: Node<FlowNodeData>[] = [
         "Removes remaining feedback buttons",
         "First reply: reassigns + posts escalation notice",
       ],
+      message: "🔄 Your reply has been sent. A member of our Enterprise support team will follow up shortly.",
       accent: "orange",
     },
   },
