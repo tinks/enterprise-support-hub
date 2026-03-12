@@ -7,10 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Settings, RefreshCw, Save, Link, Search, Hash } from "lucide-react";
+import { Settings, RefreshCw, Save, Link, Search, Hash, X, Plus } from "lucide-react";
 
 interface SettingsData {
   id: string;
@@ -48,12 +49,45 @@ const Index = () => {
   const [channels, setChannels] = useState<SlackChannel[]>([]);
   const [channelsLoading, setChannelsLoading] = useState(false);
   const [channelSearch, setChannelSearch] = useState("");
+  const [channelNameMap, setChannelNameMap] = useState<Record<string, string>>({});
 
   const edgeFunctionBaseUrl = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1`;
+
+  const monitoredIds = (settings?.monitored_channels || "")
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean);
 
   useEffect(() => {
     loadData();
   }, []);
+
+  // Fetch channel names on mount to resolve existing IDs
+  useEffect(() => {
+    if (settings && monitoredIds.length > 0 && Object.keys(channelNameMap).length === 0) {
+      fetchChannelNames();
+    }
+  }, [settings]);
+
+  const fetchChannelNames = async () => {
+    try {
+      const res = await fetch(`${edgeFunctionBaseUrl}/list-slack-channels`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (data.channels) {
+        const map: Record<string, string> = {};
+        for (const ch of data.channels) {
+          map[ch.id] = ch.name;
+        }
+        setChannelNameMap(map);
+        setChannels(data.channels);
+      }
+    } catch {
+      // silent — names will just show as IDs
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -94,8 +128,9 @@ const Index = () => {
 
   const browseChannels = async () => {
     setChannelsOpen(true);
-    setChannelsLoading(true);
     setChannelSearch("");
+    if (channels.length > 0) return; // already loaded
+    setChannelsLoading(true);
     try {
       const res = await fetch(`${edgeFunctionBaseUrl}/list-slack-channels`, {
         method: "POST",
@@ -106,7 +141,13 @@ const Index = () => {
         toast.error("Failed to load channels: " + data.error);
         setChannels([]);
       } else {
-        setChannels(data.channels || []);
+        const chList = data.channels || [];
+        setChannels(chList);
+        const map: Record<string, string> = {};
+        for (const ch of chList) {
+          map[ch.id] = ch.name;
+        }
+        setChannelNameMap((prev) => ({ ...prev, ...map }));
       }
     } catch (err) {
       toast.error("Request failed: " + (err instanceof Error ? err.message : "Unknown error"));
@@ -115,18 +156,29 @@ const Index = () => {
     setChannelsLoading(false);
   };
 
-  const selectChannel = (channelId: string) => {
+  const toggleChannel = (channelId: string) => {
     setSettings((s) => {
       if (!s) return s;
       const existing = s.monitored_channels
         .split(",")
         .map((c) => c.trim())
         .filter(Boolean);
-      if (existing.includes(channelId)) return s;
-      return { ...s, monitored_channels: [...existing, channelId].join(", ") };
+      const updated = existing.includes(channelId)
+        ? existing.filter((id) => id !== channelId)
+        : [...existing, channelId];
+      return { ...s, monitored_channels: updated.join(", ") };
     });
-    toast.success(`Added channel ${channelId}`);
-    setChannelsOpen(false);
+  };
+
+  const removeChannel = (channelId: string) => {
+    setSettings((s) => {
+      if (!s) return s;
+      const existing = s.monitored_channels
+        .split(",")
+        .map((c) => c.trim())
+        .filter(Boolean);
+      return { ...s, monitored_channels: existing.filter((id) => id !== channelId).join(", ") };
+    });
   };
 
   const statusColor = (status: string) => {
@@ -176,26 +228,30 @@ const Index = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="channels">Monitored Slack Channel IDs</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="channels"
-                  placeholder="C1234567890, C0987654321"
-                  value={settings?.monitored_channels || ""}
-                  onChange={(e) =>
-                    setSettings((s) =>
-                      s ? { ...s, monitored_channels: e.target.value } : s
-                    )
-                  }
-                  className="flex-1"
-                />
-                <Button variant="outline" size="sm" onClick={browseChannels} className="shrink-0">
-                  <Hash className="mr-1 h-4 w-4" />
+              <Label>Monitored Slack Channels</Label>
+              <div className="flex flex-wrap items-center gap-2 rounded-md border p-3 min-h-[44px]">
+                {monitoredIds.length === 0 && (
+                  <span className="text-sm text-muted-foreground">No channels monitored yet</span>
+                )}
+                {monitoredIds.map((id) => (
+                  <Badge key={id} variant="secondary" className="gap-1 pr-1">
+                    <Hash className="h-3 w-3" />
+                    {channelNameMap[id] || id}
+                    <button
+                      onClick={() => removeChannel(id)}
+                      className="ml-1 rounded-full p-0.5 hover:bg-muted-foreground/20 transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+                <Button variant="outline" size="sm" onClick={browseChannels} className="h-7 gap-1">
+                  <Plus className="h-3 w-3" />
                   Browse
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Comma-separated Slack channel IDs where @mentions will be monitored
+                Channels where @mentions will be monitored
               </p>
             </div>
 
@@ -381,21 +437,30 @@ const Index = () => {
             ) : filteredChannels.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">No channels found</p>
             ) : (
-              filteredChannels.map((ch) => (
-                <button
-                  key={ch.id}
-                  onClick={() => selectChannel(ch.id)}
-                  className="flex w-full items-center justify-between rounded-md px-3 py-2 text-sm hover:bg-accent transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <Hash className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{ch.name}</span>
-                  </span>
-                  <span className="font-mono text-xs text-muted-foreground">{ch.id}</span>
-                </button>
-              ))
+              filteredChannels.map((ch) => {
+                const isSelected = monitoredIds.includes(ch.id);
+                return (
+                  <button
+                    key={ch.id}
+                    onClick={() => toggleChannel(ch.id)}
+                    className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm hover:bg-accent transition-colors ${
+                      isSelected ? "bg-accent/50" : ""
+                    }`}
+                  >
+                    <Checkbox checked={isSelected} tabIndex={-1} className="pointer-events-none" />
+                    <Hash className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="font-medium flex-1 text-left">{ch.name}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{ch.num_members} members</span>
+                  </button>
+                );
+              })
             )}
           </div>
+          <DialogFooter>
+            <Button onClick={() => setChannelsOpen(false)} className="w-full">
+              Done
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
