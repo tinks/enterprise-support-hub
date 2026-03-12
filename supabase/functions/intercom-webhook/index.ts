@@ -95,14 +95,6 @@ Deno.serve(async (req) => {
     });
   }
 
-  const INTERCOM_API_TOKEN = Deno.env.get("INTERCOM_API_TOKEN");
-  if (!INTERCOM_API_TOKEN) {
-    return new Response(JSON.stringify({ error: "INTERCOM_API_TOKEN not configured" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
