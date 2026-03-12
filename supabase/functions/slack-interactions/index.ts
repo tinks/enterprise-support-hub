@@ -354,13 +354,11 @@ Deno.serve(async (req) => {
     const actionId = action.action_id;
 
     // ===== Helper: remove buttons from the original message =====
-    async function removeButtonsFromMessage(channelId: string, messageTs: string) {
+    async function deletePromptMessage(channelId: string) {
       const msgTs = payload.message?.ts;
       if (!msgTs) return;
       try {
-        // Get original message text to preserve it
-        const originalText = payload.message?.blocks?.[0]?.text?.text || payload.message?.text || "";
-        await fetch(`${SLACK_API_URL}/chat.update`, {
+        await fetch(`${SLACK_API_URL}/chat.delete`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
@@ -369,17 +367,10 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             channel: channelId,
             ts: msgTs,
-            text: originalText,
-            blocks: [
-              {
-                type: "section",
-                text: { type: "mrkdwn", text: originalText },
-              },
-            ],
           }),
         });
       } catch (e) {
-        console.error("Failed to remove buttons:", e);
+        console.error("Failed to delete prompt message:", e);
       }
     }
 
@@ -387,7 +378,7 @@ Deno.serve(async (req) => {
     if (actionId === "proceed_without_context") {
       const [channelId, threadTs] = (action.value || "").split("|");
 
-      await removeButtonsFromMessage(channelId, payload.message?.ts);
+      await deletePromptMessage(channelId);
 
       // Atomic guard: only proceed if status is still awaiting_context
       const { data: updated } = await supabase
@@ -419,7 +410,7 @@ Deno.serve(async (req) => {
     if (actionId === "add_details") {
       const [channelId, threadTs] = (action.value || "").split("|");
 
-      await removeButtonsFromMessage(channelId, payload.message?.ts);
+      await deletePromptMessage(channelId);
       const triggerId = payload.trigger_id;
 
       await fetch(`${SLACK_API_URL}/views.open`, {
@@ -475,7 +466,7 @@ Deno.serve(async (req) => {
 
     // Remove feedback buttons when clicked
     if (actionId === "feedback_positive" || actionId === "feedback_negative") {
-      await removeButtonsFromMessage(channel, payload.message?.ts);
+      await deletePromptMessage(channel);
 
       // Reassign to enterprise team inbox on any feedback click
       const settings = await getSettings(supabase);
