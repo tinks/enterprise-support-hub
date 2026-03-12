@@ -410,7 +410,7 @@ Deno.serve(async (req) => {
     if (actionId === "add_details") {
       const [channelId, threadTs] = (action.value || "").split("|");
 
-      await removeButtonsFromMessage(channelId, payload.message?.ts);
+      await deletePromptMessage(channelId);
       const triggerId = payload.trigger_id;
 
       await fetch(`${SLACK_API_URL}/views.open`, {
