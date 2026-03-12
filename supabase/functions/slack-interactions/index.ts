@@ -373,7 +373,7 @@ Deno.serve(async (req) => {
                 channel: channelId,
                 thread_ts: threadTs,
                 text: detailText,
-                blocks: [{ type: "context", elements: [{ type: "mrkdwn", text: detailText }] }],
+                blocks: [{ type: "section", text: { type: "mrkdwn", text: detailText } }],
               }),
             });
           }
