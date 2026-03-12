@@ -187,6 +187,7 @@ Deno.serve(async (req) => {
     const conversationParts = body.data?.item?.conversation_parts?.conversation_parts;
     let replyText = "";
     let adminName = "Lovable Support";
+    let adminAvatarUrl: string | null = null;
     let slackUserId: string | null = null;
     let isHumanAdmin = false;
 
@@ -199,6 +200,10 @@ Deno.serve(async (req) => {
         if (author.type === "admin" && author.name) {
           adminName = author.name;
           isHumanAdmin = true;
+          // Grab avatar from webhook payload if available
+          if (author.avatar?.image_url) {
+            adminAvatarUrl = author.avatar.image_url;
+          }
         }
       }
     }
@@ -272,13 +277,9 @@ Deno.serve(async (req) => {
     const basePayload: Record<string, unknown> = {
       channel: mapping.slack_channel_id,
       thread_ts: mapping.slack_thread_ts,
+      ...(isHumanAdmin && { username: adminName }),
+      ...(isHumanAdmin && adminAvatarUrl && { icon_url: adminAvatarUrl }),
     };
-
-    // Prepend inline attribution for human admin replies
-    if (isHumanAdmin && chunks.length > 0) {
-      const attribution = slackUserId ? `<@${slackUserId}>` : adminName;
-      chunks[0] = `*🧑‍💼 ${attribution} replied:*\n${chunks[0]}`;
-    }
 
     // If testing mode, prepend debug info as first message
     if (testingMode) {
