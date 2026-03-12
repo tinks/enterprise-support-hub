@@ -528,21 +528,47 @@ Deno.serve(async (req) => {
     const channel = payload.channel?.id;
     const threadTs = payload.message?.thread_ts || payload.message?.ts;
 
-    // Load bot messages for feedback responses
-    const { data: feedbackMsgRows } = await supabase.from("bot_messages").select("message_key, message_text");
-    const feedbackBotMsgs: Record<string, string> = {};
-    if (feedbackMsgRows) {
-      for (const row of feedbackMsgRows) feedbackBotMsgs[row.message_key] = row.message_text;
-    }
+    // Fire-and-forget: do heavy work in background so Slack gets the 200 within 3s
+    const bgWork = (async () => {
+      try {
+        // Load bot messages for feedback responses
+        const { data: feedbackMsgRows } = await supabase.from("bot_messages").select("message_key, message_text");
+        const feedbackBotMsgs: Record<string, string> = {};
+        if (feedbackMsgRows) {
+          for (const row of feedbackMsgRows) feedbackBotMsgs[row.message_key] = row.message_text;
+        }
 
-    // Remove feedback buttons (but keep the message text) when clicked
-    if (actionId === "feedback_positive" || actionId === "feedback_negative") {
-      // Update the message to strip action blocks instead of deleting entirely
-      const msgTs = payload.message?.ts;
-      if (msgTs && payload.message?.blocks) {
-        const blocksWithoutActions = payload.message.blocks.filter((b: { type: string }) => b.type !== "actions");
-        try {
-          await fetch(`${SLACK_API_URL}/chat.update`, {
+        // Remove feedback buttons (but keep the message text) when clicked
+        if (actionId === "feedback_positive" || actionId === "feedback_negative") {
+          const msgTs = payload.message?.ts;
+          if (msgTs && payload.message?.blocks) {
+            const blocksWithoutActions = payload.message.blocks.filter((b: { type: string }) => b.type !== "actions");
+            try {
+              await fetch(`${SLACK_API_URL}/chat.update`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  channel,
+                  ts: msgTs,
+                  text: payload.message.text || "",
+                  blocks: blocksWithoutActions,
+                }),
+              });
+            } catch (e) {
+              console.error("Failed to remove feedback buttons:", e);
+            }
+          }
+        }
+
+        if (actionId === "feedback_positive") {
+          await removeReaction(SLACK_BOT_TOKEN, channel, threadTs, "eyes");
+          await removeReaction(SLACK_BOT_TOKEN, channel, threadTs, "hourglass_flowing_sand");
+          await addReaction(SLACK_BOT_TOKEN, channel, threadTs, "white_check_mark");
+
+          await fetch(`${SLACK_API_URL}/chat.postMessage`, {
             method: "POST",
             headers: {
               Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
@@ -550,121 +576,102 @@ Deno.serve(async (req) => {
             },
             body: JSON.stringify({
               channel,
-              ts: msgTs,
-              text: payload.message.text || "",
-              blocks: blocksWithoutActions,
+              thread_ts: threadTs,
+              text: feedbackBotMsgs["feedback_positive"] || "Glad to hear your issue is resolved! We'll now close this conversation. Should you need any further assistance, please start a new thread. Replies to a closed conversation won't reach our team. We're always happy to help!",
             }),
           });
-        } catch (e) {
-          console.error("Failed to remove feedback buttons:", e);
+
+          // Close conversation without reassigning — keep current admin
+          const closeSettings = await getSettings(supabase);
+          const adminId = closeSettings.intercom_assignee_id || "8430778";
+          await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify({
+              message_type: "close",
+              type: "admin",
+              admin_id: adminId,
+              body: "Resolved via Slack feedback (👍)",
+            }),
+          });
+
+          await supabase
+            .from("conversation_mappings")
+            .update({ status: "resolved" })
+            .eq("intercom_conversation_id", conversationId);
+
+        } else if (actionId === "feedback_negative") {
+          const negSettings = await getSettings(supabase);
+          if (negSettings.intercom_inbox_id && negSettings.intercom_assignee_id) {
+            await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+              body: JSON.stringify({
+                message_type: "assignment",
+                type: "team",
+                assignee_id: negSettings.intercom_inbox_id,
+                admin_id: negSettings.intercom_assignee_id,
+                body: "",
+              }),
+            });
+            console.log(`Reassigned conversation ${conversationId} to team inbox ${negSettings.intercom_inbox_id}`);
+          }
+
+          // Convert the existing conversation to a ticket
+          try {
+            const convertRes = await fetch(`https://api.intercom.io/conversations/${conversationId}/convert`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                "Content-Type": "application/json",
+                Accept: "application/json",
+                "Intercom-Version": "2.11",
+              },
+              body: JSON.stringify({
+                ticket_type_id: "1",
+              }),
+            });
+            const convertData = await convertRes.json();
+            console.log("Converted conversation to ticket:", convertData.ticket_id || convertData.id);
+          } catch (e) {
+            console.error("Failed to convert conversation to ticket:", e);
+          }
+
+          await removeReaction(SLACK_BOT_TOKEN, channel, threadTs, "eyes");
+          await addReaction(SLACK_BOT_TOKEN, channel, threadTs, "hourglass_flowing_sand");
+
+          await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              channel,
+              thread_ts: threadTs,
+              text: feedbackBotMsgs["escalation_notice"] || "🔄 Escalating to human support. A ticket has been created and a member of our Enterprise support team will follow up shortly.",
+            }),
+          });
+
+          await supabase
+            .from("conversation_mappings")
+            .update({ status: "escalated" })
+            .eq("intercom_conversation_id", conversationId);
         }
-      }
-
-    }
-
-    if (actionId === "feedback_positive") {
-      await removeReaction(SLACK_BOT_TOKEN, channel, threadTs, "eyes");
-      await removeReaction(SLACK_BOT_TOKEN, channel, threadTs, "hourglass_flowing_sand");
-      await addReaction(SLACK_BOT_TOKEN, channel, threadTs, "white_check_mark");
-
-      await fetch(`${SLACK_API_URL}/chat.postMessage`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          channel,
-          thread_ts: threadTs,
-          text: feedbackBotMsgs["feedback_positive"] || "Glad to hear your issue is resolved! We'll now close this conversation. Should you need any further assistance, please start a new thread. Replies to a closed conversation won't reach our team. We're always happy to help!",
-        }),
-      });
-
-      // Close conversation without reassigning — keep current admin
-      const closeSettings = await getSettings(supabase);
-      const adminId = closeSettings.intercom_assignee_id || "8430778";
-      await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          message_type: "close",
-          type: "admin",
-          admin_id: adminId,
-          body: "Resolved via Slack feedback (👍)",
-        }),
-      });
-
-      await supabase
-        .from("conversation_mappings")
-        .update({ status: "resolved" })
-        .eq("intercom_conversation_id", conversationId);
-
-    } else if (actionId === "feedback_negative") {
-      // Reassign to enterprise team inbox on escalation only
-      const negSettings = await getSettings(supabase);
-      if (negSettings.intercom_inbox_id && negSettings.intercom_assignee_id) {
-        await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({
-            message_type: "assignment",
-            type: "team",
-            assignee_id: negSettings.intercom_inbox_id,
-            admin_id: negSettings.intercom_assignee_id,
-            body: "",
-          }),
-        });
-        console.log(`Reassigned conversation ${conversationId} to team inbox ${negSettings.intercom_inbox_id}`);
-      }
-
-      // Convert the existing conversation to a ticket
-      try {
-        const convertRes = await fetch(`https://api.intercom.io/conversations/${conversationId}/convert`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
-            "Content-Type": "application/json",
-            Accept: "application/json",
-            "Intercom-Version": "2.11",
-          },
-          body: JSON.stringify({
-            ticket_type_id: "1",
-          }),
-        });
-        const convertData = await convertRes.json();
-        console.log("Converted conversation to ticket:", convertData.ticket_id || convertData.id);
       } catch (e) {
-        console.error("Failed to convert conversation to ticket:", e);
+        console.error("Background feedback work failed:", e);
       }
-
-      await removeReaction(SLACK_BOT_TOKEN, channel, threadTs, "eyes");
-      await addReaction(SLACK_BOT_TOKEN, channel, threadTs, "hourglass_flowing_sand");
-
-      await fetch(`${SLACK_API_URL}/chat.postMessage`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          channel,
-          thread_ts: threadTs,
-          text: feedbackBotMsgs["escalation_notice"] || "🔄 Escalating to human support. A ticket has been created and a member of our Enterprise support team will follow up shortly.",
-        }),
-      });
-
-      await supabase
-        .from("conversation_mappings")
-        .update({ status: "escalated" })
-        .eq("intercom_conversation_id", conversationId);
+    })();
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+      EdgeRuntime.waitUntil(bgWork);
     }
 
     return new Response("", {
