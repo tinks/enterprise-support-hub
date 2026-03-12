@@ -27,6 +27,22 @@ async function addReaction(token: string, channel: string, timestamp: string, em
   }
 }
 
+async function removeReaction(token: string, channel: string, timestamp: string, emoji: string) {
+  try {
+    const res = await fetch(`${SLACK_API_URL}/reactions.remove`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ channel, timestamp, name: emoji }),
+    });
+    const data = await res.json();
+    if (!data.ok && data.error !== "no_reaction") {
+      console.error(`Slack reactions.remove failed for ${emoji}:`, data.error);
+    }
+  } catch (e) {
+    console.error(`Failed to remove reaction ${emoji}:`, e);
+  }
+}
+
 async function verifyIntercomSignature(
   rawBody: string,
   signature: string | null,
@@ -205,6 +221,8 @@ Deno.serve(async (req) => {
           console.error(`Failed to post close message: ${JSON.stringify(closeData)}`);
         }
 
+        await removeReaction(SLACK_BOT_TOKEN, mapping.slack_channel_id, mapping.slack_thread_ts, "eyes");
+        await removeReaction(SLACK_BOT_TOKEN, mapping.slack_channel_id, mapping.slack_thread_ts, "hourglass_flowing_sand");
         await addReaction(SLACK_BOT_TOKEN, mapping.slack_channel_id, mapping.slack_thread_ts, "white_check_mark");
 
         await supabase

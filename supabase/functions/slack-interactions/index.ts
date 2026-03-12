@@ -27,6 +27,22 @@ async function addReaction(token: string, channel: string, timestamp: string, em
   }
 }
 
+async function removeReaction(token: string, channel: string, timestamp: string, emoji: string) {
+  try {
+    const res = await fetch(`${SLACK_API_URL}/reactions.remove`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ channel, timestamp, name: emoji }),
+    });
+    const data = await res.json();
+    if (!data.ok && data.error !== "no_reaction") {
+      console.error(`Slack reactions.remove failed for ${emoji}:`, data.error);
+    }
+  } catch (e) {
+    console.error(`Failed to remove reaction ${emoji}:`, e);
+  }
+}
+
 async function verifySlackSignature(
   rawBody: string,
   signature: string | null,
@@ -532,6 +548,8 @@ Deno.serve(async (req) => {
     }
 
     if (actionId === "feedback_positive") {
+      await removeReaction(SLACK_BOT_TOKEN, channel, threadTs, "eyes");
+      await removeReaction(SLACK_BOT_TOKEN, channel, threadTs, "hourglass_flowing_sand");
       await addReaction(SLACK_BOT_TOKEN, channel, threadTs, "white_check_mark");
 
       await fetch(`${SLACK_API_URL}/chat.postMessage`, {
@@ -572,6 +590,7 @@ Deno.serve(async (req) => {
 
     } else if (actionId === "feedback_negative") {
       // No Intercom changes — just notify human in Slack
+      await removeReaction(SLACK_BOT_TOKEN, channel, threadTs, "eyes");
       await addReaction(SLACK_BOT_TOKEN, channel, threadTs, "hourglass_flowing_sand");
 
       await fetch(`${SLACK_API_URL}/chat.postMessage`, {
