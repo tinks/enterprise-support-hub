@@ -275,6 +275,42 @@ async function createIntercomTicket(opts: {
       }),
     });
   }
+
+  // Send group DM notification to Joel & Kristina
+  try {
+    const notifyUserIds = "U0AFU714807,U091GANMA2U"; // Kristina, Joel
+    const openRes = await fetch(`${SLACK_API_URL}/conversations.open`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${slackBotToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ users: notifyUserIds }),
+    });
+    const openBody = await openRes.json();
+    if (openBody.ok && openBody.channel?.id) {
+      const dmChannelId = openBody.channel.id;
+      const threadLink = `https://app.slack.com/archives/${channelId}/p${threadTs.replace(".", "")}`;
+      const intercomLink = `https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${conversationId}?view=List`;
+      const notifText = `🎫 New ticket created by <@${slackUserId}>\n• <${threadLink}|Slack thread>\n• <${intercomLink}|Intercom conversation>`;
+      await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${slackBotToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          channel: dmChannelId,
+          text: notifText,
+        }),
+      });
+      console.log(`Sent group DM notification for conversation ${conversationId}`);
+    } else {
+      console.error("Failed to open group DM:", openBody);
+    }
+  } catch (notifyErr) {
+    console.error("Failed to send group DM notification:", notifyErr);
+  }
 }
 
 async function getSettings(supabase: ReturnType<typeof createClient>) {
