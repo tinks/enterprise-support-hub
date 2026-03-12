@@ -58,6 +58,7 @@ async function createIntercomTicket(opts: {
     Authorization: `Bearer ${intercomToken}`,
     "Content-Type": "application/json",
     Accept: "application/json",
+    "Intercom-Version": "2.11",
   };
 
   // Post acknowledgment in thread
@@ -164,17 +165,37 @@ async function createIntercomTicket(opts: {
     .update({ intercom_conversation_id: conversationId, status: "active" })
     .eq("id", mappingId);
 
-  // Tag conversation with "Slack" in Intercom
+  // Tag conversation with "Slack" in Intercom (v2.x approach)
   try {
-    await fetch("https://api.intercom.io/tags", {
+    // Step 1: Find or create the "Slack" tag
+    const tagCreateRes = await fetch("https://api.intercom.io/tags", {
       method: "POST",
       headers: intercomHeaders,
-      body: JSON.stringify({
-        name: "Slack",
-        conversations: [{ id: conversationId }],
-      }),
+      body: JSON.stringify({ name: "Slack" }),
     });
-    console.log(`Tagged Intercom conversation ${conversationId} with "Slack"`);
+    const tagCreateBody = await tagCreateRes.json();
+    console.log(`Tag create/find response: ${tagCreateRes.status}`, JSON.stringify(tagCreateBody));
+
+    if (!tagCreateRes.ok) {
+      console.error(`Failed to create/find Slack tag: ${tagCreateRes.status}`, tagCreateBody);
+    } else {
+      const slackTagId = tagCreateBody.id;
+      // Step 2: Attach tag to conversation
+      const tagAttachRes = await fetch(
+        `https://api.intercom.io/conversations/${conversationId}/tags`,
+        {
+          method: "POST",
+          headers: intercomHeaders,
+          body: JSON.stringify({ id: slackTagId }),
+        }
+      );
+      const tagAttachBody = await tagAttachRes.json();
+      if (tagAttachRes.ok) {
+        console.log(`Tagged Intercom conversation ${conversationId} with "Slack" (tag id: ${slackTagId})`);
+      } else {
+        console.error(`Failed to attach tag to conversation ${conversationId}: ${tagAttachRes.status}`, tagAttachBody);
+      }
+    }
   } catch (tagErr) {
     console.error(`Failed to tag conversation ${conversationId}:`, tagErr);
   }
