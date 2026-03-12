@@ -116,6 +116,7 @@ const Index = () => {
         monitored_channels: settings.monitored_channels,
         intercom_inbox_id: settings.intercom_inbox_id,
         intercom_assignee_id: settings.intercom_assignee_id,
+        slack_bot_user_id: settings.slack_bot_user_id,
         testing_mode: settings.testing_mode,
       })
       .eq("id", settings.id);

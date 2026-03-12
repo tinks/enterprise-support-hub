@@ -79,6 +79,22 @@ Deno.serve(async (req) => {
   const testingMode = appSettings?.testing_mode === true;
 
   try {
+    // Identity guard: verify token matches expected bot before posting to Slack
+    const expectedBotId = appSettings?.slack_bot_user_id;
+    if (expectedBotId) {
+      const authCheck = await fetch("https://slack.com/api/auth.test", {
+        headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+      });
+      const authCheckData = await authCheck.json();
+      if (!authCheckData.ok || authCheckData.user_id !== expectedBotId) {
+        console.error(`IDENTITY GUARD: Token belongs to ${authCheckData.user_id || "unknown"}, expected ${expectedBotId}. Blocking.`);
+        return new Response(JSON.stringify({ error: "Bot identity mismatch — refusing to post to Slack" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const body = JSON.parse(rawBody);
     console.log("Intercom webhook received:", JSON.stringify(body).substring(0, 500));
 
