@@ -484,9 +484,30 @@ Deno.serve(async (req) => {
     const channel = payload.channel?.id;
     const threadTs = payload.message?.thread_ts || payload.message?.ts;
 
-    // Remove feedback buttons when clicked
+    // Remove feedback buttons (but keep the message text) when clicked
     if (actionId === "feedback_positive" || actionId === "feedback_negative") {
-      await deletePromptMessage(channel);
+      // Update the message to strip action blocks instead of deleting entirely
+      const msgTs = payload.message?.ts;
+      if (msgTs && payload.message?.blocks) {
+        const blocksWithoutActions = payload.message.blocks.filter((b: { type: string }) => b.type !== "actions");
+        try {
+          await fetch(`${SLACK_API_URL}/chat.update`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              channel,
+              ts: msgTs,
+              text: payload.message.text || "",
+              blocks: blocksWithoutActions,
+            }),
+          });
+        } catch (e) {
+          console.error("Failed to remove feedback buttons:", e);
+        }
+      }
 
       // Reassign to enterprise team inbox on any feedback click
       const settings = await getSettings(supabase);
