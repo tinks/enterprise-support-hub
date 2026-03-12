@@ -272,9 +272,13 @@ Deno.serve(async (req) => {
     const basePayload: Record<string, unknown> = {
       channel: mapping.slack_channel_id,
       thread_ts: mapping.slack_thread_ts,
-      username: adminName,
     };
-    if (iconUrl) basePayload.icon_url = iconUrl;
+
+    // Prepend inline attribution for human admin replies
+    if (isHumanAdmin && chunks.length > 0) {
+      const attribution = slackUserId ? `<@${slackUserId}>` : adminName;
+      chunks[0] = `*🧑‍💼 ${attribution} replied:*\n${chunks[0]}`;
+    }
 
     // If testing mode, prepend debug info as first message
     if (testingMode) {
