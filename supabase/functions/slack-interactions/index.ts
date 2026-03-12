@@ -58,6 +58,7 @@ async function createIntercomTicket(opts: {
     Authorization: `Bearer ${intercomToken}`,
     "Content-Type": "application/json",
     Accept: "application/json",
+    "Intercom-Version": "2.11",
   };
 
   // Post acknowledgment in thread
