@@ -389,23 +389,26 @@ Deno.serve(async (req) => {
 
       await removeButtonsFromMessage(channelId, payload.message?.ts);
 
-      const { data: mapping } = await supabase
+      // Atomic guard: only proceed if status is still awaiting_context
+      const { data: updated } = await supabase
         .from("conversation_mappings")
-        .select("*")
+        .update({ status: "processing" })
         .eq("slack_channel_id", channelId)
         .eq("slack_thread_ts", threadTs)
+        .eq("status", "awaiting_context")
+        .select()
         .maybeSingle();
 
-      if (mapping) {
+      if (updated) {
         await createIntercomTicket({
           supabase,
           intercomToken: INTERCOM_API_TOKEN,
           slackBotToken: SLACK_BOT_TOKEN,
           channelId,
           threadTs,
-          mappingId: mapping.id,
-          originalMessage: mapping.original_message_text,
-          slackUserId: mapping.slack_user_id,
+          mappingId: updated.id,
+          originalMessage: updated.original_message_text,
+          slackUserId: updated.slack_user_id,
         });
       }
 
