@@ -1,0 +1,1 @@
+UPDATE public.bot_messages SET message_text = 'Your query has been escalated to our Enterprise Support Team. A member of the team will follow up with you shortly.', updated_at = now() WHERE message_key = 'escalation_notice';
