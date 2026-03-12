@@ -277,10 +277,35 @@ Deno.serve(async (req) => {
           const lookupData = await lookupRes.json();
           if (lookupData.ok && lookupData.user) {
             slackUserId = lookupData.user.id;
+            // Use Slack profile picture if available
+            const profile = lookupData.user.profile;
+            if (profile?.image_192) {
+              adminAvatarUrl = profile.image_192;
+            } else if (profile?.image_72) {
+              adminAvatarUrl = profile.image_72;
+            }
+          }
+        }
+        // Fallback: fetch avatar from Intercom API if still missing
+        if (!adminAvatarUrl) {
+          const adminId = lastPart?.author?.id;
+          if (adminId) {
+            const adminRes = await fetch(`https://api.intercom.io/admins/${adminId}`, {
+              headers: {
+                Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                Accept: "application/json",
+              },
+            });
+            if (adminRes.ok) {
+              const adminData = await adminRes.json();
+              if (adminData.avatar?.image_url) {
+                adminAvatarUrl = adminData.avatar.image_url;
+              }
+            }
           }
         }
       } catch (e) {
-        console.log("Could not look up Slack user for admin:", e);
+        console.log("Could not look up avatar for admin:", e);
       }
     }
 
