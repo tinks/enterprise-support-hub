@@ -164,7 +164,7 @@ const initialNodes: Node<FlowNodeData>[] = [
       desc: "Bot replies with two buttons to add context or proceed immediately.",
       icon: Bot,
       edgeFunction: "slack-events",
-      message: 'Optionally add your email and/or project link...\n[ Add Details ]  [ Proceed ]',
+      message: '👋 Optionally add your Lovable account email and/or project link to improve support. If you don\'t want to share this, just click Proceed.\n\n[ Add Details ]  [ Proceed ]',
       status: "awaiting_context",
       accent: "blue",
     },
