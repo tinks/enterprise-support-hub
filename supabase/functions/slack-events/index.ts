@@ -262,7 +262,7 @@ Deno.serve(async (req) => {
 
       // Send Block Kit message with buttons
       const buttonValue = `${channelId}|${threadTs}`;
-      const contextPromptText = botMessages["context_prompt"] || "👋 Optionally add your Lovable account email and/or project link to improve support. If you don't want to share this, just click *Proceed*.";
+      const contextPromptText = botMessages["context_prompt"] || "👋 Thank you for contacting the Enterprise Support Team. To help us resolve your issue as quickly and accurately as possible, please share your Lovable account email and your workspace or project name (or a link to it). If these aren't relevant to your question, feel free to click *Proceed*.";
       await fetch(`${SLACK_API_URL}/chat.postMessage`, {
         method: "POST",
         headers: slackHeaders,
