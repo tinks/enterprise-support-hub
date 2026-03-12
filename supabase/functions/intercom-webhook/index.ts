@@ -247,7 +247,6 @@ Deno.serve(async (req) => {
     const conversationParts = body.data?.item?.conversation_parts?.conversation_parts;
     let replyText = "";
     let adminName = "";
-    let adminAvatarUrl: string | null = null;
     let isHumanAdmin = false;
 
     if (conversationParts && conversationParts.length > 0) {
@@ -257,9 +256,6 @@ Deno.serve(async (req) => {
       if (author && author.type === "admin" && author.name) {
         adminName = author.name;
         isHumanAdmin = true;
-        if (author.avatar?.image_url) {
-          adminAvatarUrl = author.avatar.image_url;
-        }
       }
     }
 
