@@ -307,6 +307,10 @@ Deno.serve(async (req) => {
       } catch (e) {
         console.log("Could not look up avatar for admin:", e);
       }
+      // Final fallback: use the lovable smiley logo from public assets
+      if (!adminAvatarUrl) {
+        adminAvatarUrl = `${SUPABASE_URL}/storage/v1/object/public/public-assets/lovable-smiley-logo.png`;
+      }
     }
 
     // Helper to post a single Slack message
