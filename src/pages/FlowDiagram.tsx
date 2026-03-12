@@ -237,6 +237,7 @@ const ADMIN_IDENTITY = { name: "Sam", avatarUrl: "/lovable-smiley-logo.png" };
         message: msgs.reply_forwarded,
         messageKey: "reply_forwarded",
         onMessageSave: onSave,
+        botIdentity: ASK_LOVABLE,
         accent: "orange",
       },
     },
