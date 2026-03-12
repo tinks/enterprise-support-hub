@@ -1,0 +1,1 @@
+ALTER TABLE public.conversation_mappings ADD COLUMN intercom_contact_id text NOT NULL DEFAULT '';
