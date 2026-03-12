@@ -155,10 +155,10 @@ async function createIntercomTicket(opts: {
     );
   }
 
-  // Update mapping
+  // Update mapping with conversation ID and contact ID
   await supabase
     .from("conversation_mappings")
-    .update({ intercom_conversation_id: conversationId, status: "active" })
+    .update({ intercom_conversation_id: conversationId, intercom_contact_id: contactId, status: "active" })
     .eq("id", mappingId);
 
   // Tag conversation with "Slack" in Intercom (v2.x approach)

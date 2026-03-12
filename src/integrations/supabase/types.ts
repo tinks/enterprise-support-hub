@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          intercom_contact_id: string
           intercom_conversation_id: string | null
           is_test: boolean
           original_message_text: string
@@ -30,6 +31,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          intercom_contact_id?: string
           intercom_conversation_id?: string | null
           is_test?: boolean
           original_message_text?: string
@@ -42,6 +44,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          intercom_contact_id?: string
           intercom_conversation_id?: string | null
           is_test?: boolean
           original_message_text?: string

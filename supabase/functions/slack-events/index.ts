@@ -305,12 +305,37 @@ Deno.serve(async (req) => {
         const replyText = cleanSlackMarkup(event.text || "");
         console.log(`Thread reply in ${channelId}/${threadTs} from ${event.user}: "${replyText.substring(0, 100)}"`);
 
-        // Get Intercom settings for admin ID
+        // Get Intercom settings for admin ID (used for reassignment)
         const intercomSettings = await supabase.from("settings").select("*").limit(1).single();
         const adminId = intercomSettings.data?.intercom_assignee_id;
 
-        // Forward message to Intercom as an admin reply
-        if (adminId) {
+        // Forward message to Intercom as the customer (contact)
+        if (mapping.intercom_contact_id) {
+          const replyRes = await fetch(
+            `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/reply`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                "Content-Type": "application/json",
+                Accept: "application/json",
+                "Intercom-Version": "2.11",
+              },
+              body: JSON.stringify({
+                message_type: "comment",
+                type: "user",
+                intercom_user_id: mapping.intercom_contact_id,
+                body: replyText,
+              }),
+            }
+          );
+          if (!replyRes.ok) {
+            console.error(`Failed to forward reply to Intercom: ${await replyRes.text()}`);
+          } else {
+            console.log(`Forwarded Slack reply as contact ${mapping.intercom_contact_id} to Intercom conversation ${mapping.intercom_conversation_id}`);
+          }
+        } else if (adminId) {
+          // Fallback: no contact ID stored, send as admin
           const replyRes = await fetch(
             `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/reply`,
             {
@@ -332,7 +357,7 @@ Deno.serve(async (req) => {
           if (!replyRes.ok) {
             console.error(`Failed to forward reply to Intercom: ${await replyRes.text()}`);
           } else {
-            console.log(`Forwarded Slack reply to Intercom conversation ${mapping.intercom_conversation_id}`);
+            console.log(`Forwarded Slack reply as admin to Intercom conversation ${mapping.intercom_conversation_id}`);
           }
         }
 
