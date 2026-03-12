@@ -10,6 +10,18 @@ const corsHeaders = {
 
 const SLACK_API_URL = "https://slack.com/api";
 
+async function addReaction(token: string, channel: string, timestamp: string, emoji: string) {
+  try {
+    await fetch(`${SLACK_API_URL}/reactions.add`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ channel, timestamp, name: emoji }),
+    });
+  } catch (e) {
+    console.error(`Failed to add reaction ${emoji}:`, e);
+  }
+}
+
 async function verifySlackSignature(
   rawBody: string,
   signature: string | null,
