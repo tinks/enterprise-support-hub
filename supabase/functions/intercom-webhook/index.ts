@@ -221,6 +221,8 @@ Deno.serve(async (req) => {
           console.error(`Failed to post close message: ${JSON.stringify(closeData)}`);
         }
 
+        await removeReaction(SLACK_BOT_TOKEN, mapping.slack_channel_id, mapping.slack_thread_ts, "eyes");
+        await removeReaction(SLACK_BOT_TOKEN, mapping.slack_channel_id, mapping.slack_thread_ts, "hourglass_flowing_sand");
         await addReaction(SLACK_BOT_TOKEN, mapping.slack_channel_id, mapping.slack_thread_ts, "white_check_mark");
 
         await supabase

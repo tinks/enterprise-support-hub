@@ -447,6 +447,7 @@ Deno.serve(async (req) => {
 
         // Update status to escalated
         if (mapping.status !== "escalated") {
+          await removeReaction(SLACK_BOT_TOKEN, channelId, threadTs, "eyes");
           await addReaction(SLACK_BOT_TOKEN, channelId, threadTs, "hourglass_flowing_sand");
 
           await supabase
