@@ -46,15 +46,15 @@ const DEFAULT_MESSAGES: Record<string, string> = {
     "✅ This issue has been marked as resolved. If you need further help, reply in this thread to start the conversation again.",
 };
 
+const ASK_LOVABLE = { name: "Ask Lovable", avatarUrl: "/lovable-logo.png" };
+const ADMIN_IDENTITY = { name: "Sam", avatarUrl: "/lovable-smiley-logo.png" };
+
 /* ------------------------------------------------------------------ */
 /*  Build nodes — uses message map so they update from DB              */
 /* ------------------------------------------------------------------ */
 function buildNodes(
   msgs: Record<string, string>,
   onSave: (key: string, text: string) => void
-const ASK_LOVABLE = { name: "Ask Lovable", avatarUrl: "/lovable-logo.png" };
-const ADMIN_IDENTITY = { name: "Sam", avatarUrl: "/lovable-smiley-logo.png" };
-
 ): Node<FlowNodeData>[] {
   return [
     {
