@@ -323,8 +323,6 @@ Deno.serve(async (req) => {
     const basePayload: Record<string, unknown> = {
       channel: mapping.slack_channel_id,
       thread_ts: mapping.slack_thread_ts,
-      ...(isHumanAdmin && { username: adminName }),
-      ...(isHumanAdmin && adminAvatarUrl && { icon_url: adminAvatarUrl }),
     };
 
     // Debug message is already posted by slack-interactions when the ticket is created
