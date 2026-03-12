@@ -545,7 +545,7 @@ Deno.serve(async (req) => {
         }),
       });
 
-      // Close conversation as unassigned using settings admin ID
+      // Close conversation without reassigning — keep current admin
       const closeSettings = await getSettings(supabase);
       const adminId = closeSettings.intercom_assignee_id || "8430778";
       await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
