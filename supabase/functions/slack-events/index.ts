@@ -116,6 +116,18 @@ Deno.serve(async (req) => {
 
     console.log(`Slack event: type=${event.type}, subtype=${event.subtype || "none"}, channel=${event.channel}`);
 
+    const slackHeaders = {
+      Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+      "Content-Type": "application/json",
+    };
+
+    // Load settings
+    const { data: settings } = await supabase
+      .from("settings")
+      .select("*")
+      .limit(1)
+      .single();
+
     // Identity guard: verify token matches expected bot
     const expectedBotId = settings?.slack_bot_user_id;
     if (expectedBotId) {
@@ -131,18 +143,6 @@ Deno.serve(async (req) => {
         });
       }
     }
-
-    const slackHeaders = {
-      Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
-      "Content-Type": "application/json",
-    };
-
-    // Load settings (moved before identity guard)
-    const { data: settings } = await supabase
-      .from("settings")
-      .select("*")
-      .limit(1)
-      .single();
 
     if (!settings) {
       console.error("No settings configured");
