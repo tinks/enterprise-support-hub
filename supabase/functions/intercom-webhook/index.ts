@@ -293,14 +293,26 @@ Deno.serve(async (req) => {
     const MAX_CHUNK_CHARS = 2500;
     const MAX_CHUNK_LINES = 35;
     const chunks: string[] = [];
-    if (replyText.length <= MAX_CHUNK) {
+    function needsSplit(text: string) {
+      return text.length > MAX_CHUNK_CHARS || text.split("\n").length > MAX_CHUNK_LINES;
+    }
+
+    if (!needsSplit(replyText)) {
       chunks.push(replyText);
     } else {
       let remaining = replyText;
-      while (remaining.length > MAX_CHUNK) {
-        let splitIdx = remaining.lastIndexOf("\n\n", MAX_CHUNK);
-        if (splitIdx <= 0) splitIdx = remaining.lastIndexOf("\n", MAX_CHUNK);
-        if (splitIdx <= 0) splitIdx = MAX_CHUNK;
+      while (needsSplit(remaining)) {
+        // Try paragraph boundary first, then line, then hard char limit
+        let splitIdx = remaining.lastIndexOf("\n\n", MAX_CHUNK_CHARS);
+        if (splitIdx <= 0) splitIdx = remaining.lastIndexOf("\n", MAX_CHUNK_CHARS);
+        if (splitIdx <= 0) splitIdx = MAX_CHUNK_CHARS;
+
+        // Also check line count limit
+        const lines = remaining.substring(0, splitIdx).split("\n");
+        if (lines.length > MAX_CHUNK_LINES) {
+          splitIdx = lines.slice(0, MAX_CHUNK_LINES).join("\n").length;
+        }
+
         chunks.push(remaining.substring(0, splitIdx).trim());
         remaining = remaining.substring(splitIdx).trim();
       }
