@@ -257,7 +257,7 @@ function buildNodes(
         ],
         message:
           "[Agent reply text...]\n\n[ 👍 This resolved my issue ]",
-        botIdentity: ADMIN_IDENTITY,
+        botIdentity: ASK_LOVABLE,
         accent: "orange",
       },
     },
