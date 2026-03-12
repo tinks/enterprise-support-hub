@@ -420,11 +420,21 @@ Deno.serve(async (req) => {
     }
 
     // Send each chunk as a separate threaded message to avoid Slack's "See more" collapse
+    const now = new Date();
+    const timestamp = now.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+
     for (let i = 0; i < chunks.length; i++) {
       const isLastChunk = i === chunks.length - 1;
-      const blocks: Record<string, unknown>[] = [
-        { type: "section", text: { type: "mrkdwn", text: chunks[i] } },
-      ];
+      const blocks: Record<string, unknown>[] = [];
+
+      // Add divider + timestamp header on the first chunk
+      if (i === 0) {
+        blocks.push({ type: "divider" });
+        const headerLabel = isHumanAdmin && adminName ? `💬 *${adminName}* replied · ${timestamp}` : `🤖 *Sam* replied · ${timestamp}`;
+        blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: headerLabel }] });
+      }
+
+      blocks.push({ type: "section", text: { type: "mrkdwn", text: chunks[i] } });
 
       // Always show 👍 resolve button; show 👎 escalate only if not already escalated
       if (isLastChunk) {
