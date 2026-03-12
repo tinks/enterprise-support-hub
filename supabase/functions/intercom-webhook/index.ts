@@ -281,24 +281,38 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Strip sign-off lines and AI attribution
+    // Strip sign-off lines and AI attribution (handle various Intercom AI footers)
     replyText = replyText
-      .replace(/\n*This message was composed by Lovable's AI Support Agent\.?\s*$/i, "")
-      .replace(/\n*(Best|Regards|Thanks|Cheers|Kind regards),?\n+\w+\s*$/i, "")
-      .replace(/\n*(Best|Regards|Thanks|Cheers|Kind regards),?\s*$/i, "")
+      .replace(/\n*This message was.*$/is, "")
+      .replace(/\n*(Best|Regards|Thanks|Cheers|Kind regards|Warm regards|All the best),?\n+\w+\s*$/i, "")
+      .replace(/\n*(Best|Regards|Thanks|Cheers|Kind regards|Warm regards|All the best),?\s*$/i, "")
       .trim();
 
-    // Split long text into chunks at paragraph boundaries to avoid Slack's 3000-char block limit
-    const MAX_CHUNK = 2900;
+    // Split long text into chunks to avoid Slack's "See more" collapse.
+    // Slack truncates at ~3000 chars OR ~40 lines — use whichever limit is hit first.
+    const MAX_CHUNK_CHARS = 2500;
+    const MAX_CHUNK_LINES = 35;
     const chunks: string[] = [];
-    if (replyText.length <= MAX_CHUNK) {
+    function needsSplit(text: string) {
+      return text.length > MAX_CHUNK_CHARS || text.split("\n").length > MAX_CHUNK_LINES;
+    }
+
+    if (!needsSplit(replyText)) {
       chunks.push(replyText);
     } else {
       let remaining = replyText;
-      while (remaining.length > MAX_CHUNK) {
-        let splitIdx = remaining.lastIndexOf("\n\n", MAX_CHUNK);
-        if (splitIdx <= 0) splitIdx = remaining.lastIndexOf("\n", MAX_CHUNK);
-        if (splitIdx <= 0) splitIdx = MAX_CHUNK;
+      while (needsSplit(remaining)) {
+        // Try paragraph boundary first, then line, then hard char limit
+        let splitIdx = remaining.lastIndexOf("\n\n", MAX_CHUNK_CHARS);
+        if (splitIdx <= 0) splitIdx = remaining.lastIndexOf("\n", MAX_CHUNK_CHARS);
+        if (splitIdx <= 0) splitIdx = MAX_CHUNK_CHARS;
+
+        // Also check line count limit
+        const lines = remaining.substring(0, splitIdx).split("\n");
+        if (lines.length > MAX_CHUNK_LINES) {
+          splitIdx = lines.slice(0, MAX_CHUNK_LINES).join("\n").length;
+        }
+
         chunks.push(remaining.substring(0, splitIdx).trim());
         remaining = remaining.substring(splitIdx).trim();
       }
