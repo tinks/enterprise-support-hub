@@ -1,0 +1,1 @@
+UPDATE public.bot_messages SET message_text = 'Glad to hear your issue is resolved! We''ll now close this conversation. Should you need any further assistance, please start a new thread. Replies to a closed conversation won''t reach our team. We''re always happy to help!' WHERE message_key = 'feedback_positive';

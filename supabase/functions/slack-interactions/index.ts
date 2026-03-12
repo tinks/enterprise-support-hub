@@ -555,7 +555,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           channel,
           thread_ts: threadTs,
-          text: feedbackBotMsgs["feedback_positive"] || "Glad that helped! Marking as resolved.",
+          text: feedbackBotMsgs["feedback_positive"] || "Glad to hear your issue is resolved! We'll now close this conversation. Should you need any further assistance, please start a new thread. Replies to a closed conversation won't reach our team. We're always happy to help!",
         }),
       });
 
