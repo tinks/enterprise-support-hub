@@ -135,31 +135,58 @@ Deno.serve(async (req) => {
     // Handle conversation closed/resolved in Intercom
     if (CLOSED_TOPICS.includes(topic)) {
       if (mapping.status !== "resolved") {
-        // Helper to post a single Slack message
-        async function postClosedMessage(payload: Record<string, unknown>) {
-          const res = await fetch(`${SLACK_API_URL}/chat.postMessage`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(payload),
-          });
-          const data = await res.json();
-          if (!res.ok || !data.ok) {
-            throw new Error(`Slack API call failed [${res.status}]: ${JSON.stringify(data)}`);
+        // Remove feedback buttons from previous bot messages in the thread
+        try {
+          const repliesRes = await fetch(
+            `${SLACK_API_URL}/conversations.replies?channel=${mapping.slack_channel_id}&ts=${mapping.slack_thread_ts}&limit=100`,
+            { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
+          );
+          const repliesData = await repliesRes.json();
+          if (repliesData.ok && repliesData.messages) {
+            for (const msg of repliesData.messages) {
+              // Find messages with action blocks (feedback buttons)
+              const hasActions = msg.blocks?.some((b: { type: string }) => b.type === "actions");
+              if (hasActions && msg.ts) {
+                const blocksWithoutActions = msg.blocks.filter((b: { type: string }) => b.type !== "actions");
+                await fetch(`${SLACK_API_URL}/chat.update`, {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    channel: mapping.slack_channel_id,
+                    ts: msg.ts,
+                    text: msg.text || "",
+                    blocks: blocksWithoutActions,
+                  }),
+                });
+              }
+            }
           }
-          return data;
+        } catch (e) {
+          console.error("Failed to remove feedback buttons:", e);
         }
 
         const closedText = "✅ This issue has been marked as resolved. If you need further help, reply in this thread to start the conversation again.";
 
-        await postClosedMessage({
-          channel: mapping.slack_channel_id,
-          thread_ts: mapping.slack_thread_ts,
-          text: closedText,
-          blocks: [{ type: "section", text: { type: "mrkdwn", text: closedText } }],
+        const closeRes = await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            channel: mapping.slack_channel_id,
+            thread_ts: mapping.slack_thread_ts,
+            text: closedText,
+            blocks: [{ type: "section", text: { type: "mrkdwn", text: closedText } }],
+          }),
         });
+        const closeData = await closeRes.json();
+        if (!closeRes.ok || !closeData.ok) {
+          console.error(`Failed to post close message: ${JSON.stringify(closeData)}`);
+        }
 
         await supabase
           .from("conversation_mappings")
