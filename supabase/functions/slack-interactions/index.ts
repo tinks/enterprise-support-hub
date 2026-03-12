@@ -629,7 +629,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           channel,
           thread_ts: threadTs,
-          text: "🔄 Escalating to human support. A ticket has been created and a member of our Enterprise support team will follow up shortly.",
+          text: feedbackBotMsgs["escalation_notice"] || "🔄 Escalating to human support. A ticket has been created and a member of our Enterprise support team will follow up shortly.",
         }),
       });
 

@@ -470,7 +470,7 @@ Deno.serve(async (req) => {
             body: JSON.stringify({
               channel: channelId,
               thread_ts: threadTs,
-              text: "🔄 Your reply has been sent. A member of our Enterprise support team will follow up shortly.",
+              text: botMessages["reply_forwarded"] || "🔄 Your reply has been sent. A member of our Enterprise support team will follow up shortly.",
             }),
           });
         }

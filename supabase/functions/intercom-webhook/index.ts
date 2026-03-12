@@ -201,7 +201,9 @@ Deno.serve(async (req) => {
           console.error("Failed to remove feedback buttons:", e);
         }
 
-        const closedText = "✅ This issue has been marked as resolved. If you need further help, reply in this thread to start the conversation again.";
+        // Load bot messages for closed text
+        const { data: closedMsgRows } = await supabase.from("bot_messages").select("message_key, message_text").eq("message_key", "conversation_closed").maybeSingle();
+        const closedText = closedMsgRows?.message_text || "✅ This issue has been marked as resolved. If you need further help, reply in this thread to start the conversation again.";
 
         const closeRes = await fetch(`${SLACK_API_URL}/chat.postMessage`, {
           method: "POST",
