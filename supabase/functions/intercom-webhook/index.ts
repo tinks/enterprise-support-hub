@@ -328,9 +328,32 @@ Deno.serve(async (req) => {
     const basePayload: Record<string, unknown> = {
       channel: mapping.slack_channel_id,
       thread_ts: mapping.slack_thread_ts,
-      // Always post as the bot app — no username/icon_url overrides
-      // to keep a single consistent avatar in the thread
     };
+
+    // For human admin replies, fetch their Intercom avatar and override Slack identity
+    if (isHumanAdmin && adminName && INTERCOM_API_TOKEN) {
+      try {
+        const lastPart = conversationParts[conversationParts.length - 1];
+        const adminId = lastPart.author?.id;
+        if (adminId) {
+          const adminRes = await fetch(`https://api.intercom.io/admins/${adminId}`, {
+            headers: {
+              Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+              Accept: "application/json",
+            },
+          });
+          if (adminRes.ok) {
+            const adminData = await adminRes.json();
+            if (adminData.avatar?.image_url) {
+              basePayload.icon_url = adminData.avatar.image_url;
+              basePayload.username = adminName;
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Failed to fetch admin avatar:", e);
+      }
+    }
 
     // Debug message is already posted by slack-interactions when the ticket is created
 
