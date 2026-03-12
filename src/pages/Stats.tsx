@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock } from "lucide-react";
+import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink } from "lucide-react";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { format, parseISO } from "date-fns";
@@ -96,11 +96,33 @@ const Stats = () => {
     <AppLayout>
       <div className="mx-auto max-w-4xl space-y-6 p-6">
         {/* Hero Banner */}
-        <div className="flex items-center gap-4 rounded-xl border border-border bg-card p-6">
-          <img src="/lovable-logo.png" alt="Lovable logo" className="h-12 w-12 rounded-lg" />
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Lovable Support Hub</h1>
-            <p className="text-sm text-muted-foreground">Real-time analytics for your Slack ↔ Intercom support pipeline</p>
+        <div className="flex items-center justify-between rounded-xl border border-border bg-card p-6">
+          <div className="flex items-center gap-4">
+            <img src="/lovable-logo.png" alt="Lovable logo" className="h-12 w-12 rounded-lg" />
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Lovable Support Hub</h1>
+              <p className="text-sm text-muted-foreground">Real-time analytics for your Slack ↔ Intercom support pipeline</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <a
+              href="https://api.slack.com/apps"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Slack App
+            </a>
+            <a
+              href="https://app.intercom.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Intercom
+            </a>
           </div>
         </div>
         {/* View Toggle */}
