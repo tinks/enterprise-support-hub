@@ -10,6 +10,18 @@ const corsHeaders = {
 
 const SLACK_API_URL = "https://slack.com/api";
 
+async function addReaction(token: string, channel: string, timestamp: string, emoji: string) {
+  try {
+    await fetch(`${SLACK_API_URL}/reactions.add`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ channel, timestamp, name: emoji }),
+    });
+  } catch (e) {
+    console.error(`Failed to add reaction ${emoji}:`, e);
+  }
+}
+
 function cleanSlackMarkup(text: string): string {
   return text
     .replace(/<mailto:([^|>]+)\|[^>]+>/g, "$1")
@@ -414,6 +426,8 @@ Deno.serve(async (req) => {
 
         // Update status to escalated
         if (mapping.status !== "escalated") {
+          await addReaction(SLACK_BOT_TOKEN, channelId, threadTs, "hourglass_flowing_sand");
+
           await supabase
             .from("conversation_mappings")
             .update({ status: "escalated" })

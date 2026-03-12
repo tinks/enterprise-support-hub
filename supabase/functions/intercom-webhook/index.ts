@@ -10,6 +10,18 @@ const corsHeaders = {
 
 const SLACK_API_URL = "https://slack.com/api";
 
+async function addReaction(token: string, channel: string, timestamp: string, emoji: string) {
+  try {
+    await fetch(`${SLACK_API_URL}/reactions.add`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ channel, timestamp, name: emoji }),
+    });
+  } catch (e) {
+    console.error(`Failed to add reaction ${emoji}:`, e);
+  }
+}
+
 async function verifyIntercomSignature(
   rawBody: string,
   signature: string | null,
@@ -187,6 +199,8 @@ Deno.serve(async (req) => {
         if (!closeRes.ok || !closeData.ok) {
           console.error(`Failed to post close message: ${JSON.stringify(closeData)}`);
         }
+
+        await addReaction(SLACK_BOT_TOKEN, mapping.slack_channel_id, mapping.slack_thread_ts, "white_check_mark");
 
         await supabase
           .from("conversation_mappings")

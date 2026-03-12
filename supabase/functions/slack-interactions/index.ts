@@ -10,6 +10,18 @@ const corsHeaders = {
 
 const SLACK_API_URL = "https://slack.com/api";
 
+async function addReaction(token: string, channel: string, timestamp: string, emoji: string) {
+  try {
+    await fetch(`${SLACK_API_URL}/reactions.add`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ channel, timestamp, name: emoji }),
+    });
+  } catch (e) {
+    console.error(`Failed to add reaction ${emoji}:`, e);
+  }
+}
+
 async function verifySlackSignature(
   rawBody: string,
   signature: string | null,
@@ -58,6 +70,9 @@ async function createIntercomTicket(opts: {
     Accept: "application/json",
     "Intercom-Version": "2.11",
   };
+
+  // Add eyes reaction to original message
+  await addReaction(slackBotToken, channelId, threadTs, "eyes");
 
   // Post acknowledgment in thread
   await fetch(`${SLACK_API_URL}/chat.postMessage`, {
@@ -491,6 +506,8 @@ Deno.serve(async (req) => {
     }
 
     if (actionId === "feedback_positive") {
+      await addReaction(SLACK_BOT_TOKEN, channel, threadTs, "white_check_mark");
+
       await fetch(`${SLACK_API_URL}/chat.postMessage`, {
         method: "POST",
         headers: {
@@ -529,6 +546,8 @@ Deno.serve(async (req) => {
 
     } else if (actionId === "feedback_negative") {
       // No Intercom changes — just notify human in Slack
+      await addReaction(SLACK_BOT_TOKEN, channel, threadTs, "hourglass_flowing_sand");
+
       await fetch(`${SLACK_API_URL}/chat.postMessage`, {
         method: "POST",
         headers: {
