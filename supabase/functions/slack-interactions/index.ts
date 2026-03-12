@@ -112,7 +112,7 @@ async function createIntercomTicket(opts: {
     body: JSON.stringify({
       channel: channelId,
       thread_ts: threadTs,
-      text: botMsgs["ticket_created_ack"] || "✅ Thanks for sharing those details! You're now being redirected to Sam, Lovable's AI Support Agent. Please note that Sam may take 3–4 minutes to come back to you with a response. Hang tight!",
+      text: botMsgs["ticket_created_ack"] || "Thanks for sharing those details! You're now being redirected to Sam, Lovable's AI Support Agent. Please note that Sam may take 3–4 minutes to come back to you with a response. Hang tight!",
     }),
   });
 
