@@ -145,6 +145,7 @@ const ADMIN_IDENTITY = { name: "Sam", avatarUrl: "/lovable-smiley-logo.png" };
         message: msgs.ticket_created_ack,
         messageKey: "ticket_created_ack",
         onMessageSave: onSave,
+        botIdentity: ASK_LOVABLE,
         reactions: ["👀"],
         status: "active",
         accent: "blue",
