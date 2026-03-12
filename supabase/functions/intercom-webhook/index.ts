@@ -187,6 +187,7 @@ Deno.serve(async (req) => {
     const conversationParts = body.data?.item?.conversation_parts?.conversation_parts;
     let replyText = "";
     let adminName = "Lovable Support";
+    let adminAvatarUrl: string | null = null;
     let slackUserId: string | null = null;
     let isHumanAdmin = false;
 
@@ -199,6 +200,10 @@ Deno.serve(async (req) => {
         if (author.type === "admin" && author.name) {
           adminName = author.name;
           isHumanAdmin = true;
+          // Grab avatar from webhook payload if available
+          if (author.avatar?.image_url) {
+            adminAvatarUrl = author.avatar.image_url;
+          }
         }
       }
     }
