@@ -36,7 +36,7 @@ const DEFAULT_MESSAGES: Record<string, string> = {
   context_prompt:
     "👋 Thank you for contacting the Enterprise Support Team. To help us resolve your issue as quickly and accurately as possible, please share your Lovable account email and your workspace or project name (or a link to it). If these aren't relevant to your question, feel free to click *Proceed*.",
   ticket_created_ack:
-    "✅ Thanks! Generating a response... Should take about 3-4 minutes.",
+    "✅ Thanks for sharing those details! You're now being redirected to Sam, Lovable's AI Support Agent. Please note that Sam may take 3–4 minutes to come back to you with a response. Hang tight!",
   feedback_positive: "✅ Glad that helped! Marking as resolved.",
   escalation_notice:
     "🔄 Escalating to human support. A ticket has been created and a member of our Enterprise support team will follow up shortly.",
