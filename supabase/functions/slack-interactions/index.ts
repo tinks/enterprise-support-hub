@@ -95,6 +95,13 @@ async function createIntercomTicket(opts: {
   // Add eyes reaction to original message
   await addReaction(slackBotToken, channelId, threadTs, "eyes");
 
+  // Load bot messages
+  const { data: botMsgRows } = await supabase.from("bot_messages").select("message_key, message_text");
+  const botMsgs: Record<string, string> = {};
+  if (botMsgRows) {
+    for (const row of botMsgRows) botMsgs[row.message_key] = row.message_text;
+  }
+
   // Post acknowledgment in thread
   await fetch(`${SLACK_API_URL}/chat.postMessage`, {
     method: "POST",
@@ -105,7 +112,7 @@ async function createIntercomTicket(opts: {
     body: JSON.stringify({
       channel: channelId,
       thread_ts: threadTs,
-      text: "✅ Thanks! Generating a response... Should take about 3-4 minutes.",
+      text: botMsgs["ticket_created_ack"] || "✅ Thanks! Generating a response... Should take about 3-4 minutes.",
     }),
   });
 
