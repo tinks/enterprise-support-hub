@@ -239,7 +239,7 @@ const initialNodes: Node<FlowNodeData>[] = [
         "Posts reply (split at 2900 chars)",
         "Appends feedback buttons to last chunk",
       ],
-      message: "Based on your error, try...\n[ ✅ Resolved ]  [ ⚠️ Escalate ]",
+      message: "[AI reply text...]\n\n[ 👍 This resolved my issue ]  [ 👎 Escalate to human ]",
       accent: "blue",
       wide: true,
     },
