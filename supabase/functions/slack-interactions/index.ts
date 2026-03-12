@@ -507,6 +507,13 @@ Deno.serve(async (req) => {
     const channel = payload.channel?.id;
     const threadTs = payload.message?.thread_ts || payload.message?.ts;
 
+    // Load bot messages for feedback responses
+    const { data: feedbackMsgRows } = await supabase.from("bot_messages").select("message_key, message_text");
+    const feedbackBotMsgs: Record<string, string> = {};
+    if (feedbackMsgRows) {
+      for (const row of feedbackMsgRows) feedbackBotMsgs[row.message_key] = row.message_text;
+    }
+
     // Remove feedback buttons (but keep the message text) when clicked
     if (actionId === "feedback_positive" || actionId === "feedback_negative") {
       // Update the message to strip action blocks instead of deleting entirely
