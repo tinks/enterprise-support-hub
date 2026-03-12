@@ -214,6 +214,7 @@ const ADMIN_IDENTITY = { name: "Sam", avatarUrl: "/lovable-smiley-logo.png" };
         message: msgs.escalation_notice,
         messageKey: "escalation_notice",
         onMessageSave: onSave,
+        botIdentity: ASK_LOVABLE,
         reactions: ["⏳"],
         status: "escalated",
         accent: "orange",
