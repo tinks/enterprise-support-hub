@@ -190,6 +190,7 @@ const ADMIN_IDENTITY = { name: "Sam", avatarUrl: "/lovable-smiley-logo.png" };
         message: msgs.feedback_positive,
         messageKey: "feedback_positive",
         onMessageSave: onSave,
+        botIdentity: ASK_LOVABLE,
         reactions: ["✅"],
         status: "resolved",
         accent: "green",
