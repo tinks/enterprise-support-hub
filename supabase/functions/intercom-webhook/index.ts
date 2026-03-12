@@ -376,6 +376,38 @@ Deno.serve(async (req) => {
 
     // Debug message is already posted by slack-interactions when the ticket is created
 
+    // Remove feedback buttons from previous bot messages before posting new reply
+    try {
+      const repliesRes = await fetch(
+        `${SLACK_API_URL}/conversations.replies?channel=${mapping.slack_channel_id}&ts=${mapping.slack_thread_ts}&limit=100`,
+        { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
+      );
+      const repliesData = await repliesRes.json();
+      if (repliesData.ok && repliesData.messages) {
+        for (const msg of repliesData.messages) {
+          const hasActions = msg.blocks?.some((b: { type: string }) => b.type === "actions");
+          if (hasActions && msg.ts) {
+            const blocksWithoutActions = msg.blocks.filter((b: { type: string }) => b.type !== "actions");
+            await fetch(`${SLACK_API_URL}/chat.update`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                channel: mapping.slack_channel_id,
+                ts: msg.ts,
+                text: msg.text || "",
+                blocks: blocksWithoutActions,
+              }),
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Failed to remove old feedback buttons:", e);
+    }
+
     // Send each chunk as a separate threaded message to avoid Slack's "See more" collapse
     for (let i = 0; i < chunks.length; i++) {
       const isLastChunk = i === chunks.length - 1;
