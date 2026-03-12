@@ -234,10 +234,8 @@ Deno.serve(async (req) => {
       if (remaining) chunks.push(remaining);
     }
 
-    // If human admin, try to find their Slack profile for avatar
     if (isHumanAdmin) {
       try {
-        // Look up admin email from Intercom conversation parts
         const lastPart = conversationParts[conversationParts.length - 1];
         const adminEmail = lastPart?.author?.email;
         if (adminEmail) {
@@ -246,11 +244,11 @@ Deno.serve(async (req) => {
           });
           const lookupData = await lookupRes.json();
           if (lookupData.ok && lookupData.user) {
-            iconUrl = lookupData.user.profile?.image_72 || lookupData.user.profile?.image_48;
+            slackUserId = lookupData.user.id;
           }
         }
       } catch (e) {
-        console.log("Could not look up Slack user for admin avatar:", e);
+        console.log("Could not look up Slack user for admin:", e);
       }
     }
 
