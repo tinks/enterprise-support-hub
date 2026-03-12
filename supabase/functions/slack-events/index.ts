@@ -12,11 +12,16 @@ const SLACK_API_URL = "https://slack.com/api";
 
 async function addReaction(token: string, channel: string, timestamp: string, emoji: string) {
   try {
-    await fetch(`${SLACK_API_URL}/reactions.add`, {
+    console.log(`Adding reaction ${emoji} to channel=${channel} ts=${timestamp}`);
+    const res = await fetch(`${SLACK_API_URL}/reactions.add`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ channel, timestamp, name: emoji }),
     });
+    const data = await res.json();
+    if (!data.ok) {
+      console.error(`Slack reactions.add failed for ${emoji}:`, data.error);
+    }
   } catch (e) {
     console.error(`Failed to add reaction ${emoji}:`, e);
   }
