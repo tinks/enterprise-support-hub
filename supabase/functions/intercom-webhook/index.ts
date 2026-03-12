@@ -330,12 +330,15 @@ Deno.serve(async (req) => {
       thread_ts: mapping.slack_thread_ts,
     };
 
-    // For human admin replies, fetch their Intercom avatar and override Slack identity
+    // For human admin replies, fetch their avatar and override Slack identity
     if (isHumanAdmin && adminName && INTERCOM_API_TOKEN) {
-      try {
-        const lastPart = conversationParts[conversationParts.length - 1];
-        const adminId = lastPart.author?.id;
-        if (adminId) {
+      const lastPart = conversationParts[conversationParts.length - 1];
+      const adminId = lastPart.author?.id;
+      let avatarUrl = "";
+
+      // 1) Try Intercom admin avatar
+      if (adminId) {
+        try {
           const adminRes = await fetch(`https://api.intercom.io/admins/${adminId}`, {
             headers: {
               Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
@@ -344,15 +347,39 @@ Deno.serve(async (req) => {
           });
           if (adminRes.ok) {
             const adminData = await adminRes.json();
+            console.log(`Intercom admin data for ${adminName}: avatar=${adminData.avatar?.image_url || "none"}, email=${adminData.email || "none"}`);
             if (adminData.avatar?.image_url) {
-              basePayload.icon_url = adminData.avatar.image_url;
-              basePayload.username = adminName;
+              avatarUrl = adminData.avatar.image_url;
             }
+
+            // 2) Fallback: look up Slack profile picture by admin email
+            if (!avatarUrl && adminData.email) {
+              try {
+                const slackLookup = await fetch(
+                  `${SLACK_API_URL}/users.lookupByEmail?email=${encodeURIComponent(adminData.email)}`,
+                  { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
+                );
+                const slackData = await slackLookup.json();
+                if (slackData.ok && slackData.user?.profile) {
+                  avatarUrl = slackData.user.profile.image_192 || slackData.user.profile.image_72 || "";
+                  console.log(`Using Slack avatar for ${adminName}: ${avatarUrl}`);
+                }
+              } catch (e) {
+                console.error("Slack email lookup failed:", e);
+              }
+            }
+          } else {
+            console.error(`Intercom admin fetch failed: ${adminRes.status}`);
           }
+        } catch (e) {
+          console.error("Failed to fetch admin avatar:", e);
         }
-      } catch (e) {
-        console.error("Failed to fetch admin avatar:", e);
       }
+
+      if (avatarUrl) {
+        basePayload.icon_url = avatarUrl;
+      }
+      basePayload.username = adminName;
     }
 
     // Debug message is already posted by slack-interactions when the ticket is created
