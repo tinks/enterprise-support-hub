@@ -308,6 +308,41 @@ Deno.serve(async (req) => {
       if (remaining) chunks.push(remaining);
     }
 
+    // Resolve human admin avatar from Slack profile or Intercom
+    if (isHumanAdmin) {
+      try {
+        const lastPart = conversationParts[conversationParts.length - 1];
+        const adminEmail = lastPart?.author?.email;
+        if (adminEmail) {
+          const lookupRes = await fetch(`${SLACK_API_URL}/users.lookupByEmail?email=${encodeURIComponent(adminEmail)}`, {
+            headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+          });
+          const lookupData = await lookupRes.json();
+          if (lookupData.ok && lookupData.user?.profile) {
+            const profile = lookupData.user.profile;
+            adminAvatarUrl = profile.image_192 || profile.image_72 || adminAvatarUrl;
+          }
+        }
+        // Fallback: fetch avatar from Intercom API
+        if (!adminAvatarUrl && INTERCOM_API_TOKEN) {
+          const adminId = lastPart?.author?.id;
+          if (adminId) {
+            const adminRes = await fetch(`https://api.intercom.io/admins/${adminId}`, {
+              headers: { Authorization: `Bearer ${INTERCOM_API_TOKEN}`, Accept: "application/json" },
+            });
+            if (adminRes.ok) {
+              const adminData = await adminRes.json();
+              if (adminData.avatar?.image_url) {
+                adminAvatarUrl = adminData.avatar.image_url;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.log("Could not look up avatar for admin:", e);
+      }
+    }
+
     // Helper to post a single Slack message
     async function postSlackMessage(payload: Record<string, unknown>) {
       const res = await fetch(`${SLACK_API_URL}/chat.postMessage`, {
@@ -328,6 +363,8 @@ Deno.serve(async (req) => {
     const basePayload: Record<string, unknown> = {
       channel: mapping.slack_channel_id,
       thread_ts: mapping.slack_thread_ts,
+      ...(isHumanAdmin && adminName && { username: adminName }),
+      ...(isHumanAdmin && adminAvatarUrl && { icon_url: adminAvatarUrl }),
     };
 
     // Debug message is already posted by slack-interactions when the ticket is created
