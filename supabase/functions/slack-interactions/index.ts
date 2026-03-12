@@ -555,7 +555,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           channel,
           thread_ts: threadTs,
-          text: feedbackBotMsgs["feedback_positive"] || "✅ Glad that helped! Marking as resolved.",
+          text: feedbackBotMsgs["feedback_positive"] || "Glad that helped! Marking as resolved.",
         }),
       });
 
