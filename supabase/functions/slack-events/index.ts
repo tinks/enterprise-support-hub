@@ -161,6 +161,13 @@ Deno.serve(async (req) => {
       .limit(1)
       .single();
 
+    // Load bot messages
+    const { data: botMsgRows } = await supabase.from("bot_messages").select("message_key, message_text");
+    const botMessages: Record<string, string> = {};
+    if (botMsgRows) {
+      for (const row of botMsgRows) botMessages[row.message_key] = row.message_text;
+    }
+
     // Identity guard: verify token matches expected bot
     const expectedBotId = settings?.slack_bot_user_id;
     if (expectedBotId) {
@@ -255,19 +262,20 @@ Deno.serve(async (req) => {
 
       // Send Block Kit message with buttons
       const buttonValue = `${channelId}|${threadTs}`;
+      const contextPromptText = botMessages["context_prompt"] || "👋 Optionally add your Lovable account email and/or project link to improve support. If you don't want to share this, just click *Proceed*.";
       await fetch(`${SLACK_API_URL}/chat.postMessage`, {
         method: "POST",
         headers: slackHeaders,
         body: JSON.stringify({
           channel: channelId,
           thread_ts: threadTs,
-          text: "Optionally add your Lovable account email and/or project link to improve support. If you don't want to share this, just click Proceed.",
+          text: contextPromptText.replace(/\*/g, ""),
           blocks: [
             {
               type: "section",
               text: {
                 type: "mrkdwn",
-                text: "👋 Optionally add your Lovable account email and/or project link to improve support. If you don't want to share this, just click *Proceed*.",
+                text: contextPromptText,
               },
             },
             {
@@ -462,7 +470,7 @@ Deno.serve(async (req) => {
             body: JSON.stringify({
               channel: channelId,
               thread_ts: threadTs,
-              text: "🔄 Your reply has been sent. A member of our Enterprise support team will follow up shortly.",
+              text: botMessages["reply_forwarded"] || "🔄 Your reply has been sent. A member of our Enterprise support team will follow up shortly.",
             }),
           });
         }

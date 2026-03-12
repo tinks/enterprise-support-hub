@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      bot_messages: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          message_key: string
+          message_text: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string
+          id?: string
+          message_key: string
+          message_text: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          message_key?: string
+          message_text?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       conversation_mappings: {
         Row: {
           created_at: string

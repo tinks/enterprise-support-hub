@@ -95,6 +95,13 @@ async function createIntercomTicket(opts: {
   // Add eyes reaction to original message
   await addReaction(slackBotToken, channelId, threadTs, "eyes");
 
+  // Load bot messages
+  const { data: botMsgRows } = await supabase.from("bot_messages").select("message_key, message_text");
+  const botMsgs: Record<string, string> = {};
+  if (botMsgRows) {
+    for (const row of botMsgRows) botMsgs[row.message_key] = row.message_text;
+  }
+
   // Post acknowledgment in thread
   await fetch(`${SLACK_API_URL}/chat.postMessage`, {
     method: "POST",
@@ -105,7 +112,7 @@ async function createIntercomTicket(opts: {
     body: JSON.stringify({
       channel: channelId,
       thread_ts: threadTs,
-      text: "✅ Thanks! Generating a response... Should take about 3-4 minutes.",
+      text: botMsgs["ticket_created_ack"] || "✅ Thanks! Generating a response... Should take about 3-4 minutes.",
     }),
   });
 
@@ -500,6 +507,13 @@ Deno.serve(async (req) => {
     const channel = payload.channel?.id;
     const threadTs = payload.message?.thread_ts || payload.message?.ts;
 
+    // Load bot messages for feedback responses
+    const { data: feedbackMsgRows } = await supabase.from("bot_messages").select("message_key, message_text");
+    const feedbackBotMsgs: Record<string, string> = {};
+    if (feedbackMsgRows) {
+      for (const row of feedbackMsgRows) feedbackBotMsgs[row.message_key] = row.message_text;
+    }
+
     // Remove feedback buttons (but keep the message text) when clicked
     if (actionId === "feedback_positive" || actionId === "feedback_negative") {
       // Update the message to strip action blocks instead of deleting entirely
@@ -541,7 +555,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           channel,
           thread_ts: threadTs,
-          text: "✅ Glad that helped! Marking as resolved.",
+          text: feedbackBotMsgs["feedback_positive"] || "✅ Glad that helped! Marking as resolved.",
         }),
       });
 
@@ -622,7 +636,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           channel,
           thread_ts: threadTs,
-          text: "🔄 Escalating to human support. A ticket has been created and a member of our Enterprise support team will follow up shortly.",
+          text: feedbackBotMsgs["escalation_notice"] || "🔄 Escalating to human support. A ticket has been created and a member of our Enterprise support team will follow up shortly.",
         }),
       });
 

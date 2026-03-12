@@ -6,11 +6,9 @@ import {
   MiniMap,
   type Node,
   type Edge,
-  Position,
-  Handle,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   MessageSquare,
   Bot,
@@ -22,333 +20,265 @@ import {
   User,
   CheckCircle2,
 } from "lucide-react";
+import EditableFlowNode, { type FlowNodeData } from "@/components/EditableFlowNode";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
-/* ------------------------------------------------------------------ */
-/*  Custom Node                                                        */
-/* ------------------------------------------------------------------ */
-
-type FlowNodeData = {
-  label: string;
-  desc: string;
-  icon: React.ElementType;
-  details?: string[];
-  message?: string;
-  edgeFunction?: string;
-  reactions?: string[];
-  status?: string;
-  accent?: "blue" | "green" | "orange" | "default";
-  wide?: boolean;
-};
-
-const accentBorder: Record<string, string> = {
-  blue: "border-l-[hsl(var(--primary))]",
-  green: "border-l-green-500",
-  orange: "border-l-orange-500",
-  default: "border-l-[hsl(var(--border))]",
-};
-
-const accentIcon: Record<string, string> = {
-  blue: "text-primary",
-  green: "text-green-600 dark:text-green-400",
-  orange: "text-orange-600 dark:text-orange-400",
-  default: "text-muted-foreground",
-};
-
-function FlowNode({ data }: { data: FlowNodeData }) {
-  const Icon = data.icon;
-  const accent = data.accent || "default";
-
-  return (
-    <>
-      <Handle type="target" position={Position.Top} className="!bg-muted-foreground/40 !w-2 !h-2" />
-      <div
-        className={`rounded-lg border border-border bg-card shadow-md border-l-4 ${accentBorder[accent]} ${data.wide ? "w-[340px]" : "w-[280px]"} cursor-default`}
-      >
-        <div className="p-3">
-          <div className="flex items-start gap-2">
-            <div className={`shrink-0 mt-0.5 ${accentIcon[accent]}`}>
-              <Icon className="h-4 w-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <h3 className="font-semibold text-xs text-foreground leading-tight">{data.label}</h3>
-                {data.edgeFunction && (
-                  <span className="rounded bg-accent px-1 py-0.5 font-mono text-[9px] text-accent-foreground leading-none">
-                    {data.edgeFunction}
-                  </span>
-                )}
-              </div>
-              <p className="mt-1 text-[10px] text-muted-foreground leading-snug">{data.desc}</p>
-            </div>
-          </div>
-
-          {data.details && data.details.length > 0 && (
-            <ul className="mt-2 space-y-0.5 text-[10px] text-muted-foreground pl-6">
-              {data.details.map((d, i) => (
-                <li key={i} className="flex items-start gap-1">
-                  <span className="mt-1 block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/40" />
-                  <span>{d}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {data.message && (
-            <div className="mt-2 rounded border border-border bg-muted/50 px-2 py-1.5 font-mono text-[9px] text-muted-foreground leading-snug">
-              {data.message}
-            </div>
-          )}
-
-          {(data.reactions || data.status) && (
-            <div className="mt-2 flex items-center gap-2 text-[10px]">
-              {data.reactions && (
-                <span className="flex gap-0.5">
-                  {data.reactions.map((r, i) => (
-                    <span key={i} className="text-sm">{r}</span>
-                  ))}
-                </span>
-              )}
-              {data.status && (
-                <span className="rounded bg-accent px-1 py-0.5 text-[9px] font-medium text-accent-foreground">
-                  status → {data.status}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-      <Handle type="source" position={Position.Bottom} className="!bg-muted-foreground/40 !w-2 !h-2" />
-    </>
-  );
-}
-
-const nodeTypes = { flowNode: FlowNode };
-
-/* ------------------------------------------------------------------ */
-/*  Layout constants                                                   */
-/* ------------------------------------------------------------------ */
+const nodeTypes = { flowNode: EditableFlowNode };
 
 const COL_W = 360;
 const ROW_H = 260;
 
 /* ------------------------------------------------------------------ */
-/*  Nodes                                                              */
+/*  Default messages (fallback if DB unavailable)                      */
 /* ------------------------------------------------------------------ */
+const DEFAULT_MESSAGES: Record<string, string> = {
+  context_prompt:
+    "👋 Optionally add your Lovable account email and/or project link to improve support. If you don't want to share this, just click *Proceed*.",
+  ticket_created_ack:
+    "✅ Thanks! Generating a response... Should take about 3-4 minutes.",
+  feedback_positive: "✅ Glad that helped! Marking as resolved.",
+  escalation_notice:
+    "🔄 Escalating to human support. A ticket has been created and a member of our Enterprise support team will follow up shortly.",
+  reply_forwarded:
+    "🔄 Your reply has been sent. A member of our Enterprise support team will follow up shortly.",
+  conversation_closed:
+    "✅ This issue has been marked as resolved. If you need further help, reply in this thread to start the conversation again.",
+};
 
-const initialNodes: Node<FlowNodeData>[] = [
-  {
-    id: "1",
-    type: "flowNode",
-    position: { x: COL_W, y: 0 },
-    data: {
-      label: "1. User @mentions bot",
-      desc: "A user mentions the bot in a monitored Slack channel or thread.",
-      icon: MessageSquare,
-      edgeFunction: "slack-events",
-      details: [
-        "Verifies Slack signature",
-        "Checks channel is monitored",
-        "Deduplicates via conversation_mappings",
-        "If thread reply → fetches full transcript",
-      ],
-      message: "@SupportBot I'm having trouble deploying my project...",
-      accent: "blue",
+/* ------------------------------------------------------------------ */
+/*  Build nodes — uses message map so they update from DB              */
+/* ------------------------------------------------------------------ */
+function buildNodes(
+  msgs: Record<string, string>,
+  onSave: (key: string, text: string) => void
+): Node<FlowNodeData>[] {
+  return [
+    {
+      id: "1",
+      type: "flowNode",
+      position: { x: COL_W, y: 0 },
+      data: {
+        label: "1. User @mentions bot",
+        desc: "A user mentions the bot in a monitored Slack channel or thread.",
+        icon: MessageSquare,
+        edgeFunction: "slack-events",
+        details: [
+          "Verifies Slack signature",
+          "Checks channel is monitored",
+          "Deduplicates via conversation_mappings",
+          "If thread reply → fetches full transcript",
+        ],
+        message: "@SupportBot I'm having trouble deploying my project...",
+        accent: "blue",
+      },
     },
-  },
-  {
-    id: "2",
-    type: "flowNode",
-    position: { x: COL_W, y: ROW_H },
-    data: {
-      label: "2. Bot posts context prompt",
-      desc: "Bot replies with two buttons to add context or proceed immediately.",
-      icon: Bot,
-      edgeFunction: "slack-events",
-      message: '👋 Optionally add your Lovable account email and/or project link to improve support. If you don\'t want to share this, just click Proceed.\n\n[ Add Details ]  [ Proceed ]',
-      status: "awaiting_context",
-      accent: "blue",
+    {
+      id: "2",
+      type: "flowNode",
+      position: { x: COL_W, y: ROW_H },
+      data: {
+        label: "2. Bot posts context prompt",
+        desc: "Bot replies with two buttons to add context or proceed immediately.",
+        icon: Bot,
+        edgeFunction: "slack-events",
+        message: msgs.context_prompt,
+        messageKey: "context_prompt",
+        onMessageSave: onSave,
+        status: "awaiting_context",
+        accent: "blue",
+      },
     },
-  },
-  {
-    id: "3a",
-    type: "flowNode",
-    position: { x: COL_W - COL_W * 0.55, y: ROW_H * 2 },
-    data: {
-      label: '3a. "Add Details" clicked',
-      desc: "Opens a Slack modal for email + project link.",
-      icon: Mail,
-      edgeFunction: "slack-interactions",
-      details: [
-        "Prompt message deleted",
-        "Modal: Email + Project Link fields",
-        "On submit → creates Intercom ticket",
-      ],
-      message: "📧 user@example.com\n🔗 https://lovable.dev/projects/...",
-      accent: "blue",
+    {
+      id: "3a",
+      type: "flowNode",
+      position: { x: COL_W - COL_W * 0.55, y: ROW_H * 2 },
+      data: {
+        label: '3a. "Add Details" clicked',
+        desc: "Opens a Slack modal for email + project link.",
+        icon: Mail,
+        edgeFunction: "slack-interactions",
+        details: [
+          "Prompt message deleted",
+          "Modal: Email + Project Link fields",
+          "On submit → creates Intercom ticket",
+        ],
+        message: "📧 user@example.com\n🔗 https://lovable.dev/projects/...",
+        accent: "blue",
+      },
     },
-  },
-  {
-    id: "3b",
-    type: "flowNode",
-    position: { x: COL_W + COL_W * 0.55, y: ROW_H * 2 },
-    data: {
-      label: '3b. "Proceed" clicked',
-      desc: "Skips modal, creates ticket with original message only.",
-      icon: MousePointerClick,
-      edgeFunction: "slack-interactions",
-      details: [
-        "Prompt message deleted",
-        "Creates Intercom ticket immediately",
-      ],
-      accent: "blue",
+    {
+      id: "3b",
+      type: "flowNode",
+      position: { x: COL_W + COL_W * 0.55, y: ROW_H * 2 },
+      data: {
+        label: '3b. "Proceed" clicked',
+        desc: "Skips modal, creates ticket with original message only.",
+        icon: MousePointerClick,
+        edgeFunction: "slack-interactions",
+        details: [
+          "Prompt message deleted",
+          "Creates Intercom ticket immediately",
+        ],
+        accent: "blue",
+      },
     },
-  },
-  {
-    id: "4",
-    type: "flowNode",
-    position: { x: COL_W, y: ROW_H * 3 },
-    data: {
-      label: "4. Intercom ticket created",
-      desc: "Bot creates an Intercom conversation and assigns it to the AI agent.",
-      icon: Ticket,
-      edgeFunction: "slack-interactions",
-      details: [
-        "Adds 👀 reaction to original message",
-        "Searches/creates Intercom contact",
-        "Creates conversation, assigns to AI agent",
-        'Tags with "Slack"',
-      ],
-      message: "✅ Thanks! Generating a response... Should take about 3-4 minutes.",
-      reactions: ["👀"],
-      status: "active",
-      accent: "blue",
-      wide: true,
+    {
+      id: "4",
+      type: "flowNode",
+      position: { x: COL_W, y: ROW_H * 3 },
+      data: {
+        label: "4. Intercom ticket created",
+        desc: "Bot creates an Intercom conversation and assigns it to the AI agent.",
+        icon: Ticket,
+        edgeFunction: "slack-interactions",
+        details: [
+          "Adds 👀 reaction to original message",
+          "Searches/creates Intercom contact",
+          "Creates conversation, assigns to AI agent",
+          'Tags with "Slack"',
+        ],
+        message: msgs.ticket_created_ack,
+        messageKey: "ticket_created_ack",
+        onMessageSave: onSave,
+        reactions: ["👀"],
+        status: "active",
+        accent: "blue",
+        wide: true,
+      },
     },
-  },
-  {
-    id: "5",
-    type: "flowNode",
-    position: { x: COL_W, y: ROW_H * 4 },
-    data: {
-      label: "5. AI responds → posted to Slack",
-      desc: "Intercom AI replies. Webhook posts it to the Slack thread with feedback buttons.",
-      icon: Bot,
-      edgeFunction: "intercom-webhook",
-      details: [
-        "Removes old feedback buttons from thread",
-        "Posts reply (split at 2900 chars)",
-        "Appends feedback buttons to last chunk",
-      ],
-      message: "[AI reply text...]\n\n[ 👍 This resolved my issue ]  [ 👎 Escalate to human ]",
-      accent: "blue",
-      wide: true,
+    {
+      id: "5",
+      type: "flowNode",
+      position: { x: COL_W, y: ROW_H * 4 },
+      data: {
+        label: "5. AI responds → posted to Slack",
+        desc: "Intercom AI replies. Webhook posts it to the Slack thread with feedback buttons.",
+        icon: Bot,
+        edgeFunction: "intercom-webhook",
+        details: [
+          "Removes old feedback buttons from thread",
+          "Posts reply (split at 2900 chars)",
+          "Appends feedback buttons to last chunk",
+        ],
+        message:
+          "[AI reply text...]\n\n[ 👍 This resolved my issue ]  [ 👎 Escalate to human ]",
+        accent: "blue",
+        wide: true,
+      },
     },
-  },
-  // ---- Feedback branch ----
-  {
-    id: "6a",
-    type: "flowNode",
-    position: { x: COL_W - COL_W * 0.55, y: ROW_H * 5.2 },
-    data: {
-      label: "6a. 👍 Positive feedback",
-      desc: "User confirms AI resolved their issue.",
-      icon: ThumbsUp,
-      edgeFunction: "slack-interactions",
-      details: [
-        "Removes feedback buttons",
-        "Removes 👀 and ⏳, adds ✅",
-        "Closes Intercom conversation (keeps current admin)",
-      ],
-      message: "✅ Glad that helped! Marking as resolved.",
-      reactions: ["✅"],
-      status: "resolved",
-      accent: "green",
+    {
+      id: "6a",
+      type: "flowNode",
+      position: { x: COL_W - COL_W * 0.55, y: ROW_H * 5.2 },
+      data: {
+        label: "6a. 👍 Positive feedback",
+        desc: "User confirms AI resolved their issue.",
+        icon: ThumbsUp,
+        edgeFunction: "slack-interactions",
+        details: [
+          "Removes feedback buttons",
+          "Removes 👀 and ⏳, adds ✅",
+          "Closes Intercom conversation (keeps current admin)",
+        ],
+        message: msgs.feedback_positive,
+        messageKey: "feedback_positive",
+        onMessageSave: onSave,
+        reactions: ["✅"],
+        status: "resolved",
+        accent: "green",
+      },
     },
-  },
-  {
-    id: "6b",
-    type: "flowNode",
-    position: { x: COL_W + COL_W * 0.55, y: ROW_H * 5.2 },
-    data: {
-      label: "6b. 👎 Escalate to human",
-      desc: "User requests human support. Creates Intercom ticket.",
-      icon: ThumbsDown,
-      edgeFunction: "slack-interactions",
-      details: [
-        "Removes feedback buttons",
-        "Removes 👀, adds ⏳",
-        "Reassigns to enterprise team inbox",
-        "Converts conversation to ticket",
-      ],
-      message: "🔄 Escalating to human support. A ticket has been created and a member of our Enterprise support team will follow up shortly.",
-      reactions: ["⏳"],
-      status: "escalated",
-      accent: "orange",
+    {
+      id: "6b",
+      type: "flowNode",
+      position: { x: COL_W + COL_W * 0.55, y: ROW_H * 5.2 },
+      data: {
+        label: "6b. 👎 Escalate to human",
+        desc: "User requests human support. Converts conversation to ticket.",
+        icon: ThumbsDown,
+        edgeFunction: "slack-interactions",
+        details: [
+          "Removes feedback buttons",
+          "Removes 👀, adds ⏳",
+          "Reassigns to enterprise team inbox",
+          "Converts conversation to ticket",
+        ],
+        message: msgs.escalation_notice,
+        messageKey: "escalation_notice",
+        onMessageSave: onSave,
+        reactions: ["⏳"],
+        status: "escalated",
+        accent: "orange",
+      },
     },
-  },
-  // ---- Escalation sub-flow ----
-  {
-    id: "6bi",
-    type: "flowNode",
-    position: { x: COL_W + COL_W * 0.1, y: ROW_H * 6.5 },
-    data: {
-      label: "6b-i. Human replies in Slack",
-      desc: "Agent or user replies in the Slack thread → forwarded to Intercom.",
-      icon: User,
-      edgeFunction: "slack-events",
-      details: [
-        "Forwards message to Intercom as the contact",
-        "Removes remaining feedback buttons",
-        "First reply: reassigns + posts escalation notice",
-      ],
-      message: "🔄 Your reply has been sent. A member of our Enterprise support team will follow up shortly.",
-      accent: "orange",
+    {
+      id: "6bi",
+      type: "flowNode",
+      position: { x: COL_W + COL_W * 0.1, y: ROW_H * 6.5 },
+      data: {
+        label: "6b-i. Human replies in Slack",
+        desc: "Agent or user replies in the Slack thread → forwarded to Intercom.",
+        icon: User,
+        edgeFunction: "slack-events",
+        details: [
+          "Forwards message to Intercom as the contact",
+          "Removes remaining feedback buttons",
+          "First reply: reassigns + posts escalation notice",
+        ],
+        message: msgs.reply_forwarded,
+        messageKey: "reply_forwarded",
+        onMessageSave: onSave,
+        accent: "orange",
+      },
     },
-  },
-  {
-    id: "6bii",
-    type: "flowNode",
-    position: { x: COL_W + COL_W, y: ROW_H * 6.5 },
-    data: {
-      label: "6b-ii. Human replies from Intercom",
-      desc: "Agent replies in Intercom → posted to Slack with resolve button.",
-      icon: Bot,
-      edgeFunction: "intercom-webhook",
-      details: [
-        "Removes old feedback buttons",
-        "Posts reply with admin identity",
-        'Shows only "Resolved" button (no escalate)',
-      ],
-      message: "[Agent reply text...]\n\n[ 👍 This resolved my issue ]",
-      accent: "orange",
+    {
+      id: "6bii",
+      type: "flowNode",
+      position: { x: COL_W + COL_W, y: ROW_H * 6.5 },
+      data: {
+        label: "6b-ii. Human replies from Intercom",
+        desc: "Agent replies in Intercom → posted to Slack with resolve button.",
+        icon: Bot,
+        edgeFunction: "intercom-webhook",
+        details: [
+          "Removes old feedback buttons",
+          "Posts reply with admin identity",
+          'Shows only "Resolved" button (no escalate)',
+        ],
+        message:
+          "[Agent reply text...]\n\n[ 👍 This resolved my issue ]",
+        accent: "orange",
+      },
     },
-  },
-  {
-    id: "7",
-    type: "flowNode",
-    position: { x: COL_W + COL_W * 0.55, y: ROW_H * 7.8 },
-    data: {
-      label: "7. Conversation closed",
-      desc: "Conversation closed in Intercom → thread finalized in Slack.",
-      icon: CheckCircle2,
-      edgeFunction: "intercom-webhook",
-      details: [
-        "Removes all feedback buttons",
-        "Removes 👀 and ⏳, adds ✅",
-        "Posts resolution notice",
-      ],
-      message: "✅ This issue has been marked as resolved. If you need further help, reply in this thread to start the conversation again.",
-      reactions: ["✅"],
-      status: "resolved",
-      accent: "green",
+    {
+      id: "7",
+      type: "flowNode",
+      position: { x: COL_W + COL_W * 0.55, y: ROW_H * 7.8 },
+      data: {
+        label: "7. Conversation closed",
+        desc: "Conversation closed in Intercom → thread finalized in Slack.",
+        icon: CheckCircle2,
+        edgeFunction: "intercom-webhook",
+        details: [
+          "Removes all feedback buttons",
+          "Removes 👀 and ⏳, adds ✅",
+          "Posts resolution notice",
+        ],
+        message: msgs.conversation_closed,
+        messageKey: "conversation_closed",
+        onMessageSave: onSave,
+        reactions: ["✅"],
+        status: "resolved",
+        accent: "green",
+      },
     },
-  },
-];
+  ];
+}
 
 /* ------------------------------------------------------------------ */
 /*  Edges                                                              */
 /* ------------------------------------------------------------------ */
-
 const initialEdges: Edge[] = [
   { id: "e1-2", source: "1", target: "2", animated: true, style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e2-3a", source: "2", target: "3a", label: "Add Details", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
@@ -365,22 +295,48 @@ const initialEdges: Edge[] = [
 ];
 
 /* ------------------------------------------------------------------ */
-/*  Page component                                                     */
+/*  Page                                                               */
 /* ------------------------------------------------------------------ */
-
 const FlowDiagram = () => {
-  const defaultEdgeOptions = useMemo(
-    () => ({
-      type: "smoothstep" as const,
-    }),
-    []
-  );
+  const [messages, setMessages] = useState<Record<string, string>>(DEFAULT_MESSAGES);
+
+  useEffect(() => {
+    supabase
+      .from("bot_messages")
+      .select("message_key, message_text")
+      .then(({ data }) => {
+        if (data) {
+          const map: Record<string, string> = { ...DEFAULT_MESSAGES };
+          for (const row of data) map[row.message_key] = row.message_text;
+          setMessages(map);
+        }
+      });
+  }, []);
+
+  const handleSave = useCallback(async (key: string, text: string) => {
+    const { error } = await supabase
+      .from("bot_messages")
+      .update({ message_text: text } as any)
+      .eq("message_key", key);
+
+    if (error) {
+      toast.error("Failed to save message");
+      return;
+    }
+
+    setMessages((prev) => ({ ...prev, [key]: text }));
+    toast.success("Bot message updated — changes take effect immediately");
+  }, []);
+
+  const nodes = useMemo(() => buildNodes(messages, handleSave), [messages, handleSave]);
+
+  const defaultEdgeOptions = useMemo(() => ({ type: "smoothstep" as const }), []);
 
   return (
     <AppLayout>
       <div className="h-[calc(100vh-4rem)] w-full">
         <ReactFlow
-          nodes={initialNodes}
+          nodes={nodes}
           edges={initialEdges}
           nodeTypes={nodeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
