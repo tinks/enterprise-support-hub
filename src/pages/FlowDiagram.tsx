@@ -218,7 +218,7 @@ const initialNodes: Node<FlowNodeData>[] = [
         "Creates conversation, assigns to AI agent",
         'Tags with "Slack"',
       ],
-      message: "Thanks! Generating a response... ~3-4 minutes. ⏳",
+      message: "✅ Thanks! Generating a response... Should take about 3-4 minutes.",
       reactions: ["👀"],
       status: "active",
       accent: "blue",
