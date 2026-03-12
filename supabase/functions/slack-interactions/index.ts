@@ -466,7 +466,7 @@ Deno.serve(async (req) => {
 
     // Remove feedback buttons when clicked
     if (actionId === "feedback_positive" || actionId === "feedback_negative") {
-      await removeButtonsFromMessage(channel, payload.message?.ts);
+      await deletePromptMessage(channel);
 
       // Reassign to enterprise team inbox on any feedback click
       const settings = await getSettings(supabase);
