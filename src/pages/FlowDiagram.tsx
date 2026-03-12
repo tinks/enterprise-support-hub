@@ -34,7 +34,7 @@ const ROW_H = 260;
 /* ------------------------------------------------------------------ */
 const DEFAULT_MESSAGES: Record<string, string> = {
   context_prompt:
-    "👋 Optionally add your Lovable account email and/or project link to improve support. If you don't want to share this, just click *Proceed*.",
+    "👋 Thank you for contacting the Enterprise Support Team. To help us resolve your issue as quickly and accurately as possible, please share your Lovable account email and your workspace or project name (or a link to it). If these aren't relevant to your question, feel free to click *Proceed*.",
   ticket_created_ack:
     "✅ Thanks! Generating a response... Should take about 3-4 minutes.",
   feedback_positive: "✅ Glad that helped! Marking as resolved.",
