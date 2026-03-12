@@ -88,6 +88,7 @@ const ADMIN_IDENTITY = { name: "Sam", avatarUrl: "/lovable-smiley-logo.png" };
         message: msgs.context_prompt,
         messageKey: "context_prompt",
         onMessageSave: onSave,
+        botIdentity: ASK_LOVABLE,
         status: "awaiting_context",
         accent: "blue",
       },
