@@ -278,6 +278,7 @@ const ADMIN_IDENTITY = { name: "Sam", avatarUrl: "/lovable-smiley-logo.png" };
         message: msgs.conversation_closed,
         messageKey: "conversation_closed",
         onMessageSave: onSave,
+        botIdentity: ASK_LOVABLE,
         reactions: ["✅"],
         status: "resolved",
         accent: "green",
