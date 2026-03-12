@@ -41,7 +41,7 @@ const DEFAULT_MESSAGES: Record<string, string> = {
   escalation_notice:
     "🔄 Escalating to human support. A ticket has been created and a member of our Enterprise support team will follow up shortly.",
   reply_forwarded:
-    "🔄 Thanks for your reply! We will be back to you with an answer in a few minutes.",
+    "Thanks for your reply! We will be back to you with an answer in a few minutes.",
   conversation_closed:
     "✅ This issue has been marked as resolved. If you need further help, reply in this thread to start the conversation again.",
 };
