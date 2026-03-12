@@ -542,7 +542,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           channel,
           thread_ts: threadTs,
-          text: "🔄 Escalating to human support. <@U091GANMA2U> will follow up shortly.",
+          text: "🔄 Escalating to human support. A member of our Enterprise support team will follow up shortly.",
         }),
       });
 
