@@ -357,6 +357,27 @@ Deno.serve(async (req) => {
       // Fire-and-forget: do heavy work in background so Slack gets the 200 within 3s
       const bgWork = (async () => {
         try {
+          // Post the submitted details as a threaded message so they're preserved
+          if (email || projectLink) {
+            const detailLines: string[] = [];
+            if (email) detailLines.push(`*Email:* ${email}`);
+            if (projectLink) detailLines.push(`*Project:* ${projectLink}`);
+            const detailText = detailLines.join("\n");
+            await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                channel: channelId,
+                thread_ts: threadTs,
+                text: detailText,
+                blocks: [{ type: "context", elements: [{ type: "mrkdwn", text: detailText }] }],
+              }),
+            });
+          }
+
           // Atomic guard: only proceed if status is still awaiting_context
           const { data: updated } = await supabase
             .from("conversation_mappings")
