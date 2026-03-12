@@ -116,6 +116,22 @@ Deno.serve(async (req) => {
 
     console.log(`Slack event: type=${event.type}, subtype=${event.subtype || "none"}, channel=${event.channel}`);
 
+    // Identity guard: verify token matches expected bot
+    const expectedBotId = settings?.slack_bot_user_id;
+    if (expectedBotId) {
+      const authCheck = await fetch("https://slack.com/api/auth.test", {
+        headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+      });
+      const authCheckData = await authCheck.json();
+      if (!authCheckData.ok || authCheckData.user_id !== expectedBotId) {
+        console.error(`IDENTITY GUARD: Token belongs to ${authCheckData.user_id || "unknown"}, expected ${expectedBotId}. Blocking.`);
+        return new Response(JSON.stringify({ error: "Bot identity mismatch — refusing to process" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const slackHeaders = {
       Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
       "Content-Type": "application/json",
