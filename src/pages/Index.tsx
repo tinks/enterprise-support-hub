@@ -19,6 +19,7 @@ interface SettingsData {
   monitored_channels: string;
   intercom_inbox_id: string;
   intercom_assignee_id: string;
+  slack_bot_user_id: string;
   testing_mode: boolean;
 }
 
@@ -115,6 +116,7 @@ const Index = () => {
         monitored_channels: settings.monitored_channels,
         intercom_inbox_id: settings.intercom_inbox_id,
         intercom_assignee_id: settings.intercom_assignee_id,
+        slack_bot_user_id: settings.slack_bot_user_id,
         testing_mode: settings.testing_mode,
       })
       .eq("id", settings.id);
@@ -254,6 +256,25 @@ const Index = () => {
               <p className="text-xs text-muted-foreground">
                 Channels where @mentions will be monitored
               </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="expected-bot-id">Expected Bot User ID</Label>
+                <Input
+                  id="expected-bot-id"
+                  placeholder="U0ABC123DEF"
+                  value={settings?.slack_bot_user_id || ""}
+                  onChange={(e) =>
+                    setSettings((s) =>
+                      s ? { ...s, slack_bot_user_id: e.target.value } : s
+                    )
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  The Bot User ID from your Slack app. Use "Check Identity" below to find it. When set, edge functions will block posting if the token doesn't match.
+                </p>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
