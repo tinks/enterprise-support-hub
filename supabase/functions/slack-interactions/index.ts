@@ -590,6 +590,41 @@ Deno.serve(async (req) => {
         console.log(`Reassigned conversation ${conversationId} to team inbox ${negSettings.intercom_inbox_id}`);
       }
 
+      // Create an Intercom ticket from the conversation
+      const { data: mapping } = await supabase
+        .from("conversation_mappings")
+        .select("intercom_contact_id, original_message_text")
+        .eq("intercom_conversation_id", conversationId)
+        .single();
+
+      if (mapping?.intercom_contact_id) {
+        const ticketTitle = (mapping.original_message_text || "Escalated from Slack").substring(0, 255);
+        const ticketDesc = mapping.original_message_text || "Escalated from Slack — see linked conversation for details.";
+        try {
+          const ticketRes = await fetch("https://api.intercom.io/tickets", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              "Intercom-Version": "2.11",
+            },
+            body: JSON.stringify({
+              ticket_type_id: "1",
+              contacts: [{ id: mapping.intercom_contact_id }],
+              ticket_attributes: {
+                _default_title_: ticketTitle,
+                _default_description_: ticketDesc,
+              },
+            }),
+          });
+          const ticketData = await ticketRes.json();
+          console.log("Created Intercom ticket:", ticketData.ticket_id || ticketData.id);
+        } catch (e) {
+          console.error("Failed to create Intercom ticket:", e);
+        }
+      }
+
       await removeReaction(SLACK_BOT_TOKEN, channel, threadTs, "eyes");
       await addReaction(SLACK_BOT_TOKEN, channel, threadTs, "hourglass_flowing_sand");
 
@@ -602,7 +637,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           channel,
           thread_ts: threadTs,
-          text: "🔄 Escalating to human support. A member of our Enterprise support team will follow up shortly.",
+          text: "🔄 Escalating to human support. A ticket has been created and a member of our Enterprise support team will follow up shortly.",
         }),
       });
 
