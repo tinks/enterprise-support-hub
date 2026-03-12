@@ -9,8 +9,6 @@ const corsHeaders = {
 };
 
 const SLACK_API_URL = "https://slack.com/api";
-const BOT_USERNAME = "Ask Lovable";
-const BOT_ICON_URL = "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/lovable-logo.png";
 
 function cleanSlackMarkup(text: string): string {
   return text
@@ -214,8 +212,6 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           channel: channelId,
           thread_ts: threadTs,
-          username: BOT_USERNAME,
-          icon_url: BOT_ICON_URL,
           text: "Optionally add your Lovable account email and/or project link to improve support. If you don't want to share this, just click Proceed.",
           blocks: [
             {

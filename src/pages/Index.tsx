@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Settings, RefreshCw, Save, Link, Search, Hash, X, Plus } from "lucide-react";
+import BotIdentityCard from "@/components/BotIdentityCard";
 
 interface SettingsData {
   id: string;
@@ -306,6 +307,9 @@ const Index = () => {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Bot Identity Card */}
+        <BotIdentityCard />
 
         {/* Webhook URLs Card */}
         <Card>

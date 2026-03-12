@@ -136,14 +136,11 @@ Deno.serve(async (req) => {
           return data;
         }
 
-        const BOT_ICON_URL = "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/lovable-logo.png";
         const closedText = "✅ This issue has been marked as resolved. If you need further help, reply in this thread to start the conversation again.";
 
         await postClosedMessage({
           channel: mapping.slack_channel_id,
           thread_ts: mapping.slack_thread_ts,
-          username: "Ask Lovable",
-          icon_url: BOT_ICON_URL,
           text: closedText,
           blocks: [{ type: "section", text: { type: "mrkdwn", text: closedText } }],
         });
