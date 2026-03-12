@@ -273,6 +273,141 @@ Deno.serve(async (req) => {
       console.log(`Created mapping for mention in ${channelId}/${threadTs}`);
     }
 
+    // ===== Handle message events in threads (human reply → escalate to Intercom) =====
+    if (event.type === "message" && !event.subtype && event.thread_ts && event.user) {
+      const channelId = event.channel;
+      const threadTs = event.thread_ts;
+
+      // Ignore bot messages and messages from the bot itself
+      if (event.bot_id || event.user === expectedBotId) {
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Check if there's an active mapping for this thread
+      const { data: mapping } = await supabase
+        .from("conversation_mappings")
+        .select("*")
+        .eq("slack_channel_id", channelId)
+        .eq("slack_thread_ts", threadTs)
+        .maybeSingle();
+
+      if (mapping && mapping.intercom_conversation_id && mapping.status !== "resolved") {
+        const INTERCOM_API_TOKEN = Deno.env.get("INTERCOM_API_TOKEN");
+        if (!INTERCOM_API_TOKEN) {
+          console.error("INTERCOM_API_TOKEN not configured");
+          return new Response(JSON.stringify({ ok: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const replyText = cleanSlackMarkup(event.text || "");
+        console.log(`Thread reply in ${channelId}/${threadTs} from ${event.user}: "${replyText.substring(0, 100)}"`);
+
+        // Get Intercom settings for admin ID
+        const intercomSettings = await supabase.from("settings").select("*").limit(1).single();
+        const adminId = intercomSettings.data?.intercom_assignee_id;
+
+        // Forward message to Intercom as an admin reply
+        if (adminId) {
+          const replyRes = await fetch(
+            `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/reply`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                "Content-Type": "application/json",
+                Accept: "application/json",
+                "Intercom-Version": "2.11",
+              },
+              body: JSON.stringify({
+                message_type: "comment",
+                type: "admin",
+                admin_id: adminId,
+                body: replyText,
+              }),
+            }
+          );
+          if (!replyRes.ok) {
+            console.error(`Failed to forward reply to Intercom: ${await replyRes.text()}`);
+          } else {
+            console.log(`Forwarded Slack reply to Intercom conversation ${mapping.intercom_conversation_id}`);
+          }
+        }
+
+        // Reassign to enterprise team inbox
+        if (intercomSettings.data?.intercom_inbox_id && adminId) {
+          await fetch(
+            `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/parts`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+              body: JSON.stringify({
+                message_type: "assignment",
+                type: "team",
+                assignee_id: intercomSettings.data.intercom_inbox_id,
+                admin_id: adminId,
+                body: "",
+              }),
+            }
+          );
+        }
+
+        // Remove feedback buttons from thread messages
+        try {
+          const repliesRes = await fetch(
+            `${SLACK_API_URL}/conversations.replies?channel=${channelId}&ts=${threadTs}&limit=100`,
+            { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
+          );
+          const repliesData = await repliesRes.json();
+          if (repliesData.ok && repliesData.messages) {
+            for (const msg of repliesData.messages) {
+              const hasActions = msg.blocks?.some((b: { type: string }) => b.type === "actions");
+              if (hasActions && msg.ts) {
+                const blocksWithoutActions = msg.blocks.filter((b: { type: string }) => b.type !== "actions");
+                await fetch(`${SLACK_API_URL}/chat.update`, {
+                  method: "POST",
+                  headers: slackHeaders,
+                  body: JSON.stringify({
+                    channel: channelId,
+                    ts: msg.ts,
+                    text: msg.text || "",
+                    blocks: blocksWithoutActions,
+                  }),
+                });
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Failed to remove feedback buttons:", e);
+        }
+
+        // Update status to escalated
+        if (mapping.status !== "escalated") {
+          await supabase
+            .from("conversation_mappings")
+            .update({ status: "escalated" })
+            .eq("id", mapping.id);
+
+          // Post escalation notice
+          await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+            method: "POST",
+            headers: slackHeaders,
+            body: JSON.stringify({
+              channel: channelId,
+              thread_ts: threadTs,
+              text: "🔄 Your reply has been sent. A member of our Enterprise support team will follow up shortly.",
+            }),
+          });
+        }
+      }
+    }
+
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
