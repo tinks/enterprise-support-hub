@@ -432,29 +432,39 @@ Deno.serve(async (req) => {
     if (actionId === "proceed_without_context") {
       const [channelId, threadTs] = (action.value || "").split("|");
 
-      await deletePromptMessage(channelId);
+      // Fire-and-forget: do heavy work in background so Slack gets the 200 within 3s
+      const bgWork = (async () => {
+        try {
+          await deletePromptMessage(channelId);
 
-      // Atomic guard: only proceed if status is still awaiting_context
-      const { data: updated } = await supabase
-        .from("conversation_mappings")
-        .update({ status: "processing" })
-        .eq("slack_channel_id", channelId)
-        .eq("slack_thread_ts", threadTs)
-        .eq("status", "awaiting_context")
-        .select()
-        .maybeSingle();
+          // Atomic guard: only proceed if status is still awaiting_context
+          const { data: updated } = await supabase
+            .from("conversation_mappings")
+            .update({ status: "processing" })
+            .eq("slack_channel_id", channelId)
+            .eq("slack_thread_ts", threadTs)
+            .eq("status", "awaiting_context")
+            .select()
+            .maybeSingle();
 
-      if (updated) {
-        await createIntercomTicket({
-          supabase,
-          intercomToken: INTERCOM_API_TOKEN,
-          slackBotToken: SLACK_BOT_TOKEN,
-          channelId,
-          threadTs,
-          mappingId: updated.id,
-          originalMessage: updated.original_message_text,
-          slackUserId: updated.slack_user_id,
-        });
+          if (updated) {
+            await createIntercomTicket({
+              supabase,
+              intercomToken: INTERCOM_API_TOKEN,
+              slackBotToken: SLACK_BOT_TOKEN,
+              channelId,
+              threadTs,
+              mappingId: updated.id,
+              originalMessage: updated.original_message_text,
+              slackUserId: updated.slack_user_id,
+            });
+          }
+        } catch (e) {
+          console.error("Background proceed work failed:", e);
+        }
+      })();
+      if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+        EdgeRuntime.waitUntil(bgWork);
       }
 
       return new Response("", { status: 200 });
