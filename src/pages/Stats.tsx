@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock } from "lucide-react";
+import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink } from "lucide-react";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { format, parseISO } from "date-fns";
