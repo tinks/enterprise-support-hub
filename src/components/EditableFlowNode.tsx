@@ -17,6 +17,8 @@ export type FlowNodeData = {
   wide?: boolean;
   onMessageSave?: (key: string, text: string) => void;
   botIdentity?: { name: string; avatarUrl: string };
+  targetPosition?: "top" | "left" | "right" | "bottom";
+  sourcePosition?: "top" | "left" | "right" | "bottom";
 };
 
 const accentBorder: Record<string, string> = {
@@ -31,6 +33,13 @@ const accentIcon: Record<string, string> = {
   green: "text-green-600 dark:text-green-400",
   orange: "text-orange-600 dark:text-orange-400",
   default: "text-muted-foreground",
+};
+
+const posMap: Record<string, Position> = {
+  top: Position.Top,
+  bottom: Position.Bottom,
+  left: Position.Left,
+  right: Position.Right,
 };
 
 export default function EditableFlowNode({ data }: { data: FlowNodeData }) {
@@ -54,7 +63,7 @@ export default function EditableFlowNode({ data }: { data: FlowNodeData }) {
 
   return (
     <>
-      <Handle type="target" position={Position.Top} className="!bg-muted-foreground/40 !w-2 !h-2" />
+      <Handle type="target" position={posMap[data.targetPosition || "top"]} className="!bg-muted-foreground/40 !w-2 !h-2" />
       <div
         className={`rounded-lg border border-border bg-card shadow-md border-l-4 ${accentBorder[accent]} ${data.wide ? "w-[340px]" : "w-[280px]"} cursor-default`}
       >
@@ -159,7 +168,7 @@ export default function EditableFlowNode({ data }: { data: FlowNodeData }) {
           )}
         </div>
       </div>
-      <Handle type="source" position={Position.Bottom} className="!bg-muted-foreground/40 !w-2 !h-2" />
+      <Handle type="source" position={posMap[data.sourcePosition || "bottom"]} className="!bg-muted-foreground/40 !w-2 !h-2" />
     </>
   );
 }
