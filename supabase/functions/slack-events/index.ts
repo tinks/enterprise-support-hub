@@ -405,12 +405,33 @@ Deno.serve(async (req) => {
         const replyText = cleanSlackMarkup(event.text || "");
         console.log(`Thread reply in ${channelId}/${threadTs} from ${event.user}: "${replyText.substring(0, 100)}"`);
 
+        // Download and re-host any attached files
+        let replyAttachmentUrls: string[] = [];
+        if (event.files?.length) {
+          replyAttachmentUrls = await downloadAndUploadFiles(event.files, SLACK_BOT_TOKEN, supabase, threadTs);
+        }
+
+        // Build reply body with attachment links
+        let replyBody = replyText;
+        if (replyAttachmentUrls.length) {
+          replyBody += "\n\nAttachments:\n" + replyAttachmentUrls.map((url) => `• ${url}`).join("\n");
+        }
+
         // Get Intercom settings for admin ID (used for reassignment)
         const intercomSettings = await supabase.from("settings").select("*").limit(1).single();
         const adminId = intercomSettings.data?.intercom_assignee_id;
 
         // Forward message to Intercom as the customer (contact)
         if (mapping.intercom_contact_id) {
+          const replyPayload: Record<string, any> = {
+            message_type: "comment",
+            type: "user",
+            intercom_user_id: mapping.intercom_contact_id,
+            body: replyBody,
+          };
+          if (replyAttachmentUrls.length) {
+            replyPayload.attachment_urls = replyAttachmentUrls;
+          }
           const replyRes = await fetch(
             `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/reply`,
             {
@@ -421,12 +442,7 @@ Deno.serve(async (req) => {
                 Accept: "application/json",
                 "Intercom-Version": "2.11",
               },
-              body: JSON.stringify({
-                message_type: "comment",
-                type: "user",
-                intercom_user_id: mapping.intercom_contact_id,
-                body: replyText,
-              }),
+              body: JSON.stringify(replyPayload),
             }
           );
           if (!replyRes.ok) {
