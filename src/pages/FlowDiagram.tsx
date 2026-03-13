@@ -151,6 +151,7 @@ function buildNodes(
           "Adds 👀 reaction to original message",
           "Searches/creates Intercom contact",
           "Downloads & re-hosts file attachments to storage",
+          "Prepends anti-escalation context (enterprise Slack origin) to conversation body",
           "Creates conversation with text + attachment URLs",
           "Assigns to AI agent",
           "Sets Slack channel + Enterprise Support attributes",

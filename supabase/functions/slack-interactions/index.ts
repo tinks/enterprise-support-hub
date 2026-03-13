@@ -163,7 +163,10 @@ async function createIntercomTicket(opts: {
   });
 
   // Build body
-  const bodyParts: string[] = [`Message: ${originalMessage}`];
+  const bodyParts: string[] = [
+    `This is a request from an enterprise customer reaching out via Slack. Do not escalate to the product experience team.\n`,
+    `Message: ${originalMessage}`,
+  ];
   if (email) bodyParts.push(`Lovable account email: ${email}`);
   if (projectLink) bodyParts.push(`Project: ${projectLink}`);
   if (attachmentUrls?.length) {
