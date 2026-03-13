@@ -377,6 +377,7 @@ Deno.serve(async (req) => {
     if (event.type === "message" && !event.subtype && event.thread_ts && event.user) {
       const channelId = event.channel;
       const threadTs = event.thread_ts;
+      const eventTs = event.ts;
 
       // Ignore bot messages and messages from the bot itself
       if (event.bot_id || event.user === expectedBotId) {
@@ -385,7 +386,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Check if there's an active mapping for this thread
+      // Idempotency: atomically claim this event.ts to prevent Slack retries from duplicating work
       const { data: mapping } = await supabase
         .from("conversation_mappings")
         .select("*")
@@ -394,163 +395,189 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (mapping && mapping.intercom_conversation_id && mapping.status !== "resolved") {
-        const INTERCOM_API_TOKEN = Deno.env.get("INTERCOM_API_TOKEN");
-        if (!INTERCOM_API_TOKEN) {
-          console.error("INTERCOM_API_TOKEN not configured");
-          return new Response(JSON.stringify({ ok: true }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
+        // Atomic dedup: set last_processed_event_ts only if it differs
+        const { data: claimed } = await supabase
+          .from("conversation_mappings")
+          .update({ last_processed_event_ts: eventTs })
+          .eq("id", mapping.id)
+          .is("last_processed_event_ts", null)  // first time
+          .or(`last_processed_event_ts.neq.${eventTs}`)
+          .select("id");
 
-        const replyText = cleanSlackMarkup(event.text || "");
-        console.log(`Thread reply in ${channelId}/${threadTs} from ${event.user}: "${replyText.substring(0, 100)}"`);
-
-        // Download and re-host any attached files
-        let replyAttachmentUrls: string[] = [];
-        if (event.files?.length) {
-          replyAttachmentUrls = await downloadAndUploadFiles(event.files, SLACK_BOT_TOKEN, supabase, threadTs);
-        }
-
-        // Build reply body with attachment links
-        let replyBody = replyText;
-        if (replyAttachmentUrls.length) {
-          replyBody += "\n\nAttachments:\n" + replyAttachmentUrls.map((url) => `• ${url}`).join("\n");
-        }
-
-        // Get Intercom settings for admin ID (used for reassignment)
-        const intercomSettings = await supabase.from("settings").select("*").limit(1).single();
-        const adminId = intercomSettings.data?.intercom_assignee_id;
-
-        // Forward message to Intercom as the customer (contact)
-        if (mapping.intercom_contact_id) {
-          const replyPayload: Record<string, any> = {
-            message_type: "comment",
-            type: "user",
-            intercom_user_id: mapping.intercom_contact_id,
-            body: replyBody,
-          };
-          if (replyAttachmentUrls.length) {
-            replyPayload.attachment_urls = replyAttachmentUrls;
+        // Also handle the case where column already equals this eventTs (retry)
+        if (!claimed || claimed.length === 0) {
+          // Check if it's because we already processed this exact event
+          if (mapping.last_processed_event_ts === eventTs) {
+            console.log(`Dedup: already processed event ${eventTs} for thread ${threadTs}`);
+            return new Response(JSON.stringify({ ok: true }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
           }
-          const replyRes = await fetch(
-            `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/reply`,
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
-                "Content-Type": "application/json",
-                Accept: "application/json",
-                "Intercom-Version": "2.11",
-              },
-              body: JSON.stringify(replyPayload),
+        }
+
+        // Return 200 immediately, process in background to avoid Slack 3s timeout retries
+        const backgroundWork = async () => {
+          try {
+            const INTERCOM_API_TOKEN = Deno.env.get("INTERCOM_API_TOKEN");
+            if (!INTERCOM_API_TOKEN) {
+              console.error("INTERCOM_API_TOKEN not configured");
+              return;
             }
-          );
-          if (!replyRes.ok) {
-            console.error(`Failed to forward reply to Intercom: ${await replyRes.text()}`);
-          } else {
-            console.log(`Forwarded Slack reply as contact ${mapping.intercom_contact_id} to Intercom conversation ${mapping.intercom_conversation_id}`);
-          }
-        } else if (adminId) {
-          // Fallback: no contact ID stored, send as admin
-          const adminPayload: Record<string, any> = {
-            message_type: "comment",
-            type: "admin",
-            admin_id: adminId,
-            body: replyBody,
-          };
-          if (replyAttachmentUrls.length) {
-            adminPayload.attachment_urls = replyAttachmentUrls;
-          }
-          const replyRes = await fetch(
-            `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/reply`,
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
-                "Content-Type": "application/json",
-                Accept: "application/json",
-                "Intercom-Version": "2.11",
-              },
-              body: JSON.stringify(adminPayload),
-            }
-          );
-          if (!replyRes.ok) {
-            console.error(`Failed to forward reply to Intercom: ${await replyRes.text()}`);
-          } else {
-            console.log(`Forwarded Slack reply as admin to Intercom conversation ${mapping.intercom_conversation_id}`);
-          }
-        }
 
-        // Remove feedback buttons from thread messages (shared for both active and escalated)
-        try {
-          const repliesRes = await fetch(
-            `${SLACK_API_URL}/conversations.replies?channel=${channelId}&ts=${threadTs}&limit=100`,
-            { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
-          );
-          const repliesData = await repliesRes.json();
-          if (repliesData.ok && repliesData.messages) {
-            for (const msg of repliesData.messages) {
-              const hasActions = msg.blocks?.some((b: { type: string }) => b.type === "actions");
-              if (hasActions && msg.ts) {
-                const blocksWithoutActions = msg.blocks.filter((b: { type: string }) => b.type !== "actions");
-                await fetch(`${SLACK_API_URL}/chat.update`, {
+            const replyText = cleanSlackMarkup(event.text || "");
+            console.log(`Thread reply in ${channelId}/${threadTs} from ${event.user}: "${replyText.substring(0, 100)}"`);
+
+            // Download and re-host any attached files
+            let replyAttachmentUrls: string[] = [];
+            if (event.files?.length) {
+              replyAttachmentUrls = await downloadAndUploadFiles(event.files, SLACK_BOT_TOKEN, supabase, threadTs);
+            }
+
+            // Build reply body with attachment links
+            let replyBody = replyText;
+            if (replyAttachmentUrls.length) {
+              replyBody += "\n\nAttachments:\n" + replyAttachmentUrls.map((url: string) => `• ${url}`).join("\n");
+            }
+
+            // Get Intercom settings for admin ID (used for reassignment)
+            const intercomSettings = await supabase.from("settings").select("*").limit(1).single();
+            const adminId = intercomSettings.data?.intercom_assignee_id;
+
+            // Forward message to Intercom as the customer (contact)
+            if (mapping.intercom_contact_id) {
+              const replyPayload: Record<string, any> = {
+                message_type: "comment",
+                type: "user",
+                intercom_user_id: mapping.intercom_contact_id,
+                body: replyBody,
+              };
+              if (replyAttachmentUrls.length) {
+                replyPayload.attachment_urls = replyAttachmentUrls;
+              }
+              const replyRes = await fetch(
+                `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/reply`,
+                {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                    "Intercom-Version": "2.11",
+                  },
+                  body: JSON.stringify(replyPayload),
+                }
+              );
+              if (!replyRes.ok) {
+                console.error(`Failed to forward reply to Intercom: ${await replyRes.text()}`);
+              } else {
+                console.log(`Forwarded Slack reply as contact ${mapping.intercom_contact_id} to Intercom conversation ${mapping.intercom_conversation_id}`);
+              }
+            } else if (adminId) {
+              const adminPayload: Record<string, any> = {
+                message_type: "comment",
+                type: "admin",
+                admin_id: adminId,
+                body: replyBody,
+              };
+              if (replyAttachmentUrls.length) {
+                adminPayload.attachment_urls = replyAttachmentUrls;
+              }
+              const replyRes = await fetch(
+                `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/reply`,
+                {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                    "Intercom-Version": "2.11",
+                  },
+                  body: JSON.stringify(adminPayload),
+                }
+              );
+              if (!replyRes.ok) {
+                console.error(`Failed to forward reply to Intercom: ${await replyRes.text()}`);
+              } else {
+                console.log(`Forwarded Slack reply as admin to Intercom conversation ${mapping.intercom_conversation_id}`);
+              }
+            }
+
+            // Remove feedback buttons from thread messages
+            try {
+              const repliesRes = await fetch(
+                `${SLACK_API_URL}/conversations.replies?channel=${channelId}&ts=${threadTs}&limit=100`,
+                { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
+              );
+              const repliesData = await repliesRes.json();
+              if (repliesData.ok && repliesData.messages) {
+                for (const msg of repliesData.messages) {
+                  const hasActions = msg.blocks?.some((b: { type: string }) => b.type === "actions");
+                  if (hasActions && msg.ts) {
+                    const blocksWithoutActions = msg.blocks.filter((b: { type: string }) => b.type !== "actions");
+                    await fetch(`${SLACK_API_URL}/chat.update`, {
+                      method: "POST",
+                      headers: slackHeaders,
+                      body: JSON.stringify({
+                        channel: channelId,
+                        ts: msg.ts,
+                        text: msg.text || "",
+                        blocks: blocksWithoutActions,
+                      }),
+                    });
+                  }
+                }
+              }
+            } catch (e) {
+              console.error("Failed to remove feedback buttons:", e);
+            }
+
+            // Status-based gating: atomically transition status to prevent duplicate notices
+            if (mapping.status === "active") {
+              const { data: updated } = await supabase
+                .from("conversation_mappings")
+                .update({ status: "active_pending" })
+                .eq("id", mapping.id)
+                .eq("status", "active")
+                .select("id");
+
+              if (updated && updated.length > 0) {
+                await fetch(`${SLACK_API_URL}/chat.postMessage`, {
                   method: "POST",
                   headers: slackHeaders,
                   body: JSON.stringify({
                     channel: channelId,
-                    ts: msg.ts,
-                    text: msg.text || "",
-                    blocks: blocksWithoutActions,
+                    thread_ts: threadTs,
+                    text: "⏳ Sam is writing a response...",
+                  }),
+                });
+              }
+            } else if (mapping.status === "escalated") {
+              const { data: updated } = await supabase
+                .from("conversation_mappings")
+                .update({ status: "escalated_pending" })
+                .eq("id", mapping.id)
+                .eq("status", "escalated")
+                .select("id");
+
+              if (updated && updated.length > 0) {
+                const replyForwardedText = botMessages["reply_forwarded"] || "Thanks for your reply! We will be back to you in just a few minutes.";
+                await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+                  method: "POST",
+                  headers: slackHeaders,
+                  body: JSON.stringify({
+                    channel: channelId,
+                    thread_ts: threadTs,
+                    text: replyForwardedText,
                   }),
                 });
               }
             }
+          } catch (err) {
+            console.error("Background thread-reply processing error:", err);
           }
-        } catch (e) {
-          console.error("Failed to remove feedback buttons:", e);
-        }
+        };
 
-        // Status-based gating: atomically transition status to prevent duplicate notices
-        if (mapping.status === "active") {
-          const { data: updated } = await supabase
-            .from("conversation_mappings")
-            .update({ status: "active_pending" })
-            .eq("id", mapping.id)
-            .eq("status", "active")
-            .select("id");
-
-          if (updated && updated.length > 0) {
-            await fetch(`${SLACK_API_URL}/chat.postMessage`, {
-              method: "POST",
-              headers: slackHeaders,
-              body: JSON.stringify({
-                channel: channelId,
-                thread_ts: threadTs,
-                text: "⏳ Sam is writing a response...",
-              }),
-            });
-          }
-        } else if (mapping.status === "escalated") {
-          const { data: updated } = await supabase
-            .from("conversation_mappings")
-            .update({ status: "escalated_pending" })
-            .eq("id", mapping.id)
-            .eq("status", "escalated")
-            .select("id");
-
-          if (updated && updated.length > 0) {
-            const replyForwardedText = botMessages["reply_forwarded"] || "Thanks for your reply! We will be back to you in just a few minutes.";
-            await fetch(`${SLACK_API_URL}/chat.postMessage`, {
-              method: "POST",
-              headers: slackHeaders,
-              body: JSON.stringify({
-                channel: channelId,
-                thread_ts: threadTs,
-                text: replyForwardedText,
-              }),
-            });
-          }
-        }
+        EdgeRuntime.waitUntil(backgroundWork());
       }
     }
 
