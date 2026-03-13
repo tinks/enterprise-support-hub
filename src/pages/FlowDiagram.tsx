@@ -41,7 +41,7 @@ const DEFAULT_MESSAGES: Record<string, string> = {
   escalation_notice:
     "Your query has been escalated to our Enterprise Support Team. A member of the team will follow up with you shortly.",
   reply_forwarded:
-    "Thanks for your reply! We will be back to you with an answer in a few minutes.",
+    "Thanks for your reply! We will be back to you in just a few minutes.",
   conversation_closed:
     "✅ This issue has been marked as resolved. If you need further help, reply in this thread to start the conversation again.",
 };
