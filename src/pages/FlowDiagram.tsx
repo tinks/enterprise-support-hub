@@ -375,6 +375,7 @@ const FlowDiagram = () => {
         <ReactFlow
           nodes={nodes}
           edges={initialEdges}
+          onNodesChange={onNodesChange}
           nodeTypes={nodeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
           fitView
@@ -382,11 +383,10 @@ const FlowDiagram = () => {
           minZoom={0.2}
           maxZoom={1.5}
           proOptions={{ hideAttribution: true }}
-          nodesDraggable={false}
           nodesConnectable={false}
         >
           <Background gap={20} size={1} />
-          <Controls showInteractive={false} />
+          <Controls />
           <MiniMap
             nodeColor={() => "hsl(var(--primary))"}
             maskColor="hsl(var(--background) / 0.7)"
