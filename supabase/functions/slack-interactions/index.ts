@@ -780,6 +780,20 @@ Deno.serve(async (req) => {
           }
         }
 
+        // Atomic guard: only the first click proceeds
+        const targetStatus = actionId === "feedback_positive" ? "resolved" : "escalated";
+        const { data: guardResult } = await supabase
+          .from("conversation_mappings")
+          .update({ status: targetStatus })
+          .eq("intercom_conversation_id", conversationId)
+          .in("status", ["active", "awaiting_context"])
+          .select("id");
+
+        if (!guardResult || guardResult.length === 0) {
+          console.log(`Feedback guard: ${actionId} skipped for ${conversationId} — already processed`);
+          return;
+        }
+
         if (actionId === "feedback_positive") {
           await removeReaction(SLACK_BOT_TOKEN, channel, threadTs, "eyes");
           await removeReaction(SLACK_BOT_TOKEN, channel, threadTs, "hourglass_flowing_sand");
@@ -815,11 +829,6 @@ Deno.serve(async (req) => {
               body: "Resolved via Slack feedback (👍)",
             }),
           });
-
-          await supabase
-            .from("conversation_mappings")
-            .update({ status: "resolved" })
-            .eq("intercom_conversation_id", conversationId);
 
         } else if (actionId === "feedback_negative") {
           const negSettings = await getSettings(supabase);
@@ -877,11 +886,6 @@ Deno.serve(async (req) => {
               text: feedbackBotMsgs["escalation_notice"] || "Your query has been escalated to our Enterprise Support Team. A member of the team will follow up with you shortly.",
             }),
           });
-
-          await supabase
-            .from("conversation_mappings")
-            .update({ status: "escalated" })
-            .eq("intercom_conversation_id", conversationId);
         }
       } catch (e) {
         console.error("Background feedback work failed:", e);
