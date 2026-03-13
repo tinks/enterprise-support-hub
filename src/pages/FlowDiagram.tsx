@@ -81,6 +81,7 @@ function buildNodes(
           "Checks channel is monitored",
           "Deduplicates via conversation_mappings",
           "If thread reply → fetches full transcript",
+          "Collects file attachments (photos, videos, docs)",
         ],
         message: "@SupportBot I'm having trouble deploying my project...",
         accent: "blue",
