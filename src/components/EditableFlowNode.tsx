@@ -161,7 +161,7 @@ export default function EditableFlowNode({ data }: { data: FlowNodeData }) {
           )}
         </div>
       </div>
-      <Handle type="source" position={Position.Bottom} className="!bg-muted-foreground/40 !w-2 !h-2" />
+      <Handle type="source" position={posMap[data.sourcePosition || "bottom"]} className="!bg-muted-foreground/40 !w-2 !h-2" />
     </>
   );
 }
