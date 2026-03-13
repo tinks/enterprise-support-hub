@@ -199,7 +199,7 @@ function buildNodes(
     {
       id: "6c",
       type: "flowNode",
-      position: { x: COL_W, y: ROW_H * 5.2 },
+      position: { x: COL_W + COL_W * 0.7, y: ROW_H * 5.2 },
       data: {
         label: "6c. User replies in thread",
         desc: "User replies without clicking a button. Old buttons removed, 'Sam is writing...' posted, reply forwarded.",
