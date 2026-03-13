@@ -150,7 +150,7 @@ function buildNodes(
           "Adds 👀 reaction to original message",
           "Searches/creates Intercom contact",
           "Creates conversation, assigns to AI agent",
-          'Tags with "Slack"',
+          "Sets Slack channel + Enterprise Support attributes",
         ],
         message: msgs.ticket_created_ack,
         messageKey: "ticket_created_ack",
