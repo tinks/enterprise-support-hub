@@ -250,23 +250,7 @@ Deno.serve(async (req) => {
       const threadTs = event.thread_ts || event.ts;
       let slackUserId = event.user;
 
-      // Spam guard: rate-limit mentions per user per channel (60s window)
-      const { data: recentMapping } = await supabase
-        .from("conversation_mappings")
-        .select("id, created_at")
-        .eq("slack_channel_id", channelId)
-        .eq("slack_user_id", slackUserId)
-        .gte("created_at", new Date(Date.now() - 60_000).toISOString())
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (recentMapping) {
-        console.log(`Spam guard: ignoring duplicate mention from ${slackUserId} in ${channelId}`);
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+      // Idempotency is handled by the thread-level check below (slack_channel_id + slack_thread_ts)
 
       // Check if already processed
       const { data: existing } = await supabase
