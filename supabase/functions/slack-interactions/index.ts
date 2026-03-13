@@ -223,39 +223,38 @@ async function createIntercomTicket(opts: {
     .update({ intercom_conversation_id: conversationId, intercom_contact_id: contactId, status: "active" })
     .eq("id", mappingId);
 
-  // Tag conversation with "Slack" in Intercom (v2.x approach)
+  // Set conversation custom attributes (Slack channel + support tier)
   try {
-    // Step 1: Find or create the "Slack" tag
-    const tagCreateRes = await fetch("https://api.intercom.io/tags", {
-      method: "POST",
-      headers: intercomHeaders,
-      body: JSON.stringify({ name: "Slack" }),
-    });
-    const tagCreateBody = await tagCreateRes.json();
-    console.log(`Tag create/find response: ${tagCreateRes.status}`, JSON.stringify(tagCreateBody));
+    // Resolve human-readable channel name from Slack
+    const channelInfoRes = await fetch(
+      `${SLACK_API_URL}/conversations.info?channel=${channelId}`,
+      { headers: { Authorization: `Bearer ${slackBotToken}` } }
+    );
+    const channelInfo = await channelInfoRes.json();
+    const channelName = channelInfo.ok ? channelInfo.channel.name : channelId;
 
-    if (!tagCreateRes.ok) {
-      console.error(`Failed to create/find Slack tag: ${tagCreateRes.status}`, tagCreateBody);
-    } else {
-      const slackTagId = tagCreateBody.id;
-      // Step 2: Attach tag to conversation
-      const tagAttachRes = await fetch(
-        `https://api.intercom.io/conversations/${conversationId}/tags`,
-        {
-          method: "POST",
-          headers: intercomHeaders,
-          body: JSON.stringify({ id: slackTagId }),
-        }
-      );
-      const tagAttachBody = await tagAttachRes.json();
-      if (tagAttachRes.ok) {
-        console.log(`Tagged Intercom conversation ${conversationId} with "Slack" (tag id: ${slackTagId})`);
-      } else {
-        console.error(`Failed to attach tag to conversation ${conversationId}: ${tagAttachRes.status}`, tagAttachBody);
+    const attrRes = await fetch(
+      `https://api.intercom.io/conversations/${conversationId}`,
+      {
+        method: "PUT",
+        headers: intercomHeaders,
+        body: JSON.stringify({
+          custom_attributes: {
+            "Slack channel": channelName,
+            source: "Slack",
+            support_tier: "Enterprise Support",
+          },
+        }),
       }
+    );
+    if (attrRes.ok) {
+      console.log(`Set custom attributes on conversation ${conversationId}: Slack channel=${channelName}`);
+    } else {
+      const attrBody = await attrRes.json();
+      console.error(`Failed to set attributes on conversation ${conversationId}: ${attrRes.status}`, attrBody);
     }
-  } catch (tagErr) {
-    console.error(`Failed to tag conversation ${conversationId}:`, tagErr);
+  } catch (attrErr) {
+    console.error(`Failed to set attributes on conversation ${conversationId}:`, attrErr);
   }
 
   console.log(`Created Intercom conversation ${conversationId} for mapping ${mappingId}`);
