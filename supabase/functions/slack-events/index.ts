@@ -250,23 +250,31 @@ Deno.serve(async (req) => {
       const threadTs = event.thread_ts || event.ts;
       let slackUserId = event.user;
 
-      // Idempotency is handled by the thread-level check below (slack_channel_id + slack_thread_ts)
-
-      // Check if already processed
-      const { data: existing } = await supabase
+      // Atomic claim: INSERT first, send message second (prevents TOCTOU race)
+      const { data: claimed } = await supabase
         .from("conversation_mappings")
-        .select("id")
-        .eq("slack_channel_id", channelId)
-        .eq("slack_thread_ts", threadTs)
-        .maybeSingle();
+        .upsert(
+          {
+            slack_channel_id: channelId,
+            slack_thread_ts: threadTs,
+            intercom_conversation_id: "",
+            status: "awaiting_context",
+            original_message_text: cleanSlackMarkup(event.text || ""),
+            slack_user_id: slackUserId,
+            is_test: settings.testing_mode ?? false,
+          },
+          { onConflict: "slack_channel_id,slack_thread_ts", ignoreDuplicates: true }
+        )
+        .select("id");
 
-      if (existing) {
+      if (!claimed || claimed.length === 0) {
         console.log(`app_mention already_processed ${channelId}/${threadTs}`);
         return new Response(JSON.stringify({ ok: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
+      const claimedId = claimed[0].id;
       let messageText = cleanSlackMarkup(event.text || "");
 
       // If the mention is a thread reply, fetch the parent message as the actual question
@@ -286,10 +294,7 @@ Deno.serve(async (req) => {
             .filter((m: any) => !m.bot_id && m.subtype !== "bot_message");
 
           if (threadMessages.length > 0) {
-            // Attribute ticket to the original poster (first message in thread)
             slackUserId = threadMessages[0].user || slackUserId;
-
-            // Build a full transcript for Intercom context
             const transcript = threadMessages
               .map((m: any) => cleanSlackMarkup(m.text || ""))
               .filter(Boolean)
@@ -302,6 +307,12 @@ Deno.serve(async (req) => {
           messageText = `[incomplete context] ${messageText}`;
         }
       }
+
+      // Update mapping with full context (thread transcript + real user)
+      await supabase
+        .from("conversation_mappings")
+        .update({ original_message_text: messageText, slack_user_id: slackUserId })
+        .eq("id", claimedId);
 
       // Send Block Kit message with buttons
       const buttonValue = `${channelId}|${threadTs}`;
@@ -346,21 +357,7 @@ Deno.serve(async (req) => {
 
       if (!promptData.ok) {
         console.error(`app_mention post_failed ${channelId}/${threadTs}: ${promptData.error}`);
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
       }
-
-      // Store mapping only after successful prompt delivery
-      await supabase.from("conversation_mappings").insert({
-        slack_channel_id: channelId,
-        slack_thread_ts: threadTs,
-        intercom_conversation_id: "",
-        status: "awaiting_context",
-        original_message_text: messageText,
-        slack_user_id: slackUserId,
-        is_test: settings.testing_mode ?? false,
-      });
 
       console.log(`app_mention accepted ${channelId}/${threadTs}`);
     }
