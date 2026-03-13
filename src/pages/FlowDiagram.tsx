@@ -216,7 +216,7 @@ function buildNodes(
     {
       id: "6b",
       type: "flowNode",
-      position: { x: COL_W + COL_W * 0.7, y: ROW_H * 5.2 },
+      position: { x: COL_W + COL_W * 1.4, y: ROW_H * 5.2 },
       data: {
         label: "6b. 👎 Escalate to human",
         desc: "User requests human support. Converts conversation to ticket.",
