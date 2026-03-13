@@ -461,7 +461,7 @@ Deno.serve(async (req) => {
           },
         ];
 
-        if (mapping.status !== "escalated") {
+        if (mapping.status !== "escalated" && mapping.status !== "escalated_pending") {
           actionElements.push({
             type: "button",
             text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
@@ -482,6 +482,19 @@ Deno.serve(async (req) => {
     );
 
     // No reassignment after AI response — leave ticket as-is in Intercom
+
+    // Reset pending status back so the next user reply can trigger a new notice
+    if (mapping.status === "active_pending") {
+      await supabase
+        .from("conversation_mappings")
+        .update({ status: "active" })
+        .eq("id", mapping.id);
+    } else if (mapping.status === "escalated_pending") {
+      await supabase
+        .from("conversation_mappings")
+        .update({ status: "escalated" })
+        .eq("id", mapping.id);
+    }
 
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

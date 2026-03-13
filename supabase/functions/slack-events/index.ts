@@ -481,46 +481,45 @@ Deno.serve(async (req) => {
           }
         }
 
-        // When status is "active", remove old buttons and post "Sam is writing..." notice
-        if (mapping.status === "active") {
-          // Remove feedback buttons from thread messages
-          try {
-            const repliesRes = await fetch(
-              `${SLACK_API_URL}/conversations.replies?channel=${channelId}&ts=${threadTs}&limit=100`,
-              { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
-            );
-            const repliesData = await repliesRes.json();
-            if (repliesData.ok && repliesData.messages) {
-              for (const msg of repliesData.messages) {
-                const hasActions = msg.blocks?.some((b: { type: string }) => b.type === "actions");
-                if (hasActions && msg.ts) {
-                  const blocksWithoutActions = msg.blocks.filter((b: { type: string }) => b.type !== "actions");
-                  await fetch(`${SLACK_API_URL}/chat.update`, {
-                    method: "POST",
-                    headers: slackHeaders,
-                    body: JSON.stringify({
-                      channel: channelId,
-                      ts: msg.ts,
-                      text: msg.text || "",
-                      blocks: blocksWithoutActions,
-                    }),
-                  });
-                }
+        // Remove feedback buttons from thread messages (shared for both active and escalated)
+        try {
+          const repliesRes = await fetch(
+            `${SLACK_API_URL}/conversations.replies?channel=${channelId}&ts=${threadTs}&limit=100`,
+            { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
+          );
+          const repliesData = await repliesRes.json();
+          if (repliesData.ok && repliesData.messages) {
+            for (const msg of repliesData.messages) {
+              const hasActions = msg.blocks?.some((b: { type: string }) => b.type === "actions");
+              if (hasActions && msg.ts) {
+                const blocksWithoutActions = msg.blocks.filter((b: { type: string }) => b.type !== "actions");
+                await fetch(`${SLACK_API_URL}/chat.update`, {
+                  method: "POST",
+                  headers: slackHeaders,
+                  body: JSON.stringify({
+                    channel: channelId,
+                    ts: msg.ts,
+                    text: msg.text || "",
+                    blocks: blocksWithoutActions,
+                  }),
+                });
               }
             }
-          } catch (e) {
-            console.error("Failed to remove feedback buttons:", e);
           }
+        } catch (e) {
+          console.error("Failed to remove feedback buttons:", e);
+        }
 
-          // Post "Sam is writing..." notice (dedup: skip if one was posted <120s ago)
-          const existingWritingNotice = repliesData.messages?.find(
-            (m: any) =>
-              m.bot_id &&
-              m.text?.includes("Sam is writing") &&
-              (Date.now() / 1000 - parseFloat(m.ts)) < 120
-          );
+        // Status-based gating: atomically transition status to prevent duplicate notices
+        if (mapping.status === "active") {
+          const { data: updated } = await supabase
+            .from("conversation_mappings")
+            .update({ status: "active_pending" })
+            .eq("id", mapping.id)
+            .eq("status", "active")
+            .select("id");
 
-          if (!existingWritingNotice) {
+          if (updated && updated.length > 0) {
             await fetch(`${SLACK_API_URL}/chat.postMessage`, {
               method: "POST",
               headers: slackHeaders,
@@ -532,45 +531,15 @@ Deno.serve(async (req) => {
             });
           }
         } else if (mapping.status === "escalated") {
-          // Remove feedback buttons from thread messages
-          try {
-            const repliesRes = await fetch(
-              `${SLACK_API_URL}/conversations.replies?channel=${channelId}&ts=${threadTs}&limit=100`,
-              { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
-            );
-            const repliesData = await repliesRes.json();
-            if (repliesData.ok && repliesData.messages) {
-              for (const msg of repliesData.messages) {
-                const hasActions = msg.blocks?.some((b: { type: string }) => b.type === "actions");
-                if (hasActions && msg.ts) {
-                  const blocksWithoutActions = msg.blocks.filter((b: { type: string }) => b.type !== "actions");
-                  await fetch(`${SLACK_API_URL}/chat.update`, {
-                    method: "POST",
-                    headers: slackHeaders,
-                    body: JSON.stringify({
-                      channel: channelId,
-                      ts: msg.ts,
-                      text: msg.text || "",
-                      blocks: blocksWithoutActions,
-                    }),
-                  });
-                }
-              }
-            }
-          } catch (e) {
-            console.error("Failed to remove feedback buttons:", e);
-          }
+          const { data: updated } = await supabase
+            .from("conversation_mappings")
+            .update({ status: "escalated_pending" })
+            .eq("id", mapping.id)
+            .eq("status", "escalated")
+            .select("id");
 
-          // Post "reply forwarded" notice (dedup: skip if one was posted <120s ago)
-          const replyForwardedText = botMessages["reply_forwarded"] || "Thanks for your reply! We will be back to you in just a few minutes.";
-          const existingForwardNotice = repliesData.messages?.find(
-            (m: any) =>
-              m.bot_id &&
-              (m.text?.includes("reply") || m.text?.includes("back to you")) &&
-              (Date.now() / 1000 - parseFloat(m.ts)) < 120
-          );
-
-          if (!existingForwardNotice) {
+          if (updated && updated.length > 0) {
+            const replyForwardedText = botMessages["reply_forwarded"] || "Thanks for your reply! We will be back to you in just a few minutes.";
             await fetch(`${SLACK_API_URL}/chat.postMessage`, {
               method: "POST",
               headers: slackHeaders,
