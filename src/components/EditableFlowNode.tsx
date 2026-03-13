@@ -17,6 +17,8 @@ export type FlowNodeData = {
   wide?: boolean;
   onMessageSave?: (key: string, text: string) => void;
   botIdentity?: { name: string; avatarUrl: string };
+  targetPosition?: "top" | "left" | "right" | "bottom";
+  sourcePosition?: "top" | "left" | "right" | "bottom";
 };
 
 const accentBorder: Record<string, string> = {
