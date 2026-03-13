@@ -4,6 +4,7 @@ import {
   Background,
   Controls,
   MiniMap,
+  MarkerType,
   useNodesState,
   type Node,
   type Edge,
