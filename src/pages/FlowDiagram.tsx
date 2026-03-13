@@ -79,7 +79,7 @@ function buildNodes(
         details: [
           "Verifies Slack signature",
           "Checks channel is monitored",
-          "Deduplicates by thread identity (channel + thread_ts)",
+          "Atomic INSERT dedup (ON CONFLICT DO NOTHING) — prevents race from Slack retries",
           "If thread reply → fetches full transcript",
           "Collects file attachments (photos, videos, docs)",
         ],
