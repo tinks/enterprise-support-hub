@@ -158,13 +158,14 @@ function buildNodes(
       position: { x: COL_W, y: ROW_H * 4 },
       data: {
         label: "5. AI responds → posted to Slack",
-        desc: "Intercom AI replies. Webhook posts it to the Slack thread with feedback buttons.",
+        desc: "Intercom AI replies. Webhook posts it to the Slack thread with feedback buttons. Users can reply to continue chatting with Sam.",
         icon: Bot,
         edgeFunction: "intercom-webhook",
         details: [
           "Removes old feedback buttons from thread",
           "Posts reply (split at 2900 chars)",
           "Appends feedback buttons to last chunk",
+          "User can reply in thread → forwarded to Sam for another round",
         ],
         message:
           "[AI reply text...]\n\n[ 👍 This resolved my issue ]  [ 👎 Escalate to human ]",
