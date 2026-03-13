@@ -715,7 +715,7 @@ Deno.serve(async (req) => {
                 block_id: "email_block",
                 optional: true,
                 element: {
-                  type: "plain_text_input",
+                  type: "email_text_input",
                   action_id: "email_input",
                   placeholder: { type: "plain_text", text: "your@email.com" },
                 },
