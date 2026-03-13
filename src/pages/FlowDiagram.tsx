@@ -240,7 +240,7 @@ function buildNodes(
     {
       id: "6bi",
       type: "flowNode",
-      position: { x: COL_W + COL_W * 0.1, y: ROW_H * 6.5 },
+      position: { x: COL_W - COL_W * 0.4, y: ROW_H * 6.5 },
       data: {
         label: "6b-i. Human replies in Slack",
         desc: "After escalation (👎), agent or user replies in the Slack thread → forwarded to Intercom.",
