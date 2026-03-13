@@ -199,7 +199,7 @@ function buildNodes(
     {
       id: "6c",
       type: "flowNode",
-      position: { x: COL_W, y: ROW_H * 5.2 },
+      position: { x: COL_W + COL_W * 0.7, y: ROW_H * 5.2 },
       data: {
         label: "6c. User replies in thread",
         desc: "User replies without clicking a button. Old buttons removed, 'Sam is writing...' posted, reply forwarded.",
@@ -216,7 +216,7 @@ function buildNodes(
     {
       id: "6b",
       type: "flowNode",
-      position: { x: COL_W + COL_W * 0.7, y: ROW_H * 5.2 },
+      position: { x: COL_W, y: ROW_H * 5.2 },
       data: {
         label: "6b. 👎 Escalate to human",
         desc: "User requests human support. Converts conversation to ticket.",
@@ -240,7 +240,7 @@ function buildNodes(
     {
       id: "6bi",
       type: "flowNode",
-      position: { x: COL_W + COL_W * 0.1, y: ROW_H * 6.5 },
+      position: { x: COL_W - COL_W * 0.4, y: ROW_H * 6.5 },
       data: {
         label: "6b-i. Human replies in Slack",
         desc: "After escalation (👎), agent or user replies in the Slack thread → forwarded to Intercom.",
@@ -262,7 +262,7 @@ function buildNodes(
     {
       id: "6bii",
       type: "flowNode",
-      position: { x: COL_W + COL_W, y: ROW_H * 6.5 },
+      position: { x: COL_W + COL_W * 0.5, y: ROW_H * 6.5 },
       data: {
         label: "6b-ii. Human replies from Intercom",
         desc: "Agent replies in Intercom → posted to Slack with resolve button.",
@@ -282,7 +282,7 @@ function buildNodes(
     {
       id: "7",
       type: "flowNode",
-      position: { x: COL_W + COL_W * 0.55, y: ROW_H * 7.8 },
+      position: { x: COL_W + COL_W * 0.05, y: ROW_H * 7.8 },
       data: {
         label: "7. Conversation closed",
         desc: "Conversation closed in Intercom → thread finalized in Slack.",
@@ -316,9 +316,9 @@ const initialEdges: Edge[] = [
   { id: "e3b-4", source: "3b", target: "4", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e4-5", source: "4", target: "5", animated: true, style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e5-6a", source: "5", target: "6a", label: "👍 Resolved", style: { stroke: "rgb(34,197,94)", strokeWidth: 2 } },
+  { id: "e5-6b", source: "5", target: "6b", label: "👎 Escalate", style: { stroke: "rgb(249,115,22)", strokeWidth: 2 } },
   { id: "e5-6c", source: "5", target: "6c", label: "Reply in thread", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e6c-5", source: "6c", target: "5", label: "Sam responds again", animated: true, style: { stroke: "hsl(var(--primary))", strokeWidth: 2 }, type: "smoothstep" },
-  { id: "e5-6b", source: "5", target: "6b", label: "👎 Escalate", style: { stroke: "rgb(249,115,22)", strokeWidth: 2 } },
   { id: "e6b-6bi", source: "6b", target: "6bi", label: "Slack reply", style: { stroke: "rgb(249,115,22)", strokeWidth: 2 } },
   { id: "e6b-6bii", source: "6b", target: "6bii", label: "Intercom reply", style: { stroke: "rgb(249,115,22)", strokeWidth: 2 } },
   { id: "e6bi-7", source: "6bi", target: "7", style: { stroke: "rgb(249,115,22)", strokeWidth: 2 } },
