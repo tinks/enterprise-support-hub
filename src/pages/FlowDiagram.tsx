@@ -248,7 +248,7 @@ function buildNodes(
       position: { x: COL_W - COL_W * 0.4, y: ROW_H * 6.5 },
       data: {
         label: "6b-i. Human replies in Slack",
-        desc: "After escalation (👎), agent or user replies in the Slack thread → forwarded to Intercom.",
+        desc: "After escalation (👎), user replies in Slack → forwarded to Intercom. Can repeat indefinitely.",
         icon: User,
         edgeFunction: "slack-events",
         details: [
