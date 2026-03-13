@@ -268,6 +268,8 @@ function buildNodes(
         icon: User,
         edgeFunction: "slack-events",
         details: [
+          "Returns 200 immediately; processes in background via EdgeRuntime.waitUntil()",
+          "Idempotency: deduplicates by event.ts to prevent Slack retry duplicates",
           "Only triggers when status is 'escalated'",
           "Atomic status gate: escalated → escalated_pending",
           "Downloads & re-hosts any attached files",
