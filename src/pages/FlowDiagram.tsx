@@ -219,6 +219,8 @@ function buildNodes(
         icon: MessageSquare,
         edgeFunction: "slack-events",
         details: [
+          "Returns 200 immediately; processes in background via EdgeRuntime.waitUntil()",
+          "Idempotency: deduplicates by event.ts to prevent Slack retry duplicates",
           "Removes old feedback buttons from thread",
           "Atomic status gate: active → active_pending (skips notice if already pending)",
           "Posts '⏳ Sam is writing a response...' only on successful transition",
@@ -266,6 +268,8 @@ function buildNodes(
         icon: User,
         edgeFunction: "slack-events",
         details: [
+          "Returns 200 immediately; processes in background via EdgeRuntime.waitUntil()",
+          "Idempotency: deduplicates by event.ts to prevent Slack retry duplicates",
           "Only triggers when status is 'escalated'",
           "Atomic status gate: escalated → escalated_pending",
           "Downloads & re-hosts any attached files",

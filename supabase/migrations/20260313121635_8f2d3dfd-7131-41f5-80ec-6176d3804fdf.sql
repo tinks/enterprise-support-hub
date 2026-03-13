@@ -1,0 +1,1 @@
+ALTER TABLE public.conversation_mappings ADD COLUMN IF NOT EXISTS last_processed_event_ts text;
