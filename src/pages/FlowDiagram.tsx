@@ -265,7 +265,8 @@ function buildNodes(
         edgeFunction: "slack-events",
         details: [
           "Only triggers when status is 'escalated'",
-          "Forwards message to Intercom as the contact",
+          "Downloads & re-hosts any attached files",
+          "Forwards message + attachments to Intercom as the contact",
           "Removes remaining feedback buttons",
           "Posts 'reply forwarded' notice",
         ],
