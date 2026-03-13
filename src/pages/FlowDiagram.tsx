@@ -262,7 +262,7 @@ function buildNodes(
     {
       id: "6bii",
       type: "flowNode",
-      position: { x: COL_W + COL_W, y: ROW_H * 6.5 },
+      position: { x: COL_W + COL_W * 0.5, y: ROW_H * 6.5 },
       data: {
         label: "6b-ii. Human replies from Intercom",
         desc: "Agent replies in Intercom → posted to Slack with resolve button.",
