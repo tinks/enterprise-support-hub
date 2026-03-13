@@ -467,6 +467,50 @@ Deno.serve(async (req) => {
       return new Response("", { status: 200 });
     }
 
+    // ===== Handle view_closed (modal cancelled) =====
+    if (payload.type === "view_closed") {
+      const meta = JSON.parse(payload.view?.private_metadata || "{}");
+      const { channelId, threadTs } = meta;
+      if (channelId && threadTs) {
+        const bgWork = (async () => {
+          try {
+            // Atomic guard: only proceed if status is still awaiting_context
+            const { data: updated } = await supabase
+              .from("conversation_mappings")
+              .update({ status: "processing" })
+              .eq("slack_channel_id", channelId)
+              .eq("slack_thread_ts", threadTs)
+              .eq("status", "awaiting_context")
+              .select()
+              .maybeSingle();
+
+            if (!updated) {
+              console.log("view_closed: mapping already processed or not found, skipping");
+              return;
+            }
+
+            console.log("view_closed: modal cancelled, proceeding without context");
+            await createIntercomTicket({
+              supabase,
+              intercomToken: INTERCOM_API_TOKEN,
+              slackBotToken: SLACK_BOT_TOKEN,
+              channelId,
+              threadTs,
+              mappingId: updated.id,
+              originalMessage: updated.original_message_text,
+              slackUserId: updated.slack_user_id,
+            });
+          } catch (err) {
+            console.error("view_closed background error:", err);
+          }
+        })();
+        if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+          EdgeRuntime.waitUntil(bgWork);
+        }
+      }
+      return new Response("", { status: 200 });
+    }
+
     // ===== Handle block_actions =====
     if (payload.type !== "block_actions") {
       return new Response(JSON.stringify({ ok: true }), {
@@ -567,6 +611,7 @@ Deno.serve(async (req) => {
             private_metadata: JSON.stringify({ channelId, threadTs }),
             title: { type: "plain_text", text: "Add Details" },
             submit: { type: "plain_text", text: "Submit" },
+            notify_on_close: true,
             close: { type: "plain_text", text: "Cancel" },
             blocks: [
               {
