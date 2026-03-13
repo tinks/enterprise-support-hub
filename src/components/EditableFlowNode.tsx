@@ -35,6 +35,13 @@ const accentIcon: Record<string, string> = {
   default: "text-muted-foreground",
 };
 
+const posMap: Record<string, Position> = {
+  top: Position.Top,
+  bottom: Position.Bottom,
+  left: Position.Left,
+  right: Position.Right,
+};
+
 export default function EditableFlowNode({ data }: { data: FlowNodeData }) {
   const Icon = data.icon;
   const accent = data.accent || "default";

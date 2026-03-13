@@ -212,6 +212,8 @@ function buildNodes(
           "Forwards reply to Intercom as the contact",
         ],
         accent: "blue",
+        targetPosition: "left",
+        sourcePosition: "top",
       },
     },
     {
