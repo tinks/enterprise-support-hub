@@ -366,7 +366,8 @@ Deno.serve(async (req) => {
     }
 
     // ===== Handle message events in threads (human reply → escalate to Intercom) =====
-    if (event.type === "message" && !event.subtype && event.thread_ts && event.user) {
+    const isRegularMessage = !event.subtype || event.subtype === "file_share";
+    if (event.type === "message" && isRegularMessage && event.thread_ts && event.user) {
       const channelId = event.channel;
       const threadTs = event.thread_ts;
       const eventTs = event.ts;
