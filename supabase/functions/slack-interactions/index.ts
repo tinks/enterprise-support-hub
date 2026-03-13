@@ -658,6 +658,12 @@ Deno.serve(async (req) => {
             .maybeSingle();
 
           if (updated) {
+            // Collect and re-host thread files
+            const threadFiles = await collectThreadFiles(SLACK_BOT_TOKEN, channelId, threadTs);
+            const attachmentUrls = threadFiles.length
+              ? await downloadAndUploadFiles(threadFiles, SLACK_BOT_TOKEN, supabase, threadTs)
+              : [];
+
             await createIntercomTicket({
               supabase,
               intercomToken: INTERCOM_API_TOKEN,
@@ -667,6 +673,7 @@ Deno.serve(async (req) => {
               mappingId: updated.id,
               originalMessage: updated.original_message_text,
               slackUserId: updated.slack_user_id,
+              attachmentUrls: attachmentUrls.length ? attachmentUrls : undefined,
             });
           }
         } catch (e) {
