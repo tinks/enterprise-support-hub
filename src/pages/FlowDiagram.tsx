@@ -245,6 +245,7 @@ function buildNodes(
         icon: ThumbsDown,
         edgeFunction: "slack-interactions",
         details: [
+          "Atomic guard: updates status to 'escalated' only if currently active/awaiting_context — second click is a no-op",
           "Removes feedback buttons",
           "Removes 👀, adds ⏳",
           "Reassigns to enterprise team inbox",
