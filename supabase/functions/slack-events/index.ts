@@ -402,9 +402,48 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Only remove buttons and escalate if already escalated (👎 was clicked).
-        // When status is "active", Sam will reply automatically via intercom-webhook.
-        if (mapping.status === "escalated") {
+        // When status is "active", remove old buttons and post "Sam is writing..." notice
+        if (mapping.status === "active") {
+          // Remove feedback buttons from thread messages
+          try {
+            const repliesRes = await fetch(
+              `${SLACK_API_URL}/conversations.replies?channel=${channelId}&ts=${threadTs}&limit=100`,
+              { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
+            );
+            const repliesData = await repliesRes.json();
+            if (repliesData.ok && repliesData.messages) {
+              for (const msg of repliesData.messages) {
+                const hasActions = msg.blocks?.some((b: { type: string }) => b.type === "actions");
+                if (hasActions && msg.ts) {
+                  const blocksWithoutActions = msg.blocks.filter((b: { type: string }) => b.type !== "actions");
+                  await fetch(`${SLACK_API_URL}/chat.update`, {
+                    method: "POST",
+                    headers: slackHeaders,
+                    body: JSON.stringify({
+                      channel: channelId,
+                      ts: msg.ts,
+                      text: msg.text || "",
+                      blocks: blocksWithoutActions,
+                    }),
+                  });
+                }
+              }
+            }
+          } catch (e) {
+            console.error("Failed to remove feedback buttons:", e);
+          }
+
+          // Post "Sam is writing..." notice
+          await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+            method: "POST",
+            headers: slackHeaders,
+            body: JSON.stringify({
+              channel: channelId,
+              thread_ts: threadTs,
+              text: "⏳ Sam is writing a response...",
+            }),
+          });
+        } else if (mapping.status === "escalated") {
           // Remove feedback buttons from thread messages
           try {
             const repliesRes = await fetch(
