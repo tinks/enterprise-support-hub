@@ -81,6 +81,7 @@ function buildNodes(
           "Checks channel is monitored",
           "Deduplicates via conversation_mappings",
           "If thread reply → fetches full transcript",
+          "Collects file attachments (photos, videos, docs)",
         ],
         message: "@SupportBot I'm having trouble deploying my project...",
         accent: "blue",
@@ -149,7 +150,9 @@ function buildNodes(
         details: [
           "Adds 👀 reaction to original message",
           "Searches/creates Intercom contact",
-          "Creates conversation, assigns to AI agent",
+          "Downloads & re-hosts file attachments to storage",
+          "Creates conversation with text + attachment URLs",
+          "Assigns to AI agent",
           "Sets Slack channel + Enterprise Support attributes",
         ],
         message: msgs.ticket_created_ack,
@@ -218,7 +221,8 @@ function buildNodes(
         details: [
           "Removes old feedback buttons from thread",
           "Posts '⏳ Sam is writing a response...'",
-          "Forwards reply to Intercom as the contact",
+          "Downloads & re-hosts any attached files",
+          "Forwards reply + attachments to Intercom as the contact",
           "Loop continues until user clicks 👍 or 👎",
         ],
         accent: "blue",
@@ -261,7 +265,8 @@ function buildNodes(
         edgeFunction: "slack-events",
         details: [
           "Only triggers when status is 'escalated'",
-          "Forwards message to Intercom as the contact",
+          "Downloads & re-hosts any attached files",
+          "Forwards message + attachments to Intercom as the contact",
           "Removes remaining feedback buttons",
           "Posts 'reply forwarded' notice",
         ],

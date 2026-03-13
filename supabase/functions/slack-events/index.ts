@@ -9,6 +9,47 @@ const corsHeaders = {
 };
 
 const SLACK_API_URL = "https://slack.com/api";
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+
+async function downloadAndUploadFiles(
+  files: Array<{ url_private: string; name: string; mimetype: string; size?: number }>,
+  slackBotToken: string,
+  supabase: ReturnType<typeof createClient>,
+  threadTs: string
+): Promise<string[]> {
+  const publicUrls: string[] = [];
+  for (const file of files) {
+    try {
+      if (file.size && file.size > MAX_FILE_SIZE) {
+        console.log(`Skipping file ${file.name} (${file.size} bytes) — exceeds 50 MB limit`);
+        continue;
+      }
+      const res = await fetch(file.url_private, {
+        headers: { Authorization: `Bearer ${slackBotToken}` },
+      });
+      if (!res.ok) {
+        console.error(`Failed to download file ${file.name}: ${res.status}`);
+        continue;
+      }
+      const blob = await res.blob();
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const path = `slack-attachments/${threadTs.replace(".", "_")}/${safeName}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("public-assets")
+        .upload(path, blob, { contentType: file.mimetype, upsert: true });
+      if (uploadErr) {
+        console.error(`Failed to upload file ${file.name}:`, uploadErr);
+        continue;
+      }
+      const { data } = supabase.storage.from("public-assets").getPublicUrl(path);
+      publicUrls.push(data.publicUrl);
+      console.log(`Uploaded ${file.name} → ${data.publicUrl}`);
+    } catch (e) {
+      console.error(`Error processing file ${file.name}:`, e);
+    }
+  }
+  return publicUrls;
+}
 
 async function addReaction(token: string, channel: string, timestamp: string, emoji: string) {
   try {
@@ -364,12 +405,33 @@ Deno.serve(async (req) => {
         const replyText = cleanSlackMarkup(event.text || "");
         console.log(`Thread reply in ${channelId}/${threadTs} from ${event.user}: "${replyText.substring(0, 100)}"`);
 
+        // Download and re-host any attached files
+        let replyAttachmentUrls: string[] = [];
+        if (event.files?.length) {
+          replyAttachmentUrls = await downloadAndUploadFiles(event.files, SLACK_BOT_TOKEN, supabase, threadTs);
+        }
+
+        // Build reply body with attachment links
+        let replyBody = replyText;
+        if (replyAttachmentUrls.length) {
+          replyBody += "\n\nAttachments:\n" + replyAttachmentUrls.map((url) => `• ${url}`).join("\n");
+        }
+
         // Get Intercom settings for admin ID (used for reassignment)
         const intercomSettings = await supabase.from("settings").select("*").limit(1).single();
         const adminId = intercomSettings.data?.intercom_assignee_id;
 
         // Forward message to Intercom as the customer (contact)
         if (mapping.intercom_contact_id) {
+          const replyPayload: Record<string, any> = {
+            message_type: "comment",
+            type: "user",
+            intercom_user_id: mapping.intercom_contact_id,
+            body: replyBody,
+          };
+          if (replyAttachmentUrls.length) {
+            replyPayload.attachment_urls = replyAttachmentUrls;
+          }
           const replyRes = await fetch(
             `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/reply`,
             {
@@ -380,12 +442,7 @@ Deno.serve(async (req) => {
                 Accept: "application/json",
                 "Intercom-Version": "2.11",
               },
-              body: JSON.stringify({
-                message_type: "comment",
-                type: "user",
-                intercom_user_id: mapping.intercom_contact_id,
-                body: replyText,
-              }),
+              body: JSON.stringify(replyPayload),
             }
           );
           if (!replyRes.ok) {
@@ -395,6 +452,15 @@ Deno.serve(async (req) => {
           }
         } else if (adminId) {
           // Fallback: no contact ID stored, send as admin
+          const adminPayload: Record<string, any> = {
+            message_type: "comment",
+            type: "admin",
+            admin_id: adminId,
+            body: replyBody,
+          };
+          if (replyAttachmentUrls.length) {
+            adminPayload.attachment_urls = replyAttachmentUrls;
+          }
           const replyRes = await fetch(
             `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/reply`,
             {
@@ -405,12 +471,7 @@ Deno.serve(async (req) => {
                 Accept: "application/json",
                 "Intercom-Version": "2.11",
               },
-              body: JSON.stringify({
-                message_type: "comment",
-                type: "admin",
-                admin_id: adminId,
-                body: replyText,
-              }),
+              body: JSON.stringify(adminPayload),
             }
           );
           if (!replyRes.ok) {

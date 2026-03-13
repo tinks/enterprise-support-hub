@@ -12,6 +12,47 @@ const corsHeaders = {
 };
 
 const SLACK_API_URL = "https://slack.com/api";
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+
+async function downloadAndUploadFiles(
+  files: Array<{ url_private: string; name: string; mimetype: string; size?: number }>,
+  slackBotToken: string,
+  supabase: ReturnType<typeof createClient>,
+  threadTs: string
+): Promise<string[]> {
+  const publicUrls: string[] = [];
+  for (const file of files) {
+    try {
+      if (file.size && file.size > MAX_FILE_SIZE) {
+        console.log(`Skipping file ${file.name} (${file.size} bytes) — exceeds 50 MB limit`);
+        continue;
+      }
+      const res = await fetch(file.url_private, {
+        headers: { Authorization: `Bearer ${slackBotToken}` },
+      });
+      if (!res.ok) {
+        console.error(`Failed to download file ${file.name}: ${res.status}`);
+        continue;
+      }
+      const blob = await res.blob();
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const path = `slack-attachments/${threadTs.replace(".", "_")}/${safeName}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("public-assets")
+        .upload(path, blob, { contentType: file.mimetype, upsert: true });
+      if (uploadErr) {
+        console.error(`Failed to upload file ${file.name}:`, uploadErr);
+        continue;
+      }
+      const { data } = supabase.storage.from("public-assets").getPublicUrl(path);
+      publicUrls.push(data.publicUrl);
+      console.log(`Uploaded ${file.name} → ${data.publicUrl}`);
+    } catch (e) {
+      console.error(`Error processing file ${file.name}:`, e);
+    }
+  }
+  return publicUrls;
+}
 
 async function addReaction(token: string, channel: string, timestamp: string, emoji: string) {
   try {
@@ -81,11 +122,13 @@ async function createIntercomTicket(opts: {
   slackUserId: string;
   email?: string;
   projectLink?: string;
+  attachmentUrls?: string[];
 }) {
   const {
     supabase, intercomToken, slackBotToken,
     channelId, threadTs, mappingId,
     originalMessage, slackUserId, email, projectLink,
+    attachmentUrls,
   } = opts;
 
   const intercomHeaders = {
@@ -123,6 +166,10 @@ async function createIntercomTicket(opts: {
   const bodyParts: string[] = [`Message: ${originalMessage}`];
   if (email) bodyParts.push(`Lovable account email: ${email}`);
   if (projectLink) bodyParts.push(`Project: ${projectLink}`);
+  if (attachmentUrls?.length) {
+    bodyParts.push("Attachments:\n" + attachmentUrls.map((url) => `• ${url}`).join("\n"));
+  }
+  const fullBody = bodyParts.join("\n\n");
   const fullBody = bodyParts.join("\n\n");
 
   // Find or create Intercom contact
@@ -312,6 +359,36 @@ async function createIntercomTicket(opts: {
   }
 }
 
+async function collectThreadFiles(
+  slackBotToken: string,
+  channelId: string,
+  threadTs: string
+): Promise<Array<{ url_private: string; name: string; mimetype: string; size?: number }>> {
+  const allFiles: Array<{ url_private: string; name: string; mimetype: string; size?: number }> = [];
+  try {
+    const repliesRes = await fetch(
+      `${SLACK_API_URL}/conversations.replies?channel=${channelId}&ts=${threadTs}&inclusive=true&limit=100`,
+      { headers: { Authorization: `Bearer ${slackBotToken}` } }
+    );
+    const repliesData = await repliesRes.json();
+    if (repliesData.ok && repliesData.messages) {
+      for (const msg of repliesData.messages) {
+        if (msg.files?.length) {
+          for (const f of msg.files) {
+            if (f.url_private && f.name && f.mimetype) {
+              allFiles.push({ url_private: f.url_private, name: f.name, mimetype: f.mimetype, size: f.size });
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Failed to collect thread files:", e);
+  }
+  console.log(`Collected ${allFiles.length} files from thread ${channelId}/${threadTs}`);
+  return allFiles;
+}
+
 async function getSettings(supabase: ReturnType<typeof createClient>) {
   const { data } = await supabase.from("settings").select("*").limit(1).single();
   return data || { intercom_assignee_id: "" };
@@ -440,6 +517,12 @@ Deno.serve(async (req) => {
             .maybeSingle();
 
           if (updated) {
+            // Collect and re-host thread files
+            const threadFiles = await collectThreadFiles(SLACK_BOT_TOKEN, channelId, threadTs);
+            const attachmentUrls = threadFiles.length
+              ? await downloadAndUploadFiles(threadFiles, SLACK_BOT_TOKEN, supabase, threadTs)
+              : [];
+
             await createIntercomTicket({
               supabase,
               intercomToken: INTERCOM_API_TOKEN,
@@ -451,6 +534,7 @@ Deno.serve(async (req) => {
               slackUserId: updated.slack_user_id,
               email: email || undefined,
               projectLink: projectLink || undefined,
+              attachmentUrls: attachmentUrls.length ? attachmentUrls : undefined,
             });
           }
         } catch (e) {
@@ -489,6 +573,12 @@ Deno.serve(async (req) => {
             }
 
             console.log("view_closed: modal cancelled, proceeding without context");
+            // Collect and re-host thread files
+            const threadFiles = await collectThreadFiles(SLACK_BOT_TOKEN, channelId, threadTs);
+            const attachmentUrls = threadFiles.length
+              ? await downloadAndUploadFiles(threadFiles, SLACK_BOT_TOKEN, supabase, threadTs)
+              : [];
+
             await createIntercomTicket({
               supabase,
               intercomToken: INTERCOM_API_TOKEN,
@@ -498,6 +588,7 @@ Deno.serve(async (req) => {
               mappingId: updated.id,
               originalMessage: updated.original_message_text,
               slackUserId: updated.slack_user_id,
+              attachmentUrls: attachmentUrls.length ? attachmentUrls : undefined,
             });
           } catch (err) {
             console.error("view_closed background error:", err);
@@ -567,6 +658,12 @@ Deno.serve(async (req) => {
             .maybeSingle();
 
           if (updated) {
+            // Collect and re-host thread files
+            const threadFiles = await collectThreadFiles(SLACK_BOT_TOKEN, channelId, threadTs);
+            const attachmentUrls = threadFiles.length
+              ? await downloadAndUploadFiles(threadFiles, SLACK_BOT_TOKEN, supabase, threadTs)
+              : [];
+
             await createIntercomTicket({
               supabase,
               intercomToken: INTERCOM_API_TOKEN,
@@ -576,6 +673,7 @@ Deno.serve(async (req) => {
               mappingId: updated.id,
               originalMessage: updated.original_message_text,
               slackUserId: updated.slack_user_id,
+              attachmentUrls: attachmentUrls.length ? attachmentUrls : undefined,
             });
           }
         } catch (e) {
