@@ -139,9 +139,10 @@ Deno.serve(async (req) => {
 
     // For ticket.state.updated, only process resolved/closed states
     if (topic === "ticket.state.updated") {
-      const ticketState = body.data?.item?.ticket_state || body.data?.item?.state;
-      if (ticketState !== "resolved" && ticketState !== "closed") {
-        console.log(`Ignoring ticket.state.updated with state: ${ticketState}`);
+      const ticketState = body.data?.item?.ticket_state;
+      const stateCategory = typeof ticketState === "object" ? ticketState?.category : ticketState;
+      if (stateCategory !== "resolved" && stateCategory !== "closed") {
+        console.log(`Ignoring ticket.state.updated with state: ${stateCategory}`);
         return new Response(JSON.stringify({ ok: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
