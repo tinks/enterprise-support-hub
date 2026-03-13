@@ -170,7 +170,6 @@ async function createIntercomTicket(opts: {
     bodyParts.push("Attachments:\n" + attachmentUrls.map((url) => `• ${url}`).join("\n"));
   }
   const fullBody = bodyParts.join("\n\n");
-  const fullBody = bodyParts.join("\n\n");
 
   // Find or create Intercom contact
   let contactId: string;
