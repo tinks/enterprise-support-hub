@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
     const topic = body.topic;
 
     const REPLY_TOPICS = ["conversation.admin.replied", "conversation.admin.single.reply", "ticket.admin.replied"];
-    const CLOSED_TOPICS = ["conversation.admin.closed", "ticket.closed", "ticket.state.updated"];
+    const CLOSED_TOPICS = ["conversation.admin.closed", "ticket.state.updated"];
 
     if (!REPLY_TOPICS.includes(topic) && !CLOSED_TOPICS.includes(topic)) {
       console.log(`Ignoring topic: ${topic}`);
