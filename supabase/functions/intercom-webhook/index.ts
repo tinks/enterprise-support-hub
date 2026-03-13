@@ -461,7 +461,7 @@ Deno.serve(async (req) => {
           },
         ];
 
-        if (mapping.status !== "escalated") {
+        if (mapping.status !== "escalated" && mapping.status !== "escalated_pending") {
           actionElements.push({
             type: "button",
             text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
