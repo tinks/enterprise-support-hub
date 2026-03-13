@@ -1,11 +1,16 @@
 import AppLayout from "@/components/AppLayout";
 import {
   ReactFlow,
+  ReactFlowProvider,
   Background,
   Controls,
   MiniMap,
+  Panel,
   MarkerType,
   useNodesState,
+  useReactFlow,
+  getNodesBounds,
+  getViewportForBounds,
   type Node,
   type Edge,
 } from "@xyflow/react";
