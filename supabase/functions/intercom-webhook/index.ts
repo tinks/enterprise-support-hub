@@ -264,7 +264,15 @@ Deno.serve(async (req) => {
 
     if (conversationParts && conversationParts.length > 0) {
       const lastPart = conversationParts[conversationParts.length - 1];
-      replyText = (lastPart.body || "").replace(/<[^>]*>/g, "").trim();
+      replyText = (lastPart.body || "")
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<\/p>/gi, "\n\n")
+        .replace(/<\/li>/gi, "\n")
+        .replace(/<li[^>]*>/gi, "• ")
+        .replace(/<\/?(ul|ol)[^>]*>/gi, "\n")
+        .replace(/<[^>]*>/g, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
       const author = lastPart.author;
       const normalizedAuthorName = String(author?.name || "").trim().toLowerCase();
       const isKnownAiAgent = normalizedAuthorName === "sam" || normalizedAuthorName.includes("ask lovable");
