@@ -359,6 +359,36 @@ async function createIntercomTicket(opts: {
   }
 }
 
+async function collectThreadFiles(
+  slackBotToken: string,
+  channelId: string,
+  threadTs: string
+): Promise<Array<{ url_private: string; name: string; mimetype: string; size?: number }>> {
+  const allFiles: Array<{ url_private: string; name: string; mimetype: string; size?: number }> = [];
+  try {
+    const repliesRes = await fetch(
+      `${SLACK_API_URL}/conversations.replies?channel=${channelId}&ts=${threadTs}&inclusive=true&limit=100`,
+      { headers: { Authorization: `Bearer ${slackBotToken}` } }
+    );
+    const repliesData = await repliesRes.json();
+    if (repliesData.ok && repliesData.messages) {
+      for (const msg of repliesData.messages) {
+        if (msg.files?.length) {
+          for (const f of msg.files) {
+            if (f.url_private && f.name && f.mimetype) {
+              allFiles.push({ url_private: f.url_private, name: f.name, mimetype: f.mimetype, size: f.size });
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Failed to collect thread files:", e);
+  }
+  console.log(`Collected ${allFiles.length} files from thread ${channelId}/${threadTs}`);
+  return allFiles;
+}
+
 async function getSettings(supabase: ReturnType<typeof createClient>) {
   const { data } = await supabase.from("settings").select("*").limit(1).single();
   return data || { intercom_assignee_id: "" };
