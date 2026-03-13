@@ -122,11 +122,13 @@ async function createIntercomTicket(opts: {
   slackUserId: string;
   email?: string;
   projectLink?: string;
+  attachmentUrls?: string[];
 }) {
   const {
     supabase, intercomToken, slackBotToken,
     channelId, threadTs, mappingId,
     originalMessage, slackUserId, email, projectLink,
+    attachmentUrls,
   } = opts;
 
   const intercomHeaders = {
