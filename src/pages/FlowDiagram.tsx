@@ -292,8 +292,8 @@ function buildNodes(
         icon: CheckCircle2,
         edgeFunction: "intercom-webhook",
         details: [
-          "Handles conversation.admin.closed, ticket.closed & ticket.state.updated",
-          "Filters ticket.state.updated to only resolved/closed states",
+          "Handles conversation.admin.closed & ticket.state.updated",
+          "Filters ticket.state.updated to only resolved/closed states (via ticket_state.category)",
           "Removes all feedback buttons",
           "Removes 👀 and ⏳, adds ✅",
           "Posts resolution notice",
