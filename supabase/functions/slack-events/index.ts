@@ -451,16 +451,25 @@ Deno.serve(async (req) => {
             console.error("Failed to remove feedback buttons:", e);
           }
 
-          // Post "Sam is writing..." notice
-          await fetch(`${SLACK_API_URL}/chat.postMessage`, {
-            method: "POST",
-            headers: slackHeaders,
-            body: JSON.stringify({
-              channel: channelId,
-              thread_ts: threadTs,
-              text: "⏳ Sam is writing a response...",
-            }),
-          });
+          // Post "Sam is writing..." notice (dedup: skip if one was posted <120s ago)
+          const existingWritingNotice = repliesData.messages?.find(
+            (m: any) =>
+              m.bot_id &&
+              m.text?.includes("Sam is writing") &&
+              (Date.now() / 1000 - parseFloat(m.ts)) < 120
+          );
+
+          if (!existingWritingNotice) {
+            await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+              method: "POST",
+              headers: slackHeaders,
+              body: JSON.stringify({
+                channel: channelId,
+                thread_ts: threadTs,
+                text: "⏳ Sam is writing a response...",
+              }),
+            });
+          }
         } else if (mapping.status === "escalated") {
           // Remove feedback buttons from thread messages
           try {
