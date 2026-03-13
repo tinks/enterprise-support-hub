@@ -567,6 +567,7 @@ Deno.serve(async (req) => {
             private_metadata: JSON.stringify({ channelId, threadTs }),
             title: { type: "plain_text", text: "Add Details" },
             submit: { type: "plain_text", text: "Submit" },
+            notify_on_close: true,
             close: { type: "plain_text", text: "Cancel" },
             blocks: [
               {
