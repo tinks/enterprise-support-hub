@@ -158,14 +158,13 @@ function buildNodes(
       position: { x: COL_W, y: ROW_H * 4 },
       data: {
         label: "5. AI responds → posted to Slack",
-        desc: "Intercom AI replies. Webhook posts it to the Slack thread with feedback buttons. Users can reply to continue chatting with Sam.",
+        desc: "Intercom AI replies. Webhook posts it to the Slack thread with feedback buttons.",
         icon: Bot,
         edgeFunction: "intercom-webhook",
         details: [
           "Removes old feedback buttons from thread",
           "Posts reply (split at 2900 chars)",
           "Appends feedback buttons to last chunk",
-          "User can reply in thread → forwarded to Sam for another round",
         ],
         message:
           "[AI reply text...]\n\n[ 👍 This resolved my issue ]  [ 👎 Escalate to human ]",
@@ -177,7 +176,7 @@ function buildNodes(
     {
       id: "6a",
       type: "flowNode",
-      position: { x: COL_W - COL_W * 0.55, y: ROW_H * 5.2 },
+      position: { x: COL_W - COL_W * 0.7, y: ROW_H * 5.2 },
       data: {
         label: "6a. 👍 Positive feedback",
         desc: "User confirms AI resolved their issue.",
@@ -198,9 +197,26 @@ function buildNodes(
       },
     },
     {
+      id: "6c",
+      type: "flowNode",
+      position: { x: COL_W, y: ROW_H * 5.2 },
+      data: {
+        label: "6c. User replies in thread",
+        desc: "User replies without clicking a button. Old buttons removed, 'Sam is writing...' posted, reply forwarded.",
+        icon: MessageSquare,
+        edgeFunction: "slack-events",
+        details: [
+          "Removes old feedback buttons from thread",
+          "Posts '⏳ Sam is writing a response...'",
+          "Forwards reply to Intercom as the contact",
+        ],
+        accent: "blue",
+      },
+    },
+    {
       id: "6b",
       type: "flowNode",
-      position: { x: COL_W + COL_W * 0.55, y: ROW_H * 5.2 },
+      position: { x: COL_W + COL_W * 0.7, y: ROW_H * 5.2 },
       data: {
         label: "6b. 👎 Escalate to human",
         desc: "User requests human support. Converts conversation to ticket.",
@@ -299,8 +315,9 @@ const initialEdges: Edge[] = [
   { id: "e3a-4", source: "3a", target: "4", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e3b-4", source: "3b", target: "4", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e4-5", source: "4", target: "5", animated: true, style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
-  { id: "e5-5loop", source: "5", target: "5", label: "User replies → Sam responds", animated: true, style: { stroke: "hsl(var(--primary))", strokeWidth: 2 }, type: "smoothstep" },
   { id: "e5-6a", source: "5", target: "6a", label: "👍 Resolved", style: { stroke: "rgb(34,197,94)", strokeWidth: 2 } },
+  { id: "e5-6c", source: "5", target: "6c", label: "Reply in thread", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
+  { id: "e6c-5", source: "6c", target: "5", label: "Sam responds again", animated: true, style: { stroke: "hsl(var(--primary))", strokeWidth: 2 }, type: "smoothstep" },
   { id: "e5-6b", source: "5", target: "6b", label: "👎 Escalate", style: { stroke: "rgb(249,115,22)", strokeWidth: 2 } },
   { id: "e6b-6bi", source: "6b", target: "6bi", label: "Slack reply", style: { stroke: "rgb(249,115,22)", strokeWidth: 2 } },
   { id: "e6b-6bii", source: "6b", target: "6bii", label: "Intercom reply", style: { stroke: "rgb(249,115,22)", strokeWidth: 2 } },
