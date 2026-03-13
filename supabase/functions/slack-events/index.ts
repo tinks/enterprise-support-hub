@@ -261,7 +261,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (existing) {
-        console.log(`Already processed ${channelId}/${threadTs}`);
+        console.log(`app_mention already_processed ${channelId}/${threadTs}`);
         return new Response(JSON.stringify({ ok: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
