@@ -452,6 +452,15 @@ Deno.serve(async (req) => {
           }
         } else if (adminId) {
           // Fallback: no contact ID stored, send as admin
+          const adminPayload: Record<string, any> = {
+            message_type: "comment",
+            type: "admin",
+            admin_id: adminId,
+            body: replyBody,
+          };
+          if (replyAttachmentUrls.length) {
+            adminPayload.attachment_urls = replyAttachmentUrls;
+          }
           const replyRes = await fetch(
             `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/reply`,
             {
@@ -462,12 +471,7 @@ Deno.serve(async (req) => {
                 Accept: "application/json",
                 "Intercom-Version": "2.11",
               },
-              body: JSON.stringify({
-                message_type: "comment",
-                type: "admin",
-                admin_id: adminId,
-                body: replyText,
-              }),
+              body: JSON.stringify(adminPayload),
             }
           );
           if (!replyRes.ok) {
