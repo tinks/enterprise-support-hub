@@ -221,7 +221,8 @@ function buildNodes(
         details: [
           "Removes old feedback buttons from thread",
           "Posts '⏳ Sam is writing a response...'",
-          "Forwards reply to Intercom as the contact",
+          "Downloads & re-hosts any attached files",
+          "Forwards reply + attachments to Intercom as the contact",
           "Loop continues until user clicks 👍 or 👎",
         ],
         accent: "blue",
