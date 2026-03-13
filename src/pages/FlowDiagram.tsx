@@ -1,11 +1,16 @@
 import AppLayout from "@/components/AppLayout";
 import {
   ReactFlow,
+  ReactFlowProvider,
   Background,
   Controls,
   MiniMap,
+  Panel,
   MarkerType,
   useNodesState,
+  useReactFlow,
+  getNodesBounds,
+  getViewportForBounds,
   type Node,
   type Edge,
 } from "@xyflow/react";
@@ -21,7 +26,10 @@ import {
   ThumbsDown,
   User,
   CheckCircle2,
+  Download,
 } from "lucide-react";
+import { toPng } from "html-to-image";
+import { Button } from "@/components/ui/button";
 import EditableFlowNode, { type FlowNodeData } from "@/components/EditableFlowNode";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -337,12 +345,59 @@ const initialEdges: Edge[] = [
 /* ------------------------------------------------------------------ */
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
-const FlowDiagram = () => {
+const IMAGE_WIDTH = 2400;
+const IMAGE_HEIGHT = 1600;
+
+function DownloadButton() {
+  const { getNodes } = useReactFlow();
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = useCallback(async () => {
+    const viewport = document.querySelector(".react-flow__viewport") as HTMLElement | null;
+    if (!viewport) return;
+
+    setExporting(true);
+    try {
+      const nodes = getNodes();
+      const bounds = getNodesBounds(nodes);
+      const vp = getViewportForBounds(bounds, IMAGE_WIDTH, IMAGE_HEIGHT, 0.5, 2, 0.2);
+
+      const dataUrl = await toPng(viewport, {
+        backgroundColor: "#1a1a2e",
+        width: IMAGE_WIDTH,
+        height: IMAGE_HEIGHT,
+        style: {
+          width: `${IMAGE_WIDTH}px`,
+          height: `${IMAGE_HEIGHT}px`,
+          transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})`,
+        },
+      });
+
+      const link = document.createElement("a");
+      link.download = "flow-diagram.png";
+      link.href = dataUrl;
+      link.click();
+      toast.success("Diagram exported");
+    } catch {
+      toast.error("Export failed");
+    } finally {
+      setExporting(false);
+    }
+  }, [getNodes]);
+
+  return (
+    <Button variant="secondary" size="sm" onClick={handleExport} disabled={exporting}>
+      <Download className="mr-1 h-4 w-4" />
+      {exporting ? "Exporting…" : "Download PNG"}
+    </Button>
+  );
+}
+
+const FlowDiagramInner = () => {
   const [messages, setMessages] = useState<Record<string, string>>(DEFAULT_MESSAGES);
   const [savedPositions, setSavedPositions] = useState<Record<string, { x: number; y: number }>>({});
 
   useEffect(() => {
-    // Fetch messages and positions in parallel
     Promise.all([
       supabase.from("bot_messages").select("message_key, message_text"),
       supabase.from("flow_node_positions").select("id, x, y"),
@@ -375,7 +430,6 @@ const FlowDiagram = () => {
     toast.success("Bot message updated — changes take effect immediately");
   }, []);
 
-  // Build nodes and merge saved positions over defaults
   const builtNodes = useMemo(() => {
     const nodes = buildNodes(messages, handleSave);
     return nodes.map((node) => {
@@ -404,33 +458,42 @@ const FlowDiagram = () => {
   const defaultEdgeOptions = useMemo(() => ({ type: "smoothstep" as const, markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 } }), []);
 
   return (
-    <AppLayout>
-      <div className="h-[calc(100vh-4rem)] w-full">
-        <ReactFlow
-          nodes={nodes}
-          edges={initialEdges}
-          onNodesChange={onNodesChange}
-          onNodeDragStop={onNodeDragStop}
-          nodeTypes={nodeTypes}
-          defaultEdgeOptions={defaultEdgeOptions}
-          fitView
-          fitViewOptions={{ padding: 0.2 }}
-          minZoom={0.2}
-          maxZoom={1.5}
-          proOptions={{ hideAttribution: true }}
-          nodesConnectable={false}
-        >
-          <Background gap={20} size={1} />
-          <Controls />
-          <MiniMap
-            nodeColor={() => "hsl(var(--primary))"}
-            maskColor="hsl(var(--background) / 0.7)"
-            className="!bg-card !border-border"
-          />
-        </ReactFlow>
-      </div>
-    </AppLayout>
+    <ReactFlow
+      nodes={nodes}
+      edges={initialEdges}
+      onNodesChange={onNodesChange}
+      onNodeDragStop={onNodeDragStop}
+      nodeTypes={nodeTypes}
+      defaultEdgeOptions={defaultEdgeOptions}
+      fitView
+      fitViewOptions={{ padding: 0.2 }}
+      minZoom={0.2}
+      maxZoom={1.5}
+      proOptions={{ hideAttribution: true }}
+      nodesConnectable={false}
+    >
+      <Background gap={20} size={1} />
+      <Controls />
+      <MiniMap
+        nodeColor={() => "hsl(var(--primary))"}
+        maskColor="hsl(var(--background) / 0.7)"
+        className="!bg-card !border-border"
+      />
+      <Panel position="top-right">
+        <DownloadButton />
+      </Panel>
+    </ReactFlow>
   );
 };
+
+const FlowDiagram = () => (
+  <AppLayout>
+    <div className="h-[calc(100vh-4rem)] w-full">
+      <ReactFlowProvider>
+        <FlowDiagramInner />
+      </ReactFlowProvider>
+    </div>
+  </AppLayout>
+);
 
 export default FlowDiagram;
