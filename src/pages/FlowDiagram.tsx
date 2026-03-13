@@ -227,13 +227,14 @@ function buildNodes(
       position: { x: COL_W + COL_W * 0.1, y: ROW_H * 6.5 },
       data: {
         label: "6b-i. Human replies in Slack",
-        desc: "Agent or user replies in the Slack thread → forwarded to Intercom.",
+        desc: "After escalation (👎), agent or user replies in the Slack thread → forwarded to Intercom.",
         icon: User,
         edgeFunction: "slack-events",
         details: [
+          "Only triggers when status is 'escalated'",
           "Forwards message to Intercom as the contact",
           "Removes remaining feedback buttons",
-          "First reply: reassigns + posts escalation notice",
+          "Posts 'reply forwarded' notice",
         ],
         message: msgs.reply_forwarded,
         messageKey: "reply_forwarded",
