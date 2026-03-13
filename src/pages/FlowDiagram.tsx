@@ -270,7 +270,7 @@ function buildNodes(
       position: { x: COL_W + COL_W * 0.5, y: ROW_H * 6.5 },
       data: {
         label: "6b-ii. Human replies from Intercom",
-        desc: "Agent replies in Intercom → posted to Slack with resolve button.",
+        desc: "Agent replies in Intercom → posted to Slack with resolve button. Can repeat indefinitely.",
         icon: Bot,
         edgeFunction: "intercom-webhook",
         details: [
