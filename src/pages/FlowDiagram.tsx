@@ -4,6 +4,7 @@ import {
   Background,
   Controls,
   MiniMap,
+  MarkerType,
   useNodesState,
   type Node,
   type Edge,
@@ -203,13 +204,14 @@ function buildNodes(
       position: { x: COL_W + COL_W * 0.7, y: ROW_H * 5.2 },
       data: {
         label: "6c. User replies in thread",
-        desc: "User replies without clicking a button. Old buttons removed, 'Sam is writing...' posted, reply forwarded.",
+        desc: "User replies without clicking a button. Triggers another AI response — repeats until 👍 or 👎.",
         icon: MessageSquare,
         edgeFunction: "slack-events",
         details: [
           "Removes old feedback buttons from thread",
           "Posts '⏳ Sam is writing a response...'",
           "Forwards reply to Intercom as the contact",
+          "Loop continues until user clicks 👍 or 👎",
         ],
         accent: "blue",
         targetPosition: "left",
@@ -246,7 +248,7 @@ function buildNodes(
       position: { x: COL_W - COL_W * 0.4, y: ROW_H * 6.5 },
       data: {
         label: "6b-i. Human replies in Slack",
-        desc: "After escalation (👎), agent or user replies in the Slack thread → forwarded to Intercom.",
+        desc: "After escalation (👎), user replies in Slack → forwarded to Intercom. Can repeat indefinitely.",
         icon: User,
         edgeFunction: "slack-events",
         details: [
@@ -268,7 +270,7 @@ function buildNodes(
       position: { x: COL_W + COL_W * 0.5, y: ROW_H * 6.5 },
       data: {
         label: "6b-ii. Human replies from Intercom",
-        desc: "Agent replies in Intercom → posted to Slack with resolve button.",
+        desc: "Agent replies in Intercom → posted to Slack with resolve button. Can repeat indefinitely.",
         icon: Bot,
         edgeFunction: "intercom-webhook",
         details: [
@@ -323,11 +325,13 @@ const initialEdges: Edge[] = [
   { id: "e5-6a", source: "5", target: "6a", label: "👍 Resolved", style: { stroke: "rgb(34,197,94)", strokeWidth: 2 } },
   { id: "e5-6b", source: "5", target: "6b", label: "👎 Escalate", style: { stroke: "rgb(249,115,22)", strokeWidth: 2 } },
   { id: "e5-6c", source: "5", target: "6c", label: "Reply in thread", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
-  { id: "e6c-5", source: "6c", target: "5", label: "Sam responds again", animated: true, style: { stroke: "hsl(var(--primary))", strokeWidth: 2 }, type: "smoothstep" },
+  { id: "e6c-5", source: "6c", target: "5", label: "🔄 AI responds again", animated: true, style: { stroke: "hsl(var(--primary))", strokeWidth: 2 }, type: "smoothstep" },
   { id: "e6b-6bi", source: "6b", target: "6bi", label: "Slack reply", style: { stroke: "rgb(249,115,22)", strokeWidth: 2 } },
   { id: "e6b-6bii", source: "6b", target: "6bii", label: "Intercom reply", style: { stroke: "rgb(249,115,22)", strokeWidth: 2 } },
   { id: "e6bi-7", source: "6bi", target: "7", style: { stroke: "rgb(249,115,22)", strokeWidth: 2 } },
   { id: "e6bii-7", source: "6bii", target: "7", style: { stroke: "rgb(249,115,22)", strokeWidth: 2 } },
+  { id: "e6bii-6bi", source: "6bii", target: "6bi", label: "🔄 User replies again", animated: true, style: { stroke: "rgb(249,115,22)", strokeWidth: 2 }, type: "smoothstep" },
+  { id: "e6bi-6bii", source: "6bi", target: "6bii", label: "🔄 Agent replies again", animated: true, style: { stroke: "rgb(249,115,22)", strokeWidth: 2 }, type: "smoothstep" },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -397,7 +401,7 @@ const FlowDiagram = () => {
     []
   );
 
-  const defaultEdgeOptions = useMemo(() => ({ type: "smoothstep" as const }), []);
+  const defaultEdgeOptions = useMemo(() => ({ type: "smoothstep" as const, markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 } }), []);
 
   return (
     <AppLayout>
