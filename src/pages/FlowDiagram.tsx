@@ -204,13 +204,14 @@ function buildNodes(
       position: { x: COL_W + COL_W * 0.7, y: ROW_H * 5.2 },
       data: {
         label: "6c. User replies in thread",
-        desc: "User replies without clicking a button. Old buttons removed, 'Sam is writing...' posted, reply forwarded.",
+        desc: "User replies without clicking a button. Triggers another AI response — repeats until 👍 or 👎.",
         icon: MessageSquare,
         edgeFunction: "slack-events",
         details: [
           "Removes old feedback buttons from thread",
           "Posts '⏳ Sam is writing a response...'",
           "Forwards reply to Intercom as the contact",
+          "Loop continues until user clicks 👍 or 👎",
         ],
         accent: "blue",
         targetPosition: "left",
