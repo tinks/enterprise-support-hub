@@ -402,68 +402,39 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Remove feedback buttons from thread messages
-        try {
-          const repliesRes = await fetch(
-            `${SLACK_API_URL}/conversations.replies?channel=${channelId}&ts=${threadTs}&limit=100`,
-            { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
-          );
-          const repliesData = await repliesRes.json();
-          if (repliesData.ok && repliesData.messages) {
-            for (const msg of repliesData.messages) {
-              const hasActions = msg.blocks?.some((b: { type: string }) => b.type === "actions");
-              if (hasActions && msg.ts) {
-                const blocksWithoutActions = msg.blocks.filter((b: { type: string }) => b.type !== "actions");
-                await fetch(`${SLACK_API_URL}/chat.update`, {
-                  method: "POST",
-                  headers: slackHeaders,
-                  body: JSON.stringify({
-                    channel: channelId,
-                    ts: msg.ts,
-                    text: msg.text || "",
-                    blocks: blocksWithoutActions,
-                  }),
-                });
+        // Only remove buttons and escalate if already escalated (👎 was clicked).
+        // When status is "active", Sam will reply automatically via intercom-webhook.
+        if (mapping.status === "escalated") {
+          // Remove feedback buttons from thread messages
+          try {
+            const repliesRes = await fetch(
+              `${SLACK_API_URL}/conversations.replies?channel=${channelId}&ts=${threadTs}&limit=100`,
+              { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
+            );
+            const repliesData = await repliesRes.json();
+            if (repliesData.ok && repliesData.messages) {
+              for (const msg of repliesData.messages) {
+                const hasActions = msg.blocks?.some((b: { type: string }) => b.type === "actions");
+                if (hasActions && msg.ts) {
+                  const blocksWithoutActions = msg.blocks.filter((b: { type: string }) => b.type !== "actions");
+                  await fetch(`${SLACK_API_URL}/chat.update`, {
+                    method: "POST",
+                    headers: slackHeaders,
+                    body: JSON.stringify({
+                      channel: channelId,
+                      ts: msg.ts,
+                      text: msg.text || "",
+                      blocks: blocksWithoutActions,
+                    }),
+                  });
+                }
               }
             }
-          }
-        } catch (e) {
-          console.error("Failed to remove feedback buttons:", e);
-        }
-
-        // Update status to escalated
-        if (mapping.status !== "escalated") {
-          await removeReaction(SLACK_BOT_TOKEN, channelId, threadTs, "eyes");
-          await addReaction(SLACK_BOT_TOKEN, channelId, threadTs, "hourglass_flowing_sand");
-
-          // Reassign to enterprise team inbox
-          if (intercomSettings.data?.intercom_inbox_id && adminId) {
-            await fetch(
-              `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/parts`,
-              {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
-                  "Content-Type": "application/json",
-                  Accept: "application/json",
-                },
-                body: JSON.stringify({
-                  message_type: "assignment",
-                  type: "team",
-                  assignee_id: intercomSettings.data.intercom_inbox_id,
-                  admin_id: adminId,
-                  body: "",
-                }),
-              }
-            );
+          } catch (e) {
+            console.error("Failed to remove feedback buttons:", e);
           }
 
-          await supabase
-            .from("conversation_mappings")
-            .update({ status: "escalated" })
-            .eq("id", mapping.id);
-
-          // Post escalation notice
+          // Post "reply forwarded" notice for escalated threads
           await fetch(`${SLACK_API_URL}/chat.postMessage`, {
             method: "POST",
             headers: slackHeaders,

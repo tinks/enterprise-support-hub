@@ -158,13 +158,14 @@ function buildNodes(
       position: { x: COL_W, y: ROW_H * 4 },
       data: {
         label: "5. AI responds → posted to Slack",
-        desc: "Intercom AI replies. Webhook posts it to the Slack thread with feedback buttons.",
+        desc: "Intercom AI replies. Webhook posts it to the Slack thread with feedback buttons. Users can reply to continue chatting with Sam.",
         icon: Bot,
         edgeFunction: "intercom-webhook",
         details: [
           "Removes old feedback buttons from thread",
           "Posts reply (split at 2900 chars)",
           "Appends feedback buttons to last chunk",
+          "User can reply in thread → forwarded to Sam for another round",
         ],
         message:
           "[AI reply text...]\n\n[ 👍 This resolved my issue ]  [ 👎 Escalate to human ]",
@@ -226,13 +227,14 @@ function buildNodes(
       position: { x: COL_W + COL_W * 0.1, y: ROW_H * 6.5 },
       data: {
         label: "6b-i. Human replies in Slack",
-        desc: "Agent or user replies in the Slack thread → forwarded to Intercom.",
+        desc: "After escalation (👎), agent or user replies in the Slack thread → forwarded to Intercom.",
         icon: User,
         edgeFunction: "slack-events",
         details: [
+          "Only triggers when status is 'escalated'",
           "Forwards message to Intercom as the contact",
           "Removes remaining feedback buttons",
-          "First reply: reassigns + posts escalation notice",
+          "Posts 'reply forwarded' notice",
         ],
         message: msgs.reply_forwarded,
         messageKey: "reply_forwarded",
@@ -297,6 +299,7 @@ const initialEdges: Edge[] = [
   { id: "e3a-4", source: "3a", target: "4", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e3b-4", source: "3b", target: "4", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e4-5", source: "4", target: "5", animated: true, style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
+  { id: "e5-5loop", source: "5", target: "5", label: "User replies → Sam responds", animated: true, style: { stroke: "hsl(var(--primary))", strokeWidth: 2 }, type: "smoothstep" },
   { id: "e5-6a", source: "5", target: "6a", label: "👍 Resolved", style: { stroke: "rgb(34,197,94)", strokeWidth: 2 } },
   { id: "e5-6b", source: "5", target: "6b", label: "👎 Escalate", style: { stroke: "rgb(249,115,22)", strokeWidth: 2 } },
   { id: "e6b-6bi", source: "6b", target: "6bi", label: "Slack reply", style: { stroke: "rgb(249,115,22)", strokeWidth: 2 } },
