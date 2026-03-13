@@ -26,7 +26,10 @@ import {
   ThumbsDown,
   User,
   CheckCircle2,
+  Download,
 } from "lucide-react";
+import { toPng } from "html-to-image";
+import { Button } from "@/components/ui/button";
 import EditableFlowNode, { type FlowNodeData } from "@/components/EditableFlowNode";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
