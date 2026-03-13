@@ -56,7 +56,7 @@ export default function EditableFlowNode({ data }: { data: FlowNodeData }) {
 
   return (
     <>
-      <Handle type="target" position={Position.Top} className="!bg-muted-foreground/40 !w-2 !h-2" />
+      <Handle type="target" position={posMap[data.targetPosition || "top"]} className="!bg-muted-foreground/40 !w-2 !h-2" />
       <div
         className={`rounded-lg border border-border bg-card shadow-md border-l-4 ${accentBorder[accent]} ${data.wide ? "w-[340px]" : "w-[280px]"} cursor-default`}
       >
