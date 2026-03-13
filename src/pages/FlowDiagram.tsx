@@ -401,7 +401,7 @@ const FlowDiagram = () => {
     []
   );
 
-  const defaultEdgeOptions = useMemo(() => ({ type: "smoothstep" as const }), []);
+  const defaultEdgeOptions = useMemo(() => ({ type: "smoothstep" as const, markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 } }), []);
 
   return (
     <AppLayout>
