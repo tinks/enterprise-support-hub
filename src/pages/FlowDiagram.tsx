@@ -199,7 +199,7 @@ function buildNodes(
     {
       id: "6c",
       type: "flowNode",
-      position: { x: COL_W, y: ROW_H * 5.2 },
+      position: { x: COL_W + COL_W * 0.7, y: ROW_H * 5.2 },
       data: {
         label: "6c. User replies in thread",
         desc: "User replies without clicking a button. Old buttons removed, 'Sam is writing...' posted, reply forwarded.",
@@ -216,7 +216,7 @@ function buildNodes(
     {
       id: "6b",
       type: "flowNode",
-      position: { x: COL_W + COL_W * 0.7, y: ROW_H * 5.2 },
+      position: { x: COL_W + COL_W * 1.4, y: ROW_H * 5.2 },
       data: {
         label: "6b. 👎 Escalate to human",
         desc: "User requests human support. Converts conversation to ticket.",
@@ -376,7 +376,7 @@ const FlowDiagram = () => {
           minZoom={0.2}
           maxZoom={1.5}
           proOptions={{ hideAttribution: true }}
-          nodesDraggable={false}
+          nodesDraggable={true}
           nodesConnectable={false}
         >
           <Background gap={20} size={1} />
