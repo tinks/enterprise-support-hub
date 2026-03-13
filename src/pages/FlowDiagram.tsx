@@ -376,7 +376,7 @@ const FlowDiagram = () => {
           minZoom={0.2}
           maxZoom={1.5}
           proOptions={{ hideAttribution: true }}
-          nodesDraggable={false}
+          nodesDraggable={true}
           nodesConnectable={false}
         >
           <Background gap={20} size={1} />
