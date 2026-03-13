@@ -196,6 +196,7 @@ function buildNodes(
         icon: ThumbsUp,
         edgeFunction: "slack-interactions",
         details: [
+          "Atomic guard: updates status to 'resolved' only if currently active/awaiting_context — second click is a no-op",
           "Removes feedback buttons",
           "Removes 👀 and ⏳, adds ✅",
           "Closes Intercom conversation (keeps current admin)",
@@ -244,6 +245,7 @@ function buildNodes(
         icon: ThumbsDown,
         edgeFunction: "slack-interactions",
         details: [
+          "Atomic guard: updates status to 'escalated' only if currently active/awaiting_context — second click is a no-op",
           "Removes feedback buttons",
           "Removes 👀, adds ⏳",
           "Reassigns to enterprise team inbox",
