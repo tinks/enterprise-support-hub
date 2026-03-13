@@ -335,18 +335,25 @@ const initialEdges: Edge[] = [
 /* ------------------------------------------------------------------ */
 const FlowDiagram = () => {
   const [messages, setMessages] = useState<Record<string, string>>(DEFAULT_MESSAGES);
+  const [savedPositions, setSavedPositions] = useState<Record<string, { x: number; y: number }>>({});
 
   useEffect(() => {
-    supabase
-      .from("bot_messages")
-      .select("message_key, message_text")
-      .then(({ data }) => {
-        if (data) {
-          const map: Record<string, string> = { ...DEFAULT_MESSAGES };
-          for (const row of data) map[row.message_key] = row.message_text;
-          setMessages(map);
-        }
-      });
+    // Fetch messages and positions in parallel
+    Promise.all([
+      supabase.from("bot_messages").select("message_key, message_text"),
+      supabase.from("flow_node_positions").select("id, x, y"),
+    ]).then(([msgRes, posRes]) => {
+      if (msgRes.data) {
+        const map: Record<string, string> = { ...DEFAULT_MESSAGES };
+        for (const row of msgRes.data) map[row.message_key] = row.message_text;
+        setMessages(map);
+      }
+      if (posRes.data) {
+        const posMap: Record<string, { x: number; y: number }> = {};
+        for (const row of posRes.data) posMap[row.id] = { x: row.x, y: row.y };
+        setSavedPositions(posMap);
+      }
+    });
   }, []);
 
   const handleSave = useCallback(async (key: string, text: string) => {
@@ -364,12 +371,31 @@ const FlowDiagram = () => {
     toast.success("Bot message updated — changes take effect immediately");
   }, []);
 
-  const builtNodes = useMemo(() => buildNodes(messages, handleSave), [messages, handleSave]);
+  // Build nodes and merge saved positions over defaults
+  const builtNodes = useMemo(() => {
+    const nodes = buildNodes(messages, handleSave);
+    return nodes.map((node) => {
+      const saved = savedPositions[node.id];
+      return saved ? { ...node, position: { x: saved.x, y: saved.y } } : node;
+    });
+  }, [messages, handleSave, savedPositions]);
+
   const [nodes, setNodes, onNodesChange] = useNodesState(builtNodes);
 
   useEffect(() => {
-    setNodes(buildNodes(messages, handleSave));
-  }, [messages, handleSave, setNodes]);
+    setNodes(builtNodes);
+  }, [builtNodes, setNodes]);
+
+  const onNodeDragStop = useCallback(
+    async (_event: React.MouseEvent, node: Node) => {
+      const { x, y } = node.position;
+      setSavedPositions((prev) => ({ ...prev, [node.id]: { x, y } }));
+      await supabase
+        .from("flow_node_positions")
+        .upsert({ id: node.id, x, y, updated_at: new Date().toISOString() } as any);
+    },
+    []
+  );
 
   const defaultEdgeOptions = useMemo(() => ({ type: "smoothstep" as const }), []);
 
@@ -380,6 +406,7 @@ const FlowDiagram = () => {
           nodes={nodes}
           edges={initialEdges}
           onNodesChange={onNodesChange}
+          onNodeDragStop={onNodeDragStop}
           nodeTypes={nodeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
           fitView

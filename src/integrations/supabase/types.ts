@@ -83,6 +83,27 @@ export type Database = {
         }
         Relationships: []
       }
+      flow_node_positions: {
+        Row: {
+          id: string
+          updated_at: string
+          x: number
+          y: number
+        }
+        Insert: {
+          id: string
+          updated_at?: string
+          x: number
+          y: number
+        }
+        Update: {
+          id?: string
+          updated_at?: string
+          x?: number
+          y?: number
+        }
+        Relationships: []
+      }
       settings: {
         Row: {
           created_at: string
