@@ -287,11 +287,13 @@ function buildNodes(
       type: "flowNode",
       position: { x: COL_W + COL_W * 0.05, y: ROW_H * 7.8 },
       data: {
-        label: "7. Conversation closed",
-        desc: "Conversation closed in Intercom → thread finalized in Slack.",
+        label: "7. Conversation / Ticket closed",
+        desc: "Conversation or ticket closed in Intercom → thread finalized in Slack.",
         icon: CheckCircle2,
         edgeFunction: "intercom-webhook",
         details: [
+          "Handles conversation.admin.closed, ticket.closed & ticket.state.updated",
+          "Filters ticket.state.updated to only resolved/closed states",
           "Removes all feedback buttons",
           "Removes 👀 and ⏳, adds ✅",
           "Posts resolution notice",

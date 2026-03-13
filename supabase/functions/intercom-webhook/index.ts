@@ -127,8 +127,8 @@ Deno.serve(async (req) => {
 
     const topic = body.topic;
 
-    const REPLY_TOPICS = ["conversation.admin.replied", "conversation.admin.single.reply"];
-    const CLOSED_TOPICS = ["conversation.admin.closed"];
+    const REPLY_TOPICS = ["conversation.admin.replied", "conversation.admin.single.reply", "ticket.admin.replied"];
+    const CLOSED_TOPICS = ["conversation.admin.closed", "ticket.closed", "ticket.state.updated"];
 
     if (!REPLY_TOPICS.includes(topic) && !CLOSED_TOPICS.includes(topic)) {
       console.log(`Ignoring topic: ${topic}`);
@@ -137,7 +137,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    const conversationId = body.data?.item?.id;
+    // For ticket.state.updated, only process resolved/closed states
+    if (topic === "ticket.state.updated") {
+      const ticketState = body.data?.item?.ticket_state || body.data?.item?.state;
+      if (ticketState !== "resolved" && ticketState !== "closed") {
+        console.log(`Ignoring ticket.state.updated with state: ${ticketState}`);
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // Ticket events may use different payload shapes for the conversation ID
+    const conversationId = body.data?.item?.id || body.data?.item?.ticket_id || body.data?.item?.conversation_id;
     if (!conversationId) {
       console.error("No conversation ID found in webhook payload");
       return new Response(JSON.stringify({ error: "No conversation ID" }), {
