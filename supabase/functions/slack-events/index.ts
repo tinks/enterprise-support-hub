@@ -500,16 +500,26 @@ Deno.serve(async (req) => {
             console.error("Failed to remove feedback buttons:", e);
           }
 
-          // Post "reply forwarded" notice for escalated threads
-          await fetch(`${SLACK_API_URL}/chat.postMessage`, {
-            method: "POST",
-            headers: slackHeaders,
-            body: JSON.stringify({
-              channel: channelId,
-              thread_ts: threadTs,
-              text: botMessages["reply_forwarded"] || "Thanks for your reply! We will be back to you in just a few minutes.",
-            }),
-          });
+          // Post "reply forwarded" notice (dedup: skip if one was posted <120s ago)
+          const replyForwardedText = botMessages["reply_forwarded"] || "Thanks for your reply! We will be back to you in just a few minutes.";
+          const existingForwardNotice = repliesData.messages?.find(
+            (m: any) =>
+              m.bot_id &&
+              (m.text?.includes("reply") || m.text?.includes("back to you")) &&
+              (Date.now() / 1000 - parseFloat(m.ts)) < 120
+          );
+
+          if (!existingForwardNotice) {
+            await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+              method: "POST",
+              headers: slackHeaders,
+              body: JSON.stringify({
+                channel: channelId,
+                thread_ts: threadTs,
+                text: replyForwardedText,
+              }),
+            });
+          }
         }
       }
     }
