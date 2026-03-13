@@ -322,7 +322,7 @@ Deno.serve(async (req) => {
       // Send Block Kit message with buttons
       const buttonValue = `${channelId}|${threadTs}`;
       const contextPromptText = botMessages["context_prompt"] || "👋 Thank you for contacting the Enterprise Support Team. To help us resolve your issue as quickly and accurately as possible, please share your Lovable account email and your workspace or project name (or a link to it). If these aren't relevant to your question, feel free to click *Proceed*.";
-      await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+      const promptRes = await fetch(`${SLACK_API_URL}/chat.postMessage`, {
         method: "POST",
         headers: slackHeaders,
         body: JSON.stringify({
@@ -358,8 +358,16 @@ Deno.serve(async (req) => {
           ],
         }),
       });
+      const promptData = await promptRes.json();
 
-      // Store mapping
+      if (!promptData.ok) {
+        console.error(`app_mention post_failed ${channelId}/${threadTs}: ${promptData.error}`);
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Store mapping only after successful prompt delivery
       await supabase.from("conversation_mappings").insert({
         slack_channel_id: channelId,
         slack_thread_ts: threadTs,
@@ -370,7 +378,7 @@ Deno.serve(async (req) => {
         is_test: settings.testing_mode ?? false,
       });
 
-      console.log(`Created mapping for mention in ${channelId}/${threadTs}`);
+      console.log(`app_mention accepted ${channelId}/${threadTs}`);
     }
 
     // ===== Handle message events in threads (human reply → escalate to Intercom) =====
