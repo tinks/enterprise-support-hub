@@ -360,7 +360,12 @@ const FlowDiagram = () => {
     toast.success("Bot message updated — changes take effect immediately");
   }, []);
 
-  const nodes = useMemo(() => buildNodes(messages, handleSave), [messages, handleSave]);
+  const builtNodes = useMemo(() => buildNodes(messages, handleSave), [messages, handleSave]);
+  const [nodes, setNodes, onNodesChange] = useNodesState(builtNodes);
+
+  useEffect(() => {
+    setNodes(buildNodes(messages, handleSave));
+  }, [messages, handleSave, setNodes]);
 
   const defaultEdgeOptions = useMemo(() => ({ type: "smoothstep" as const }), []);
 
