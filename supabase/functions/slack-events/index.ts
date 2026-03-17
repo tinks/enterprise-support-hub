@@ -232,22 +232,29 @@ Deno.serve(async (req) => {
       });
     }
 
-    const monitoredChannels = (settings.monitored_channels as string)
+    let monitoredChannels = (settings.monitored_channels as string)
       .split(",")
       .map((c: string) => c.trim())
       .filter(Boolean);
 
-    // If monitored list is empty → bot responds in ALL channels (opt-out model)
-    const allChannelsMode = monitoredChannels.length === 0;
-
     // ===== Handle app_mention events =====
     if (event.type === "app_mention") {
       const channelId = event.channel;
-      if (!allChannelsMode && !monitoredChannels.includes(channelId)) {
-        console.log(`Ignoring mention in non-monitored channel ${channelId}`);
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+
+      // Auto-enable new channels on first mention so manual setup isn't required
+      if (monitoredChannels.length > 0 && !monitoredChannels.includes(channelId)) {
+        const updatedMonitoredChannels = [...new Set([...monitoredChannels, channelId])];
+        const { error: autoEnableError } = await supabase
+          .from("settings")
+          .update({ monitored_channels: updatedMonitoredChannels.join(", ") })
+          .eq("id", settings.id);
+
+        if (autoEnableError) {
+          console.error(`Failed to auto-add monitored channel ${channelId}:`, autoEnableError.message);
+        } else {
+          monitoredChannels = updatedMonitoredChannels;
+          console.log(`Auto-added monitored channel ${channelId}`);
+        }
       }
 
       const threadTs = event.thread_ts || event.ts;
