@@ -51,7 +51,9 @@ const Conversations = () => {
 
     // Resolve channel names for only the IDs we actually need
     const uniqueChannelIds = [...new Set(rows.map((r) => r.slack_channel_id))];
-    const channelsRes = await supabase.functions.invoke("list-slack-channels");
+    const channelsRes = await supabase.functions.invoke("list-slack-channels", {
+      body: { channelIds: uniqueChannelIds },
+    });
     if (channelsRes.data?.channels) {
       const map: NameMap = {};
       for (const c of channelsRes.data.channels) {

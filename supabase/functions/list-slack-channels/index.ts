@@ -20,12 +20,52 @@ Deno.serve(async (req) => {
   }
 
   try {
+    let requestBody: unknown = {};
+    try {
+      requestBody = await req.json();
+    } catch {
+      requestBody = {};
+    }
+
+    const channelIds = Array.isArray((requestBody as { channelIds?: unknown[] })?.channelIds)
+      ? [...new Set((requestBody as { channelIds: unknown[] }).channelIds.filter((id): id is string => typeof id === "string" && id.length > 0))]
+      : [];
+
+    if (channelIds.length > 0) {
+      const resolvedChannels = await Promise.all(
+        channelIds.map(async (channelId) => {
+          const params = new URLSearchParams({ channel: channelId });
+          const res = await fetch(`${SLACK_API_URL}/conversations.info?${params}`, {
+            headers: {
+              Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+            },
+          });
+
+          const data = await res.json();
+          if (!data.ok || !data.channel) {
+            return null;
+          }
+
+          return {
+            id: data.channel.id,
+            name: data.channel.name,
+            is_member: data.channel.is_member ?? false,
+            num_members: data.channel.num_members ?? 0,
+          };
+        }),
+      );
+
+      return new Response(JSON.stringify({ channels: resolvedChannels.filter(Boolean) }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const allChannels: { id: string; name: string; is_member: boolean; num_members: number }[] = [];
     let cursor = "";
 
     do {
       const params = new URLSearchParams({
-        types: "public_channel",
+        types: "public_channel,private_channel",
         exclude_archived: "true",
         limit: "200",
       });
