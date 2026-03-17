@@ -593,6 +593,15 @@ Deno.serve(async (req) => {
       await postSlackMessage({ ...basePayload, text: chunks[i], blocks });
     }
 
+    // Post incident.io status block if detected
+    if (incidentStatusBlock.length > 0) {
+      await postSlackMessage({
+        ...basePayload,
+        text: "📡 Lovable Status",
+        blocks: incidentStatusBlock,
+      });
+    }
+
     // Post Intercom attachments to the Slack thread
     if (attachments.length > 0) {
       for (const att of attachments) {
