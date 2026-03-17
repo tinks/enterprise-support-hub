@@ -436,9 +436,25 @@ Deno.serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
-    // Identity guard: verify token matches expected bot (cached per isolate)
-    const guardSettings = await getSettings(supabase);
-    const expectedBotId = guardSettings.slack_bot_user_id;
+    // 1. Read body + verify signature FIRST (cheap, no network calls)
+    const rawBody = await req.text();
+    const slackSignature = req.headers.get("x-slack-signature");
+    const slackTimestamp = req.headers.get("x-slack-request-timestamp");
+
+    const isValid = await verifySlackSignature(rawBody, slackSignature, slackTimestamp, SLACK_SIGNING_SECRET);
+    if (!isValid) {
+      console.error("Invalid Slack interaction signature");
+      return new Response(JSON.stringify({ error: "Invalid signature" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 2. Identity guard (cached per isolate — no DB or network on warm requests)
+    if (!cachedSettings) {
+      cachedSettings = await getSettings(supabase);
+    }
+    const expectedBotId = cachedSettings.slack_bot_user_id;
     if (expectedBotId) {
       if (!cachedBotUserId) {
         const authCheck = await fetch("https://slack.com/api/auth.test", {
@@ -461,21 +477,6 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-    }
-
-    const rawBody = await req.text();
-
-    // Verify Slack signature
-    const slackSignature = req.headers.get("x-slack-signature");
-    const slackTimestamp = req.headers.get("x-slack-request-timestamp");
-
-    const isValid = await verifySlackSignature(rawBody, slackSignature, slackTimestamp, SLACK_SIGNING_SECRET);
-    if (!isValid) {
-      console.error("Invalid Slack interaction signature");
-      return new Response(JSON.stringify({ error: "Invalid signature" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
     }
 
     const params = new URLSearchParams(rawBody);
