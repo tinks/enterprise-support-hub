@@ -1,5 +1,5 @@
 import { NavLink } from "@/components/NavLink";
-import { Settings, BarChart3, GitBranch } from "lucide-react";
+import { Settings, BarChart3, GitBranch, MessageSquare } from "lucide-react";
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const linkClass = "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-accent";
