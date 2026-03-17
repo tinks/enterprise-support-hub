@@ -13,6 +13,10 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             <BarChart3 className="h-4 w-4" />
             Stats
           </NavLink>
+          <NavLink to="/conversations" className={linkClass} activeClassName={activeClass}>
+            <MessageSquare className="h-4 w-4" />
+            Conversations
+          </NavLink>
           <NavLink to="/settings" className={linkClass} activeClassName={activeClass}>
             <Settings className="h-4 w-4" />
             Settings
