@@ -495,12 +495,19 @@ async function createIntercomTicket(opts: {
 
         console.log(`Poll: relayed Sam's reply (part ${part.id}) to Slack for conversation ${conversationId}`);
 
-        // Update dedup marker
+        // Atomic dedup marker — only update if we're still the first writer
         if (part.id) {
-          await supabase
+          const partIdStr = String(part.id);
+          const { data: dedupeResult } = await supabase
             .from("conversation_mappings")
-            .update({ last_intercom_part_id: String(part.id) })
-            .eq("id", mappingId);
+            .update({ last_intercom_part_id: partIdStr })
+            .eq("id", mappingId)
+            .or(`last_intercom_part_id.is.null,last_intercom_part_id.lt.${partIdStr}`)
+            .select("id");
+          if (!dedupeResult || dedupeResult.length === 0) {
+            console.log(`Poll: part ${part.id} was already relayed by webhook, skipping remaining`);
+            break;
+          }
         }
 
         // Handle auto-escalation status
