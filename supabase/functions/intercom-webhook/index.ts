@@ -368,6 +368,12 @@ Deno.serve(async (req) => {
               elements: [
                 {
                   type: "button",
+                  text: { type: "plain_text", text: "👍 This resolved my issue", emoji: true },
+                  action_id: "feedback_positive",
+                  value: String(conversationId),
+                },
+                {
+                  type: "button",
                   text: { type: "plain_text", text: "📡 Subscribe to status updates", emoji: true },
                   url: STATUS_PAGE_URL,
                   action_id: "incident_io_subscribe",
