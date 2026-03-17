@@ -457,31 +457,43 @@ Deno.serve(async (req) => {
 
       blocks.push({ type: "section", text: { type: "mrkdwn", text: chunks[i] } });
 
-      // Always show 👍 resolve button; show 👎 escalate only if not already escalated
-      if (isLastChunk) {
-        const actionElements: Record<string, unknown>[] = [
-          {
-            type: "button",
-            text: { type: "plain_text", text: "👍 This resolved my issue", emoji: true },
-            action_id: "feedback_positive",
-            value: conversationId,
-          },
-        ];
+      // Detect if Sam (AI) decided to route/escalate to humans
+      const escalationKeywords = /\b(escalat|routing|transfer|hand(ing|ed)?\s*(this\s+)?(over|off)|human\s+(agent|support|team)|enterprise\s+(support\s+)?team|team\s+member|connect(ing)?\s+you\s+with|pass(ing)?\s+(this\s+)?(to|along))\b/i;
+      const isAiEscalation = !isHumanAdmin && escalationKeywords.test(replyText);
 
-        if (mapping.status !== "escalated" && mapping.status !== "escalated_pending") {
-          actionElements.push({
-            type: "button",
-            text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
-            action_id: "feedback_negative",
-            value: conversationId,
+      if (isLastChunk) {
+        if (isAiEscalation) {
+          // Sam decided to route — no buttons, just a context note
+          blocks.push({
+            type: "context",
+            elements: [{ type: "mrkdwn", text: "_Sam has routed this to the Enterprise Support Team_" }],
+          });
+        } else {
+          // Normal reply — show feedback buttons
+          const actionElements: Record<string, unknown>[] = [
+            {
+              type: "button",
+              text: { type: "plain_text", text: "👍 This resolved my issue", emoji: true },
+              action_id: "feedback_positive",
+              value: conversationId,
+            },
+          ];
+
+          if (mapping.status !== "escalated" && mapping.status !== "escalated_pending") {
+            actionElements.push({
+              type: "button",
+              text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
+              action_id: "feedback_negative",
+              value: conversationId,
+            });
+          }
+
+          blocks.push({ type: "actions", elements: actionElements });
+          blocks.push({
+            type: "context",
+            elements: [{ type: "mrkdwn", text: "_To continue chatting with Sam, please send a reply in the thread_" }],
           });
         }
-
-        blocks.push({ type: "actions", elements: actionElements });
-        blocks.push({
-          type: "context",
-          elements: [{ type: "mrkdwn", text: "_To continue chatting with Sam, please send a reply in the thread_" }],
-        });
       }
 
       await postSlackMessage({ ...basePayload, text: chunks[i], blocks });
