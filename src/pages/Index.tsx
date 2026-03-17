@@ -35,7 +35,7 @@ const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 
 const Index = () => {
   const [settings, setSettings] = useState<SettingsData | null>(null);
-  const [mappings, setMappings] = useState<ConversationMapping[]>([]);
+  
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
