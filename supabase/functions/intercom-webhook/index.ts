@@ -9,6 +9,10 @@ const corsHeaders = {
 };
 
 const SLACK_API_URL = "https://slack.com/api";
+const BOT_IDENTITY = {
+  username: "Ask Lovable",
+  icon_url: "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/bot-avatar/lovable-logo.png",
+};
 
 async function addReaction(token: string, channel: string, timestamp: string, emoji: string) {
   try {
@@ -224,6 +228,7 @@ Deno.serve(async (req) => {
             thread_ts: mapping.slack_thread_ts,
             text: closedText,
             blocks: [{ type: "section", text: { type: "mrkdwn", text: closedText } }],
+            ...BOT_IDENTITY,
           }),
         });
         const closeData = await closeRes.json();

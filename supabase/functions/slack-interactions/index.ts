@@ -13,6 +13,10 @@ const corsHeaders = {
 
 const SLACK_API_URL = "https://slack.com/api";
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+const BOT_IDENTITY = {
+  username: "Ask Lovable",
+  icon_url: "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/bot-avatar/lovable-logo.png",
+};
 
 // Module-level caches — survive across requests in the same isolate
 let cachedBotUserId: string | null = null;
@@ -183,6 +187,7 @@ async function createIntercomTicket(opts: {
         channel: channelId,
         thread_ts: threadTs,
         text: ackText,
+        ...BOT_IDENTITY,
       }),
     });
   }
@@ -348,6 +353,7 @@ async function createIntercomTicket(opts: {
         channel: channelId,
         thread_ts: threadTs,
         text: `🔧 *Debug:* Intercom Conversation ID: \`${conversationId}\``,
+        ...BOT_IDENTITY,
       }),
     });
   }
@@ -378,6 +384,7 @@ async function createIntercomTicket(opts: {
         body: JSON.stringify({
           channel: dmChannelId,
           text: notifText,
+          ...BOT_IDENTITY,
         }),
       });
       console.log(`Sent group DM notification for conversation ${conversationId}`);
@@ -510,6 +517,7 @@ async function createIntercomTicket(opts: {
             thread_ts: threadTs,
             text: replyText,
             blocks,
+            ...BOT_IDENTITY,
           }),
         });
 
@@ -705,6 +713,7 @@ Deno.serve(async (req) => {
                 thread_ts: threadTs,
                 text: detailText,
                 blocks: [{ type: "section", text: { type: "mrkdwn", text: detailText } }],
+                ...BOT_IDENTITY,
               }),
             });
           }
@@ -1029,8 +1038,7 @@ Deno.serve(async (req) => {
               channel,
               thread_ts: threadTs,
               text: feedbackBotMsgs["feedback_positive"] || "Glad to hear your issue is resolved! We'll now close this conversation. Should you need any further assistance, please start a new thread. Replies to a closed conversation won't reach our team. We're always happy to help!",
-              username: "Ask Lovable",
-              icon_url: "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/bot-avatar/lovable-logo.png",
+              ...BOT_IDENTITY,
             }),
           });
 
@@ -1106,8 +1114,7 @@ Deno.serve(async (req) => {
               channel,
               thread_ts: threadTs,
               text: feedbackBotMsgs["escalation_notice"] || "Your query has been escalated to our Enterprise Support Team. A member of the team will follow up with you shortly.",
-              username: "Ask Lovable",
-              icon_url: "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/bot-avatar/lovable-logo.png",
+              ...BOT_IDENTITY,
             }),
           });
         }

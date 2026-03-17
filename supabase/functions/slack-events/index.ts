@@ -10,6 +10,10 @@ const corsHeaders = {
 
 const SLACK_API_URL = "https://slack.com/api";
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+const BOT_IDENTITY = {
+  username: "Ask Lovable",
+  icon_url: "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/bot-avatar/lovable-logo.png",
+};
 
 async function downloadAndUploadFiles(
   files: Array<{ url_private: string; name: string; mimetype: string; size?: number }>,
@@ -334,6 +338,7 @@ Deno.serve(async (req) => {
           channel: channelId,
           thread_ts: threadTs,
           text: contextPromptText.replace(/\*/g, ""),
+          ...BOT_IDENTITY,
           blocks: [
             {
               type: "section",
@@ -548,6 +553,7 @@ Deno.serve(async (req) => {
                     channel: channelId,
                     thread_ts: threadTs,
                     text: "⏳ Sam is writing a response...",
+                    ...BOT_IDENTITY,
                   }),
                 });
               }
@@ -568,6 +574,7 @@ Deno.serve(async (req) => {
                     channel: channelId,
                     thread_ts: threadTs,
                     text: replyForwardedText,
+                    ...BOT_IDENTITY,
                   }),
                 });
               }
