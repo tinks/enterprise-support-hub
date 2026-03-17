@@ -268,7 +268,7 @@ async function createIntercomTicket(opts: {
           message_type: "assignment",
           type: "admin",
           assignee_id: settings.intercom_assignee_id,
-          admin_id: settings.intercom_assignee_id,
+          admin_id: cachedSettings.intercom_assignee_id,
         }),
       }
     );
