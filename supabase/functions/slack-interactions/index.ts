@@ -1114,8 +1114,7 @@ Deno.serve(async (req) => {
               channel,
               thread_ts: threadTs,
               text: feedbackBotMsgs["escalation_notice"] || "Your query has been escalated to our Enterprise Support Team. A member of the team will follow up with you shortly.",
-              username: "Ask Lovable",
-              icon_url: "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/bot-avatar/lovable-logo.png",
+              ...BOT_IDENTITY,
             }),
           });
         }
