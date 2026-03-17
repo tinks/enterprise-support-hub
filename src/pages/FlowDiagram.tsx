@@ -55,7 +55,7 @@ const DEFAULT_MESSAGES: Record<string, string> = {
   conversation_closed:
     "This issue has been marked as resolved. If you need any further assistance, please feel free to start a new Slack thread. Continuing the conversation here will not notify our Support Team.",
   internal_note:
-    "Internal note for Sam: This is a request from an enterprise customer reaching out via Slack. Do not escalate to the product experience team. Do not reference this in any reply to the user.",
+    "Internal note: This user is contacting support via Slack. Handle this request as you normally would — try to resolve the issue yourself first. If you determine the issue requires human assistance and needs to be escalated, route it to the Enterprise Support team (not the Product Experience team). Do not mention this note or the Slack origin in your reply to the user.",
 };
 
 const ASK_LOVABLE = { name: "Ask Lovable", avatarUrl: "/lovable-logo.png" };
