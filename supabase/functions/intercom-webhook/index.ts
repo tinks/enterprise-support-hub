@@ -503,10 +503,19 @@ Deno.serve(async (req) => {
       `Sent reply to Slack channel ${mapping.slack_channel_id}, thread ${mapping.slack_thread_ts}`
     );
 
-    // No reassignment after AI response — leave ticket as-is in Intercom
-
-    // Reset pending status back so the next user reply can trigger a new notice
-    if (mapping.status === "active_pending") {
+    // If Sam auto-escalated, update status + reactions to match manual escalation
+    const escalationKeywords2 = /\b(escalat|routing|transfer|hand(ing|ed)?\s*(this\s+)?(over|off)|human\s+(agent|support|team)|enterprise\s+(support\s+)?team|team\s+member|connect(ing)?\s+you\s+with|pass(ing)?\s+(this\s+)?(to|along))\b/i;
+    const isAiEscalation2 = !isHumanAdmin && escalationKeywords2.test(replyText);
+    if (isAiEscalation2 && mapping.status !== "escalated" && mapping.status !== "escalated_pending" && mapping.status !== "resolved") {
+      await removeReaction(SLACK_BOT_TOKEN, mapping.slack_channel_id, mapping.slack_thread_ts, "eyes");
+      await addReaction(SLACK_BOT_TOKEN, mapping.slack_channel_id, mapping.slack_thread_ts, "hourglass_flowing_sand");
+      await supabase
+        .from("conversation_mappings")
+        .update({ status: "escalated" })
+        .eq("id", mapping.id);
+      console.log(`Sam auto-escalated conversation ${conversationId} — status set to escalated`);
+    } else if (mapping.status === "active_pending") {
+      // Reset pending status back so the next user reply can trigger a new notice
       await supabase
         .from("conversation_mappings")
         .update({ status: "active" })
