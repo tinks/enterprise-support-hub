@@ -187,6 +187,7 @@ async function createIntercomTicket(opts: {
         channel: channelId,
         thread_ts: threadTs,
         text: ackText,
+        ...BOT_IDENTITY,
       }),
     });
   }
