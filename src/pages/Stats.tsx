@@ -21,7 +21,7 @@ interface Mapping {
   is_test: boolean;
 }
 
-type TimeRange = "7d" | "30d" | "90d" | "all";
+type TimeRange = "7d" | "30d" | "90d" | "all" | "custom";
 
 const chartConfig = {
   resolved: { label: "Resolved", color: "hsl(142 76% 36%)" },
