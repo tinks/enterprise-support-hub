@@ -167,14 +167,6 @@ const Index = () => {
     });
   };
 
-  const statusColor = (status: string) => {
-    switch (status) {
-      case "active": return "default" as const;
-      case "resolved": return "secondary" as const;
-      case "escalated": return "destructive" as const;
-      default: return "outline" as const;
-    }
-  };
 
   const filteredChannels = channels.filter(
     (ch) => ch.name.toLowerCase().includes(channelSearch.toLowerCase()) || ch.id.includes(channelSearch)
