@@ -53,7 +53,7 @@ const DEFAULT_MESSAGES: Record<string, string> = {
   reply_forwarded:
     "Thanks for your reply! We will be back to you in just a few minutes.",
   conversation_closed:
-    "✅ This issue has been marked as resolved. If you need further help, reply in this thread to start the conversation again.",
+    "This issue has been marked as resolved. If you need further help, reply in this thread to start the conversation again.",
   internal_note:
     "Internal note for Sam: This is a request from an enterprise customer reaching out via Slack. Do not escalate to the product experience team. Do not reference this in any reply to the user.",
 };
