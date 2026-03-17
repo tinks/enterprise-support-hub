@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -23,14 +22,6 @@ interface SettingsData {
   testing_mode: boolean;
 }
 
-interface ConversationMapping {
-  id: string;
-  slack_channel_id: string;
-  slack_thread_ts: string;
-  intercom_conversation_id: string;
-  status: string;
-  created_at: string;
-}
 
 interface SlackChannel {
   id: string;
@@ -43,7 +34,7 @@ const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
 
 const Index = () => {
   const [settings, setSettings] = useState<SettingsData | null>(null);
-  const [mappings, setMappings] = useState<ConversationMapping[]>([]);
+  
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -93,17 +84,8 @@ const Index = () => {
 
   const loadData = async () => {
     setLoading(true);
-    const [settingsRes, mappingsRes] = await Promise.all([
-      supabase.from("settings").select("*").limit(1).single(),
-      supabase
-        .from("conversation_mappings")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(50),
-    ]);
-
+    const settingsRes = await supabase.from("settings").select("*").limit(1).single();
     if (settingsRes.data) setSettings(settingsRes.data as unknown as SettingsData);
-    if (mappingsRes.data) setMappings(mappingsRes.data as unknown as ConversationMapping[]);
     setLoading(false);
   };
 
@@ -184,14 +166,6 @@ const Index = () => {
     });
   };
 
-  const statusColor = (status: string) => {
-    switch (status) {
-      case "active": return "default" as const;
-      case "resolved": return "secondary" as const;
-      case "escalated": return "destructive" as const;
-      default: return "outline" as const;
-    }
-  };
 
   const filteredChannels = channels.filter(
     (ch) => ch.name.toLowerCase().includes(channelSearch.toLowerCase()) || ch.id.includes(channelSearch)
@@ -371,72 +345,6 @@ const Index = () => {
           </CardContent>
         </Card>
 
-        {/* Conversation Mappings */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">Recent Conversations</CardTitle>
-              <CardDescription>
-                Slack thread ↔ Intercom conversation mappings
-              </CardDescription>
-            </div>
-            <Button variant="outline" size="sm" onClick={loadData}>
-              <RefreshCw className="mr-1 h-3 w-3" />
-              Refresh
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {mappings.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                No conversations yet. @mention the bot in a monitored channel to get started.
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Channel</TableHead>
-                    <TableHead>Thread</TableHead>
-                    <TableHead>Intercom ID</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Created</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {mappings.map((m) => (
-                    <TableRow key={m.id}>
-                      <TableCell className="font-mono text-xs">
-                        {m.slack_channel_id}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {m.slack_thread_ts}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {m.intercom_conversation_id ? (
-                          <a
-                            href={`https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${m.intercom_conversation_id}?view=List`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary underline hover:text-primary/80 transition-colors"
-                          >
-                            {m.intercom_conversation_id}
-                          </a>
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={statusColor(m.status)}>{m.status}</Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {new Date(m.created_at).toLocaleString()}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
       {/* Channel Browser Dialog */}
