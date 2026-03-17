@@ -851,12 +851,11 @@ Deno.serve(async (req) => {
     // ===== "Proceed" button =====
     if (actionId === "proceed_without_context") {
       const [channelId, threadTs] = (action.value || "").split("|");
+      const promptMsgTs = getPromptMessageTs();
 
       // Fire-and-forget: do heavy work in background so Slack gets the 200 within 3s
       const bgWork = (async () => {
         try {
-          await deletePromptMessage(channelId);
-
           // Atomic guard: only proceed if status is still awaiting_context
           const { data: updated } = await supabase
             .from("conversation_mappings")
@@ -884,6 +883,7 @@ Deno.serve(async (req) => {
               originalMessage: updated.original_message_text,
               slackUserId: updated.slack_user_id,
               attachmentUrls: attachmentUrls.length ? attachmentUrls : undefined,
+              promptMessageTs: promptMsgTs,
             });
           }
         } catch (e) {
