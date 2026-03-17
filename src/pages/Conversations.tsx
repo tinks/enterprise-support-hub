@@ -70,13 +70,14 @@ const Conversations = () => {
       .select("*")
       .order("created_at", { ascending: false })
       .limit(50);
-    if (data) setMappings(data as unknown as ConversationMapping[]);
+    const rows = (data ?? []) as unknown as ConversationMapping[];
+    setMappings(rows);
     setLoading(false);
+    return rows;
   };
 
   useEffect(() => {
-    loadData();
-    loadLookups();
+    loadData().then((rows) => loadLookups(rows));
   }, []);
 
   return (
