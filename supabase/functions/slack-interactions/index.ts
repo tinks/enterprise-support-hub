@@ -679,7 +679,7 @@ Deno.serve(async (req) => {
     // ===== Handle view_submission (modal) =====
     if (payload.type === "view_submission") {
       const metadata = JSON.parse(payload.view.private_metadata || "{}");
-      const { channelId, threadTs } = metadata;
+      const { channelId, threadTs, promptMessageTs: storedPromptTs } = metadata;
 
       const values = payload.view.state?.values || {};
       const email = values.email_block?.email_input?.value || "";
