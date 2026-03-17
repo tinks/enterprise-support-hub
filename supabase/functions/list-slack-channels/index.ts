@@ -84,6 +84,49 @@ Deno.serve(async (req) => {
       cursor = data.response_metadata?.next_cursor || "";
     } while (cursor);
 
+    if (channelIdSet) {
+      const unresolvedIds = [...channelIdSet].filter((id) => !allChannels.some((ch) => ch.id === id));
+
+      if (unresolvedIds.length > 0) {
+        const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+        const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY");
+
+        if (LOVABLE_API_KEY && SLACK_API_KEY) {
+          const fallbackChannels = await Promise.all(
+            unresolvedIds.map(async (channelId) => {
+              const res = await fetch(`${SLACK_GATEWAY_URL}/conversations.info`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${LOVABLE_API_KEY}`,
+                  "X-Connection-Api-Key": SLACK_API_KEY,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ channel: channelId }),
+              });
+
+              const data = await res.json();
+              if (!res.ok || !data?.ok || !data.channel) {
+                return null;
+              }
+
+              return {
+                id: data.channel.id,
+                name: data.channel.name,
+                is_member: data.channel.is_member ?? false,
+                num_members: data.channel.num_members ?? 0,
+              };
+            }),
+          );
+
+          for (const channel of fallbackChannels) {
+            if (channel) {
+              allChannels.push(channel);
+            }
+          }
+        }
+      }
+    }
+
     allChannels.sort((a, b) => a.name.localeCompare(b.name));
 
     return new Response(JSON.stringify({ channels: allChannels }), {
