@@ -262,6 +262,9 @@ Deno.serve(async (req) => {
     let adminName = "";
     let isHumanAdmin = false;
 
+    // Attachments from the last conversation part
+    let attachments: Array<{ url: string; name: string; content_type: string }> = [];
+
     if (conversationParts && conversationParts.length > 0) {
       const lastPart = conversationParts[conversationParts.length - 1];
       replyText = (lastPart.body || "")
@@ -282,10 +285,22 @@ Deno.serve(async (req) => {
         adminName = author.name;
         isHumanAdmin = true;
       }
+
+      // Extract attachments from the conversation part
+      if (lastPart.attachments && Array.isArray(lastPart.attachments)) {
+        attachments = lastPart.attachments
+          .filter((a: { url?: string }) => a.url)
+          .map((a: { url: string; name?: string; content_type?: string }) => ({
+            url: a.url,
+            name: a.name || "attachment",
+            content_type: a.content_type || "application/octet-stream",
+          }));
+        console.log(`Found ${attachments.length} attachment(s) in Intercom reply`);
+      }
     }
 
-    if (!replyText) {
-      console.log("No reply text found");
+    if (!replyText && attachments.length === 0) {
+      console.log("No reply text or attachments found");
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
