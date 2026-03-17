@@ -178,10 +178,13 @@ function buildNodes(
       position: { x: COL_W, y: ROW_H * 4 },
       data: {
         label: "5. AI responds → posted to Slack",
-        desc: "Intercom AI replies. Webhook posts it to the Slack thread with feedback buttons (unless Sam auto-escalates).",
+        desc: "After ticket creation, polls Intercom API for Sam's reply and relays it to Slack with feedback buttons (unless Sam auto-escalates). Webhook serves as fallback for human admin replies.",
         icon: Bot,
-        edgeFunction: "intercom-webhook",
+        edgeFunction: "slack-interactions → poll",
         details: [
+          "Proactive polling: after creating ticket, polls Intercom API at 10s/20s/30s/60s intervals",
+          "Relays Sam's initial reply directly to Slack (bypasses webhook)",
+          "Webhook fallback: intercom-webhook handles human admin replies + subsequent messages",
           "Deduplicates by conversation part ID (atomic UPDATE with last_intercom_part_id guard)",
           "Removes old feedback buttons from thread",
           "Posts reply (split at 2900 chars)",
