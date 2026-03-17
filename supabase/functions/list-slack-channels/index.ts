@@ -5,6 +5,7 @@ const corsHeaders = {
 };
 
 const SLACK_API_URL = "https://slack.com/api";
+const SLACK_GATEWAY_URL = "https://connector-gateway.lovable.dev/slack/api";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
