@@ -55,12 +55,20 @@ Deno.serve(async (req) => {
       }
 
       for (const ch of data.channels || []) {
+        if (channelIdSet && !channelIdSet.has(ch.id)) {
+          continue;
+        }
+
         allChannels.push({
           id: ch.id,
           name: ch.name,
           is_member: ch.is_member ?? false,
           num_members: ch.num_members ?? 0,
         });
+      }
+
+      if (channelIdSet && allChannels.length >= channelIdSet.size) {
+        break;
       }
 
       cursor = data.response_metadata?.next_cursor || "";
