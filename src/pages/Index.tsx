@@ -228,7 +228,7 @@ const Index = () => {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Channels where @mentions will be monitored
+                Leave empty to respond in <strong>all</strong> channels the bot is invited to. Add specific channels to restrict monitoring.
               </p>
             </div>
 

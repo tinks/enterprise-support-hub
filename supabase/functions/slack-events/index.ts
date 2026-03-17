@@ -237,10 +237,13 @@ Deno.serve(async (req) => {
       .map((c: string) => c.trim())
       .filter(Boolean);
 
+    // If monitored list is empty → bot responds in ALL channels (opt-out model)
+    const allChannelsMode = monitoredChannels.length === 0;
+
     // ===== Handle app_mention events =====
     if (event.type === "app_mention") {
       const channelId = event.channel;
-      if (!monitoredChannels.includes(channelId)) {
+      if (!allChannelsMode && !monitoredChannels.includes(channelId)) {
         console.log(`Ignoring mention in non-monitored channel ${channelId}`);
         return new Response(JSON.stringify({ ok: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
