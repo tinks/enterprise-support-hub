@@ -5,16 +5,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, ExternalLink } from "lucide-react";
+import { RefreshCw, ExternalLink, Hash, User } from "lucide-react";
 
 interface ConversationMapping {
   id: string;
   slack_channel_id: string;
   slack_thread_ts: string;
+  slack_user_id: string;
   intercom_conversation_id: string;
   status: string;
   created_at: string;
 }
+
+type NameMap = Record<string, string>;
 
 const statusColor = (status: string) => {
   switch (status) {
@@ -31,6 +34,31 @@ const buildSlackLink = (channelId: string, threadTs: string) =>
 const Conversations = () => {
   const [mappings, setMappings] = useState<ConversationMapping[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userNames, setUserNames] = useState<NameMap>({});
+  const [channelNames, setChannelNames] = useState<NameMap>({});
+
+  const loadLookups = async () => {
+    const [usersRes, channelsRes] = await Promise.all([
+      supabase.functions.invoke("list-slack-users"),
+      supabase.functions.invoke("list-slack-channels"),
+    ]);
+
+    if (usersRes.data?.users) {
+      const map: NameMap = {};
+      for (const u of usersRes.data.users) {
+        map[u.id] = u.display_name || u.real_name || u.name;
+      }
+      setUserNames(map);
+    }
+
+    if (channelsRes.data?.channels) {
+      const map: NameMap = {};
+      for (const c of channelsRes.data.channels) {
+        map[c.id] = c.name;
+      }
+      setChannelNames(map);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -43,12 +71,15 @@ const Conversations = () => {
     setLoading(false);
   };
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    loadData();
+    loadLookups();
+  }, []);
 
   return (
     <AppLayout>
       <div className="bg-background p-6">
-        <div className="mx-auto max-w-4xl">
+        <div className="mx-auto max-w-5xl">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -57,7 +88,7 @@ const Conversations = () => {
                   Slack thread ↔ Intercom conversation mappings
                 </CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
+              <Button variant="outline" size="sm" onClick={() => { loadData(); loadLookups(); }} disabled={loading}>
                 <RefreshCw className={`mr-1 h-3 w-3 ${loading ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
@@ -71,6 +102,8 @@ const Conversations = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Sent by</TableHead>
+                      <TableHead>Channel</TableHead>
                       <TableHead>Slack</TableHead>
                       <TableHead>Intercom</TableHead>
                       <TableHead>Status</TableHead>
@@ -80,6 +113,18 @@ const Conversations = () => {
                   <TableBody>
                     {mappings.map((m) => (
                       <TableRow key={m.id}>
+                        <TableCell>
+                          <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
+                            <User className="h-3.5 w-3.5 text-muted-foreground" />
+                            {userNames[m.slack_user_id] || m.slack_user_id || "—"}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="inline-flex items-center gap-1 text-sm text-foreground">
+                            <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+                            {channelNames[m.slack_channel_id] || m.slack_channel_id}
+                          </span>
+                        </TableCell>
                         <TableCell>
                           <a
                             href={buildSlackLink(m.slack_channel_id, m.slack_thread_ts)}
