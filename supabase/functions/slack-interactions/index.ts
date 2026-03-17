@@ -14,8 +14,10 @@ const corsHeaders = {
 const SLACK_API_URL = "https://slack.com/api";
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 
-// Module-level cache for identity guard — survives across requests in the same isolate
+// Module-level caches — survive across requests in the same isolate
 let cachedBotUserId: string | null = null;
+// deno-lint-ignore no-explicit-any
+let cachedSettings: any = null;
 
 async function downloadAndUploadFiles(
   files: Array<{ url_private: string; name: string; mimetype: string; size?: number }>,
