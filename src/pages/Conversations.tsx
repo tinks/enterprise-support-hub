@@ -92,7 +92,7 @@ const Conversations = () => {
                   Slack thread ↔ Intercom conversation mappings
                 </CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={() => { loadData(); loadLookups(); }} disabled={loading}>
+              <Button variant="outline" size="sm" onClick={() => { loadData().then((rows) => loadLookups(rows)); }} disabled={loading}>
                 <RefreshCw className={`mr-1 h-3 w-3 ${loading ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
