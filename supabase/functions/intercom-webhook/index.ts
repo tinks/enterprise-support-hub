@@ -126,6 +126,7 @@ Deno.serve(async (req) => {
     console.log("Intercom webhook received:", JSON.stringify(body).substring(0, 500));
 
     const topic = body.topic;
+    console.log(`Intercom webhook topic: ${topic}, conversation_id: ${body.data?.item?.id}`);
 
     const REPLY_TOPICS = ["conversation.admin.replied", "conversation.admin.single.reply", "ticket.admin.replied"];
     const CLOSED_TOPICS = ["conversation.admin.closed", "ticket.state.updated"];
