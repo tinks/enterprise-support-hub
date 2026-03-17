@@ -267,7 +267,7 @@ async function createIntercomTicket(opts: {
         body: JSON.stringify({
           message_type: "assignment",
           type: "admin",
-          assignee_id: settings.intercom_assignee_id,
+          assignee_id: cachedSettings.intercom_assignee_id,
           admin_id: cachedSettings.intercom_assignee_id,
         }),
       }
