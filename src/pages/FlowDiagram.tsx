@@ -185,6 +185,7 @@ function buildNodes(
         details: [
           "Proactive polling: after creating ticket, polls Intercom API at 10s/20s/30s/60s intervals",
           "Relays Sam's initial reply directly to Slack (bypasses webhook)",
+          "Atomic dedup: polling uses conditional UPDATE (last_intercom_part_id guard) — first writer wins, prevents duplicate posts when webhook fires concurrently",
           "Webhook fallback: intercom-webhook handles human admin replies + subsequent messages",
           "Deduplicates by conversation part ID (atomic UPDATE with last_intercom_part_id guard)",
           "Removes old feedback buttons from thread",
