@@ -13,6 +13,10 @@ const corsHeaders = {
 
 const SLACK_API_URL = "https://slack.com/api";
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+const BOT_IDENTITY = {
+  username: "Ask Lovable",
+  icon_url: "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/bot-avatar/lovable-logo.png",
+};
 
 // Module-level caches — survive across requests in the same isolate
 let cachedBotUserId: string | null = null;
