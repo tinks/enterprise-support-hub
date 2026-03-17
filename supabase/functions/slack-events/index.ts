@@ -574,6 +574,7 @@ Deno.serve(async (req) => {
                     channel: channelId,
                     thread_ts: threadTs,
                     text: replyForwardedText,
+                    ...BOT_IDENTITY,
                   }),
                 });
               }
