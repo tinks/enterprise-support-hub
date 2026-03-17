@@ -183,6 +183,7 @@ function buildNodes(
         details: [
           "Removes old feedback buttons from thread",
           "Posts reply (split at 2900 chars)",
+          "Forwards Intercom attachments (images as image blocks, docs as links)",
           "Detects escalation keywords in AI reply → if Sam routes to humans, buttons are omitted and status set to escalated",
           "Otherwise appends feedback buttons to last chunk",
         ],

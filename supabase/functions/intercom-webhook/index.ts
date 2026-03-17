@@ -262,6 +262,9 @@ Deno.serve(async (req) => {
     let adminName = "";
     let isHumanAdmin = false;
 
+    // Attachments from the last conversation part
+    let attachments: Array<{ url: string; name: string; content_type: string }> = [];
+
     if (conversationParts && conversationParts.length > 0) {
       const lastPart = conversationParts[conversationParts.length - 1];
       replyText = (lastPart.body || "")
@@ -282,10 +285,22 @@ Deno.serve(async (req) => {
         adminName = author.name;
         isHumanAdmin = true;
       }
+
+      // Extract attachments from the conversation part
+      if (lastPart.attachments && Array.isArray(lastPart.attachments)) {
+        attachments = lastPart.attachments
+          .filter((a: { url?: string }) => a.url)
+          .map((a: { url: string; name?: string; content_type?: string }) => ({
+            url: a.url,
+            name: a.name || "attachment",
+            content_type: a.content_type || "application/octet-stream",
+          }));
+        console.log(`Found ${attachments.length} attachment(s) in Intercom reply`);
+      }
     }
 
-    if (!replyText) {
-      console.log("No reply text found");
+    if (!replyText && attachments.length === 0) {
+      console.log("No reply text or attachments found");
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -497,6 +512,35 @@ Deno.serve(async (req) => {
       }
 
       await postSlackMessage({ ...basePayload, text: chunks[i], blocks });
+    }
+
+    // Post Intercom attachments to the Slack thread
+    if (attachments.length > 0) {
+      for (const att of attachments) {
+        const isImage = att.content_type.startsWith("image/");
+        const attBlocks: Record<string, unknown>[] = [];
+
+        if (isImage) {
+          attBlocks.push({
+            type: "image",
+            image_url: att.url,
+            alt_text: att.name,
+            title: { type: "plain_text", text: att.name },
+          });
+        } else {
+          attBlocks.push({
+            type: "section",
+            text: { type: "mrkdwn", text: `📎 <${att.url}|${att.name}>` },
+          });
+        }
+
+        await postSlackMessage({
+          ...basePayload,
+          text: isImage ? att.name : `📎 ${att.name}`,
+          blocks: attBlocks,
+        });
+      }
+      console.log(`Posted ${attachments.length} attachment(s) to Slack thread`);
     }
 
     console.log(
