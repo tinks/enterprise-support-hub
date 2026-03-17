@@ -267,7 +267,19 @@ Deno.serve(async (req) => {
 
     if (conversationParts && conversationParts.length > 0) {
       const lastPart = conversationParts[conversationParts.length - 1];
-      replyText = (lastPart.body || "")
+      const rawBody = lastPart.body || "";
+
+      // Extract inline <img> URLs before stripping HTML
+      const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+      let imgMatch: RegExpExecArray | null;
+      while ((imgMatch = imgRegex.exec(rawBody)) !== null) {
+        const imgUrl = imgMatch[1];
+        if (imgUrl && !imgUrl.startsWith("data:")) {
+          attachments.push({ url: imgUrl, name: "inline-image", content_type: "image/png" });
+        }
+      }
+
+      replyText = rawBody
         .replace(/<br\s*\/?>/gi, "\n")
         .replace(/<\/p>/gi, "\n\n")
         .replace(/<\/li>/gi, "\n")
@@ -286,15 +298,24 @@ Deno.serve(async (req) => {
         isHumanAdmin = true;
       }
 
-      // Extract attachments from the conversation part
+      // Extract explicit attachments from the conversation part
       if (lastPart.attachments && Array.isArray(lastPart.attachments)) {
-        attachments = lastPart.attachments
+        const explicit = lastPart.attachments
           .filter((a: { url?: string }) => a.url)
           .map((a: { url: string; name?: string; content_type?: string }) => ({
             url: a.url,
             name: a.name || "attachment",
             content_type: a.content_type || "application/octet-stream",
           }));
+        // Deduplicate against inline images already extracted
+        const existingUrls = new Set(attachments.map((a) => a.url));
+        for (const att of explicit) {
+          if (!existingUrls.has(att.url)) {
+            attachments.push(att);
+          }
+        }
+      }
+      if (attachments.length > 0) {
         console.log(`Found ${attachments.length} attachment(s) in Intercom reply`);
       }
     }
