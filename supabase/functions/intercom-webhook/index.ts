@@ -465,7 +465,6 @@ Deno.serve(async (req) => {
             text: { type: "plain_text", text: "👍 This resolved my issue", emoji: true },
             action_id: "feedback_positive",
             value: conversationId,
-            style: "primary",
           },
         ];
 
