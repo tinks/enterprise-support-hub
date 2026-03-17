@@ -116,7 +116,8 @@ function buildNodes(
         icon: Mail,
         edgeFunction: "slack-interactions",
         details: [
-          "Prompt message deleted",
+          "Modal opened first (time-sensitive trigger_id)",
+          "Prompt message deleted in background via waitUntil",
           "Modal: Email + Project Link fields",
           "On submit → creates Intercom ticket",
         ],
@@ -181,6 +182,7 @@ function buildNodes(
         icon: Bot,
         edgeFunction: "intercom-webhook",
         details: [
+          "Deduplicates by conversation part ID (atomic UPDATE with last_intercom_part_id guard)",
           "Removes old feedback buttons from thread",
           "Posts reply (split at 2900 chars)",
           "Forwards Intercom attachments + inline images (deduped) to Slack",

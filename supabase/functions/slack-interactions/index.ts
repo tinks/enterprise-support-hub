@@ -14,6 +14,9 @@ const corsHeaders = {
 const SLACK_API_URL = "https://slack.com/api";
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 
+// Module-level cache for identity guard — survives across requests in the same isolate
+let cachedBotUserId: string | null = null;
+
 async function downloadAndUploadFiles(
   files: Array<{ url_private: string; name: string; mimetype: string; size?: number }>,
   slackBotToken: string,
@@ -431,16 +434,26 @@ Deno.serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
-    // Identity guard: verify token matches expected bot
+    // Identity guard: verify token matches expected bot (cached per isolate)
     const guardSettings = await getSettings(supabase);
     const expectedBotId = guardSettings.slack_bot_user_id;
     if (expectedBotId) {
-      const authCheck = await fetch("https://slack.com/api/auth.test", {
-        headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
-      });
-      const authCheckData = await authCheck.json();
-      if (!authCheckData.ok || authCheckData.user_id !== expectedBotId) {
-        console.error(`IDENTITY GUARD: Token belongs to ${authCheckData.user_id || "unknown"}, expected ${expectedBotId}. Blocking.`);
+      if (!cachedBotUserId) {
+        const authCheck = await fetch("https://slack.com/api/auth.test", {
+          headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+        });
+        const authCheckData = await authCheck.json();
+        if (!authCheckData.ok) {
+          console.error(`IDENTITY GUARD: auth.test failed: ${authCheckData.error}`);
+          return new Response(JSON.stringify({ error: "Bot identity check failed" }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        cachedBotUserId = authCheckData.user_id;
+      }
+      if (cachedBotUserId !== expectedBotId) {
+        console.error(`IDENTITY GUARD: Token belongs to ${cachedBotUserId}, expected ${expectedBotId}. Blocking.`);
         return new Response(JSON.stringify({ error: "Bot identity mismatch — refusing to process" }), {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -694,9 +707,9 @@ Deno.serve(async (req) => {
     if (actionId === "add_details") {
       const [channelId, threadTs] = (action.value || "").split("|");
 
-      await deletePromptMessage(channelId);
       const triggerId = payload.trigger_id;
 
+      // Open modal first (time-sensitive — Slack trigger_id expires in 3s)
       await fetch(`${SLACK_API_URL}/views.open`, {
         method: "POST",
         headers: {
@@ -740,6 +753,12 @@ Deno.serve(async (req) => {
           },
         }),
       });
+
+      // Delete prompt message in background (not time-sensitive)
+      const bgDelete = deletePromptMessage(channelId);
+      if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+        EdgeRuntime.waitUntil(bgDelete);
+      }
 
       return new Response("", { status: 200 });
     }

@@ -1,0 +1,1 @@
+ALTER TABLE public.conversation_mappings ADD COLUMN last_intercom_part_id text;
