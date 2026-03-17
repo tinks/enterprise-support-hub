@@ -75,12 +75,12 @@ function buildNodes(
       position: { x: COL_W, y: 0 },
       data: {
         label: "1. User @mentions bot",
-        desc: "A user mentions the bot in a monitored Slack channel or thread.",
+        desc: "A user mentions the bot in any Slack channel the bot has been invited to.",
         icon: MessageSquare,
         edgeFunction: "slack-events",
         details: [
           "Verifies Slack signature",
-          "Checks channel is monitored",
+          "If monitored list is empty → responds in ALL channels (default). Otherwise only listed channels.",
           "Atomic INSERT dedup (ON CONFLICT DO NOTHING) — prevents race from Slack retries",
           "If thread reply → fetches full transcript",
           "Collects file attachments (photos, videos, docs)",
