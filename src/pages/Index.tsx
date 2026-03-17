@@ -23,14 +23,6 @@ interface SettingsData {
   testing_mode: boolean;
 }
 
-interface ConversationMapping {
-  id: string;
-  slack_channel_id: string;
-  slack_thread_ts: string;
-  intercom_conversation_id: string;
-  status: string;
-  created_at: string;
-}
 
 interface SlackChannel {
   id: string;
