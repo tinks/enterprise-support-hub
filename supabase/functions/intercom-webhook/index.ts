@@ -327,6 +327,64 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Detect incident.io action — check if the reply body references incident.io or the status page
+    const STATUS_PAGE_URL = "https://status.lovable.dev";
+    const incidentIoPattern = /incident\.io|status\.lovable\.dev|we have an incident|status page/i;
+    const hasIncidentIoAction = incidentIoPattern.test(replyText) || (conversationParts?.[conversationParts.length - 1]?.body && incidentIoPattern.test(conversationParts[conversationParts.length - 1].body));
+
+    let incidentStatusBlock: Record<string, unknown>[] = [];
+    if (hasIncidentIoAction) {
+      try {
+        const statusRes = await fetch(`${STATUS_PAGE_URL}/api/v2/summary.json`);
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          const overallStatus = statusData.status?.description || "Unknown";
+          const indicator = statusData.status?.indicator || "none";
+          const emoji = indicator === "none" ? "✅" : indicator === "minor" ? "⚠️" : indicator === "major" ? "🔴" : indicator === "critical" ? "🚨" : "ℹ️";
+
+          // Build component statuses
+          const componentLines = (statusData.components || [])
+            .map((c: { name: string; status: string }) => {
+              const cEmoji = c.status === "operational" ? "✅" : c.status === "degraded_performance" ? "⚠️" : c.status === "partial_outage" ? "🟡" : c.status === "major_outage" ? "🔴" : "❓";
+              return `${cEmoji} *${c.name}*: ${c.status.replace(/_/g, " ")}`;
+            })
+            .join("\n");
+
+          incidentStatusBlock = [
+            { type: "divider" },
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: `${emoji} *Lovable Status: ${overallStatus}*`,
+              },
+            },
+            ...(componentLines ? [{
+              type: "section",
+              text: { type: "mrkdwn", text: componentLines },
+            }] : []),
+            {
+              type: "actions",
+              elements: [
+                {
+                  type: "button",
+                  text: { type: "plain_text", text: "📡 Subscribe to status updates", emoji: true },
+                  url: STATUS_PAGE_URL,
+                  action_id: "incident_io_subscribe",
+                },
+              ],
+            },
+          ];
+
+          console.log(`incident.io action detected — status: ${overallStatus}`);
+        } else {
+          console.error(`Failed to fetch status page: ${statusRes.status}`);
+        }
+      } catch (e) {
+        console.error("Failed to fetch incident.io status:", e);
+      }
+    }
+
     // Strip sign-off lines and AI attribution (handle various Intercom AI footers)
     replyText = replyText
       .replace(/\n*This message was.*$/is, "")
