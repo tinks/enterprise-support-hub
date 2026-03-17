@@ -553,6 +553,7 @@ Deno.serve(async (req) => {
                     channel: channelId,
                     thread_ts: threadTs,
                     text: "⏳ Sam is writing a response...",
+                    ...BOT_IDENTITY,
                   }),
                 });
               }
