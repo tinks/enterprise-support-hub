@@ -384,6 +384,7 @@ async function createIntercomTicket(opts: {
         body: JSON.stringify({
           channel: dmChannelId,
           text: notifText,
+          ...BOT_IDENTITY,
         }),
       });
       console.log(`Sent group DM notification for conversation ${conversationId}`);
