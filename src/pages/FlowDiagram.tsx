@@ -80,7 +80,7 @@ function buildNodes(
         edgeFunction: "slack-events",
         details: [
           "Verifies Slack signature",
-          "If monitored list is empty → responds in ALL channels (default). Otherwise only listed channels.",
+          "Auto-adds new channels on first @mention, so newly invited channels work without manual setup.",
           "Atomic INSERT dedup (ON CONFLICT DO NOTHING) — prevents race from Slack retries",
           "If thread reply → fetches full transcript",
           "Collects file attachments (photos, videos, docs)",

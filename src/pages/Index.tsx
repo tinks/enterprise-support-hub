@@ -228,7 +228,7 @@ const Index = () => {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Leave empty to respond in <strong>all</strong> channels the bot is invited to. Add specific channels to restrict monitoring.
+                New channels are auto-enabled on first @mention after the bot is invited.
               </p>
             </div>
 
