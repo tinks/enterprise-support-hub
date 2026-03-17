@@ -3,13 +3,17 @@ import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity } from "lucide-react";
+import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon } from "lucide-react";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell,
   LineChart, Line, AreaChart, Area,
 } from "recharts";
-import { format, parseISO, subDays, subMonths, startOfDay, isAfter, differenceInDays } from "date-fns";
+import { format, parseISO, subDays, subMonths, startOfDay, endOfDay, isAfter, isBefore, differenceInDays } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface Mapping {
   status: string;
@@ -17,7 +21,7 @@ interface Mapping {
   is_test: boolean;
 }
 
-type TimeRange = "7d" | "30d" | "90d" | "all";
+type TimeRange = "7d" | "30d" | "90d" | "all" | "custom";
 
 const chartConfig = {
   resolved: { label: "Resolved", color: "hsl(142 76% 36%)" },
@@ -34,6 +38,7 @@ const rangeLabel: Record<TimeRange, string> = {
   "30d": "Last 30 days",
   "90d": "Last 90 days",
   all: "All time",
+  custom: "Custom range",
 };
 
 const getCutoffDate = (range: TimeRange): Date | null => {
@@ -56,6 +61,12 @@ const Stats = () => {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"real" | "test">("real");
   const [range, setRange] = useState<TimeRange>("30d");
+  const [customFrom, setCustomFrom] = useState<Date | undefined>();
+  const [customTo, setCustomTo] = useState<Date | undefined>();
+
+  const activeRangeLabel = range === "custom" && customFrom && customTo
+    ? `${format(customFrom, "MMM dd")} – ${format(customTo, "MMM dd")}`
+    : rangeLabel[range];
 
   useEffect(() => { loadStats(); }, []);
 
@@ -73,10 +84,17 @@ const Stats = () => {
     const cutoff = getCutoffDate(range);
     return data.filter((m) => {
       const matchView = view === "test" ? m.is_test : !m.is_test;
-      const matchRange = cutoff ? isAfter(parseISO(m.created_at), cutoff) : true;
+      const parsed = parseISO(m.created_at);
+      let matchRange: boolean;
+      if (range === "custom") {
+        matchRange = (!customFrom || isAfter(parsed, startOfDay(customFrom))) &&
+                     (!customTo || isBefore(parsed, endOfDay(customTo)));
+      } else {
+        matchRange = cutoff ? isAfter(parsed, cutoff) : true;
+      }
       return matchView && matchRange;
     });
-  }, [data, view, range]);
+  }, [data, view, range, customFrom, customTo]);
 
   const stats = useMemo(() => {
     const total = filtered.length;
@@ -213,8 +231,36 @@ const Stats = () => {
               <TabsTrigger value="30d">30 days</TabsTrigger>
               <TabsTrigger value="90d">90 days</TabsTrigger>
               <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="custom">Custom</TabsTrigger>
             </TabsList>
           </Tabs>
+          {range === "custom" && (
+            <div className="flex items-center gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !customFrom && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
+                    {customFrom ? format(customFrom, "MMM dd, yyyy") : "From"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={customFrom} onSelect={setCustomFrom} initialFocus className="p-3 pointer-events-auto" />
+                </PopoverContent>
+              </Popover>
+              <span className="text-sm text-muted-foreground">–</span>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !customTo && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
+                    {customTo ? format(customTo, "MMM dd, yyyy") : "To"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={customTo} onSelect={setCustomTo} disabled={(date) => customFrom ? isBefore(date, customFrom) : false} initialFocus className="p-3 pointer-events-auto" />
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
         </div>
 
         {/* Summary Cards */}
@@ -260,7 +306,7 @@ const Stats = () => {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Conversation Volume</CardTitle>
-            <CardDescription>Daily conversations over {rangeLabel[range].toLowerCase()}</CardDescription>
+            <CardDescription>Daily conversations over {activeRangeLabel.toLowerCase()}</CardDescription>
           </CardHeader>
           <CardContent>
             {volumeData.length === 0 ? (
