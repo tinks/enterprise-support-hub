@@ -517,6 +517,7 @@ async function createIntercomTicket(opts: {
             thread_ts: threadTs,
             text: replyText,
             blocks,
+            ...BOT_IDENTITY,
           }),
         });
 
