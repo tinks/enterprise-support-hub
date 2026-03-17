@@ -228,6 +228,7 @@ Deno.serve(async (req) => {
             thread_ts: mapping.slack_thread_ts,
             text: closedText,
             blocks: [{ type: "section", text: { type: "mrkdwn", text: closedText } }],
+            ...BOT_IDENTITY,
           }),
         });
         const closeData = await closeRes.json();
