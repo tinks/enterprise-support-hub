@@ -37,11 +37,9 @@ const Conversations = () => {
   const [userNames, setUserNames] = useState<NameMap>({});
   const [channelNames, setChannelNames] = useState<NameMap>({});
 
-  const loadLookups = async () => {
-    const [usersRes, channelsRes] = await Promise.all([
-      supabase.functions.invoke("list-slack-users"),
-      supabase.functions.invoke("list-slack-channels"),
-    ]);
+  const loadLookups = async (rows: ConversationMapping[]) => {
+    // Only fetch users — channels are resolved via a lighter lookup
+    const usersRes = await supabase.functions.invoke("list-slack-users");
 
     if (usersRes.data?.users) {
       const map: NameMap = {};
@@ -51,10 +49,15 @@ const Conversations = () => {
       setUserNames(map);
     }
 
+    // Resolve channel names for only the IDs we actually need
+    const uniqueChannelIds = [...new Set(rows.map((r) => r.slack_channel_id))];
+    const channelsRes = await supabase.functions.invoke("list-slack-channels");
     if (channelsRes.data?.channels) {
       const map: NameMap = {};
       for (const c of channelsRes.data.channels) {
-        map[c.id] = c.name;
+        if (uniqueChannelIds.includes(c.id)) {
+          map[c.id] = c.name;
+        }
       }
       setChannelNames(map);
     }
@@ -67,13 +70,14 @@ const Conversations = () => {
       .select("*")
       .order("created_at", { ascending: false })
       .limit(50);
-    if (data) setMappings(data as unknown as ConversationMapping[]);
+    const rows = (data ?? []) as unknown as ConversationMapping[];
+    setMappings(rows);
     setLoading(false);
+    return rows;
   };
 
   useEffect(() => {
-    loadData();
-    loadLookups();
+    loadData().then((rows) => loadLookups(rows));
   }, []);
 
   return (
@@ -88,7 +92,7 @@ const Conversations = () => {
                   Slack thread ↔ Intercom conversation mappings
                 </CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={() => { loadData(); loadLookups(); }} disabled={loading}>
+              <Button variant="outline" size="sm" onClick={() => { loadData().then((rows) => loadLookups(rows)); }} disabled={loading}>
                 <RefreshCw className={`mr-1 h-3 w-3 ${loading ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
