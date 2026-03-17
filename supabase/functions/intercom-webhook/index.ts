@@ -267,7 +267,19 @@ Deno.serve(async (req) => {
 
     if (conversationParts && conversationParts.length > 0) {
       const lastPart = conversationParts[conversationParts.length - 1];
-      replyText = (lastPart.body || "")
+      const rawBody = lastPart.body || "";
+
+      // Extract inline <img> URLs before stripping HTML
+      const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+      let imgMatch: RegExpExecArray | null;
+      while ((imgMatch = imgRegex.exec(rawBody)) !== null) {
+        const imgUrl = imgMatch[1];
+        if (imgUrl && !imgUrl.startsWith("data:")) {
+          attachments.push({ url: imgUrl, name: "inline-image", content_type: "image/png" });
+        }
+      }
+
+      replyText = rawBody
         .replace(/<br\s*\/?>/gi, "\n")
         .replace(/<\/p>/gi, "\n\n")
         .replace(/<\/li>/gi, "\n")
