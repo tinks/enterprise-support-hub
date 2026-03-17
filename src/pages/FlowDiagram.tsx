@@ -186,7 +186,7 @@ function buildNodes(
           "Appends feedback buttons to last chunk",
         ],
         message:
-          "[AI reply text...]\n\n[ 👍 This resolved my issue ]  [ 👎 Escalate to human ]",
+          "[AI reply text...]\n\n[ 👍 This resolved my issue ]  [ 👎 Escalate to human ]\n\n_To continue chatting with Sam, please send a reply in the thread_",
         botIdentity: ASK_LOVABLE,
         accent: "blue",
         wide: true,
