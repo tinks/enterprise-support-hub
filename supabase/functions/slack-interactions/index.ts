@@ -353,6 +353,7 @@ async function createIntercomTicket(opts: {
         channel: channelId,
         thread_ts: threadTs,
         text: `🔧 *Debug:* Intercom Conversation ID: \`${conversationId}\``,
+        ...BOT_IDENTITY,
       }),
     });
   }
