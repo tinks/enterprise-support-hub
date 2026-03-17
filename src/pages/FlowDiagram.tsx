@@ -184,6 +184,7 @@ function buildNodes(
           "Removes old feedback buttons from thread",
           "Posts reply (split at 2900 chars)",
           "Forwards Intercom attachments + inline images (deduped) to Slack",
+          "Detects incident.io action → fetches live status from status.lovable.dev and posts status block with subscribe link",
           "Detects escalation keywords in AI reply → if Sam routes to humans, buttons are omitted and status set to escalated",
           "Otherwise appends feedback buttons to last chunk",
         ],
