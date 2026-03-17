@@ -713,6 +713,7 @@ Deno.serve(async (req) => {
                 thread_ts: threadTs,
                 text: detailText,
                 blocks: [{ type: "section", text: { type: "mrkdwn", text: detailText } }],
+                ...BOT_IDENTITY,
               }),
             });
           }
