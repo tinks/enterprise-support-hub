@@ -85,17 +85,8 @@ const Index = () => {
 
   const loadData = async () => {
     setLoading(true);
-    const [settingsRes, mappingsRes] = await Promise.all([
-      supabase.from("settings").select("*").limit(1).single(),
-      supabase
-        .from("conversation_mappings")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(50),
-    ]);
-
+    const settingsRes = await supabase.from("settings").select("*").limit(1).single();
     if (settingsRes.data) setSettings(settingsRes.data as unknown as SettingsData);
-    if (mappingsRes.data) setMappings(mappingsRes.data as unknown as ConversationMapping[]);
     setLoading(false);
   };
 
