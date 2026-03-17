@@ -900,6 +900,7 @@ Deno.serve(async (req) => {
     // ===== "Add Details" button — open modal =====
     if (actionId === "add_details") {
       const [channelId, threadTs] = (action.value || "").split("|");
+      const promptMsgTs = getPromptMessageTs();
 
       const triggerId = payload.trigger_id;
 
@@ -915,7 +916,7 @@ Deno.serve(async (req) => {
           view: {
             type: "modal",
             callback_id: "add_details_modal",
-            private_metadata: JSON.stringify({ channelId, threadTs }),
+            private_metadata: JSON.stringify({ channelId, threadTs, promptMessageTs: promptMsgTs }),
             title: { type: "plain_text", text: "Add Details" },
             submit: { type: "plain_text", text: "Submit" },
             notify_on_close: true,
@@ -948,10 +949,10 @@ Deno.serve(async (req) => {
         }),
       });
 
-      // Delete prompt message in background (not time-sensitive)
-      const bgDelete = deletePromptMessage(channelId);
+      // Update prompt message to remove buttons (not time-sensitive)
+      const bgUpdate = updatePromptToProcessing(channelId);
       if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
-        EdgeRuntime.waitUntil(bgDelete);
+        EdgeRuntime.waitUntil(bgUpdate);
       }
 
       return new Response("", { status: 200 });
