@@ -861,8 +861,8 @@ Deno.serve(async (req) => {
           });
 
         } else if (actionId === "feedback_negative") {
-          const negSettings = await getSettings(supabase);
-          if (negSettings.intercom_inbox_id && negSettings.intercom_assignee_id) {
+          if (!cachedSettings) cachedSettings = await getSettings(supabase);
+          if (cachedSettings.intercom_inbox_id && cachedSettings.intercom_assignee_id) {
             await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
               method: "POST",
               headers: {
@@ -873,12 +873,12 @@ Deno.serve(async (req) => {
               body: JSON.stringify({
                 message_type: "assignment",
                 type: "team",
-                assignee_id: negSettings.intercom_inbox_id,
-                admin_id: negSettings.intercom_assignee_id,
+                assignee_id: cachedSettings.intercom_inbox_id,
+                admin_id: cachedSettings.intercom_assignee_id,
                 body: "",
               }),
             });
-            console.log(`Reassigned conversation ${conversationId} to team inbox ${negSettings.intercom_inbox_id}`);
+            console.log(`Reassigned conversation ${conversationId} to team inbox ${cachedSettings.intercom_inbox_id}`);
           }
 
           // Convert the existing conversation to a ticket
