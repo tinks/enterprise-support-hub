@@ -254,9 +254,11 @@ async function createIntercomTicket(opts: {
   const conversation = await convRes.json();
   const conversationId = conversation.conversation_id || conversation.id;
 
-  // Assign if configured
-  const settings = await getSettings(supabase);
-  if (settings.intercom_assignee_id) {
+    // Assign if configured — use cachedSettings if available, otherwise fetch
+    if (!cachedSettings) {
+      cachedSettings = await getSettings(supabase);
+    }
+    if (cachedSettings.intercom_assignee_id) {
     await fetch(
       `https://api.intercom.io/conversations/${conversationId}/parts`,
       {
