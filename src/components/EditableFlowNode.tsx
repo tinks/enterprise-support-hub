@@ -19,6 +19,9 @@ export type FlowNodeData = {
   botIdentity?: { name: string; avatarUrl: string };
   targetPosition?: "top" | "left" | "right" | "bottom";
   sourcePosition?: "top" | "left" | "right" | "bottom";
+  secondaryMessage?: string;
+  secondaryMessageKey?: string;
+  secondaryLabel?: string;
 };
 
 const accentBorder: Record<string, string> = {
@@ -42,24 +45,81 @@ const posMap: Record<string, Position> = {
   right: Position.Right,
 };
 
-export default function EditableFlowNode({ data }: { data: FlowNodeData }) {
-  const Icon = data.icon;
-  const accent = data.accent || "default";
+function EditableMessageBlock({
+  message,
+  messageKey,
+  onSave,
+  label,
+}: {
+  message: string;
+  messageKey?: string;
+  onSave?: (key: string, text: string) => void;
+  label?: string;
+}) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(data.message || "");
-  const isEditable = !!data.messageKey && !!data.onMessageSave;
+  const [draft, setDraft] = useState(message);
+  const isEditable = !!messageKey && !!onSave;
 
   const handleSave = () => {
-    if (data.messageKey && data.onMessageSave) {
-      data.onMessageSave(data.messageKey, draft);
-    }
+    if (messageKey && onSave) onSave(messageKey, draft);
     setEditing(false);
   };
 
   const handleCancel = () => {
-    setDraft(data.message || "");
+    setDraft(message);
     setEditing(false);
   };
+
+  return (
+    <div className="mt-2 group relative">
+      {label && (
+        <span className="text-[8px] font-semibold text-muted-foreground uppercase tracking-wide">{label}</span>
+      )}
+      {editing ? (
+        <div className="space-y-1.5">
+          <Textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className="font-mono text-[9px] leading-snug min-h-[60px] p-2 bg-muted/50 border-border resize-none"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && e.metaKey) handleSave();
+              if (e.key === "Escape") handleCancel();
+            }}
+          />
+          <div className="flex gap-1 justify-end">
+            <button
+              onClick={handleCancel}
+              className="rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground hover:bg-muted/80 flex items-center gap-0.5"
+            >
+              <X className="h-2.5 w-2.5" /> Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              className="rounded bg-primary px-1.5 py-0.5 text-[9px] text-primary-foreground hover:bg-primary/90 flex items-center gap-0.5"
+            >
+              <Check className="h-2.5 w-2.5" /> Save
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div
+          className={`rounded border border-border bg-muted/50 px-2 py-1.5 font-mono text-[9px] text-muted-foreground leading-snug ${isEditable ? "cursor-pointer hover:border-primary/50 hover:bg-muted/80 transition-colors" : ""}`}
+          onClick={isEditable ? () => setEditing(true) : undefined}
+        >
+          {message}
+          {isEditable && (
+            <Pencil className="h-3 w-3 absolute top-1 right-1 text-muted-foreground/0 group-hover:text-muted-foreground/60 transition-colors" />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function EditableFlowNode({ data }: { data: FlowNodeData }) {
+  const Icon = data.icon;
+  const accent = data.accent || "default";
 
   return (
     <>
@@ -109,45 +169,21 @@ export default function EditableFlowNode({ data }: { data: FlowNodeData }) {
                   <span className="rounded bg-muted px-1 py-px text-[8px] font-medium text-muted-foreground leading-none">APP</span>
                 </div>
               )}
-              {editing ? (
-                <div className="space-y-1.5">
-                  <Textarea
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    className="font-mono text-[9px] leading-snug min-h-[60px] p-2 bg-muted/50 border-border resize-none"
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && e.metaKey) handleSave();
-                      if (e.key === "Escape") handleCancel();
-                    }}
-                  />
-                  <div className="flex gap-1 justify-end">
-                    <button
-                      onClick={handleCancel}
-                      className="rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground hover:bg-muted/80 flex items-center gap-0.5"
-                    >
-                      <X className="h-2.5 w-2.5" /> Cancel
-                    </button>
-                    <button
-                      onClick={handleSave}
-                      className="rounded bg-primary px-1.5 py-0.5 text-[9px] text-primary-foreground hover:bg-primary/90 flex items-center gap-0.5"
-                    >
-                      <Check className="h-2.5 w-2.5" /> Save
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  className={`rounded border border-border bg-muted/50 px-2 py-1.5 font-mono text-[9px] text-muted-foreground leading-snug ${isEditable ? "cursor-pointer hover:border-primary/50 hover:bg-muted/80 transition-colors" : ""}`}
-                  onClick={isEditable ? () => setEditing(true) : undefined}
-                >
-                  {data.message}
-                  {isEditable && (
-                    <Pencil className="h-3 w-3 absolute top-1 right-1 text-muted-foreground/0 group-hover:text-muted-foreground/60 transition-colors" />
-                  )}
-                </div>
-              )}
+              <EditableMessageBlock
+                message={data.message}
+                messageKey={data.messageKey}
+                onSave={data.onMessageSave}
+              />
             </div>
+          )}
+
+          {data.secondaryMessage && (
+            <EditableMessageBlock
+              message={data.secondaryMessage}
+              messageKey={data.secondaryMessageKey}
+              onSave={data.onMessageSave}
+              label={data.secondaryLabel}
+            />
           )}
 
           {(data.reactions || data.status) && (

@@ -166,6 +166,9 @@ function buildNodes(
         status: "active",
         accent: "blue",
         wide: true,
+        secondaryMessage: msgs.internal_note,
+        secondaryMessageKey: "internal_note",
+        secondaryLabel: "Injected context (hidden from user)",
       },
     },
     {
