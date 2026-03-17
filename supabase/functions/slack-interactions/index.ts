@@ -14,8 +14,10 @@ const corsHeaders = {
 const SLACK_API_URL = "https://slack.com/api";
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 
-// Module-level cache for identity guard — survives across requests in the same isolate
+// Module-level caches — survive across requests in the same isolate
 let cachedBotUserId: string | null = null;
+// deno-lint-ignore no-explicit-any
+let cachedSettings: any = null;
 
 async function downloadAndUploadFiles(
   files: Array<{ url_private: string; name: string; mimetype: string; size?: number }>,
@@ -252,9 +254,11 @@ async function createIntercomTicket(opts: {
   const conversation = await convRes.json();
   const conversationId = conversation.conversation_id || conversation.id;
 
-  // Assign if configured
-  const settings = await getSettings(supabase);
-  if (settings.intercom_assignee_id) {
+    // Assign if configured — use cachedSettings if available, otherwise fetch
+    if (!cachedSettings) {
+      cachedSettings = await getSettings(supabase);
+    }
+    if (cachedSettings.intercom_assignee_id) {
     await fetch(
       `https://api.intercom.io/conversations/${conversationId}/parts`,
       {
@@ -263,8 +267,8 @@ async function createIntercomTicket(opts: {
         body: JSON.stringify({
           message_type: "assignment",
           type: "admin",
-          assignee_id: settings.intercom_assignee_id,
-          admin_id: settings.intercom_assignee_id,
+          assignee_id: cachedSettings.intercom_assignee_id,
+          admin_id: cachedSettings.intercom_assignee_id,
         }),
       }
     );
@@ -313,7 +317,7 @@ async function createIntercomTicket(opts: {
   console.log(`Created Intercom conversation ${conversationId} for mapping ${mappingId}`);
 
   // If testing mode is enabled, post debug message with Intercom conversation ID
-  if (settings.testing_mode) {
+  if (cachedSettings?.testing_mode) {
     await fetch(`${SLACK_API_URL}/chat.postMessage`, {
       method: "POST",
       headers: {
@@ -434,9 +438,25 @@ Deno.serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   try {
-    // Identity guard: verify token matches expected bot (cached per isolate)
-    const guardSettings = await getSettings(supabase);
-    const expectedBotId = guardSettings.slack_bot_user_id;
+    // 1. Read body + verify signature FIRST (cheap, no network calls)
+    const rawBody = await req.text();
+    const slackSignature = req.headers.get("x-slack-signature");
+    const slackTimestamp = req.headers.get("x-slack-request-timestamp");
+
+    const isValid = await verifySlackSignature(rawBody, slackSignature, slackTimestamp, SLACK_SIGNING_SECRET);
+    if (!isValid) {
+      console.error("Invalid Slack interaction signature");
+      return new Response(JSON.stringify({ error: "Invalid signature" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 2. Identity guard (cached per isolate — no DB or network on warm requests)
+    if (!cachedSettings) {
+      cachedSettings = await getSettings(supabase);
+    }
+    const expectedBotId = cachedSettings.slack_bot_user_id;
     if (expectedBotId) {
       if (!cachedBotUserId) {
         const authCheck = await fetch("https://slack.com/api/auth.test", {
@@ -459,21 +479,6 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-    }
-
-    const rawBody = await req.text();
-
-    // Verify Slack signature
-    const slackSignature = req.headers.get("x-slack-signature");
-    const slackTimestamp = req.headers.get("x-slack-request-timestamp");
-
-    const isValid = await verifySlackSignature(rawBody, slackSignature, slackTimestamp, SLACK_SIGNING_SECRET);
-    if (!isValid) {
-      console.error("Invalid Slack interaction signature");
-      return new Response(JSON.stringify({ error: "Invalid signature" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
     }
 
     const params = new URLSearchParams(rawBody);
@@ -838,8 +843,8 @@ Deno.serve(async (req) => {
           });
 
           // Close conversation without reassigning — keep current admin
-          const closeSettings = await getSettings(supabase);
-          const adminId = closeSettings.intercom_assignee_id || "8430778";
+          if (!cachedSettings) cachedSettings = await getSettings(supabase);
+          const adminId = cachedSettings.intercom_assignee_id || "8430778";
           await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
             method: "POST",
             headers: {
@@ -856,8 +861,8 @@ Deno.serve(async (req) => {
           });
 
         } else if (actionId === "feedback_negative") {
-          const negSettings = await getSettings(supabase);
-          if (negSettings.intercom_inbox_id && negSettings.intercom_assignee_id) {
+          if (!cachedSettings) cachedSettings = await getSettings(supabase);
+          if (cachedSettings.intercom_inbox_id && cachedSettings.intercom_assignee_id) {
             await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
               method: "POST",
               headers: {
@@ -868,12 +873,12 @@ Deno.serve(async (req) => {
               body: JSON.stringify({
                 message_type: "assignment",
                 type: "team",
-                assignee_id: negSettings.intercom_inbox_id,
-                admin_id: negSettings.intercom_assignee_id,
+                assignee_id: cachedSettings.intercom_inbox_id,
+                admin_id: cachedSettings.intercom_assignee_id,
                 body: "",
               }),
             });
-            console.log(`Reassigned conversation ${conversationId} to team inbox ${negSettings.intercom_inbox_id}`);
+            console.log(`Reassigned conversation ${conversationId} to team inbox ${cachedSettings.intercom_inbox_id}`);
           }
 
           // Convert the existing conversation to a ticket
