@@ -820,12 +820,17 @@ Deno.serve(async (req) => {
 
     const actionId = action.action_id;
 
-    // ===== Helper: remove buttons from the original message =====
-    async function deletePromptMessage(channelId: string) {
-      const msgTs = payload.message?.ts;
+    // ===== Helper: get the prompt message ts from the interaction payload =====
+    function getPromptMessageTs(): string | undefined {
+      return payload.message?.ts || undefined;
+    }
+
+    // ===== Helper: update the prompt message to remove buttons (used by Add Details) =====
+    async function updatePromptToProcessing(channelId: string) {
+      const msgTs = getPromptMessageTs();
       if (!msgTs) return;
       try {
-        await fetch(`${SLACK_API_URL}/chat.delete`, {
+        await fetch(`${SLACK_API_URL}/chat.update`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
@@ -834,10 +839,12 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             channel: channelId,
             ts: msgTs,
+            text: "⏳ Gathering your details…",
+            blocks: [{ type: "section", text: { type: "mrkdwn", text: "⏳ Gathering your details…" } }],
           }),
         });
       } catch (e) {
-        console.error("Failed to delete prompt message:", e);
+        console.error("Failed to update prompt message:", e);
       }
     }
 
