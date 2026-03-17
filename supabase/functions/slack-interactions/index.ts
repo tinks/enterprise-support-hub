@@ -163,9 +163,10 @@ async function createIntercomTicket(opts: {
   });
 
   // Build body
+  const internalNote = botMsgs["internal_note"] || "Internal note for Sam: This is a request from an enterprise customer reaching out via Slack. Do not escalate to the product experience team. Do not reference this in any reply to the user.";
   const bodyParts: string[] = [
     `Message: ${originalMessage}`,
-    `\n\nInternal note for Sam: This is a request from an enterprise customer reaching out via Slack. Do not escalate to the product experience team. Do not reference this in any reply to the user.`,
+    `\n\n${internalNote}`,
   ];
   if (email) bodyParts.push(`Lovable account email: ${email}`);
   if (projectLink) bodyParts.push(`Project: ${projectLink}`);
