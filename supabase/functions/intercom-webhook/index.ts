@@ -368,6 +368,12 @@ Deno.serve(async (req) => {
               elements: [
                 {
                   type: "button",
+                  text: { type: "plain_text", text: "👍 This resolved my issue", emoji: true },
+                  action_id: "feedback_positive",
+                  value: String(conversationId),
+                },
+                {
+                  type: "button",
                   text: { type: "plain_text", text: "📡 Subscribe to status updates", emoji: true },
                   url: STATUS_PAGE_URL,
                   action_id: "incident_io_subscribe",
@@ -566,6 +572,12 @@ Deno.serve(async (req) => {
           blocks.push({
             type: "context",
             elements: [{ type: "mrkdwn", text: "_Sam has routed this to the Enterprise Support Team_" }],
+          });
+        } else if (hasIncidentIoAction) {
+          // incident.io action detected — skip buttons here, they'll go in the status block
+          blocks.push({
+            type: "context",
+            elements: [{ type: "mrkdwn", text: "_To continue chatting with Sam, please send a reply in the thread_" }],
           });
         } else {
           // Normal reply — show feedback buttons
