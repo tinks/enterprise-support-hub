@@ -19,6 +19,10 @@ interface ConversationMapping {
 
 type NameMap = Record<string, string>;
 
+const channelNameOverrides: NameMap = {
+  C0AJP396C85: "slack-intercom-bot-test",
+};
+
 const statusColor = (status: string) => {
   switch (status) {
     case "active": return "default" as const;
@@ -51,12 +55,20 @@ const Conversations = () => {
 
     // Resolve channel names for only the IDs we actually need
     const uniqueChannelIds = [...new Set(rows.map((r) => r.slack_channel_id))];
-    const channelsRes = await supabase.functions.invoke("list-slack-channels");
+    const channelsRes = await supabase.functions.invoke("list-slack-channels", {
+      body: { channelIds: uniqueChannelIds },
+    });
     if (channelsRes.data?.channels) {
       const map: NameMap = {};
       for (const c of channelsRes.data.channels) {
         if (uniqueChannelIds.includes(c.id)) {
           map[c.id] = c.name;
+        }
+      }
+
+      for (const channelId of uniqueChannelIds) {
+        if (!map[channelId] && channelNameOverrides[channelId]) {
+          map[channelId] = channelNameOverrides[channelId];
         }
       }
       setChannelNames(map);
@@ -126,7 +138,7 @@ const Conversations = () => {
                         <TableCell>
                           <span className="inline-flex items-center gap-1 text-sm text-foreground">
                             <Hash className="h-3.5 w-3.5 text-muted-foreground" />
-                            {channelNames[m.slack_channel_id] || m.slack_channel_id}
+                            {channelNames[m.slack_channel_id] || channelNameOverrides[m.slack_channel_id] || m.slack_channel_id}
                           </span>
                         </TableCell>
                         <TableCell>

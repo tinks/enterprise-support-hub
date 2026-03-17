@@ -5,6 +5,7 @@ const corsHeaders = {
 };
 
 const SLACK_API_URL = "https://slack.com/api";
+const SLACK_GATEWAY_URL = "https://connector-gateway.lovable.dev/slack/api";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -20,12 +21,25 @@ Deno.serve(async (req) => {
   }
 
   try {
+    let requestBody: unknown = {};
+    try {
+      requestBody = await req.json();
+    } catch {
+      requestBody = {};
+    }
+
+    const channelIds = Array.isArray((requestBody as { channelIds?: unknown[] })?.channelIds)
+      ? [...new Set((requestBody as { channelIds: unknown[] }).channelIds.filter((id): id is string => typeof id === "string" && id.length > 0))]
+      : [];
+    const channelIdSet = channelIds.length > 0 ? new Set(channelIds) : null;
+
     const allChannels: { id: string; name: string; is_member: boolean; num_members: number }[] = [];
     let cursor = "";
+    let channelTypes = "public_channel,private_channel";
 
     do {
       const params = new URLSearchParams({
-        types: "public_channel",
+        types: channelTypes,
         exclude_archived: "true",
         limit: "200",
       });
@@ -39,10 +53,22 @@ Deno.serve(async (req) => {
 
       const data = await res.json();
       if (!data.ok) {
+        if (data.error === "missing_scope" && channelTypes.includes("private_channel")) {
+          // Some workspaces don't grant private-channel scopes to the bot.
+          // Retry gracefully with public channels only instead of failing.
+          channelTypes = "public_channel";
+          cursor = "";
+          allChannels.length = 0;
+          continue;
+        }
         throw new Error(`Slack API error: ${data.error}`);
       }
 
       for (const ch of data.channels || []) {
+        if (channelIdSet && !channelIdSet.has(ch.id)) {
+          continue;
+        }
+
         allChannels.push({
           id: ch.id,
           name: ch.name,
@@ -51,8 +77,55 @@ Deno.serve(async (req) => {
         });
       }
 
+      if (channelIdSet && allChannels.length >= channelIdSet.size) {
+        break;
+      }
+
       cursor = data.response_metadata?.next_cursor || "";
     } while (cursor);
+
+    if (channelIdSet) {
+      const unresolvedIds = [...channelIdSet].filter((id) => !allChannels.some((ch) => ch.id === id));
+
+      if (unresolvedIds.length > 0) {
+        const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+        const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY");
+
+        if (LOVABLE_API_KEY && SLACK_API_KEY) {
+          const fallbackChannels = await Promise.all(
+            unresolvedIds.map(async (channelId) => {
+              const res = await fetch(`${SLACK_GATEWAY_URL}/conversations.info`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${LOVABLE_API_KEY}`,
+                  "X-Connection-Api-Key": SLACK_API_KEY,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ channel: channelId }),
+              });
+
+              const data = await res.json();
+              if (!res.ok || !data?.ok || !data.channel) {
+                return null;
+              }
+
+              return {
+                id: data.channel.id,
+                name: data.channel.name,
+                is_member: data.channel.is_member ?? false,
+                num_members: data.channel.num_members ?? 0,
+              };
+            }),
+          );
+
+          for (const channel of fallbackChannels) {
+            if (channel) {
+              allChannels.push(channel);
+            }
+          }
+        }
+      }
+    }
 
     allChannels.sort((a, b) => a.name.localeCompare(b.name));
 
