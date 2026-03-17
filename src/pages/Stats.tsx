@@ -3,13 +3,17 @@ import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity } from "lucide-react";
+import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon } from "lucide-react";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell,
   LineChart, Line, AreaChart, Area,
 } from "recharts";
-import { format, parseISO, subDays, subMonths, startOfDay, isAfter, differenceInDays } from "date-fns";
+import { format, parseISO, subDays, subMonths, startOfDay, endOfDay, isAfter, isBefore, differenceInDays } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface Mapping {
   status: string;
