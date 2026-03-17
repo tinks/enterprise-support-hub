@@ -567,6 +567,12 @@ Deno.serve(async (req) => {
             type: "context",
             elements: [{ type: "mrkdwn", text: "_Sam has routed this to the Enterprise Support Team_" }],
           });
+        } else if (hasIncidentIoAction) {
+          // incident.io action detected — skip buttons here, they'll go in the status block
+          blocks.push({
+            type: "context",
+            elements: [{ type: "mrkdwn", text: "_To continue chatting with Sam, please send a reply in the thread_" }],
+          });
         } else {
           // Normal reply — show feedback buttons
           const actionElements: Record<string, unknown>[] = [
