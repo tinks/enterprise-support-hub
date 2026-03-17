@@ -38,6 +38,7 @@ const rangeLabel: Record<TimeRange, string> = {
   "30d": "Last 30 days",
   "90d": "Last 90 days",
   all: "All time",
+  custom: "Custom range",
 };
 
 const getCutoffDate = (range: TimeRange): Date | null => {
