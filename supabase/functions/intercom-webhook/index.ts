@@ -474,7 +474,6 @@ Deno.serve(async (req) => {
             text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
             action_id: "feedback_negative",
             value: conversationId,
-            style: "danger",
           });
         }
 
