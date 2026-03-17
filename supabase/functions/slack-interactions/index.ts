@@ -367,6 +367,160 @@ async function createIntercomTicket(opts: {
   } catch (notifyErr) {
     console.error("Failed to send group DM notification:", notifyErr);
   }
+
+  // ===== Poll for Sam's initial reply and relay to Slack =====
+  // The Intercom webhook often doesn't fire for AI agent (Fin/Sam) replies,
+  // so we proactively poll the conversation for new parts after creation.
+  try {
+    const POLL_DELAYS = [10_000, 20_000, 30_000, 60_000]; // 10s, 20s, 30s, 60s
+    for (const delay of POLL_DELAYS) {
+      await new Promise((r) => setTimeout(r, delay));
+
+      // Check if the mapping is still active (not already resolved/escalated by another path)
+      const { data: currentMapping } = await supabase
+        .from("conversation_mappings")
+        .select("status, last_intercom_part_id")
+        .eq("id", mappingId)
+        .single();
+      if (!currentMapping || currentMapping.status === "resolved") {
+        console.log(`Poll: mapping ${mappingId} status=${currentMapping?.status}, stopping poll`);
+        break;
+      }
+
+      // Fetch conversation parts from Intercom
+      const partsRes = await fetch(
+        `https://api.intercom.io/conversations/${conversationId}`,
+        { headers: intercomHeaders }
+      );
+      if (!partsRes.ok) {
+        console.error(`Poll: failed to fetch conversation ${conversationId}: ${partsRes.status}`);
+        continue;
+      }
+      const convData = await partsRes.json();
+      const parts = convData.conversation_parts?.conversation_parts || [];
+
+      // Find admin/bot parts that haven't been relayed yet
+      const unrelayedParts = parts.filter((p: { part_type: string; author?: { type: string }; id?: string; body?: string }) => {
+        if (!p.body) return false;
+        if (p.author?.type !== "admin" && p.author?.type !== "bot") return false;
+        // Skip if already relayed
+        if (currentMapping.last_intercom_part_id && p.id && String(p.id) <= currentMapping.last_intercom_part_id) return false;
+        return true;
+      });
+
+      if (unrelayedParts.length === 0) {
+        console.log(`Poll: no unrelayed parts yet for ${conversationId} (attempt after ${delay / 1000}s)`);
+        continue;
+      }
+
+      // Relay each unrelayed part to Slack
+      for (const part of unrelayedParts) {
+        const rawBody = part.body || "";
+        let replyText = rawBody
+          .replace(/<br\s*\/?>/gi, "\n")
+          .replace(/<\/p>/gi, "\n\n")
+          .replace(/<\/li>/gi, "\n")
+          .replace(/<li[^>]*>/gi, "• ")
+          .replace(/<\/?(ul|ol)[^>]*>/gi, "\n")
+          .replace(/<[^>]*>/g, "")
+          .replace(/\n{3,}/g, "\n\n")
+          .trim();
+
+        // Strip AI footers
+        replyText = replyText
+          .replace(/\n*This message was.*$/is, "")
+          .replace(/\n*(Best|Regards|Thanks|Cheers|Kind regards|Warm regards|All the best),?\n+\w+\s*$/i, "")
+          .replace(/\n*(Best|Regards|Thanks|Cheers|Kind regards|Warm regards|All the best),?\s*$/i, "")
+          .trim();
+
+        if (!replyText) continue;
+
+        // Detect escalation keywords
+        const escalationKeywords = /\b(escalat|routing|transfer|hand(ing|ed)?\s*(this\s+)?(over|off)|human\s+(agent|support|team)|enterprise\s+(support\s+)?team|team\s+member|connect(ing)?\s+you\s+with|pass(ing)?\s+(this\s+)?(to|along))\b/i;
+        const isAiEscalation = escalationKeywords.test(replyText);
+
+        const now = new Date();
+        const timestamp = now.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+        const headerLabel = `🤖 *Sam* replied · ${timestamp}`;
+
+        const blocks: Record<string, unknown>[] = [
+          { type: "divider" },
+          { type: "context", elements: [{ type: "mrkdwn", text: headerLabel }] },
+          { type: "section", text: { type: "mrkdwn", text: replyText } },
+        ];
+
+        if (isAiEscalation) {
+          blocks.push({
+            type: "context",
+            elements: [{ type: "mrkdwn", text: "_Sam has routed this to the Enterprise Support Team_" }],
+          });
+        } else {
+          blocks.push({
+            type: "actions",
+            elements: [
+              {
+                type: "button",
+                text: { type: "plain_text", text: "👍 This resolved my issue", emoji: true },
+                action_id: "feedback_positive",
+                value: String(conversationId),
+              },
+              {
+                type: "button",
+                text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
+                action_id: "feedback_negative",
+                value: String(conversationId),
+              },
+            ],
+          });
+          blocks.push({
+            type: "context",
+            elements: [{ type: "mrkdwn", text: "_To continue chatting with Sam, please send a reply in the thread_" }],
+          });
+        }
+
+        await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${slackBotToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            channel: channelId,
+            thread_ts: threadTs,
+            text: replyText,
+            blocks,
+          }),
+        });
+
+        console.log(`Poll: relayed Sam's reply (part ${part.id}) to Slack for conversation ${conversationId}`);
+
+        // Update dedup marker
+        if (part.id) {
+          await supabase
+            .from("conversation_mappings")
+            .update({ last_intercom_part_id: String(part.id) })
+            .eq("id", mappingId);
+        }
+
+        // Handle auto-escalation status
+        if (isAiEscalation) {
+          await removeReaction(slackBotToken, channelId, threadTs, "eyes");
+          await addReaction(slackBotToken, channelId, threadTs, "hourglass_flowing_sand");
+          await supabase
+            .from("conversation_mappings")
+            .update({ status: "escalated" })
+            .eq("id", mappingId);
+          console.log(`Poll: Sam auto-escalated conversation ${conversationId}`);
+        }
+      }
+
+      // Successfully relayed — stop polling
+      console.log(`Poll: successfully relayed reply for ${conversationId}, stopping poll`);
+      break;
+    }
+  } catch (pollErr) {
+    console.error(`Poll: error checking for Sam's reply on ${conversationId}:`, pollErr);
+  }
 }
 
 async function collectThreadFiles(
