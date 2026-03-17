@@ -707,9 +707,9 @@ Deno.serve(async (req) => {
     if (actionId === "add_details") {
       const [channelId, threadTs] = (action.value || "").split("|");
 
-      await deletePromptMessage(channelId);
       const triggerId = payload.trigger_id;
 
+      // Open modal first (time-sensitive — Slack trigger_id expires in 3s)
       await fetch(`${SLACK_API_URL}/views.open`, {
         method: "POST",
         headers: {
@@ -753,6 +753,12 @@ Deno.serve(async (req) => {
           },
         }),
       });
+
+      // Delete prompt message in background (not time-sensitive)
+      const bgDelete = deletePromptMessage(channelId);
+      if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+        EdgeRuntime.waitUntil(bgDelete);
+      }
 
       return new Response("", { status: 200 });
     }

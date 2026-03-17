@@ -258,6 +258,27 @@ Deno.serve(async (req) => {
     }
 
     const conversationParts = body.data?.item?.conversation_parts?.conversation_parts;
+
+    // Deduplication: check the last conversation part's ID to prevent duplicate posts
+    if (conversationParts && conversationParts.length > 0) {
+      const lastPart = conversationParts[conversationParts.length - 1];
+      const partId = lastPart.id ? String(lastPart.id) : null;
+      if (partId) {
+        const { data: dedupeResult } = await supabase
+          .from("conversation_mappings")
+          .update({ last_intercom_part_id: partId })
+          .eq("id", mapping.id)
+          .or(`last_intercom_part_id.is.null,last_intercom_part_id.neq.${partId}`)
+          .select("id");
+        if (!dedupeResult || dedupeResult.length === 0) {
+          console.log(`Duplicate detected: part ${partId} already processed for mapping ${mapping.id}, skipping`);
+          return new Response(JSON.stringify({ ok: true, message: "Duplicate skipped" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+    }
+
     let replyText = "";
     let adminName = "";
     let isHumanAdmin = false;
