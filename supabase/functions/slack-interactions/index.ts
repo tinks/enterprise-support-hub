@@ -400,11 +400,12 @@ async function createIntercomTicket(opts: {
       const parts = convData.conversation_parts?.conversation_parts || [];
 
       // Find admin/bot parts that haven't been relayed yet
+      const lastRelayedId = currentMapping.last_intercom_part_id;
       const unrelayedParts = parts.filter((p: { part_type: string; author?: { type: string }; id?: string; body?: string }) => {
         if (!p.body) return false;
         if (p.author?.type !== "admin" && p.author?.type !== "bot") return false;
-        // Skip if already relayed
-        if (currentMapping.last_intercom_part_id && p.id && String(p.id) <= currentMapping.last_intercom_part_id) return false;
+        // Skip if already relayed (compare as numbers for reliable ordering)
+        if (lastRelayedId && p.id && Number(p.id) <= Number(lastRelayedId)) return false;
         return true;
       });
 
@@ -494,12 +495,19 @@ async function createIntercomTicket(opts: {
 
         console.log(`Poll: relayed Sam's reply (part ${part.id}) to Slack for conversation ${conversationId}`);
 
-        // Update dedup marker
+        // Atomic dedup marker — only update if we're still the first writer
         if (part.id) {
-          await supabase
+          const partIdStr = String(part.id);
+          const { data: dedupeResult } = await supabase
             .from("conversation_mappings")
-            .update({ last_intercom_part_id: String(part.id) })
-            .eq("id", mappingId);
+            .update({ last_intercom_part_id: partIdStr })
+            .eq("id", mappingId)
+            .or(`last_intercom_part_id.is.null,last_intercom_part_id.lt.${partIdStr}`)
+            .select("id");
+          if (!dedupeResult || dedupeResult.length === 0) {
+            console.log(`Poll: part ${part.id} was already relayed by webhook, skipping remaining`);
+            break;
+          }
         }
 
         // Handle auto-escalation status
