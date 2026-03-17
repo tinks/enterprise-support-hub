@@ -118,9 +118,10 @@ function buildNodes(
         edgeFunction: "slack-interactions",
         details: [
           "Modal opened first (time-sensitive trigger_id)",
-          "Prompt message deleted in background via waitUntil",
+          "Prompt message updated to '⏳ Gathering your details…' via chat.update (single bot avatar)",
+          "promptMessageTs stored in modal private_metadata",
           "Modal: Email + Project Link fields",
-          "On submit → creates Intercom ticket",
+          "On submit → updates prompt message to ack via chat.update, creates Intercom ticket",
         ],
         message: "📧 user@example.com\n🔗 https://lovable.dev/projects/...",
         accent: "blue",
