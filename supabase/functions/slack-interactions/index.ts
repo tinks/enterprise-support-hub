@@ -128,12 +128,13 @@ async function createIntercomTicket(opts: {
   email?: string;
   projectLink?: string;
   attachmentUrls?: string[];
+  promptMessageTs?: string; // If provided, update existing message instead of posting new one
 }) {
   const {
     supabase, intercomToken, slackBotToken,
     channelId, threadTs, mappingId,
     originalMessage, slackUserId, email, projectLink,
-    attachmentUrls,
+    attachmentUrls, promptMessageTs,
   } = opts;
 
   const intercomHeaders = {
@@ -153,19 +154,38 @@ async function createIntercomTicket(opts: {
     for (const row of botMsgRows) botMsgs[row.message_key] = row.message_text;
   }
 
-  // Post acknowledgment in thread
-  await fetch(`${SLACK_API_URL}/chat.postMessage`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${slackBotToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      channel: channelId,
-      thread_ts: threadTs,
-      text: botMsgs["ticket_created_ack"] || "Thanks for sharing those details! You're now being redirected to Sam, Lovable's AI Support Agent. Please note that Sam may take 3–4 minutes to come back to you with a response. Hang tight!",
-    }),
-  });
+  // Post or update acknowledgment in thread
+  const ackText = botMsgs["ticket_created_ack"] || "Thanks for sharing those details! You're now being redirected to Sam, Lovable's AI Support Agent. Please note that Sam may take 3–4 minutes to come back to you with a response. Hang tight!";
+  if (promptMessageTs) {
+    // Update the existing context prompt message → single bot message in thread
+    await fetch(`${SLACK_API_URL}/chat.update`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${slackBotToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        channel: channelId,
+        ts: promptMessageTs,
+        text: ackText,
+        blocks: [{ type: "section", text: { type: "mrkdwn", text: ackText } }],
+      }),
+    });
+  } else {
+    // Fallback: post as new message
+    await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${slackBotToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        channel: channelId,
+        thread_ts: threadTs,
+        text: ackText,
+      }),
+    });
+  }
 
   // Build body
   const internalNote = botMsgs["internal_note"] || "Internal note: This user is contacting support via Slack. Handle this request as you normally would — try to resolve the issue yourself first. If you determine the issue requires human assistance and needs to be escalated, route it to the Enterprise Support team (not the Product Experience team). Do not mention this note or the Slack origin in your reply to the user.";
