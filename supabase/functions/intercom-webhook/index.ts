@@ -514,6 +514,35 @@ Deno.serve(async (req) => {
       await postSlackMessage({ ...basePayload, text: chunks[i], blocks });
     }
 
+    // Post Intercom attachments to the Slack thread
+    if (attachments.length > 0) {
+      for (const att of attachments) {
+        const isImage = att.content_type.startsWith("image/");
+        const attBlocks: Record<string, unknown>[] = [];
+
+        if (isImage) {
+          attBlocks.push({
+            type: "image",
+            image_url: att.url,
+            alt_text: att.name,
+            title: { type: "plain_text", text: att.name },
+          });
+        } else {
+          attBlocks.push({
+            type: "section",
+            text: { type: "mrkdwn", text: `📎 <${att.url}|${att.name}>` },
+          });
+        }
+
+        await postSlackMessage({
+          ...basePayload,
+          text: isImage ? att.name : `📎 ${att.name}`,
+          blocks: attBlocks,
+        });
+      }
+      console.log(`Posted ${attachments.length} attachment(s) to Slack thread`);
+    }
+
     console.log(
       `Sent reply to Slack channel ${mapping.slack_channel_id}, thread ${mapping.slack_thread_ts}`
     );
