@@ -164,8 +164,8 @@ async function createIntercomTicket(opts: {
 
   // Build body
   const bodyParts: string[] = [
-    `This is a request from an enterprise customer reaching out via Slack. Do not escalate to the product experience team.\n`,
     `Message: ${originalMessage}`,
+    `\n\nInternal note for Sam: This is a request from an enterprise customer reaching out via Slack. Do not escalate to the product experience team. Do not reference this in any reply to the user.`,
   ];
   if (email) bodyParts.push(`Lovable account email: ${email}`);
   if (projectLink) bodyParts.push(`Project: ${projectLink}`);
