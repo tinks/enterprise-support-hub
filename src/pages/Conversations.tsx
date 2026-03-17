@@ -65,6 +65,12 @@ const Conversations = () => {
           map[c.id] = c.name;
         }
       }
+
+      for (const channelId of uniqueChannelIds) {
+        if (!map[channelId] && channelNameOverrides[channelId]) {
+          map[channelId] = channelNameOverrides[channelId];
+        }
+      }
       setChannelNames(map);
     }
   };
