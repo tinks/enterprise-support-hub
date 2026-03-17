@@ -128,12 +128,13 @@ async function createIntercomTicket(opts: {
   email?: string;
   projectLink?: string;
   attachmentUrls?: string[];
+  promptMessageTs?: string; // If provided, update existing message instead of posting new one
 }) {
   const {
     supabase, intercomToken, slackBotToken,
     channelId, threadTs, mappingId,
     originalMessage, slackUserId, email, projectLink,
-    attachmentUrls,
+    attachmentUrls, promptMessageTs,
   } = opts;
 
   const intercomHeaders = {
@@ -153,19 +154,38 @@ async function createIntercomTicket(opts: {
     for (const row of botMsgRows) botMsgs[row.message_key] = row.message_text;
   }
 
-  // Post acknowledgment in thread
-  await fetch(`${SLACK_API_URL}/chat.postMessage`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${slackBotToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      channel: channelId,
-      thread_ts: threadTs,
-      text: botMsgs["ticket_created_ack"] || "Thanks for sharing those details! You're now being redirected to Sam, Lovable's AI Support Agent. Please note that Sam may take 3–4 minutes to come back to you with a response. Hang tight!",
-    }),
-  });
+  // Post or update acknowledgment in thread
+  const ackText = botMsgs["ticket_created_ack"] || "Thanks for sharing those details! You're now being redirected to Sam, Lovable's AI Support Agent. Please note that Sam may take 3–4 minutes to come back to you with a response. Hang tight!";
+  if (promptMessageTs) {
+    // Update the existing context prompt message → single bot message in thread
+    await fetch(`${SLACK_API_URL}/chat.update`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${slackBotToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        channel: channelId,
+        ts: promptMessageTs,
+        text: ackText,
+        blocks: [{ type: "section", text: { type: "mrkdwn", text: ackText } }],
+      }),
+    });
+  } else {
+    // Fallback: post as new message
+    await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${slackBotToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        channel: channelId,
+        thread_ts: threadTs,
+        text: ackText,
+      }),
+    });
+  }
 
   // Build body
   const internalNote = botMsgs["internal_note"] || "Internal note: This user is contacting support via Slack. Handle this request as you normally would — try to resolve the issue yourself first. If you determine the issue requires human assistance and needs to be escalated, route it to the Enterprise Support team (not the Product Experience team). Do not mention this note or the Slack origin in your reply to the user.";
@@ -659,7 +679,7 @@ Deno.serve(async (req) => {
     // ===== Handle view_submission (modal) =====
     if (payload.type === "view_submission") {
       const metadata = JSON.parse(payload.view.private_metadata || "{}");
-      const { channelId, threadTs } = metadata;
+      const { channelId, threadTs, promptMessageTs: storedPromptTs } = metadata;
 
       const values = payload.view.state?.values || {};
       const email = values.email_block?.email_input?.value || "";
@@ -718,6 +738,7 @@ Deno.serve(async (req) => {
               email: email || undefined,
               projectLink: projectLink || undefined,
               attachmentUrls: attachmentUrls.length ? attachmentUrls : undefined,
+              promptMessageTs: storedPromptTs,
             });
           }
         } catch (e) {
@@ -736,7 +757,7 @@ Deno.serve(async (req) => {
     // ===== Handle view_closed (modal cancelled) =====
     if (payload.type === "view_closed") {
       const meta = JSON.parse(payload.view?.private_metadata || "{}");
-      const { channelId, threadTs } = meta;
+      const { channelId, threadTs, promptMessageTs: storedPromptTs } = meta;
       if (channelId && threadTs) {
         const bgWork = (async () => {
           try {
@@ -772,6 +793,7 @@ Deno.serve(async (req) => {
               originalMessage: updated.original_message_text,
               slackUserId: updated.slack_user_id,
               attachmentUrls: attachmentUrls.length ? attachmentUrls : undefined,
+              promptMessageTs: storedPromptTs,
             });
           } catch (err) {
             console.error("view_closed background error:", err);
@@ -800,12 +822,17 @@ Deno.serve(async (req) => {
 
     const actionId = action.action_id;
 
-    // ===== Helper: remove buttons from the original message =====
-    async function deletePromptMessage(channelId: string) {
-      const msgTs = payload.message?.ts;
+    // ===== Helper: get the prompt message ts from the interaction payload =====
+    function getPromptMessageTs(): string | undefined {
+      return payload.message?.ts || undefined;
+    }
+
+    // ===== Helper: update the prompt message to remove buttons (used by Add Details) =====
+    async function updatePromptToProcessing(channelId: string) {
+      const msgTs = getPromptMessageTs();
       if (!msgTs) return;
       try {
-        await fetch(`${SLACK_API_URL}/chat.delete`, {
+        await fetch(`${SLACK_API_URL}/chat.update`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
@@ -814,22 +841,23 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             channel: channelId,
             ts: msgTs,
+            text: "⏳ Gathering your details…",
+            blocks: [{ type: "section", text: { type: "mrkdwn", text: "⏳ Gathering your details…" } }],
           }),
         });
       } catch (e) {
-        console.error("Failed to delete prompt message:", e);
+        console.error("Failed to update prompt message:", e);
       }
     }
 
     // ===== "Proceed" button =====
     if (actionId === "proceed_without_context") {
       const [channelId, threadTs] = (action.value || "").split("|");
+      const promptMsgTs = getPromptMessageTs();
 
       // Fire-and-forget: do heavy work in background so Slack gets the 200 within 3s
       const bgWork = (async () => {
         try {
-          await deletePromptMessage(channelId);
-
           // Atomic guard: only proceed if status is still awaiting_context
           const { data: updated } = await supabase
             .from("conversation_mappings")
@@ -857,6 +885,7 @@ Deno.serve(async (req) => {
               originalMessage: updated.original_message_text,
               slackUserId: updated.slack_user_id,
               attachmentUrls: attachmentUrls.length ? attachmentUrls : undefined,
+              promptMessageTs: promptMsgTs,
             });
           }
         } catch (e) {
@@ -873,6 +902,7 @@ Deno.serve(async (req) => {
     // ===== "Add Details" button — open modal =====
     if (actionId === "add_details") {
       const [channelId, threadTs] = (action.value || "").split("|");
+      const promptMsgTs = getPromptMessageTs();
 
       const triggerId = payload.trigger_id;
 
@@ -888,7 +918,7 @@ Deno.serve(async (req) => {
           view: {
             type: "modal",
             callback_id: "add_details_modal",
-            private_metadata: JSON.stringify({ channelId, threadTs }),
+            private_metadata: JSON.stringify({ channelId, threadTs, promptMessageTs: promptMsgTs }),
             title: { type: "plain_text", text: "Add Details" },
             submit: { type: "plain_text", text: "Submit" },
             notify_on_close: true,
@@ -921,10 +951,10 @@ Deno.serve(async (req) => {
         }),
       });
 
-      // Delete prompt message in background (not time-sensitive)
-      const bgDelete = deletePromptMessage(channelId);
+      // Update prompt message to remove buttons (not time-sensitive)
+      const bgUpdate = updatePromptToProcessing(channelId);
       if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
-        EdgeRuntime.waitUntil(bgDelete);
+        EdgeRuntime.waitUntil(bgUpdate);
       }
 
       return new Response("", { status: 200 });
