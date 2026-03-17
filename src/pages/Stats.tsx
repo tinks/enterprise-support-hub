@@ -61,6 +61,12 @@ const Stats = () => {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"real" | "test">("real");
   const [range, setRange] = useState<TimeRange>("30d");
+  const [customFrom, setCustomFrom] = useState<Date | undefined>();
+  const [customTo, setCustomTo] = useState<Date | undefined>();
+
+  const activeRangeLabel = range === "custom" && customFrom && customTo
+    ? `${format(customFrom, "MMM dd")} – ${format(customTo, "MMM dd")}`
+    : rangeLabel[range];
 
   useEffect(() => { loadStats(); }, []);
 
