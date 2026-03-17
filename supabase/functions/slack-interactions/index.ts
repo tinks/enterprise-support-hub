@@ -757,7 +757,7 @@ Deno.serve(async (req) => {
     // ===== Handle view_closed (modal cancelled) =====
     if (payload.type === "view_closed") {
       const meta = JSON.parse(payload.view?.private_metadata || "{}");
-      const { channelId, threadTs } = meta;
+      const { channelId, threadTs, promptMessageTs: storedPromptTs } = meta;
       if (channelId && threadTs) {
         const bgWork = (async () => {
           try {
@@ -793,6 +793,7 @@ Deno.serve(async (req) => {
               originalMessage: updated.original_message_text,
               slackUserId: updated.slack_user_id,
               attachmentUrls: attachmentUrls.length ? attachmentUrls : undefined,
+              promptMessageTs: storedPromptTs,
             });
           } catch (err) {
             console.error("view_closed background error:", err);
