@@ -550,7 +550,7 @@ Deno.serve(async (req) => {
                 .select("id");
 
               if (updated && updated.length > 0) {
-                const replyForwardedText = botMessages["reply_forwarded"] || "Thanks for your reply! We will be back to you in just a few minutes.";
+                const replyForwardedText = botMessages["reply_forwarded"] || "Thank you for your reply. We will get back to you as soon as possible.";
                 await fetch(`${SLACK_API_URL}/chat.postMessage`, {
                   method: "POST",
                   headers: slackHeaders,
