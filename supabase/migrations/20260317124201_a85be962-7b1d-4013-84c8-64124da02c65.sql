@@ -1,0 +1,1 @@
+UPDATE bot_messages SET message_text = 'This issue has been marked as resolved. If you need any further assistance, please feel free to start a new Slack thread. Continuing the conversation here will not notify our Support Team.', updated_at = now() WHERE message_key = 'conversation_closed';
