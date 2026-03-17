@@ -385,6 +385,11 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Replace incident.io app references with the actual status page URL
+    replyText = replyText
+      .replace(/\[App:\s*incident\.io\]/gi, "https://status.lovable.dev/")
+      .replace(/\(App:\s*incident\.io\)/gi, "https://status.lovable.dev/");
+
     // Strip sign-off lines and AI attribution (handle various Intercom AI footers)
     replyText = replyText
       .replace(/\n*This message was.*$/is, "")
