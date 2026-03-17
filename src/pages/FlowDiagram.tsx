@@ -137,7 +137,7 @@ function buildNodes(
         icon: MousePointerClick,
         edgeFunction: "slack-interactions",
         details: [
-          "Prompt message deleted",
+          "Updates prompt message to ack text via chat.update (single bot avatar)",
           "Creates Intercom ticket immediately",
         ],
         accent: "blue",
