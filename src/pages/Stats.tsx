@@ -84,10 +84,17 @@ const Stats = () => {
     const cutoff = getCutoffDate(range);
     return data.filter((m) => {
       const matchView = view === "test" ? m.is_test : !m.is_test;
-      const matchRange = cutoff ? isAfter(parseISO(m.created_at), cutoff) : true;
+      const parsed = parseISO(m.created_at);
+      let matchRange: boolean;
+      if (range === "custom") {
+        matchRange = (!customFrom || isAfter(parsed, startOfDay(customFrom))) &&
+                     (!customTo || isBefore(parsed, endOfDay(customTo)));
+      } else {
+        matchRange = cutoff ? isAfter(parsed, cutoff) : true;
+      }
       return matchView && matchRange;
     });
-  }, [data, view, range]);
+  }, [data, view, range, customFrom, customTo]);
 
   const stats = useMemo(() => {
     const total = filtered.length;
