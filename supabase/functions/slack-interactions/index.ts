@@ -400,11 +400,12 @@ async function createIntercomTicket(opts: {
       const parts = convData.conversation_parts?.conversation_parts || [];
 
       // Find admin/bot parts that haven't been relayed yet
+      const lastRelayedId = currentMapping.last_intercom_part_id;
       const unrelayedParts = parts.filter((p: { part_type: string; author?: { type: string }; id?: string; body?: string }) => {
         if (!p.body) return false;
         if (p.author?.type !== "admin" && p.author?.type !== "bot") return false;
-        // Skip if already relayed
-        if (currentMapping.last_intercom_part_id && p.id && String(p.id) <= currentMapping.last_intercom_part_id) return false;
+        // Skip if already relayed (compare as numbers for reliable ordering)
+        if (lastRelayedId && p.id && Number(p.id) <= Number(lastRelayedId)) return false;
         return true;
       });
 
