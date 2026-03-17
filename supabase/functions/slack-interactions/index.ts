@@ -738,6 +738,7 @@ Deno.serve(async (req) => {
               email: email || undefined,
               projectLink: projectLink || undefined,
               attachmentUrls: attachmentUrls.length ? attachmentUrls : undefined,
+              promptMessageTs: storedPromptTs,
             });
           }
         } catch (e) {
