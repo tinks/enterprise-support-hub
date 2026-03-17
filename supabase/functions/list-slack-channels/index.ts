@@ -34,10 +34,11 @@ Deno.serve(async (req) => {
 
     const allChannels: { id: string; name: string; is_member: boolean; num_members: number }[] = [];
     let cursor = "";
+    let channelTypes = "public_channel,private_channel";
 
     do {
       const params = new URLSearchParams({
-        types: "public_channel,private_channel",
+        types: channelTypes,
         exclude_archived: "true",
         limit: "200",
       });
@@ -51,6 +52,14 @@ Deno.serve(async (req) => {
 
       const data = await res.json();
       if (!data.ok) {
+        if (data.error === "missing_scope" && channelTypes.includes("private_channel")) {
+          // Some workspaces don't grant private-channel scopes to the bot.
+          // Retry gracefully with public channels only instead of failing.
+          channelTypes = "public_channel";
+          cursor = "";
+          allChannels.length = 0;
+          continue;
+        }
         throw new Error(`Slack API error: ${data.error}`);
       }
 
