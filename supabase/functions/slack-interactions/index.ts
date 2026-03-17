@@ -317,7 +317,7 @@ async function createIntercomTicket(opts: {
   console.log(`Created Intercom conversation ${conversationId} for mapping ${mappingId}`);
 
   // If testing mode is enabled, post debug message with Intercom conversation ID
-  if (settings.testing_mode) {
+  if (cachedSettings?.testing_mode) {
     await fetch(`${SLACK_API_URL}/chat.postMessage`, {
       method: "POST",
       headers: {
