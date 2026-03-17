@@ -1,0 +1,1 @@
+UPDATE bot_messages SET message_text = 'Thank you for your reply. We will get back to you as soon as possible.', updated_at = now() WHERE message_key = 'reply_forwarded';
