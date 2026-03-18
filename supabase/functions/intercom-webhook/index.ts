@@ -379,7 +379,7 @@ Deno.serve(async (req) => {
     // Detect incident.io action — check if the reply body references incident.io or the status page
     const STATUS_PAGE_URL = "https://status.lovable.dev";
     const incidentIoPattern = /incident\.io|status\.lovable\.dev|we have an incident|status page/i;
-    const hasIncidentIoAction = incidentIoPattern.test(replyText) || (conversationParts?.[conversationParts.length - 1]?.body && incidentIoPattern.test(conversationParts[conversationParts.length - 1].body));
+    const hasIncidentIoAction = incidentIoPattern.test(replyText) || incidentIoPattern.test((lastCommentPart.body as string) || "");
 
     let incidentStatusBlock: Record<string, unknown>[] = [];
     if (hasIncidentIoAction) {
