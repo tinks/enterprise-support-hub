@@ -267,7 +267,36 @@ Deno.serve(async (req) => {
       console.log(`Processing reply for resolved conversation ${conversationId} — no reply was ever posted`);
     }
 
-    const conversationParts = body.data?.item?.conversation_parts?.conversation_parts;
+    let conversationParts = body.data?.item?.conversation_parts?.conversation_parts;
+
+    // Always prefer fresh conversation parts from Intercom API for reply topics.
+    // Webhook payloads can be partial/stale, which can make us pick an older comment
+    // and incorrectly skip customer-facing replies.
+    if (INTERCOM_API_TOKEN) {
+      try {
+        const convoRes = await fetch(`https://api.intercom.io/conversations/${conversationId}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+            Accept: "application/json",
+            "Intercom-Version": "2.11",
+          },
+        });
+
+        if (convoRes.ok) {
+          const convoData = await convoRes.json();
+          const apiParts = convoData?.conversation_parts?.conversation_parts;
+          if (Array.isArray(apiParts) && apiParts.length > 0) {
+            conversationParts = apiParts;
+            console.log(`Loaded ${apiParts.length} conversation parts from Intercom API for ${conversationId}`);
+          }
+        } else {
+          console.warn(`Failed to fetch conversation ${conversationId} from Intercom API: ${await convoRes.text()}`);
+        }
+      } catch (e) {
+        console.warn(`Error fetching conversation ${conversationId} from Intercom API:`, e);
+      }
+    }
 
     // Find the last public-facing comment part — skip notes, assignments, and system parts
     // IMPORTANT: We must identify the comment BEFORE setting the dedup marker,
@@ -290,20 +319,43 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Deduplication: atomic UPDATE on last_intercom_part_id — only set if null or lower
+    // Deduplication: atomic UPDATE on last_intercom_part_id — only set if null or different
     const partId = lastCommentPart.id ? String(lastCommentPart.id) : null;
     if (partId) {
-      const { data: dedupeResult } = await supabase
+      const { data: dedupeResult, error: dedupeError } = await supabase
         .from("conversation_mappings")
         .update({ last_intercom_part_id: partId })
         .eq("id", mapping.id)
-        .or(`last_intercom_part_id.is.null,last_intercom_part_id.lt.${partId}`)
+        .or(`last_intercom_part_id.is.null,last_intercom_part_id.neq.${partId}`)
         .select("id");
-      if (!dedupeResult || dedupeResult.length === 0) {
+
+      if (dedupeError) {
+        console.error(`Dedup update failed for mapping ${mapping.id}, part ${partId}:`, dedupeError);
+      }
+
+      if (!dedupeError && (!dedupeResult || dedupeResult.length === 0)) {
         console.log(`Duplicate detected: part ${partId} already processed for mapping ${mapping.id}, skipping`);
         return new Response(JSON.stringify({ ok: true, message: "Duplicate skipped" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+      }
+
+      if (dedupeError) {
+        // Defensive fallback: if marker already equals this part, skip; otherwise continue to avoid false drops.
+        const { data: markerRow } = await supabase
+          .from("conversation_mappings")
+          .select("last_intercom_part_id")
+          .eq("id", mapping.id)
+          .maybeSingle();
+
+        if (markerRow?.last_intercom_part_id === partId) {
+          console.log(`Duplicate detected after dedupe fallback: part ${partId} for mapping ${mapping.id}, skipping`);
+          return new Response(JSON.stringify({ ok: true, message: "Duplicate skipped" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        console.warn(`Proceeding despite dedupe update error for part ${partId} (marker differs)`);
       }
     }
 
