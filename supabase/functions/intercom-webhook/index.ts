@@ -336,7 +336,7 @@ Deno.serve(async (req) => {
         .replace(/<[^>]*>/g, "")
         .replace(/\n{3,}/g, "\n\n")
         .trim();
-      const author = lastPart.author;
+      const author = lastCommentPart.author as { type?: string; name?: string; id?: string } | undefined;
       const normalizedAuthorName = String(author?.name || "").trim().toLowerCase();
       const isKnownAiAgent = normalizedAuthorName === "sam" || normalizedAuthorName.includes("ask lovable");
 
@@ -347,8 +347,9 @@ Deno.serve(async (req) => {
       }
 
       // Extract explicit attachments from the conversation part
-      if (lastPart.attachments && Array.isArray(lastPart.attachments)) {
-        const explicit = lastPart.attachments
+      const partAttachments = lastCommentPart.attachments;
+      if (partAttachments && Array.isArray(partAttachments)) {
+        const explicit = partAttachments
           .filter((a: { url?: string }) => a.url)
           .map((a: { url: string; name?: string; content_type?: string }) => ({
             url: a.url,
