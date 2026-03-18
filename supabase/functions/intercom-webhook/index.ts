@@ -718,6 +718,16 @@ Deno.serve(async (req) => {
         .update({ status: "escalated" })
         .eq("id", mapping.id);
       console.log(`Sam auto-escalated conversation ${conversationId} — status set to escalated`);
+    } else if (isHumanAdmin && (mapping.status === "active" || mapping.status === "active_pending")) {
+      // Human admin replied while status was still active — transition to escalated
+      // so subsequent user replies get "reply forwarded" instead of "Sam is writing..."
+      await removeReaction(SLACK_BOT_TOKEN, mapping.slack_channel_id, mapping.slack_thread_ts, "eyes");
+      await addReaction(SLACK_BOT_TOKEN, mapping.slack_channel_id, mapping.slack_thread_ts, "hourglass_flowing_sand");
+      await supabase
+        .from("conversation_mappings")
+        .update({ status: "escalated" })
+        .eq("id", mapping.id);
+      console.log(`Human admin replied to conversation ${conversationId} — status set to escalated`);
     } else if (mapping.status === "active_pending") {
       // Reset pending status back so the next user reply can trigger a new notice
       await supabase
