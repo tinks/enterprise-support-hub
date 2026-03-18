@@ -196,6 +196,7 @@ function buildNodes(
           "Detects incident.io action → fetches live status from status.lovable.dev and posts status block with subscribe link",
           "Detects escalation keywords in AI reply → if Sam routes to humans, buttons are omitted and status set to escalated",
           "Filters out internal notes (part_type=note) so interim messages like 'Sam is working…' are never posted to Slack",
+          "Hides '👎 Escalate' button if status is already escalated or reply is from a human admin",
           "Otherwise appends feedback buttons to last chunk",
         ],
         message:
