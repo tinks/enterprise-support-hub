@@ -189,6 +189,7 @@ function buildNodes(
           "Atomic dedup: polling uses conditional UPDATE (last_intercom_part_id guard) — first writer wins, prevents duplicate posts when webhook fires concurrently",
           "Both polling and webhook skip internal notes (part_type=note) to prevent interim messages leaking to Slack",
           "Webhook fallback: intercom-webhook handles human admin replies + subsequent messages",
+          "Ask Lovable bot messages from both poll and webhook use lovable-logo.png for one consistent avatar",
           "Deduplicates by conversation part ID (atomic UPDATE with last_intercom_part_id guard)",
           "Removes old feedback buttons from thread",
           "Posts reply (split at 2900 chars)",
