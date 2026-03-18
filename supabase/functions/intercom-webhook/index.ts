@@ -255,12 +255,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Skip if conversation is already resolved (for reply topics)
-    if (mapping.status === "resolved") {
-      console.log(`Ignoring reply for ${conversationId} — status is already resolved`);
+    // Skip if conversation is already resolved — UNLESS no reply was ever posted
+    // (e.g. Sam merged/closed before the reply webhook arrived)
+    if (mapping.status === "resolved" && mapping.last_intercom_part_id !== null) {
+      console.log(`Ignoring reply for ${conversationId} — status is already resolved and a reply was previously posted`);
       return new Response(JSON.stringify({ ok: true, message: "Already closed" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+    if (mapping.status === "resolved" && mapping.last_intercom_part_id === null) {
+      console.log(`Processing reply for resolved conversation ${conversationId} — no reply was ever posted`);
     }
 
     const conversationParts = body.data?.item?.conversation_parts?.conversation_parts;
