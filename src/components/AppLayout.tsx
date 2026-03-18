@@ -1,5 +1,5 @@
 import { NavLink } from "@/components/NavLink";
-import { Settings, BarChart3, GitBranch, MessageSquare } from "lucide-react";
+import { Settings, BarChart3, GitBranch, MessageSquare, BookOpen } from "lucide-react";
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const linkClass = "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-accent";
@@ -24,6 +24,10 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           <NavLink to="/flow" className={linkClass} activeClassName={activeClass}>
             <GitBranch className="h-4 w-4" />
             Flow
+          </NavLink>
+          <NavLink to="/knowledge" className={linkClass} activeClassName={activeClass}>
+            <BookOpen className="h-4 w-4" />
+            Knowledge
           </NavLink>
         </div>
       </nav>
