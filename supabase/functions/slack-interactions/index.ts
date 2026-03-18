@@ -471,6 +471,9 @@ async function createIntercomTicket(opts: {
         const escalationKeywords = /\b(escalat|routing|transfer|hand(ing|ed)?\s*(this\s+)?(over|off)|human\s+(agent|support|team)|enterprise\s+(support\s+)?team|team\s+member|connect(ing)?\s+you\s+with|pass(ing)?\s+(this\s+)?(to|along))\b/i;
         const isAiEscalation = escalationKeywords.test(replyText);
 
+        // Detect duplicate ticket merge — Sam tells user they already have open tickets
+        const isDuplicateTicket = /^I can see you already have open tickets about/i.test(replyText);
+
         const now = new Date();
         const timestamp = now.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
         const headerLabel = `🤖 *Sam* replied · ${timestamp}`;
@@ -491,6 +494,9 @@ async function createIntercomTicket(opts: {
             type: "context",
             elements: [{ type: "mrkdwn", text: "_Sam has routed this to the Enterprise Support Team_" }],
           });
+        } else if (isDuplicateTicket) {
+          // No buttons for duplicate ticket merges — conversation continues in original ticket
+          console.log(`Poll: duplicate ticket detected for ${conversationId}, skipping buttons`);
         } else {
           const actionElements: Record<string, unknown>[] = [
             {
