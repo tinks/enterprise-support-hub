@@ -558,6 +558,7 @@ Deno.serve(async (req) => {
     const basePayload: Record<string, unknown> = {
       channel: mapping.slack_channel_id,
       thread_ts: mapping.slack_thread_ts,
+      ...BOT_IDENTITY,
     };
 
     // For human admin replies, fetch their avatar and override Slack identity
