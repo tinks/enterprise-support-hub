@@ -593,8 +593,14 @@ Deno.serve(async (req) => {
       const escalationKeywords = /\b(escalat|routing|transfer|hand(ing|ed)?\s*(this\s+)?(over|off)|human\s+(agent|support|team)|enterprise\s+(support\s+)?team|team\s+member|connect(ing)?\s+you\s+with|pass(ing)?\s+(this\s+)?(to|along))\b/i;
       const isAiEscalation = !isHumanAdmin && escalationKeywords.test(replyText);
 
+      // Detect interim "working/thinking" messages from Sam — no buttons for these
+      const workingPattern = /^(sam is (working|thinking|typing|processing)|working on (it|this|your)|let me (check|look|investigate)|one moment|hang tight|looking into)/i;
+      const isInterimMessage = !isHumanAdmin && workingPattern.test(replyText.replace(/^[*_~`]+/, "").trim());
+
       if (isLastChunk) {
-        if (isAiEscalation) {
+        if (isInterimMessage) {
+          // Interim processing message — no buttons, no "continue chatting" hint
+        } else if (isAiEscalation) {
           // Sam decided to route — no buttons, just a context note
           blocks.push({
             type: "context",
