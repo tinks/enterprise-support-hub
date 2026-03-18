@@ -409,8 +409,10 @@ async function createIntercomTicket(opts: {
         .select("status, last_intercom_part_id")
         .eq("id", mappingId)
         .single();
-      if (!currentMapping || currentMapping.status === "resolved") {
-        console.log(`Poll: mapping ${mappingId} status=${currentMapping?.status}, stopping poll`);
+      // Stop polling if resolved AND a reply was already posted.
+      // If resolved but no reply ever posted (e.g. merge/close race), keep polling to catch Sam's reply.
+      if (!currentMapping || (currentMapping.status === "resolved" && currentMapping.last_intercom_part_id !== null)) {
+        console.log(`Poll: mapping ${mappingId} status=${currentMapping?.status}, last_part=${currentMapping?.last_intercom_part_id}, stopping poll`);
         break;
       }
 
