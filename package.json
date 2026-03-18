@@ -46,7 +46,7 @@
     "@swc/core": "^1.15.18",
     "@swc/core-linux-x64-musl": "^1.15.18",
     "@tanstack/react-query": "^5.83.0",
-    "@vitejs/plugin-react": "^6.0.1",
+    "@vitejs/plugin-react": "^4.3.0",
     "@xyflow/react": "^12.10.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
