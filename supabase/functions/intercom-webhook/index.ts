@@ -510,8 +510,8 @@ Deno.serve(async (req) => {
 
     // For human admin replies, fetch their avatar and override Slack identity
     if (isHumanAdmin && adminName && INTERCOM_API_TOKEN) {
-      const lastPart = conversationParts[conversationParts.length - 1];
-      const adminId = lastPart.author?.id;
+      const adminAuthor = lastCommentPart.author as { id?: string } | undefined;
+      const adminId = adminAuthor?.id;
       let avatarUrl = "";
 
       // 1) Try Intercom admin avatar
