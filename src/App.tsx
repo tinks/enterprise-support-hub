@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import Stats from "./pages/Stats";
 import FlowDiagram from "./pages/FlowDiagram";
 import Conversations from "./pages/Conversations";
+import ProjectKnowledge from "./pages/ProjectKnowledge";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
           <Route path="/conversations" element={<Conversations />} />
           <Route path="/settings" element={<Index />} />
           <Route path="/flow" element={<FlowDiagram />} />
+          <Route path="/knowledge" element={<ProjectKnowledge />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
