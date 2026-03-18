@@ -481,29 +481,37 @@ async function createIntercomTicket(opts: {
           { type: "section", text: { type: "mrkdwn", text: replyText } },
         ];
 
+        // Check if the reply author is a human admin (not Sam/bot)
+        const authorName = part.author?.name || "";
+        const isHumanAdmin = part.author?.type === "admin" && authorName !== "Sam" && authorName !== "Ask Lovable";
+        const isEscalatedStatus = currentMapping.status === "escalated" || currentMapping.status === "escalated_pending";
+
         if (isAiEscalation) {
           blocks.push({
             type: "context",
             elements: [{ type: "mrkdwn", text: "_Sam has routed this to the Enterprise Support Team_" }],
           });
         } else {
-          blocks.push({
-            type: "actions",
-            elements: [
-              {
-                type: "button",
-                text: { type: "plain_text", text: "👍 This resolved my issue", emoji: true },
-                action_id: "feedback_positive",
-                value: String(conversationId),
-              },
-              {
-                type: "button",
-                text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
-                action_id: "feedback_negative",
-                value: String(conversationId),
-              },
-            ],
-          });
+          const actionElements: Record<string, unknown>[] = [
+            {
+              type: "button",
+              text: { type: "plain_text", text: "👍 This resolved my issue", emoji: true },
+              action_id: "feedback_positive",
+              value: String(conversationId),
+            },
+          ];
+
+          // Only show escalate button if not already escalated and not a human admin reply
+          if (!isEscalatedStatus && !isHumanAdmin) {
+            actionElements.push({
+              type: "button",
+              text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
+              action_id: "feedback_negative",
+              value: String(conversationId),
+            });
+          }
+
+          blocks.push({ type: "actions", elements: actionElements });
           blocks.push({
             type: "context",
             elements: [{ type: "mrkdwn", text: "_To continue chatting with Sam, please send a reply in the thread_" }],
