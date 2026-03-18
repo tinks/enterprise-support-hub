@@ -430,8 +430,8 @@ async function createIntercomTicket(opts: {
       const lastRelayedId = currentMapping.last_intercom_part_id;
       const unrelayedParts = parts.filter((p: { part_type: string; author?: { type: string }; id?: string; body?: string }) => {
         if (!p.body) return false;
-        // Skip internal notes (e.g. "Sam is working..." interim messages)
-        if (p.part_type === "note") return false;
+        // Only process public-facing comments — skip notes, assignments, and all other part types
+        if (p.part_type !== "comment") return false;
         if (p.author?.type !== "admin" && p.author?.type !== "bot") return false;
         // Skip if already relayed (compare as numbers for reliable ordering)
         if (lastRelayedId && p.id && Number(p.id) <= Number(lastRelayedId)) return false;

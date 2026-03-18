@@ -295,10 +295,10 @@ Deno.serve(async (req) => {
     if (conversationParts && conversationParts.length > 0) {
       const lastPart = conversationParts[conversationParts.length - 1];
 
-      // Skip internal notes (e.g. "Sam is working..." interim messages)
-      if (lastPart.part_type === "note") {
-        console.log(`Skipping internal note (part_type=note) for conversation ${conversationId}`);
-        return new Response(JSON.stringify({ ok: true, message: "Internal note skipped" }), {
+      // Only process public-facing comments — skip notes, assignments, and all other part types
+      if (lastPart.part_type !== "comment") {
+        console.log(`Skipping non-comment part (part_type=${lastPart.part_type}) for conversation ${conversationId}`);
+        return new Response(JSON.stringify({ ok: true, message: "Non-comment part skipped" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
