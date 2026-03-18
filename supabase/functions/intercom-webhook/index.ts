@@ -269,23 +269,41 @@ Deno.serve(async (req) => {
 
     const conversationParts = body.data?.item?.conversation_parts?.conversation_parts;
 
-    // Deduplication: check the last conversation part's ID to prevent duplicate posts
+    // Find the last public-facing comment part — skip notes, assignments, and system parts
+    // IMPORTANT: We must identify the comment BEFORE setting the dedup marker,
+    // otherwise non-comment parts can "consume" the dedup slot and prevent
+    // the actual comment from ever being processed.
+    let lastCommentPart: Record<string, unknown> | null = null;
     if (conversationParts && conversationParts.length > 0) {
-      const lastPart = conversationParts[conversationParts.length - 1];
-      const partId = lastPart.id ? String(lastPart.id) : null;
-      if (partId) {
-        const { data: dedupeResult } = await supabase
-          .from("conversation_mappings")
-          .update({ last_intercom_part_id: partId })
-          .eq("id", mapping.id)
-          .or(`last_intercom_part_id.is.null,last_intercom_part_id.neq.${partId}`)
-          .select("id");
-        if (!dedupeResult || dedupeResult.length === 0) {
-          console.log(`Duplicate detected: part ${partId} already processed for mapping ${mapping.id}, skipping`);
-          return new Response(JSON.stringify({ ok: true, message: "Duplicate skipped" }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+      for (let i = conversationParts.length - 1; i >= 0; i--) {
+        if (conversationParts[i].part_type === "comment" && conversationParts[i].body) {
+          lastCommentPart = conversationParts[i];
+          break;
         }
+      }
+    }
+
+    if (!lastCommentPart) {
+      console.log(`No comment part found in webhook payload for conversation ${conversationId}, skipping`);
+      return new Response(JSON.stringify({ ok: true, message: "No comment part" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Deduplication: atomic UPDATE on last_intercom_part_id — only set if null or lower
+    const partId = lastCommentPart.id ? String(lastCommentPart.id) : null;
+    if (partId) {
+      const { data: dedupeResult } = await supabase
+        .from("conversation_mappings")
+        .update({ last_intercom_part_id: partId })
+        .eq("id", mapping.id)
+        .or(`last_intercom_part_id.is.null,last_intercom_part_id.lt.${partId}`)
+        .select("id");
+      if (!dedupeResult || dedupeResult.length === 0) {
+        console.log(`Duplicate detected: part ${partId} already processed for mapping ${mapping.id}, skipping`);
+        return new Response(JSON.stringify({ ok: true, message: "Duplicate skipped" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
     }
 
@@ -293,21 +311,11 @@ Deno.serve(async (req) => {
     let adminName = "";
     let isHumanAdmin = false;
 
-    // Attachments from the last conversation part
+    // Attachments from the comment part
     let attachments: Array<{ url: string; name: string; content_type: string }> = [];
 
-    if (conversationParts && conversationParts.length > 0) {
-      const lastPart = conversationParts[conversationParts.length - 1];
-
-      // Only process public-facing comments — skip notes, assignments, and all other part types
-      if (lastPart.part_type !== "comment") {
-        console.log(`Skipping non-comment part (part_type=${lastPart.part_type}) for conversation ${conversationId}`);
-        return new Response(JSON.stringify({ ok: true, message: "Non-comment part skipped" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const rawBody = lastPart.body || "";
+    {
+      const rawBody = (lastCommentPart.body as string) || "";
 
       // Extract inline <img> URLs before stripping HTML
       const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
@@ -328,7 +336,7 @@ Deno.serve(async (req) => {
         .replace(/<[^>]*>/g, "")
         .replace(/\n{3,}/g, "\n\n")
         .trim();
-      const author = lastPart.author;
+      const author = lastCommentPart.author as { type?: string; name?: string; id?: string } | undefined;
       const normalizedAuthorName = String(author?.name || "").trim().toLowerCase();
       const isKnownAiAgent = normalizedAuthorName === "sam" || normalizedAuthorName.includes("ask lovable");
 
@@ -339,8 +347,9 @@ Deno.serve(async (req) => {
       }
 
       // Extract explicit attachments from the conversation part
-      if (lastPart.attachments && Array.isArray(lastPart.attachments)) {
-        const explicit = lastPart.attachments
+      const partAttachments = lastCommentPart.attachments;
+      if (partAttachments && Array.isArray(partAttachments)) {
+        const explicit = partAttachments
           .filter((a: { url?: string }) => a.url)
           .map((a: { url: string; name?: string; content_type?: string }) => ({
             url: a.url,
@@ -370,7 +379,7 @@ Deno.serve(async (req) => {
     // Detect incident.io action — check if the reply body references incident.io or the status page
     const STATUS_PAGE_URL = "https://status.lovable.dev";
     const incidentIoPattern = /incident\.io|status\.lovable\.dev|we have an incident|status page/i;
-    const hasIncidentIoAction = incidentIoPattern.test(replyText) || (conversationParts?.[conversationParts.length - 1]?.body && incidentIoPattern.test(conversationParts[conversationParts.length - 1].body));
+    const hasIncidentIoAction = incidentIoPattern.test(replyText) || incidentIoPattern.test((lastCommentPart.body as string) || "");
 
     let incidentStatusBlock: Record<string, unknown>[] = [];
     if (hasIncidentIoAction) {
@@ -501,8 +510,8 @@ Deno.serve(async (req) => {
 
     // For human admin replies, fetch their avatar and override Slack identity
     if (isHumanAdmin && adminName && INTERCOM_API_TOKEN) {
-      const lastPart = conversationParts[conversationParts.length - 1];
-      const adminId = lastPart.author?.id;
+      const adminAuthor = lastCommentPart.author as { id?: string } | undefined;
+      const adminId = adminAuthor?.id;
       let avatarUrl = "";
 
       // 1) Try Intercom admin avatar
