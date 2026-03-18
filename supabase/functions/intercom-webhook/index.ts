@@ -319,14 +319,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Deduplication: atomic UPDATE on last_intercom_part_id — only set if null or different
+    // Deduplication: monotonic atomic claim on last_intercom_part_id.
+    // Only newer part IDs are allowed to claim; stale or duplicate webhook deliveries are skipped.
     const partId = lastCommentPart.id ? String(lastCommentPart.id) : null;
     if (partId) {
       const { data: dedupeResult, error: dedupeError } = await supabase
         .from("conversation_mappings")
         .update({ last_intercom_part_id: partId })
         .eq("id", mapping.id)
-        .or(`last_intercom_part_id.is.null,last_intercom_part_id.neq.${partId}`)
+        .or(`last_intercom_part_id.is.null,last_intercom_part_id.lt.${partId}`)
         .select("id");
 
       if (dedupeError) {
@@ -334,22 +335,29 @@ Deno.serve(async (req) => {
       }
 
       if (!dedupeError && (!dedupeResult || dedupeResult.length === 0)) {
-        console.log(`Duplicate detected: part ${partId} already processed for mapping ${mapping.id}, skipping`);
+        console.log(`Duplicate/stale part detected: ${partId} for mapping ${mapping.id}, skipping`);
         return new Response(JSON.stringify({ ok: true, message: "Duplicate skipped" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
       if (dedupeError) {
-        // Defensive fallback: if marker already equals this part, skip; otherwise continue to avoid false drops.
+        // Defensive fallback: if marker is already this part OR a newer part, skip.
         const { data: markerRow } = await supabase
           .from("conversation_mappings")
           .select("last_intercom_part_id")
           .eq("id", mapping.id)
           .maybeSingle();
 
-        if (markerRow?.last_intercom_part_id === partId) {
-          console.log(`Duplicate detected after dedupe fallback: part ${partId} for mapping ${mapping.id}, skipping`);
+        const marker = markerRow?.last_intercom_part_id;
+        const markerIsNumeric = !!marker && /^\d+$/.test(marker);
+        const partIsNumeric = /^\d+$/.test(partId);
+        const markerAlreadyClaimed = marker
+          ? (markerIsNumeric && partIsNumeric ? BigInt(marker) >= BigInt(partId) : marker === partId)
+          : false;
+
+        if (markerAlreadyClaimed) {
+          console.log(`Duplicate/stale part detected after fallback: ${partId} for mapping ${mapping.id}, skipping`);
           return new Response(JSON.stringify({ ok: true, message: "Duplicate skipped" }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
