@@ -494,6 +494,9 @@ async function createIntercomTicket(opts: {
             type: "context",
             elements: [{ type: "mrkdwn", text: "_Sam has routed this to the Enterprise Support Team_" }],
           });
+        } else if (isDuplicateTicket) {
+          // No buttons for duplicate ticket merges — conversation continues in original ticket
+          console.log(`Poll: duplicate ticket detected for ${conversationId}, skipping buttons`);
         } else {
           const actionElements: Record<string, unknown>[] = [
             {
