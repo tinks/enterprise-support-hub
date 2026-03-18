@@ -363,3 +363,20 @@ All Intercom API calls use `Intercom-Version: 2.11`.
 - Bot message nodes are editable inline — changes save to `bot_messages` table and take effect immediately
 - Supports PNG export via `html-to-image`
 - **Rule:** Whenever logic changes are made, the Flow Diagram must be updated to stay in sync
+
+---
+
+## 18. Project Knowledge Document
+
+- Stored in `knowledge_documents` table with columns: `content` (current approved), `pending_content` (proposed changes), `pending_summary` (change description)
+- **CRITICAL RULE:** The AI agent must NEVER directly update the `content` column. Instead, it must write proposed changes to `pending_content` and a brief summary to `pending_summary`. The user reviews the diff in the Knowledge tab and clicks "Approve" or "Reject".
+- The Knowledge page (`/knowledge`) shows a rendered markdown preview, an edit mode for manual edits, and a diff-based review mode for pending agent changes
+- Manual edits by the user via the Edit mode save directly (no approval needed)
+- Pending changes are highlighted with an orange banner across the UI
+- The diff view uses LCS-based line comparison showing added (green) and removed (red) lines
+
+### Agent Workflow for Updating Knowledge
+1. Read current content: `SELECT content FROM knowledge_documents WHERE id = 'project-knowledge'`
+2. Write proposed changes: `UPDATE knowledge_documents SET pending_content = '...', pending_summary = '...', pending_at = now() WHERE id = 'project-knowledge'`
+3. Inform the user that changes are pending review in the Knowledge tab
+4. **DO NOT** update the `content` column directly

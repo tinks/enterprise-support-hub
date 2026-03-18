@@ -110,6 +110,33 @@ export type Database = {
         }
         Relationships: []
       }
+      knowledge_documents: {
+        Row: {
+          content: string
+          id: string
+          pending_at: string | null
+          pending_content: string | null
+          pending_summary: string | null
+          updated_at: string
+        }
+        Insert: {
+          content?: string
+          id?: string
+          pending_at?: string | null
+          pending_content?: string | null
+          pending_summary?: string | null
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          id?: string
+          pending_at?: string | null
+          pending_content?: string | null
+          pending_summary?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       settings: {
         Row: {
           created_at: string
