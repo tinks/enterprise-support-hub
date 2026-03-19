@@ -1055,7 +1055,7 @@ Deno.serve(async (req) => {
           .from("conversation_mappings")
           .update({ status: targetStatus })
           .eq("intercom_conversation_id", conversationId)
-          .in("status", ["active", "awaiting_context"])
+          .in("status", ["active", "awaiting_context", "escalated"])
           .select("id");
 
         if (!guardResult || guardResult.length === 0) {
