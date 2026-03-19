@@ -301,6 +301,7 @@ const Stats = () => {
               <SelectItem value="custom">Custom range</SelectItem>
             </SelectContent>
           </Select>
+          </div>
           {range === "custom" && (
             <div className="flex items-center gap-2">
               <Popover>
