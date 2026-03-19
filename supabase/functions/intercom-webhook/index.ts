@@ -680,8 +680,10 @@ Deno.serve(async (req) => {
       const workingPattern = /^(sam is (working|thinking|typing|processing)|working on (it|this|your)|let me (check|look|investigate)|one moment|hang tight|looking into)/i;
       const isInterimMessage = !isHumanAdmin && workingPattern.test(replyText.replace(/^[*_~`]+/, "").trim());
 
+      const isAlreadyResolved = mapping.status === "resolved";
+
       if (isLastChunk) {
-        if (isInterimMessage) {
+        if (isAlreadyResolved || isInterimMessage) {
           // Interim processing message — no buttons, no "continue chatting" hint
         } else if (isAiEscalation) {
           // Sam decided to route — no buttons, just a context note
