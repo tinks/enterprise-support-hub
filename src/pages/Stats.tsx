@@ -226,22 +226,15 @@ const Stats = () => {
 
   // Channel breakdown data
   const channelData = useMemo(() => {
-    const byChannel: Record<string, { channel: string; resolved: number; escalated: number; active: number; awaiting_context: number }> = {};
+    const byChannel: Record<string, { channel: string; total: number }> = {};
     filtered.forEach((m) => {
       const id = m.slack_channel_id;
       if (!id) return;
       const name = channelNames[id] || id;
-      if (!byChannel[id]) byChannel[id] = { channel: name, resolved: 0, escalated: 0, active: 0, awaiting_context: 0 };
-      if (m.status === "resolved") byChannel[id].resolved++;
-      else if (m.status === "escalated") byChannel[id].escalated++;
-      else if (m.status === "active") byChannel[id].active++;
-      else if (m.status === "awaiting_context") byChannel[id].awaiting_context++;
+      if (!byChannel[id]) byChannel[id] = { channel: name, total: 0 };
+      byChannel[id].total++;
     });
-    return Object.values(byChannel).sort((a, b) => {
-      const totalA = a.resolved + a.escalated + a.active + a.awaiting_context;
-      const totalB = b.resolved + b.escalated + b.active + b.awaiting_context;
-      return totalB - totalA;
-    });
+    return Object.values(byChannel).sort((a, b) => b.total - a.total);
   }, [filtered, channelNames]);
 
   // Peak day
