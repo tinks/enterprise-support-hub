@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell,
-  LineChart, Line, AreaChart, Area,
+  LineChart, Line, AreaChart, Area, LabelList,
 } from "recharts";
 import { format, parseISO, subDays, subMonths, startOfDay, endOfDay, isAfter, isBefore, differenceInDays } from "date-fns";
 import { Button } from "@/components/ui/button";
