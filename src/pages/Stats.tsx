@@ -335,61 +335,59 @@ const Stats = () => {
               </Popover>
             </div>
           )}
+          {allChannelIds.length > 1 && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">Channels:</span>
+              <Popover open={channelPopoverOpen} onOpenChange={setChannelPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-9 min-w-[180px] justify-between text-sm font-normal">
+                    {selectedChannels.length === allChannelIds.length
+                      ? "All channels"
+                      : selectedChannels.length === 0
+                        ? "None selected"
+                        : selectedChannels.length === 1
+                          ? `#${channelNames[selectedChannels[0]] || selectedChannels[0]}`
+                          : `${selectedChannels.length} channels`}
+                    <ChevronDown className="ml-2 h-3.5 w-3.5 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[240px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search channels…" />
+                    <CommandList>
+                      <CommandEmpty>No channels found.</CommandEmpty>
+                      {allChannelIds
+                        .map((id) => ({ id, name: channelNames[id] || id }))
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                        .map((ch) => (
+                          <CommandItem
+                            key={ch.id}
+                            value={ch.name}
+                            onSelect={() => toggleChannel(ch.id)}
+                            className="flex items-center gap-2"
+                          >
+                            <Checkbox
+                              checked={selectedChannels.includes(ch.id)}
+                              className="pointer-events-none"
+                            />
+                            <span>#{ch.name}</span>
+                          </CommandItem>
+                        ))}
+                    </CommandList>
+                  </Command>
+                  <div className="border-t p-1.5 flex gap-1">
+                    <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => setSelectedChannels([...allChannelIds])}>
+                      Select all
+                    </Button>
+                    <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => setSelectedChannels([])}>
+                      Clear
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
         </div>
-
-        {/* Channel filter dropdown */}
-        {allChannelIds.length > 1 && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-muted-foreground">Channels:</span>
-            <Popover open={channelPopoverOpen} onOpenChange={setChannelPopoverOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 min-w-[180px] justify-between text-sm font-normal">
-                  {selectedChannels.length === allChannelIds.length
-                    ? "All channels"
-                    : selectedChannels.length === 0
-                      ? "None selected"
-                      : selectedChannels.length === 1
-                        ? `#${channelNames[selectedChannels[0]] || selectedChannels[0]}`
-                        : `${selectedChannels.length} channels`}
-                  <ChevronDown className="ml-2 h-3.5 w-3.5 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[240px] p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Search channels…" />
-                  <CommandList>
-                    <CommandEmpty>No channels found.</CommandEmpty>
-                    {allChannelIds
-                      .map((id) => ({ id, name: channelNames[id] || id }))
-                      .sort((a, b) => a.name.localeCompare(b.name))
-                      .map((ch) => (
-                        <CommandItem
-                          key={ch.id}
-                          value={ch.name}
-                          onSelect={() => toggleChannel(ch.id)}
-                          className="flex items-center gap-2"
-                        >
-                          <Checkbox
-                            checked={selectedChannels.includes(ch.id)}
-                            className="pointer-events-none"
-                          />
-                          <span>#{ch.name}</span>
-                        </CommandItem>
-                      ))}
-                  </CommandList>
-                </Command>
-                <div className="border-t p-1.5 flex gap-1">
-                  <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => setSelectedChannels([...allChannelIds])}>
-                    Select all
-                  </Button>
-                  <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => setSelectedChannels([])}>
-                    Clear
-                  </Button>
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
-        )}
 
         {/* Summary cards */}
         <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
