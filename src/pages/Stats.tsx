@@ -479,7 +479,7 @@ const Stats = () => {
                   <XAxis type="number" allowDecimals={false} className="text-xs" />
                   <YAxis type="category" dataKey="channel" className="text-xs" width={160} tick={{ fontSize: 12 }} />
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="total" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]}>
+                  <Bar dataKey="total" fill={chartConfig.resolved.color} radius={[0, 4, 4, 0]}>
                     <LabelList dataKey="total" position="right" className="text-xs fill-foreground" />
                   </Bar>
                 </BarChart>
