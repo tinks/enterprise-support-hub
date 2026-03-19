@@ -1,20 +1,29 @@
 
 
-## Add "Timeframe" Label to Date Range Dropdown
+## Replace Production/Test Tabs with Environment Dropdown
 
 ### What Changes
 
-Add a `Timeframe:` label before the date range `Select` dropdown, matching the existing `Channels:` label style.
+Replace the `Tabs` component for Production/Test view toggle with a `Select` dropdown labeled "Environment:", matching the Timeframe and Channels filter pattern.
 
 ### Technical Details
 
-**File: `src/pages/Stats.tsx`** — Line 290
+**File: `src/pages/Stats.tsx`**
 
-Wrap the `Select` in a `div` with a label span, same pattern as the Channels filter (line 333-334):
-
-```tsx
-<div className="flex items-center gap-2">
-  <span className="text-sm font-medium text-muted-foreground">Timeframe:</span>
-  <Select ...>
-```
+- Lines 284-289: Replace the `Tabs`/`TabsList`/`TabsTrigger` block with a labeled `Select` dropdown:
+  ```tsx
+  <div className="flex items-center gap-2">
+    <span className="text-sm font-medium text-muted-foreground">Environment:</span>
+    <Select value={view} onValueChange={(v) => setView(v as "real" | "test")}>
+      <SelectTrigger className="w-[180px] h-9">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="real">Production</SelectItem>
+        <SelectItem value="test">Test</SelectItem>
+      </SelectContent>
+    </Select>
+  </div>
+  ```
+- Remove `Tabs`, `TabsList`, `TabsTrigger` imports if no longer used elsewhere in the file
 
