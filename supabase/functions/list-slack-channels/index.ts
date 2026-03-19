@@ -128,14 +128,14 @@ Deno.serve(async (req) => {
           const fallbackChannels = await Promise.all(
             unresolvedIds.map(async (channelId) => {
               try {
-                const res = await fetch(`${SLACK_GATEWAY_URL}/conversations.info`, {
+                const url = new URL(`${SLACK_GATEWAY_URL}/conversations.info`);
+                url.searchParams.set("channel", channelId);
+                const res = await fetch(url.toString(), {
                   method: "POST",
                   headers: {
                     Authorization: `Bearer ${LOVABLE_API_KEY}`,
                     "X-Connection-Api-Key": SLACK_API_KEY,
-                    "Content-Type": "application/json",
                   },
-                  body: JSON.stringify({ channel: channelId }),
                 });
 
                 const data = await res.json();
