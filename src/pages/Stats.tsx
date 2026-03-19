@@ -287,7 +287,9 @@ const Stats = () => {
               <TabsTrigger value="test">Test</TabsTrigger>
             </TabsList>
           </Tabs>
-          <Select value={range} onValueChange={(v) => setRange(v as TimeRange)}>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-muted-foreground">Timeframe:</span>
+            <Select value={range} onValueChange={(v) => setRange(v as TimeRange)}>
             <SelectTrigger className="w-[180px] h-9">
               <SelectValue />
             </SelectTrigger>
@@ -299,6 +301,7 @@ const Stats = () => {
               <SelectItem value="custom">Custom range</SelectItem>
             </SelectContent>
           </Select>
+          </div>
           {range === "custom" && (
             <div className="flex items-center gap-2">
               <Popover>
