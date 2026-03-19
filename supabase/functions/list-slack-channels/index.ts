@@ -85,8 +85,37 @@ Deno.serve(async (req) => {
     } while (cursor);
 
     if (channelIdSet) {
-      const unresolvedIds = [...channelIdSet].filter((id) => !allChannels.some((ch) => ch.id === id));
+      let unresolvedIds = [...channelIdSet].filter((id) => !allChannels.some((ch) => ch.id === id));
 
+      // Tier 2: Direct conversations.info with SLACK_BOT_TOKEN
+      if (unresolvedIds.length > 0) {
+        const directResults = await Promise.all(
+          unresolvedIds.map(async (channelId) => {
+            try {
+              const res = await fetch(`${SLACK_API_URL}/conversations.info?channel=${channelId}`, {
+                headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+              });
+              const data = await res.json();
+              if (!data.ok || !data.channel) return null;
+              return {
+                id: data.channel.id,
+                name: data.channel.name,
+                is_member: data.channel.is_member ?? false,
+                num_members: data.channel.num_members ?? 0,
+              };
+            } catch {
+              return null;
+            }
+          }),
+        );
+        for (const ch of directResults) {
+          if (ch) allChannels.push(ch);
+        }
+
+        unresolvedIds = unresolvedIds.filter((id) => !allChannels.some((ch) => ch.id === id));
+      }
+
+      // Tier 3: Connector gateway fallback
       if (unresolvedIds.length > 0) {
         const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
         const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY");
@@ -105,9 +134,7 @@ Deno.serve(async (req) => {
               });
 
               const data = await res.json();
-              if (!res.ok || !data?.ok || !data.channel) {
-                return null;
-              }
+              if (!res.ok || !data?.ok || !data.channel) return null;
 
               return {
                 id: data.channel.id,
@@ -119,9 +146,7 @@ Deno.serve(async (req) => {
           );
 
           for (const channel of fallbackChannels) {
-            if (channel) {
-              allChannels.push(channel);
-            }
+            if (channel) allChannels.push(channel);
           }
         }
       }
