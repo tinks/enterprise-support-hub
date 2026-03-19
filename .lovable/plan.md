@@ -1,35 +1,26 @@
 
 
-## Toggle "Select All" Behavior for Channels Filter
+## Auto-open "To" date picker after selecting "From" date
 
 ### What Changes
 
-Make the "Select all" button act as a toggle: if all channels are already selected, clicking it deselects all; otherwise, it selects all.
+When the user selects a "From" date in the custom range, the "To" date popover automatically opens so they can immediately pick the end date.
 
 ### Technical Details
 
-**File: `src/pages/Stats.tsx`** — Lines 378-384
+**File: `src/pages/Stats.tsx`**
 
-Replace the two separate buttons with a single toggle button:
+- Add a state variable `toPopoverOpen` to control the "To" popover's open state
+- In the "From" calendar's `onSelect`, after setting `customFrom`, set `toPopoverOpen` to `true`
+- Pass `open={toPopoverOpen}` and `onOpenChange={setToPopoverOpen}` to the "To" `Popover`
 
 ```tsx
-<div className="border-t p-1.5 flex gap-1">
-  <Button
-    variant="ghost"
-    size="sm"
-    className="flex-1 text-xs"
-    onClick={() => {
-      if (selectedChannels.length === allChannelIds.length) {
-        setSelectedChannels([]);
-      } else {
-        setSelectedChannels([...allChannelIds]);
-      }
-    }}
-  >
-    {selectedChannels.length === allChannelIds.length ? "Deselect all" : "Select all"}
-  </Button>
-</div>
-```
+const [toPopoverOpen, setToPopoverOpen] = useState(false);
 
-Remove the separate "Clear" button since the toggle handles both states.
+// From calendar onSelect:
+onSelect={(date) => { setCustomFrom(date); setToPopoverOpen(true); }}
+
+// To Popover:
+<Popover open={toPopoverOpen} onOpenChange={setToPopoverOpen}>
+```
 
