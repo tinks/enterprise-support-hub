@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon } from "lucide-react";
+import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon, X } from "lucide-react";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell,
@@ -13,12 +13,15 @@ import { format, parseISO, subDays, subMonths, startOfDay, endOfDay, isAfter, is
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { channelNameOverrides } from "@/lib/channelOverrides";
 
 interface Mapping {
   status: string;
   created_at: string;
   is_test: boolean;
+  slack_channel_id: string;
 }
 
 type TimeRange = "7d" | "30d" | "90d" | "all" | "custom";
@@ -27,10 +30,10 @@ const chartConfig = {
   resolved: { label: "Resolved", color: "hsl(142 76% 36%)" },
   escalated: { label: "Escalated", color: "hsl(var(--destructive))" },
   active: { label: "Active", color: "hsl(var(--primary))" },
-  awaiting_context: { label: "Awaiting Context", color: "hsl(var(--muted-foreground))" },
+  awaiting_context: { label: "Awaiting context", color: "hsl(var(--muted-foreground))" },
   total: { label: "Total", color: "hsl(var(--primary))" },
   cumulative: { label: "Cumulative", color: "hsl(var(--primary))" },
-  rate: { label: "Escalation Rate", color: "hsl(var(--destructive))" },
+  rate: { label: "Escalation rate", color: "hsl(var(--destructive))" },
 };
 
 const rangeLabel: Record<TimeRange, string> = {
@@ -51,11 +54,6 @@ const getCutoffDate = (range: TimeRange): Date | null => {
   }
 };
 
-const formatDateKey = (date: Date, range: TimeRange): string => {
-  if (range === "90d" || range === "all") return format(date, "MMM dd");
-  return format(date, "MMM dd");
-};
-
 const Stats = () => {
   const [data, setData] = useState<Mapping[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +61,8 @@ const Stats = () => {
   const [range, setRange] = useState<TimeRange>("30d");
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
+  const [channelNames, setChannelNames] = useState<Record<string, string>>({});
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
 
   const activeRangeLabel = range === "custom" && customFrom && customTo
     ? `${format(customFrom, "MMM dd")} – ${format(customTo, "MMM dd")}`
@@ -74,11 +74,49 @@ const Stats = () => {
     setLoading(true);
     const { data: mappings } = await supabase
       .from("conversation_mappings")
-      .select("status, created_at, is_test")
+      .select("status, created_at, is_test, slack_channel_id")
       .order("created_at", { ascending: true });
-    setData((mappings as Mapping[]) || []);
+    const rows = (mappings as Mapping[]) || [];
+    setData(rows);
+
+    // Resolve channel names
+    const uniqueIds = [...new Set(rows.map((r) => r.slack_channel_id).filter(Boolean))];
+    const names: Record<string, string> = { ...channelNameOverrides };
+
+    // Fetch from edge function for IDs not in overrides
+    const unresolvedIds = uniqueIds.filter((id) => !names[id]);
+    if (unresolvedIds.length > 0) {
+      try {
+        const res = await supabase.functions.invoke("list-slack-channels", {
+          body: { channelIds: unresolvedIds },
+        });
+        if (res.data?.channels) {
+          for (const ch of res.data.channels) {
+            if (ch.id && ch.name) names[ch.id] = ch.name;
+          }
+        }
+      } catch { /* fallback to raw IDs */ }
+    }
+
+    // Fill remaining with raw IDs
+    for (const id of uniqueIds) {
+      if (!names[id]) names[id] = id;
+    }
+
+    setChannelNames(names);
+    setSelectedChannels(uniqueIds); // all selected by default
     setLoading(false);
   };
+
+  const toggleChannel = (id: string) => {
+    setSelectedChannels((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+    );
+  };
+
+  const allChannelIds = useMemo(() => {
+    return [...new Set(data.map((m) => m.slack_channel_id).filter(Boolean))];
+  }, [data]);
 
   const filtered = useMemo(() => {
     const cutoff = getCutoffDate(range);
@@ -92,9 +130,10 @@ const Stats = () => {
       } else {
         matchRange = cutoff ? isAfter(parsed, cutoff) : true;
       }
-      return matchView && matchRange;
+      const matchChannel = selectedChannels.length === 0 || selectedChannels.includes(m.slack_channel_id);
+      return matchView && matchRange && matchChannel;
     });
-  }, [data, view, range, customFrom, customTo]);
+  }, [data, view, range, customFrom, customTo, selectedChannels]);
 
   const stats = useMemo(() => {
     const total = filtered.length;
@@ -105,7 +144,6 @@ const Stats = () => {
     const feedbackTotal = resolved + escalated;
     const resolvedPct = feedbackTotal ? Math.round((resolved / feedbackTotal) * 100) : 0;
 
-    // Avg per day
     const cutoff = getCutoffDate(range);
     const daySpan = cutoff
       ? differenceInDays(new Date(), cutoff) || 1
@@ -177,6 +215,26 @@ const Stats = () => {
     ].filter((d) => d.value > 0);
   }, [stats]);
 
+  // Channel breakdown data
+  const channelData = useMemo(() => {
+    const byChannel: Record<string, { channel: string; resolved: number; escalated: number; active: number; awaiting_context: number }> = {};
+    filtered.forEach((m) => {
+      const id = m.slack_channel_id;
+      if (!id) return;
+      const name = channelNames[id] || id;
+      if (!byChannel[id]) byChannel[id] = { channel: name, resolved: 0, escalated: 0, active: 0, awaiting_context: 0 };
+      if (m.status === "resolved") byChannel[id].resolved++;
+      else if (m.status === "escalated") byChannel[id].escalated++;
+      else if (m.status === "active") byChannel[id].active++;
+      else if (m.status === "awaiting_context") byChannel[id].awaiting_context++;
+    });
+    return Object.values(byChannel).sort((a, b) => {
+      const totalA = a.resolved + a.escalated + a.active + a.awaiting_context;
+      const totalB = b.resolved + b.escalated + b.active + b.awaiting_context;
+      return totalB - totalA;
+    });
+  }, [filtered, channelNames]);
+
   // Peak day
   const peakDay = useMemo(() => {
     if (volumeData.length === 0) return null;
@@ -196,7 +254,7 @@ const Stats = () => {
   return (
     <AppLayout>
       <div className="mx-auto max-w-5xl space-y-6 p-6">
-        {/* Hero Banner */}
+        {/* Hero banner */}
         <div className="flex items-center justify-between rounded-xl border border-border bg-card p-6">
           <div className="flex items-center gap-4">
             <img src="/lovable-logo.png" alt="Lovable logo" className="h-12 w-12 rounded-lg" />
@@ -263,7 +321,41 @@ const Stats = () => {
           )}
         </div>
 
-        {/* Summary Cards */}
+        {/* Channel filter chips */}
+        {allChannelIds.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-muted-foreground">Channels:</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setSelectedChannels(
+                selectedChannels.length === allChannelIds.length ? [] : [...allChannelIds]
+              )}
+            >
+              {selectedChannels.length === allChannelIds.length ? "Deselect all" : "Select all"}
+            </Button>
+            {allChannelIds.map((id) => {
+              const active = selectedChannels.includes(id);
+              return (
+                <Badge
+                  key={id}
+                  variant={active ? "default" : "outline"}
+                  className={cn(
+                    "cursor-pointer select-none transition-colors",
+                    active && "pr-1.5"
+                  )}
+                  onClick={() => toggleChannel(id)}
+                >
+                  #{channelNames[id] || id}
+                  {active && <X className="ml-1 h-3 w-3" />}
+                </Badge>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Summary cards */}
         <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
           <Card>
             <CardContent className="flex flex-col items-center justify-center p-5">
@@ -290,22 +382,22 @@ const Stats = () => {
             <CardContent className="flex flex-col items-center justify-center p-5">
               <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
               <p className="text-3xl font-bold text-foreground">{stats.resolvedPct}%</p>
-              <p className="text-xs text-muted-foreground">Success Rate</p>
+              <p className="text-xs text-muted-foreground">Success rate</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="flex flex-col items-center justify-center p-5">
               <Activity className="mb-2 h-5 w-5 text-primary" />
               <p className="text-3xl font-bold text-foreground">{stats.avgPerDay}</p>
-              <p className="text-xs text-muted-foreground">Avg / Day</p>
+              <p className="text-xs text-muted-foreground">Avg / day</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Conversation Volume Line Chart */}
+        {/* Conversation volume line chart */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Conversation Volume</CardTitle>
+            <CardTitle className="text-lg">Conversation volume</CardTitle>
             <CardDescription>Daily conversations over {activeRangeLabel.toLowerCase()}</CardDescription>
           </CardHeader>
           <CardContent>
@@ -331,12 +423,38 @@ const Stats = () => {
           </CardContent>
         </Card>
 
+        {/* Conversations by channel */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Conversations by channel</CardTitle>
+            <CardDescription>Status breakdown per Slack channel</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {channelData.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">No channel data yet</p>
+            ) : (
+              <ChartContainer config={chartConfig} className="w-full" style={{ height: Math.max(200, channelData.length * 48) }}>
+                <BarChart data={channelData} layout="vertical" margin={{ left: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} className="text-xs" />
+                  <YAxis type="category" dataKey="channel" className="text-xs" width={160} tick={{ fontSize: 12 }} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="resolved" stackId="a" fill={chartConfig.resolved.color} radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="escalated" stackId="a" fill={chartConfig.escalated.color} />
+                  <Bar dataKey="active" stackId="a" fill={chartConfig.active.color} />
+                  <Bar dataKey="awaiting_context" stackId="a" fill={chartConfig.awaiting_context.color} radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Two-column charts */}
         <div className="grid gap-6 md:grid-cols-2">
-          {/* Daily Outcomes */}
+          {/* Daily outcomes */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Daily Outcomes</CardTitle>
+              <CardTitle className="text-lg">Daily outcomes</CardTitle>
               <CardDescription>Resolved vs escalated per day</CardDescription>
             </CardHeader>
             <CardContent>
@@ -357,10 +475,10 @@ const Stats = () => {
             </CardContent>
           </Card>
 
-          {/* Status Distribution */}
+          {/* Status distribution */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Status Distribution</CardTitle>
+              <CardTitle className="text-lg">Status distribution</CardTitle>
               <CardDescription>Current breakdown of all conversations</CardDescription>
             </CardHeader>
             <CardContent>
@@ -382,12 +500,11 @@ const Stats = () => {
           </Card>
         </div>
 
-        {/* Second row: Cumulative + Escalation Rate */}
+        {/* Second row: cumulative + escalation rate */}
         <div className="grid gap-6 md:grid-cols-2">
-          {/* Cumulative */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Cumulative Conversations</CardTitle>
+              <CardTitle className="text-lg">Cumulative conversations</CardTitle>
               <CardDescription>Growth over time</CardDescription>
             </CardHeader>
             <CardContent>
@@ -407,11 +524,10 @@ const Stats = () => {
             </CardContent>
           </Card>
 
-          {/* Escalation Rate Trend */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                Escalation Rate Trend
+                Escalation rate trend
                 {escalationRateData.length >= 2 && (
                   escalationRateData[escalationRateData.length - 1].rate < escalationRateData[0].rate
                     ? <TrendingDown className="h-4 w-4 text-green-600" />
@@ -438,7 +554,7 @@ const Stats = () => {
           </Card>
         </div>
 
-        {/* Insights Footer */}
+        {/* Insights footer */}
         {peakDay && (
           <Card>
             <CardContent className="flex flex-wrap items-center gap-6 p-5">
