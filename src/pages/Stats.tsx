@@ -467,7 +467,7 @@ const Stats = () => {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Conversations by channel</CardTitle>
-            <CardDescription>Status breakdown per Slack channel</CardDescription>
+            <CardDescription>Total conversations per Slack channel</CardDescription>
           </CardHeader>
           <CardContent>
             {channelData.length === 0 ? (
@@ -479,10 +479,9 @@ const Stats = () => {
                   <XAxis type="number" allowDecimals={false} className="text-xs" />
                   <YAxis type="category" dataKey="channel" className="text-xs" width={160} tick={{ fontSize: 12 }} />
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="resolved" stackId="a" fill={chartConfig.resolved.color} radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="escalated" stackId="a" fill={chartConfig.escalated.color} />
-                  <Bar dataKey="active" stackId="a" fill={chartConfig.active.color} />
-                  <Bar dataKey="awaiting_context" stackId="a" fill={chartConfig.awaiting_context.color} radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="total" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]}>
+                    <LabelList dataKey="total" position="right" className="text-xs fill-foreground" />
+                  </Bar>
                 </BarChart>
               </ChartContainer>
             )}
