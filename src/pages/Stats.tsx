@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -286,15 +287,18 @@ const Stats = () => {
               <TabsTrigger value="test">Test</TabsTrigger>
             </TabsList>
           </Tabs>
-          <Tabs value={range} onValueChange={(v) => setRange(v as TimeRange)}>
-            <TabsList>
-              <TabsTrigger value="7d">7 days</TabsTrigger>
-              <TabsTrigger value="30d">30 days</TabsTrigger>
-              <TabsTrigger value="90d">90 days</TabsTrigger>
-              <TabsTrigger value="all">All</TabsTrigger>
-              <TabsTrigger value="custom">Custom</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <Select value={range} onValueChange={(v) => setRange(v as TimeRange)}>
+            <SelectTrigger className="w-[180px] h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7d">Last 7 days</SelectItem>
+              <SelectItem value="30d">Last 30 days</SelectItem>
+              <SelectItem value="90d">Last 90 days</SelectItem>
+              <SelectItem value="all">All time</SelectItem>
+              <SelectItem value="custom">Custom range</SelectItem>
+            </SelectContent>
+          </Select>
           {range === "custom" && (
             <div className="flex items-center gap-2">
               <Popover>
