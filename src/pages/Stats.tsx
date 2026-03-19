@@ -376,11 +376,19 @@ const Stats = () => {
                     </CommandList>
                   </Command>
                   <div className="border-t p-1.5 flex gap-1">
-                    <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => setSelectedChannels([...allChannelIds])}>
-                      Select all
-                    </Button>
-                    <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => setSelectedChannels([])}>
-                      Clear
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex-1 text-xs"
+                      onClick={() => {
+                        if (selectedChannels.length === allChannelIds.length) {
+                          setSelectedChannels([]);
+                        } else {
+                          setSelectedChannels([...allChannelIds]);
+                        }
+                      }}
+                    >
+                      {selectedChannels.length === allChannelIds.length ? "Deselect all" : "Select all"}
                     </Button>
                   </div>
                 </PopoverContent>
