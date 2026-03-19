@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +38,24 @@ const Conversations = () => {
   const [loading, setLoading] = useState(true);
   const [userNames, setUserNames] = useState<NameMap>({});
   const [channelNames, setChannelNames] = useState<NameMap>({});
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+
+  const availableChannels = useMemo(() => {
+    const ids = [...new Set(mappings.map((m) => m.slack_channel_id))];
+    return ids
+      .map((id) => ({ id, name: channelNames[id] || channelNameOverrides[id] || id }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [mappings, channelNames]);
+
+  const filteredMappings = useMemo(() => {
+    if (selectedChannels.length === 0) return mappings;
+    return mappings.filter((m) => selectedChannels.includes(m.slack_channel_id));
+  }, [mappings, selectedChannels]);
+
+  const toggleChannel = (id: string) =>
+    setSelectedChannels((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+    );
 
   const loadLookups = async (rows: ConversationMapping[]) => {
     // Only fetch users — channels are resolved via a lighter lookup
@@ -108,9 +126,31 @@ const Conversations = () => {
               </Button>
             </CardHeader>
             <CardContent>
-              {mappings.length === 0 ? (
+              {availableChannels.length > 1 && (
+                <div className="mb-4 flex flex-wrap gap-1.5">
+                  {availableChannels.map((ch) => (
+                    <Badge
+                      key={ch.id}
+                      variant={selectedChannels.includes(ch.id) ? "default" : "outline"}
+                      className="cursor-pointer select-none"
+                      onClick={() => toggleChannel(ch.id)}
+                    >
+                      #{ch.name}
+                    </Badge>
+                  ))}
+                  {selectedChannels.length > 0 && (
+                    <button
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors ml-1"
+                      onClick={() => setSelectedChannels([])}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              )}
+              {filteredMappings.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
-                  {loading ? "Loading…" : "No conversations yet. @mention the bot in a monitored channel to get started."}
+                  {loading ? "Loading…" : "No conversations found."}
                 </p>
               ) : (
                 <Table>
@@ -125,7 +165,7 @@ const Conversations = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mappings.map((m) => (
+                    {filteredMappings.map((m) => (
                       <TableRow key={m.id}>
                         <TableCell>
                           <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
