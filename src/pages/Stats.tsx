@@ -122,6 +122,10 @@ const Stats = () => {
     return [...new Set(data.map((m) => m.slack_channel_id).filter(Boolean))];
   }, [data]);
 
+  useEffect(() => {
+    setSelectedChannels([...allChannelIds]);
+  }, [allChannelIds]);
+
   const filtered = useMemo(() => {
     const cutoff = getCutoffDate(range);
     return data.filter((m) => {
