@@ -1,29 +1,18 @@
 
 
-## Replace Production/Test Tabs with Environment Dropdown
+## Put All Filters in a Single Row
 
 ### What Changes
 
-Replace the `Tabs` component for Production/Test view toggle with a `Select` dropdown labeled "Environment:", matching the Timeframe and Channels filter pattern.
+Move the Channels filter into the same `flex` row as Environment and Timeframe, so all filters sit on one line instead of two separate blocks.
 
 ### Technical Details
 
 **File: `src/pages/Stats.tsx`**
 
-- Lines 284-289: Replace the `Tabs`/`TabsList`/`TabsTrigger` block with a labeled `Select` dropdown:
-  ```tsx
-  <div className="flex items-center gap-2">
-    <span className="text-sm font-medium text-muted-foreground">Environment:</span>
-    <Select value={view} onValueChange={(v) => setView(v as "real" | "test")}>
-      <SelectTrigger className="w-[180px] h-9">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="real">Production</SelectItem>
-        <SelectItem value="test">Test</SelectItem>
-      </SelectContent>
-    </Select>
-  </div>
-  ```
-- Remove `Tabs`, `TabsList`, `TabsTrigger` imports if no longer used elsewhere in the file
+- Move the Channels filter `div` (lines 341-392) inside the existing filters `div` (line 283), after the Timeframe/custom-date-pickers block
+- Remove the wrapping `{allChannelIds.length > 1 && (...)}` conditional from being a separate sibling — keep the condition but place it inline within the filters row
+- The outer `flex flex-wrap items-center gap-4` container already handles wrapping, so no layout changes needed
+
+Result: Environment, Timeframe (+ custom pickers when active), and Channels all appear in one `flex-wrap` row.
 
