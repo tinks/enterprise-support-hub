@@ -323,7 +323,7 @@ const Stats = () => {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={customFrom} onSelect={setCustomFrom} initialFocus className="p-3 pointer-events-auto" />
+                  <Calendar mode="single" selected={customFrom} onSelect={(date) => { setCustomFrom(date); if (date) setToPopoverOpen(true); }} initialFocus className="p-3 pointer-events-auto" />
                 </PopoverContent>
               </Popover>
               <span className="text-sm text-muted-foreground">–</span>
