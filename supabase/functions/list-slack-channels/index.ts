@@ -89,6 +89,7 @@ Deno.serve(async (req) => {
 
       // Tier 2: Direct conversations.info with SLACK_BOT_TOKEN
       if (unresolvedIds.length > 0) {
+        console.log(`Tier 2: attempting direct conversations.info for ${unresolvedIds.length} unresolved IDs:`, unresolvedIds);
         const directResults = await Promise.all(
           unresolvedIds.map(async (channelId) => {
             try {
@@ -96,6 +97,7 @@ Deno.serve(async (req) => {
                 headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
               });
               const data = await res.json();
+              console.log(`Tier 2 conversations.info for ${channelId}:`, JSON.stringify(data));
               if (!data.ok || !data.channel) return null;
               return {
                 id: data.channel.id,
@@ -103,7 +105,8 @@ Deno.serve(async (req) => {
                 is_member: data.channel.is_member ?? false,
                 num_members: data.channel.num_members ?? 0,
               };
-            } catch {
+            } catch (err) {
+              console.error(`Tier 2 error for ${channelId}:`, err);
               return null;
             }
           }),
