@@ -67,6 +67,7 @@ const Stats = () => {
   const [channelNames, setChannelNames] = useState<Record<string, string>>({});
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [channelPopoverOpen, setChannelPopoverOpen] = useState(false);
+  const [toPopoverOpen, setToPopoverOpen] = useState(false);
 
   const activeRangeLabel = range === "custom" && customFrom && customTo
     ? `${format(customFrom, "MMM dd")} – ${format(customTo, "MMM dd")}`
@@ -322,11 +323,11 @@ const Stats = () => {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={customFrom} onSelect={setCustomFrom} initialFocus className="p-3 pointer-events-auto" />
+                  <Calendar mode="single" selected={customFrom} onSelect={(date) => { setCustomFrom(date); if (date) setToPopoverOpen(true); }} initialFocus className="p-3 pointer-events-auto" />
                 </PopoverContent>
               </Popover>
               <span className="text-sm text-muted-foreground">–</span>
-              <Popover>
+              <Popover open={toPopoverOpen} onOpenChange={setToPopoverOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !customTo && "text-muted-foreground")}>
                     <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
@@ -334,7 +335,7 @@ const Stats = () => {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={customTo} onSelect={setCustomTo} disabled={(date) => customFrom ? isBefore(date, customFrom) : false} initialFocus className="p-3 pointer-events-auto" />
+                  <Calendar mode="single" selected={customTo} onSelect={(date) => { setCustomTo(date); setToPopoverOpen(false); }} disabled={(date) => customFrom ? isBefore(date, customFrom) : false} initialFocus className="p-3 pointer-events-auto" />
                 </PopoverContent>
               </Popover>
             </div>
