@@ -3,7 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon, X } from "lucide-react";
+import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon, ChevronDown } from "lucide-react";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell,
@@ -13,7 +15,7 @@ import { format, parseISO, subDays, subMonths, startOfDay, endOfDay, isAfter, is
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Badge } from "@/components/ui/badge";
+
 import { cn } from "@/lib/utils";
 import { channelNameOverrides } from "@/lib/channelOverrides";
 
@@ -63,6 +65,7 @@ const Stats = () => {
   const [customTo, setCustomTo] = useState<Date | undefined>();
   const [channelNames, setChannelNames] = useState<Record<string, string>>({});
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+  const [channelPopoverOpen, setChannelPopoverOpen] = useState(false);
 
   const activeRangeLabel = range === "custom" && customFrom && customTo
     ? `${format(customFrom, "MMM dd")} – ${format(customTo, "MMM dd")}`
@@ -321,37 +324,57 @@ const Stats = () => {
           )}
         </div>
 
-        {/* Channel filter chips */}
+        {/* Channel filter dropdown */}
         {allChannelIds.length > 1 && (
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-muted-foreground">Channels:</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => setSelectedChannels(
-                selectedChannels.length === allChannelIds.length ? [] : [...allChannelIds]
-              )}
-            >
-              {selectedChannels.length === allChannelIds.length ? "Deselect all" : "Select all"}
-            </Button>
-            {allChannelIds.map((id) => {
-              const active = selectedChannels.includes(id);
-              return (
-                <Badge
-                  key={id}
-                  variant={active ? "default" : "outline"}
-                  className={cn(
-                    "cursor-pointer select-none transition-colors",
-                    active && "pr-1.5"
-                  )}
-                  onClick={() => toggleChannel(id)}
-                >
-                  #{channelNames[id] || id}
-                  {active && <X className="ml-1 h-3 w-3" />}
-                </Badge>
-              );
-            })}
+            <Popover open={channelPopoverOpen} onOpenChange={setChannelPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-9 min-w-[180px] justify-between text-sm font-normal">
+                  {selectedChannels.length === allChannelIds.length
+                    ? "All channels"
+                    : selectedChannels.length === 0
+                      ? "None selected"
+                      : selectedChannels.length === 1
+                        ? `#${channelNames[selectedChannels[0]] || selectedChannels[0]}`
+                        : `${selectedChannels.length} channels`}
+                  <ChevronDown className="ml-2 h-3.5 w-3.5 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[240px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search channels…" />
+                  <CommandList>
+                    <CommandEmpty>No channels found.</CommandEmpty>
+                    {allChannelIds
+                      .map((id) => ({ id, name: channelNames[id] || id }))
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map((ch) => (
+                        <CommandItem
+                          key={ch.id}
+                          value={ch.name}
+                          onSelect={() => toggleChannel(ch.id)}
+                          className="flex items-center gap-2"
+                        >
+                          <Checkbox
+                            checked={selectedChannels.includes(ch.id)}
+                            className="pointer-events-none"
+                          />
+                          <span>#{ch.name}</span>
+                        </CommandItem>
+                      ))}
+                  </CommandList>
+                </Command>
+                <div className="border-t p-1.5 flex gap-1">
+                  <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => setSelectedChannels([...allChannelIds])}>
+                    Select all
+                  </Button>
+                  <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => setSelectedChannels([])}>
+                    Clear
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         )}
 
