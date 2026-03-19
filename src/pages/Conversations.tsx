@@ -19,11 +19,7 @@ interface ConversationMapping {
 
 type NameMap = Record<string, string>;
 
-const channelNameOverrides: NameMap = {
-  C0AJP396C85: "slack-intercom-bot-test",
-  C0AM32URSVC: "kristinastestchannel",
-  C0AJ1KPQ084: "team-enterprise-support",
-};
+import { channelNameOverrides } from "@/lib/channelOverrides";
 
 const statusColor = (status: string) => {
   switch (status) {
