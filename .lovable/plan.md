@@ -1,26 +1,18 @@
 
 
-## Add Channel Filter and Chart to Stats Page
+## Add Channel Filter to Conversations Page
 
 ### What Changes
 
-1. **Expand data fetch** — Include `slack_channel_id` in the `conversation_mappings` query (currently only fetches `status, created_at, is_test`). Update the `Mapping` interface accordingly.
-
-2. **Channel name resolution** — Reuse the same `channelNameOverrides` map from `Conversations.tsx` (extract to a shared constant or duplicate). Also call the `list-slack-channels` edge function on load to resolve any IDs not in the overrides, falling back to the raw ID.
-
-3. **Channel filter** — Add a multi-select or dropdown filter (below the existing time range tabs) that lets the user pick one or more channels by name. Default: all channels selected. The `filtered` memo will additionally filter by selected channels.
-
-4. **"Conversations by Channel" bar chart** — Add a new horizontal `BarChart` card showing conversation count per channel (using resolved channel names as Y-axis labels). This goes after the existing two-column chart section. Color bars by status (stacked: resolved, escalated, active, awaiting).
+Add clickable channel filter badges between the card header and the table, matching the pattern already used on the Stats page. When no channels are selected, all conversations show. Clicking a badge toggles that channel on/off.
 
 ### Technical Details
 
-**File: `src/pages/Stats.tsx`**
+**File: `src/pages/Conversations.tsx`**
 
-- Add `slack_channel_id` to `Mapping` interface and Supabase select query
-- Add state: `channelNames: Record<string, string>`, `selectedChannels: string[]`
-- On data load, collect unique channel IDs → resolve names via overrides + edge function call
-- Add `channelFilter` to the `filtered` useMemo
-- New `channelData` useMemo: group filtered data by channel, count by status
-- Render a channel filter (multi-select chips or dropdown) in the filters bar
-- Render a new `Card` with a stacked horizontal `BarChart` for channel breakdown
+1. Add state: `selectedChannels: string[]` (default empty = show all)
+2. Derive `availableChannels` from mappings — unique channel IDs with resolved names, sorted alphabetically
+3. Compute `filteredMappings` — if `selectedChannels` is empty show all, otherwise filter to selected
+4. Render filter badges row between `CardHeader` and the table inside `CardContent`
+5. Use `filteredMappings` instead of `mappings` in the table body
 
