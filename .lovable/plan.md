@@ -1,30 +1,26 @@
 
 
-## Problem
+## Add Channel Filter and Chart to Stats Page
 
-The `list-slack-channels` edge function returns empty results for all requested channels (including `C0AM32URSVC`). The function has two resolution paths:
+### What Changes
 
-1. **Primary**: `conversations.list` — paginate all channels, filter by requested IDs. If the bot lacks `groups:read`, it falls back to `public_channel` only, which won't find private channels.
-2. **Fallback**: Connector gateway `conversations.info` — requires `LOVABLE_API_KEY` + `SLACK_API_KEY`. This also returns nothing (likely the gateway connection uses a different workspace token or the endpoint format is wrong).
+1. **Expand data fetch** — Include `slack_channel_id` in the `conversation_mappings` query (currently only fetches `status, created_at, is_test`). Update the `Mapping` interface accordingly.
 
-Neither path resolves private channels that the bot is a member of.
+2. **Channel name resolution** — Reuse the same `channelNameOverrides` map from `Conversations.tsx` (extract to a shared constant or duplicate). Also call the `list-slack-channels` edge function on load to resolve any IDs not in the overrides, falling back to the raw ID.
 
-## Root Cause
+3. **Channel filter** — Add a multi-select or dropdown filter (below the existing time range tabs) that lets the user pick one or more channels by name. Default: all channels selected. The `filtered` memo will additionally filter by selected channels.
 
-The bot is a member of these private channels and can call `conversations.info` directly with `SLACK_BOT_TOKEN`, but the code never tries that. It jumps from the bulk `conversations.list` (which fails for private channels without `groups:read` in the list call) straight to the connector gateway fallback (which uses a different token).
+4. **"Conversations by Channel" bar chart** — Add a new horizontal `BarChart` card showing conversation count per channel (using resolved channel names as Y-axis labels). This goes after the existing two-column chart section. Color bars by status (stacked: resolved, escalated, active, awaiting).
 
-## Fix
+### Technical Details
 
-**`supabase/functions/list-slack-channels/index.ts`** — Add a direct `conversations.info` fallback using `SLACK_BOT_TOKEN` for unresolved channel IDs, before the gateway fallback:
+**File: `src/pages/Stats.tsx`**
 
-```text
-conversations.list (bulk, public+private)
-  ↓ missing_scope? retry public-only
-  ↓ still unresolved?
-NEW → conversations.info per-channel with SLACK_BOT_TOKEN  ← direct API
-  ↓ still unresolved?
-  → conversations.info via connector gateway (existing)
-```
-
-For each unresolved channel ID, call `GET conversations.info?channel=ID` with the bot token. This works for any channel the bot is a member of, regardless of list scopes.
+- Add `slack_channel_id` to `Mapping` interface and Supabase select query
+- Add state: `channelNames: Record<string, string>`, `selectedChannels: string[]`
+- On data load, collect unique channel IDs → resolve names via overrides + edge function call
+- Add `channelFilter` to the `filtered` useMemo
+- New `channelData` useMemo: group filtered data by channel, count by status
+- Render a channel filter (multi-select chips or dropdown) in the filters bar
+- Render a new `Card` with a stacked horizontal `BarChart` for channel breakdown
 
