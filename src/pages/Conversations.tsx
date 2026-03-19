@@ -165,7 +165,7 @@ const Conversations = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mappings.map((m) => (
+                    {filteredMappings.map((m) => (
                       <TableRow key={m.id}>
                         <TableCell>
                           <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
