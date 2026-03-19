@@ -38,6 +38,24 @@ const Conversations = () => {
   const [loading, setLoading] = useState(true);
   const [userNames, setUserNames] = useState<NameMap>({});
   const [channelNames, setChannelNames] = useState<NameMap>({});
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
+
+  const availableChannels = useMemo(() => {
+    const ids = [...new Set(mappings.map((m) => m.slack_channel_id))];
+    return ids
+      .map((id) => ({ id, name: channelNames[id] || channelNameOverrides[id] || id }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [mappings, channelNames]);
+
+  const filteredMappings = useMemo(() => {
+    if (selectedChannels.length === 0) return mappings;
+    return mappings.filter((m) => selectedChannels.includes(m.slack_channel_id));
+  }, [mappings, selectedChannels]);
+
+  const toggleChannel = (id: string) =>
+    setSelectedChannels((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+    );
 
   const loadLookups = async (rows: ConversationMapping[]) => {
     // Only fetch users — channels are resolved via a lighter lookup
