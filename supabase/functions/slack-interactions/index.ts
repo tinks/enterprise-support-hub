@@ -566,6 +566,27 @@ async function createIntercomTicket(opts: {
             .update({ status: "escalated" })
             .eq("id", mappingId);
           console.log(`Poll: Sam auto-escalated conversation ${conversationId}`);
+
+          // Reassign in Intercom to enterprise team inbox (mirrors manual 👎 escalation)
+          if (!cachedSettings) cachedSettings = await getSettings(supabase);
+          if (cachedSettings.intercom_inbox_id && cachedSettings.intercom_assignee_id) {
+            await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${intercomToken}`,
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+              body: JSON.stringify({
+                message_type: "assignment",
+                type: "team",
+                assignee_id: cachedSettings.intercom_inbox_id,
+                admin_id: cachedSettings.intercom_assignee_id,
+                body: "",
+              }),
+            });
+            console.log(`Poll: reassigned conversation ${conversationId} to team inbox ${cachedSettings.intercom_inbox_id}`);
+          }
         }
       }
 

@@ -779,6 +779,26 @@ Deno.serve(async (req) => {
         .update({ status: "escalated" })
         .eq("id", mapping.id);
       console.log(`Sam auto-escalated conversation ${conversationId} — status set to escalated`);
+
+      // Reassign in Intercom to enterprise team inbox (mirrors manual 👎 escalation)
+      if (appSettings?.intercom_inbox_id && appSettings?.intercom_assignee_id) {
+        await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            message_type: "assignment",
+            type: "team",
+            assignee_id: appSettings.intercom_inbox_id,
+            admin_id: appSettings.intercom_assignee_id,
+            body: "",
+          }),
+        });
+        console.log(`Webhook: reassigned conversation ${conversationId} to team inbox ${appSettings.intercom_inbox_id}`);
+      }
     } else if (isHumanAdmin && (mapping.status === "active" || mapping.status === "active_pending")) {
       // Human admin replied while status was still active — transition to escalated
       // so subsequent user replies get "reply forwarded" instead of "Sam is writing..."
