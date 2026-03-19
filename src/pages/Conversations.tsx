@@ -126,9 +126,31 @@ const Conversations = () => {
               </Button>
             </CardHeader>
             <CardContent>
-              {mappings.length === 0 ? (
+              {availableChannels.length > 1 && (
+                <div className="mb-4 flex flex-wrap gap-1.5">
+                  {availableChannels.map((ch) => (
+                    <Badge
+                      key={ch.id}
+                      variant={selectedChannels.includes(ch.id) ? "default" : "outline"}
+                      className="cursor-pointer select-none"
+                      onClick={() => toggleChannel(ch.id)}
+                    >
+                      #{ch.name}
+                    </Badge>
+                  ))}
+                  {selectedChannels.length > 0 && (
+                    <button
+                      className="text-xs text-muted-foreground hover:text-foreground transition-colors ml-1"
+                      onClick={() => setSelectedChannels([])}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              )}
+              {filteredMappings.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
-                  {loading ? "Loading…" : "No conversations yet. @mention the bot in a monitored channel to get started."}
+                  {loading ? "Loading…" : "No conversations found."}
                 </p>
               ) : (
                 <Table>
