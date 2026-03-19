@@ -89,6 +89,7 @@ Deno.serve(async (req) => {
 
       // Tier 2: Direct conversations.info with SLACK_BOT_TOKEN
       if (unresolvedIds.length > 0) {
+        console.log(`Tier 2: attempting direct conversations.info for ${unresolvedIds.length} unresolved IDs:`, unresolvedIds);
         const directResults = await Promise.all(
           unresolvedIds.map(async (channelId) => {
             try {
@@ -96,6 +97,7 @@ Deno.serve(async (req) => {
                 headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
               });
               const data = await res.json();
+              console.log(`Tier 2 conversations.info for ${channelId}:`, JSON.stringify(data));
               if (!data.ok || !data.channel) return null;
               return {
                 id: data.channel.id,
@@ -103,7 +105,8 @@ Deno.serve(async (req) => {
                 is_member: data.channel.is_member ?? false,
                 num_members: data.channel.num_members ?? 0,
               };
-            } catch {
+            } catch (err) {
+              console.error(`Tier 2 error for ${channelId}:`, err);
               return null;
             }
           }),
@@ -117,37 +120,46 @@ Deno.serve(async (req) => {
 
       // Tier 3: Connector gateway fallback
       if (unresolvedIds.length > 0) {
+        console.log(`Tier 3: attempting connector gateway for ${unresolvedIds.length} unresolved IDs:`, unresolvedIds);
         const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
         const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY");
 
         if (LOVABLE_API_KEY && SLACK_API_KEY) {
           const fallbackChannels = await Promise.all(
             unresolvedIds.map(async (channelId) => {
-              const res = await fetch(`${SLACK_GATEWAY_URL}/conversations.info`, {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${LOVABLE_API_KEY}`,
-                  "X-Connection-Api-Key": SLACK_API_KEY,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ channel: channelId }),
-              });
+              try {
+                const url = new URL(`${SLACK_GATEWAY_URL}/conversations.info`);
+                url.searchParams.set("channel", channelId);
+                const res = await fetch(url.toString(), {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${LOVABLE_API_KEY}`,
+                    "X-Connection-Api-Key": SLACK_API_KEY,
+                  },
+                });
 
-              const data = await res.json();
-              if (!res.ok || !data?.ok || !data.channel) return null;
+                const data = await res.json();
+                console.log(`Tier 3 gateway response for ${channelId}: status=${res.status}`, JSON.stringify(data));
+                if (!res.ok || !data?.ok || !data.channel) return null;
 
-              return {
-                id: data.channel.id,
-                name: data.channel.name,
-                is_member: data.channel.is_member ?? false,
-                num_members: data.channel.num_members ?? 0,
-              };
+                return {
+                  id: data.channel.id,
+                  name: data.channel.name,
+                  is_member: data.channel.is_member ?? false,
+                  num_members: data.channel.num_members ?? 0,
+                };
+              } catch (err) {
+                console.error(`Tier 3 error for ${channelId}:`, err);
+                return null;
+              }
             }),
           );
 
           for (const channel of fallbackChannels) {
             if (channel) allChannels.push(channel);
           }
+        } else {
+          console.log("Tier 3: skipped — missing LOVABLE_API_KEY or SLACK_API_KEY");
         }
       }
     }
