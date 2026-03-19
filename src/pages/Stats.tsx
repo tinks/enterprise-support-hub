@@ -337,7 +337,7 @@ const Stats = () => {
           )}
           {allChannelIds.length > 1 && (
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-muted-foreground">Channels:</span>
+              <span className="text-sm font-medium text-muted-foreground">Channel(s):</span>
               <Popover open={channelPopoverOpen} onOpenChange={setChannelPopoverOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className="h-9 min-w-[180px] justify-between text-sm font-normal">
