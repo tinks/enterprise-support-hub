@@ -122,7 +122,10 @@ const Stats = () => {
     return [...new Set(data.map((m) => m.slack_channel_id).filter(Boolean))];
   }, [data]);
 
-  const filtered = useMemo(() => {
+  useEffect(() => {
+    setSelectedChannels([...allChannelIds]);
+  }, [allChannelIds]);
+
     const cutoff = getCutoffDate(range);
     return data.filter((m) => {
       const matchView = view === "test" ? m.is_test : !m.is_test;
