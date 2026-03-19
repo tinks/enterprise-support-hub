@@ -67,6 +67,7 @@ const Stats = () => {
   const [channelNames, setChannelNames] = useState<Record<string, string>>({});
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [channelPopoverOpen, setChannelPopoverOpen] = useState(false);
+  const [toPopoverOpen, setToPopoverOpen] = useState(false);
 
   const activeRangeLabel = range === "custom" && customFrom && customTo
     ? `${format(customFrom, "MMM dd")} – ${format(customTo, "MMM dd")}`
