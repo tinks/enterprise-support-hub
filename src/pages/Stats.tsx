@@ -126,6 +126,7 @@ const Stats = () => {
     setSelectedChannels([...allChannelIds]);
   }, [allChannelIds]);
 
+  const filtered = useMemo(() => {
     const cutoff = getCutoffDate(range);
     return data.filter((m) => {
       const matchView = view === "test" ? m.is_test : !m.is_test;
