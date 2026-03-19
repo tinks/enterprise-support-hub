@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell,
-  LineChart, Line, AreaChart, Area,
+  LineChart, Line, AreaChart, Area, LabelList,
 } from "recharts";
 import { format, parseISO, subDays, subMonths, startOfDay, endOfDay, isAfter, isBefore, differenceInDays } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -226,22 +226,15 @@ const Stats = () => {
 
   // Channel breakdown data
   const channelData = useMemo(() => {
-    const byChannel: Record<string, { channel: string; resolved: number; escalated: number; active: number; awaiting_context: number }> = {};
+    const byChannel: Record<string, { channel: string; total: number }> = {};
     filtered.forEach((m) => {
       const id = m.slack_channel_id;
       if (!id) return;
       const name = channelNames[id] || id;
-      if (!byChannel[id]) byChannel[id] = { channel: name, resolved: 0, escalated: 0, active: 0, awaiting_context: 0 };
-      if (m.status === "resolved") byChannel[id].resolved++;
-      else if (m.status === "escalated") byChannel[id].escalated++;
-      else if (m.status === "active") byChannel[id].active++;
-      else if (m.status === "awaiting_context") byChannel[id].awaiting_context++;
+      if (!byChannel[id]) byChannel[id] = { channel: name, total: 0 };
+      byChannel[id].total++;
     });
-    return Object.values(byChannel).sort((a, b) => {
-      const totalA = a.resolved + a.escalated + a.active + a.awaiting_context;
-      const totalB = b.resolved + b.escalated + b.active + b.awaiting_context;
-      return totalB - totalA;
-    });
+    return Object.values(byChannel).sort((a, b) => b.total - a.total);
   }, [filtered, channelNames]);
 
   // Peak day
@@ -474,7 +467,7 @@ const Stats = () => {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Conversations by channel</CardTitle>
-            <CardDescription>Status breakdown per Slack channel</CardDescription>
+            <CardDescription>Total conversations per Slack channel</CardDescription>
           </CardHeader>
           <CardContent>
             {channelData.length === 0 ? (
@@ -486,10 +479,9 @@ const Stats = () => {
                   <XAxis type="number" allowDecimals={false} className="text-xs" />
                   <YAxis type="category" dataKey="channel" className="text-xs" width={160} tick={{ fontSize: 12 }} />
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="resolved" stackId="a" fill={chartConfig.resolved.color} radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="escalated" stackId="a" fill={chartConfig.escalated.color} />
-                  <Bar dataKey="active" stackId="a" fill={chartConfig.active.color} />
-                  <Bar dataKey="awaiting_context" stackId="a" fill={chartConfig.awaiting_context.color} radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="total" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]}>
+                    <LabelList dataKey="total" position="right" className="text-xs fill-foreground" />
+                  </Bar>
                 </BarChart>
               </ChartContainer>
             )}
