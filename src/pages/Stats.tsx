@@ -281,12 +281,18 @@ const Stats = () => {
 
         {/* Filters */}
         <div className="flex flex-wrap items-center gap-4">
-          <Tabs value={view} onValueChange={(v) => setView(v as "real" | "test")}>
-            <TabsList>
-              <TabsTrigger value="real">Production</TabsTrigger>
-              <TabsTrigger value="test">Test</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-muted-foreground">Environment:</span>
+            <Select value={view} onValueChange={(v) => setView(v as "real" | "test")}>
+              <SelectTrigger className="w-[180px] h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="real">Production</SelectItem>
+                <SelectItem value="test">Test</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-muted-foreground">Timeframe:</span>
             <Select value={range} onValueChange={(v) => setRange(v as TimeRange)}>
