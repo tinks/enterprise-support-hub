@@ -21,6 +21,7 @@ type NameMap = Record<string, string>;
 
 const channelNameOverrides: NameMap = {
   C0AJP396C85: "slack-intercom-bot-test",
+  C0AM32URSVC: "kristinastestchannel",
 };
 
 const statusColor = (status: string) => {
