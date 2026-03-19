@@ -1,18 +1,35 @@
 
 
-## Put All Filters in a Single Row
+## Toggle "Select All" Behavior for Channels Filter
 
 ### What Changes
 
-Move the Channels filter into the same `flex` row as Environment and Timeframe, so all filters sit on one line instead of two separate blocks.
+Make the "Select all" button act as a toggle: if all channels are already selected, clicking it deselects all; otherwise, it selects all.
 
 ### Technical Details
 
-**File: `src/pages/Stats.tsx`**
+**File: `src/pages/Stats.tsx`** — Lines 378-384
 
-- Move the Channels filter `div` (lines 341-392) inside the existing filters `div` (line 283), after the Timeframe/custom-date-pickers block
-- Remove the wrapping `{allChannelIds.length > 1 && (...)}` conditional from being a separate sibling — keep the condition but place it inline within the filters row
-- The outer `flex flex-wrap items-center gap-4` container already handles wrapping, so no layout changes needed
+Replace the two separate buttons with a single toggle button:
 
-Result: Environment, Timeframe (+ custom pickers when active), and Channels all appear in one `flex-wrap` row.
+```tsx
+<div className="border-t p-1.5 flex gap-1">
+  <Button
+    variant="ghost"
+    size="sm"
+    className="flex-1 text-xs"
+    onClick={() => {
+      if (selectedChannels.length === allChannelIds.length) {
+        setSelectedChannels([]);
+      } else {
+        setSelectedChannels([...allChannelIds]);
+      }
+    }}
+  >
+    {selectedChannels.length === allChannelIds.length ? "Deselect all" : "Select all"}
+  </Button>
+</div>
+```
+
+Remove the separate "Clear" button since the toggle handles both states.
 
