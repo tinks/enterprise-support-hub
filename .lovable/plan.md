@@ -1,49 +1,62 @@
 
 
-## Fix: Ticket admin replies not relayed to Slack after Sam auto-escalation
+## Fix: Add Ticket Conversion to Sam's Auto-Escalation
 
-### Root Cause
+### Problem
 
-When Sam auto-escalates, the `slack-interactions` function converts the conversation into an Intercom **ticket** (Type ID 1). After that, subsequent admin replies arrive as `ticket.admin.replied` webhooks instead of `conversation.admin.replied`.
-
-The payload structure for `ticket.admin.replied` is different:
-
-```text
-conversation.admin.replied → body.data.item.id = "215473561113063"  (conversation ID)
-ticket.admin.replied       → body.data.item.id = undefined
-                              body.data.item.ticket.id = "215473561113063"
-```
-
-On **line 158**, the conversation ID extraction is:
-```typescript
-const conversationId = body.data?.item?.id || body.data?.item?.ticket_id || body.data?.item?.conversation_id;
-```
-
-This misses `body.data?.item?.ticket?.id`, so `conversationId` is `undefined`, and the webhook returns a 400 error ("No conversation ID found"). Confirmed in the logs:
-```
-Intercom webhook topic: ticket.admin.replied, conversation_id: undefined
-No conversation ID found in webhook payload
-```
+When Sam auto-escalates, the code only reassigns the conversation to the enterprise team inbox. It does NOT convert it to a ticket (unlike the manual 👎 escalation which does both). This means the conversation stays as a conversation type in Intercom, which may cause inconsistent behavior for the support team.
 
 ### Fix
 
-**File: `supabase/functions/intercom-webhook/index.ts`** — Line 158
+Add the ticket conversion step to both auto-escalation code paths, mirroring the manual escalation logic.
 
-Add `body.data?.item?.ticket?.id` to the extraction chain:
+### Technical Details
 
+**File: `supabase/functions/slack-interactions/index.ts`** — After line 608 (inside the `if (isAiEscalation)` block, after the reassignment)
+
+Add ticket conversion:
 ```typescript
-const conversationId = body.data?.item?.id
-  || body.data?.item?.ticket?.id
-  || body.data?.item?.ticket_id
-  || body.data?.item?.conversation_id;
+// Convert conversation to ticket (mirrors manual 👎 escalation)
+try {
+  const convertRes = await fetch(`https://api.intercom.io/conversations/${conversationId}/convert`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${intercomToken}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "Intercom-Version": "2.11",
+    },
+    body: JSON.stringify({ ticket_type_id: "1" }),
+  });
+  const convertData = await convertRes.json();
+  console.log(`Poll: converted conversation ${conversationId} to ticket:`, convertData.ticket_id || convertData.id);
+} catch (e) {
+  console.error(`Poll: failed to convert conversation ${conversationId} to ticket:`, e);
+}
 ```
 
-Also update the debug log on line 133 to use the same extraction so it's visible:
+**File: `supabase/functions/intercom-webhook/index.ts`** — After line 836 (inside the `if (isAiEscalation2)` block, after the reassignment)
 
+Add the same ticket conversion:
 ```typescript
-const itemId = body.data?.item?.id || body.data?.item?.ticket?.id;
-console.log(`Intercom webhook topic: ${topic}, conversation_id: ${itemId}`);
+// Convert conversation to ticket (mirrors manual 👎 escalation)
+try {
+  const convertRes = await fetch(`https://api.intercom.io/conversations/${conversationId}/convert`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "Intercom-Version": "2.11",
+    },
+    body: JSON.stringify({ ticket_type_id: "1" }),
+  });
+  const convertData = await convertRes.json();
+  console.log(`Webhook: converted conversation ${conversationId} to ticket:`, convertData.ticket_id || convertData.id);
+} catch (e) {
+  console.error(`Webhook: failed to convert conversation ${conversationId} to ticket:`, e);
+}
 ```
 
-Redeploy `intercom-webhook` after editing.
+Redeploy both edge functions after editing.
 
