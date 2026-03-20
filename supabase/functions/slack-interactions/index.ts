@@ -605,6 +605,24 @@ async function createIntercomTicket(opts: {
               }),
             });
             console.log(`Poll: reassigned conversation ${conversationId} to team inbox ${cachedSettings.intercom_inbox_id}`);
+
+            // Convert conversation to ticket (mirrors manual 👎 escalation)
+            try {
+              const convertRes = await fetch(`https://api.intercom.io/conversations/${conversationId}/convert`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${intercomToken}`,
+                  "Content-Type": "application/json",
+                  Accept: "application/json",
+                  "Intercom-Version": "2.11",
+                },
+                body: JSON.stringify({ ticket_type_id: "1" }),
+              });
+              const convertData = await convertRes.json();
+              console.log(`Poll: converted conversation ${conversationId} to ticket:`, convertData.ticket_id || convertData.id);
+            } catch (e) {
+              console.error(`Poll: failed to convert conversation ${conversationId} to ticket:`, e);
+            }
           }
         }
       }
