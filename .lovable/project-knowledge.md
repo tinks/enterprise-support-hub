@@ -157,10 +157,17 @@ awaiting_context → processing → active ⇄ active_pending → resolved
 - Splits messages at 2500 chars / 35 lines to avoid Slack's "See more" collapse
 - Posts reply with divider + timestamp header + author attribution
 - Forwards Intercom attachments + inline images (deduped) to Slack
-- **Incident.io detection:** If reply references incident.io/status page → fetches live status from `status.lovable.dev` and posts status block with subscribe button
+- **Incident.io detection:** If reply references incident.io/status page → fetches live status from `status.lovable.dev` and posts status block with subscribe button; includes escalate button if not already escalated
 - **Interim message detection:** Pattern matches "Sam is working/thinking/typing..." → no buttons posted
-- **Auto-escalation detection:** Regex matches escalation keywords → hides feedback buttons, posts routing notice, sets status to `escalated`, swaps reactions (eyes→hourglass)
+- **Auto-escalation detection:** Regex matches escalation keywords → hides feedback buttons, posts routing notice, sets status to `escalated`, swaps reactions (eyes→hourglass), converts conversation to ticket (ticket_type_id: "1")
 - Normal replies → shows "👍 This resolved my issue" + "👎 Escalate to human" buttons + "continue chatting" hint
+
+### Ticket ID extraction (intercom-webhook)
+- For `ticket.*` topics, `item.id` may be a **part ID** not the conversation/ticket ID; the actual ID is at `item.ticket.id`
+- ID extraction priority: ticket topics → `item.ticket.id` first; conversation topics → `item.id` first
+- **Fallback mapping lookup:** if no mapping found for primary ID, tries alternative IDs from payload (`item.ticket.id`, `item.id`, `ticket_id`, `conversation_id`)
+- **Parts fetch fallback:** if `/conversations/{id}` returns no parts, falls back to `/tickets/{id}` endpoint
+- Enhanced diagnostic logging shows all payload IDs when no mapping found
 
 ### Step 6a: 👍 Positive feedback
 - **Function:** `slack-interactions`
