@@ -170,14 +170,37 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { data: mapping } = await supabase
+    let { data: mapping } = await supabase
       .from("conversation_mappings")
       .select("*")
       .eq("intercom_conversation_id", String(conversationId))
       .maybeSingle();
 
+    // Fallback: try alternative IDs from payload if initial lookup fails
     if (!mapping) {
-      console.log(`No mapping found for Intercom conversation ${conversationId}`);
+      const altIds = [
+        body.data?.item?.ticket?.id,
+        body.data?.item?.id,
+        body.data?.item?.ticket_id,
+        body.data?.item?.conversation_id,
+      ].filter(Boolean).map(String).filter(id => id !== String(conversationId));
+
+      for (const altId of altIds) {
+        const { data: altMapping } = await supabase
+          .from("conversation_mappings")
+          .select("*")
+          .eq("intercom_conversation_id", altId)
+          .maybeSingle();
+        if (altMapping) {
+          mapping = altMapping;
+          console.log(`Found mapping via alt ID ${altId} (original conversationId: ${conversationId})`);
+          break;
+        }
+      }
+    }
+
+    if (!mapping) {
+      console.log(`No mapping found for Intercom conversation ${conversationId}. Payload IDs: item.id=${body.data?.item?.id}, ticket.id=${body.data?.item?.ticket?.id}, ticket_id=${body.data?.item?.ticket_id}, type=${body.data?.item?.type}`);
       return new Response(JSON.stringify({ ok: true, message: "No mapping found" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
