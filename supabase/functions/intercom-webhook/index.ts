@@ -130,7 +130,8 @@ Deno.serve(async (req) => {
     console.log("Intercom webhook received:", JSON.stringify(body).substring(0, 500));
 
     const topic = body.topic;
-    console.log(`Intercom webhook topic: ${topic}, conversation_id: ${body.data?.item?.id}`);
+    const itemId = body.data?.item?.id || body.data?.item?.ticket?.id;
+    console.log(`Intercom webhook topic: ${topic}, conversation_id: ${itemId}`);
 
     const REPLY_TOPICS = ["conversation.admin.replied", "conversation.admin.single.reply", "ticket.admin.replied"];
     const CLOSED_TOPICS = ["conversation.admin.closed", "ticket.state.updated"];
@@ -155,7 +156,7 @@ Deno.serve(async (req) => {
     }
 
     // Ticket events may use different payload shapes for the conversation ID
-    const conversationId = body.data?.item?.id || body.data?.item?.ticket_id || body.data?.item?.conversation_id;
+    const conversationId = body.data?.item?.id || body.data?.item?.ticket?.id || body.data?.item?.ticket_id || body.data?.item?.conversation_id;
     if (!conversationId) {
       console.error("No conversation ID found in webhook payload");
       return new Response(JSON.stringify({ error: "No conversation ID" }), {
