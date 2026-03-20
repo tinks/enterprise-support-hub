@@ -1,42 +1,48 @@
 
 
-## Fix: Add Escalate Button to Incident.io Status Block
+## Fix: Ticket admin replies not relayed to Slack after Sam auto-escalation
 
-### Problem
+### Root Cause
 
-When an incident.io-related reply is posted to Slack, the status block only shows "👍 This resolved my issue" and "📡 Subscribe to status updates" — the "👎 Escalate to human" button is missing. The main reply code skips buttons entirely for incident replies (line 720), expecting them to be in the status block, but the status block never included the escalate button.
+When Sam auto-escalates, the `slack-interactions` function converts the conversation into an Intercom **ticket** (Type ID 1). After that, subsequent admin replies arrive as `ticket.admin.replied` webhooks instead of `conversation.admin.replied`.
+
+The payload structure for `ticket.admin.replied` is different:
+
+```text
+conversation.admin.replied → body.data.item.id = "215473561113063"  (conversation ID)
+ticket.admin.replied       → body.data.item.id = undefined
+                              body.data.item.ticket.id = "215473561113063"
+```
+
+On **line 158**, the conversation ID extraction is:
+```typescript
+const conversationId = body.data?.item?.id || body.data?.item?.ticket_id || body.data?.item?.conversation_id;
+```
+
+This misses `body.data?.item?.ticket?.id`, so `conversationId` is `undefined`, and the webhook returns a 400 error ("No conversation ID found"). Confirmed in the logs:
+```
+Intercom webhook topic: ticket.admin.replied, conversation_id: undefined
+No conversation ID found in webhook payload
+```
 
 ### Fix
 
-**File: `supabase/functions/intercom-webhook/index.ts`** — Lines 501-517
+**File: `supabase/functions/intercom-webhook/index.ts`** — Line 158
 
-Add the "👎 Escalate to human" button to the `incidentStatusBlock` actions, conditioned on the conversation not already being escalated (same guard used elsewhere):
+Add `body.data?.item?.ticket?.id` to the extraction chain:
 
 ```typescript
-{
-  type: "actions",
-  elements: [
-    {
-      type: "button",
-      text: { type: "plain_text", text: "👍 This resolved my issue", emoji: true },
-      action_id: "feedback_positive",
-      value: String(conversationId),
-    },
-    // Add escalate button if not already escalated
-    ...(mapping.status !== "escalated" && mapping.status !== "escalated_pending" ? [{
-      type: "button",
-      text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
-      action_id: "feedback_negative",
-      value: String(conversationId),
-    }] : []),
-    {
-      type: "button",
-      text: { type: "plain_text", text: "📡 Subscribe to status updates", emoji: true },
-      url: STATUS_PAGE_URL,
-      action_id: "incident_io_subscribe",
-    },
-  ],
-},
+const conversationId = body.data?.item?.id
+  || body.data?.item?.ticket?.id
+  || body.data?.item?.ticket_id
+  || body.data?.item?.conversation_id;
+```
+
+Also update the debug log on line 133 to use the same extraction so it's visible:
+
+```typescript
+const itemId = body.data?.item?.id || body.data?.item?.ticket?.id;
+console.log(`Intercom webhook topic: ${topic}, conversation_id: ${itemId}`);
 ```
 
 Redeploy `intercom-webhook` after editing.
