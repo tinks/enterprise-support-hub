@@ -263,6 +263,14 @@ async function createIntercomTicket(opts: {
       if (conflictId) {
         console.log(`Contact conflict resolved — using existing id=${conflictId}`);
         contactId = conflictId;
+        // Update contact with email if provided
+        if (email) {
+          await fetch(`https://api.intercom.io/contacts/${conflictId}`, {
+            method: "PUT",
+            headers: intercomHeaders,
+            body: JSON.stringify({ email, name: email }),
+          });
+        }
       } else {
         console.error(`Failed to create Intercom contact: ${createResText}`);
         return;
