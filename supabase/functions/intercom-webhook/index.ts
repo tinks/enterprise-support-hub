@@ -507,6 +507,12 @@ Deno.serve(async (req) => {
                   action_id: "feedback_positive",
                   value: String(conversationId),
                 },
+                ...(mapping.status !== "escalated" && mapping.status !== "escalated_pending" ? [{
+                  type: "button",
+                  text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
+                  action_id: "feedback_negative",
+                  value: String(conversationId),
+                }] : []),
                 {
                   type: "button",
                   text: { type: "plain_text", text: "📡 Subscribe to status updates", emoji: true },
