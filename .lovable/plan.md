@@ -1,30 +1,50 @@
 
 
-## Simplify "Conversations by Channel" to Total Count per Row
+## Fix: Intercom contact not updated with email on conflict
 
-### What Changes
+### Root Cause
 
-Replace the current stacked horizontal bar chart (showing status breakdown) with a simple horizontal bar chart that displays the **total number of conversations** per channel, one channel per row. Each bar shows a single value — the total count — making it easier to compare channels at a glance.
+When a user provides an email via "Add details", the code searches Intercom contacts by email (line 210). If no contact with that email exists, it tries to create one with `external_id: slackUserId` + email. But if this Slack user previously created a ticket **without** an email, a contact already exists with that `external_id` and name `"Slack User U091..."`. The create call returns a 409 conflict, and the code extracts the existing contact ID — but never updates the contact's email or name. So the ticket is filed under "Slack User" despite the email being provided.
 
-### Technical Details
+### Fix
 
-**File: `src/pages/Stats.tsx`** — Lines 483-494
+**File: `supabase/functions/slack-interactions/index.ts`**
 
-1. Add a `total` field to each `channelData` entry (sum of resolved + escalated + active + awaiting_context) in the data preparation logic
-2. Replace the 4 stacked `<Bar>` components with a single `<Bar dataKey="total">` using the primary color
-3. Add value labels at the end of each bar for quick reading
+After resolving a conflict (line 252-254), if an email was provided, update the existing contact with the email and name via `PUT /contacts/{id}`:
 
-```tsx
-<BarChart data={channelData} layout="vertical" margin={{ left: 20 }}>
-  <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
-  <XAxis type="number" allowDecimals={false} className="text-xs" />
-  <YAxis type="category" dataKey="channel" className="text-xs" width={160} tick={{ fontSize: 12 }} />
-  <ChartTooltip content={<ChartTooltipContent />} />
-  <Bar dataKey="total" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]}>
-    <LabelList dataKey="total" position="right" className="text-xs fill-foreground" />
-  </Bar>
-</BarChart>
+```typescript
+if (conflictId) {
+  console.log(`Contact conflict resolved — using existing id=${conflictId}`);
+  contactId = conflictId;
+  // Update contact with email if provided
+  if (email) {
+    await fetch(`https://api.intercom.io/contacts/${conflictId}`, {
+      method: "PUT",
+      headers: intercomHeaders,
+      body: JSON.stringify({ email, name: email }),
+    });
+  }
+}
 ```
 
-The status breakdown remains visible in the **Status distribution** pie chart already on the page.
+Also update the contact when found via search (line 222-223) — if the search was by `external_id` (no email) but now email is provided, or if search was by email but name is stale:
+
+```typescript
+if (contactData.data?.length > 0) {
+  contactId = contactData.data[0].id;
+  // Update contact with email/name if provided and different
+  if (email) {
+    const existing = contactData.data[0];
+    if (existing.email !== email || existing.name !== email) {
+      await fetch(`https://api.intercom.io/contacts/${contactId}`, {
+        method: "PUT",
+        headers: intercomHeaders,
+        body: JSON.stringify({ email, name: email }),
+      });
+    }
+  }
+}
+```
+
+After editing, redeploy the `slack-interactions` edge function.
 
