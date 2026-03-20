@@ -1,50 +1,43 @@
 
 
-## Fix: Intercom contact not updated with email on conflict
+## Fix: Add Escalate Button to Incident.io Status Block
 
-### Root Cause
+### Problem
 
-When a user provides an email via "Add details", the code searches Intercom contacts by email (line 210). If no contact with that email exists, it tries to create one with `external_id: slackUserId` + email. But if this Slack user previously created a ticket **without** an email, a contact already exists with that `external_id` and name `"Slack User U091..."`. The create call returns a 409 conflict, and the code extracts the existing contact ID — but never updates the contact's email or name. So the ticket is filed under "Slack User" despite the email being provided.
+When an incident.io-related reply is posted to Slack, the status block only shows "👍 This resolved my issue" and "📡 Subscribe to status updates" — the "👎 Escalate to human" button is missing. The main reply code skips buttons entirely for incident replies (line 720), expecting them to be in the status block, but the status block never included the escalate button.
 
 ### Fix
 
-**File: `supabase/functions/slack-interactions/index.ts`**
+**File: `supabase/functions/intercom-webhook/index.ts`** — Lines 501-517
 
-After resolving a conflict (line 252-254), if an email was provided, update the existing contact with the email and name via `PUT /contacts/{id}`:
-
-```typescript
-if (conflictId) {
-  console.log(`Contact conflict resolved — using existing id=${conflictId}`);
-  contactId = conflictId;
-  // Update contact with email if provided
-  if (email) {
-    await fetch(`https://api.intercom.io/contacts/${conflictId}`, {
-      method: "PUT",
-      headers: intercomHeaders,
-      body: JSON.stringify({ email, name: email }),
-    });
-  }
-}
-```
-
-Also update the contact when found via search (line 222-223) — if the search was by `external_id` (no email) but now email is provided, or if search was by email but name is stale:
+Add the "👎 Escalate to human" button to the `incidentStatusBlock` actions, conditioned on the conversation not already being escalated (same guard used elsewhere):
 
 ```typescript
-if (contactData.data?.length > 0) {
-  contactId = contactData.data[0].id;
-  // Update contact with email/name if provided and different
-  if (email) {
-    const existing = contactData.data[0];
-    if (existing.email !== email || existing.name !== email) {
-      await fetch(`https://api.intercom.io/contacts/${contactId}`, {
-        method: "PUT",
-        headers: intercomHeaders,
-        body: JSON.stringify({ email, name: email }),
-      });
-    }
-  }
-}
+{
+  type: "actions",
+  elements: [
+    {
+      type: "button",
+      text: { type: "plain_text", text: "👍 This resolved my issue", emoji: true },
+      action_id: "feedback_positive",
+      value: String(conversationId),
+    },
+    // Add escalate button if not already escalated
+    ...(mapping.status !== "escalated" && mapping.status !== "escalated_pending" ? [{
+      type: "button",
+      text: { type: "plain_text", text: "👎 Escalate to human", emoji: true },
+      action_id: "feedback_negative",
+      value: String(conversationId),
+    }] : []),
+    {
+      type: "button",
+      text: { type: "plain_text", text: "📡 Subscribe to status updates", emoji: true },
+      url: STATUS_PAGE_URL,
+      action_id: "incident_io_subscribe",
+    },
+  ],
+},
 ```
 
-After editing, redeploy the `slack-interactions` edge function.
+Redeploy `intercom-webhook` after editing.
 
