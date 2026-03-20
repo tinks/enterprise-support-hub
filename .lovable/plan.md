@@ -1,62 +1,93 @@
 
 
-## Fix: Add Ticket Conversion to Sam's Auto-Escalation
+## Fix: First Human Reply Lost After Escalation
 
 ### Problem
 
-When Sam auto-escalates, the code only reassigns the conversation to the enterprise team inbox. It does NOT convert it to a ticket (unlike the manual 👎 escalation which does both). This means the conversation stays as a conversation type in Intercom, which may cause inconsistent behavior for the support team.
+After escalation (both manual 👎 and Sam auto-escalation), the first human agent reply from Intercom is not relayed to Slack. The second reply works. All escalated conversations show zero webhook processing logs, confirming this is systemic.
+
+### Root Cause (Most Likely)
+
+For `ticket.admin.replied` webhooks, the payload has `item.type = "ticket_ticket_part"`. In this structure, `item.id` may be the **ticket part ID** (not the conversation/ticket ID), while the actual ticket ID is at `item.ticket.id`. Our ID extraction prioritizes `item.id` first, so it grabs the part ID, looks up the mapping by part ID, finds nothing, and silently skips the reply.
+
+The second reply may work because Intercom also fires a `conversation.admin.replied` event (with the original conversation ID in `item.id`), which arrives slightly later.
 
 ### Fix
 
-Add the ticket conversion step to both auto-escalation code paths, mirroring the manual escalation logic.
+**File: `supabase/functions/intercom-webhook/index.ts`**
 
-### Technical Details
+**1. Fix ID extraction priority for ticket events (line 159)**
 
-**File: `supabase/functions/slack-interactions/index.ts`** — After line 608 (inside the `if (isAiEscalation)` block, after the reassignment)
+For ticket-type topics, prefer `item.ticket.id` over `item.id`:
 
-Add ticket conversion:
 ```typescript
-// Convert conversation to ticket (mirrors manual 👎 escalation)
-try {
-  const convertRes = await fetch(`https://api.intercom.io/conversations/${conversationId}/convert`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${intercomToken}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      "Intercom-Version": "2.11",
-    },
-    body: JSON.stringify({ ticket_type_id: "1" }),
-  });
-  const convertData = await convertRes.json();
-  console.log(`Poll: converted conversation ${conversationId} to ticket:`, convertData.ticket_id || convertData.id);
-} catch (e) {
-  console.error(`Poll: failed to convert conversation ${conversationId} to ticket:`, e);
+const conversationId = (topic.startsWith("ticket.")
+  ? (body.data?.item?.ticket?.id || body.data?.item?.id)
+  : (body.data?.item?.id || body.data?.item?.ticket?.id))
+  || body.data?.item?.ticket_id
+  || body.data?.item?.conversation_id;
+```
+
+**2. Add fallback lookup when no mapping found (after line 174)**
+
+If initial lookup fails, try alternative IDs from the payload:
+
+```typescript
+if (!mapping) {
+  // Try alternative IDs from payload before giving up
+  const altIds = [
+    body.data?.item?.ticket?.id,
+    body.data?.item?.id,
+    body.data?.item?.ticket_id,
+    body.data?.item?.conversation_id,
+  ].filter(Boolean).map(String).filter(id => id !== String(conversationId));
+
+  for (const altId of altIds) {
+    const { data: altMapping } = await supabase
+      .from("conversation_mappings")
+      .select("*")
+      .eq("intercom_conversation_id", altId)
+      .maybeSingle();
+    if (altMapping) {
+      mapping = altMapping;
+      console.log(`Found mapping via alt ID ${altId} (original: ${conversationId})`);
+      break;
+    }
+  }
 }
 ```
 
-**File: `supabase/functions/intercom-webhook/index.ts`** — After line 836 (inside the `if (isAiEscalation2)` block, after the reassignment)
+**3. Add diagnostic logging (enhance line 174)**
 
-Add the same ticket conversion:
+Log all available IDs when no mapping is found so we can diagnose future issues:
+
 ```typescript
-// Convert conversation to ticket (mirrors manual 👎 escalation)
-try {
-  const convertRes = await fetch(`https://api.intercom.io/conversations/${conversationId}/convert`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      "Intercom-Version": "2.11",
-    },
-    body: JSON.stringify({ ticket_type_id: "1" }),
-  });
-  const convertData = await convertRes.json();
-  console.log(`Webhook: converted conversation ${conversationId} to ticket:`, convertData.ticket_id || convertData.id);
-} catch (e) {
-  console.error(`Webhook: failed to convert conversation ${conversationId} to ticket:`, e);
+if (!mapping) {
+  console.log(`No mapping found for conversation ${conversationId}. Payload IDs: item.id=${body.data?.item?.id}, ticket.id=${body.data?.item?.ticket?.id}, ticket_id=${body.data?.item?.ticket_id}, type=${body.data?.item?.type}`);
 }
 ```
 
-Redeploy both edge functions after editing.
+**4. Also fix the API parts fetch (line 278)**
+
+After ticket conversion, `GET /conversations/{id}` might not return parts. Add fallback to tickets endpoint:
+
+```typescript
+if (!convoRes.ok || !apiParts?.length) {
+  // Try tickets endpoint for converted tickets
+  const ticketRes = await fetch(`https://api.intercom.io/tickets/${conversationId}`, { ... });
+  if (ticketRes.ok) {
+    const ticketData = await ticketRes.json();
+    // Extract parts from ticket response
+  }
+}
+```
+
+Redeploy `intercom-webhook` after editing.
+
+### Why This Fixes It
+
+- Prioritizing `item.ticket.id` for ticket events ensures we get the conversation/ticket ID, not a part ID
+- Fallback lookup catches cases where the ID structure differs from what we expect
+- Diagnostic logging will help identify the exact payload structure if it happens again
+- Tickets endpoint fallback ensures conversation parts are fetched even after conversion
 
