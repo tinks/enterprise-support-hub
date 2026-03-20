@@ -156,7 +156,12 @@ Deno.serve(async (req) => {
     }
 
     // Ticket events may use different payload shapes for the conversation ID
-    const conversationId = body.data?.item?.id || body.data?.item?.ticket?.id || body.data?.item?.ticket_id || body.data?.item?.conversation_id;
+    // For ticket topics, prefer item.ticket.id (item.id may be a part ID)
+    const conversationId = (topic.startsWith("ticket.")
+      ? (body.data?.item?.ticket?.id || body.data?.item?.id)
+      : (body.data?.item?.id || body.data?.item?.ticket?.id))
+      || body.data?.item?.ticket_id
+      || body.data?.item?.conversation_id;
     if (!conversationId) {
       console.error("No conversation ID found in webhook payload");
       return new Response(JSON.stringify({ error: "No conversation ID" }), {
@@ -165,14 +170,37 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { data: mapping } = await supabase
+    let { data: mapping } = await supabase
       .from("conversation_mappings")
       .select("*")
       .eq("intercom_conversation_id", String(conversationId))
       .maybeSingle();
 
+    // Fallback: try alternative IDs from payload if initial lookup fails
     if (!mapping) {
-      console.log(`No mapping found for Intercom conversation ${conversationId}`);
+      const altIds = [
+        body.data?.item?.ticket?.id,
+        body.data?.item?.id,
+        body.data?.item?.ticket_id,
+        body.data?.item?.conversation_id,
+      ].filter(Boolean).map(String).filter(id => id !== String(conversationId));
+
+      for (const altId of altIds) {
+        const { data: altMapping } = await supabase
+          .from("conversation_mappings")
+          .select("*")
+          .eq("intercom_conversation_id", altId)
+          .maybeSingle();
+        if (altMapping) {
+          mapping = altMapping;
+          console.log(`Found mapping via alt ID ${altId} (original conversationId: ${conversationId})`);
+          break;
+        }
+      }
+    }
+
+    if (!mapping) {
+      console.log(`No mapping found for Intercom conversation ${conversationId}. Payload IDs: item.id=${body.data?.item?.id}, ticket.id=${body.data?.item?.ticket?.id}, ticket_id=${body.data?.item?.ticket_id}, type=${body.data?.item?.type}`);
       return new Response(JSON.stringify({ ok: true, message: "No mapping found" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -293,6 +321,30 @@ Deno.serve(async (req) => {
           }
         } else {
           console.warn(`Failed to fetch conversation ${conversationId} from Intercom API: ${await convoRes.text()}`);
+        }
+
+        // Fallback: try tickets endpoint if conversation endpoint returned no parts
+        if (!conversationParts || conversationParts.length === 0) {
+          try {
+            const ticketRes = await fetch(`https://api.intercom.io/tickets/${conversationId}`, {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                Accept: "application/json",
+                "Intercom-Version": "2.11",
+              },
+            });
+            if (ticketRes.ok) {
+              const ticketData = await ticketRes.json();
+              const ticketParts = ticketData?.conversation_parts?.conversation_parts;
+              if (Array.isArray(ticketParts) && ticketParts.length > 0) {
+                conversationParts = ticketParts;
+                console.log(`Loaded ${ticketParts.length} parts from tickets API for ${conversationId}`);
+              }
+            }
+          } catch (te) {
+            console.warn(`Tickets API fallback failed for ${conversationId}:`, te);
+          }
         }
       } catch (e) {
         console.warn(`Error fetching conversation ${conversationId} from Intercom API:`, e);
