@@ -833,6 +833,24 @@ Deno.serve(async (req) => {
           }),
         });
         console.log(`Webhook: reassigned conversation ${conversationId} to team inbox ${appSettings.intercom_inbox_id}`);
+
+        // Convert conversation to ticket (mirrors manual 👎 escalation)
+        try {
+          const convertRes = await fetch(`https://api.intercom.io/conversations/${conversationId}/convert`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              "Intercom-Version": "2.11",
+            },
+            body: JSON.stringify({ ticket_type_id: "1" }),
+          });
+          const convertData = await convertRes.json();
+          console.log(`Webhook: converted conversation ${conversationId} to ticket:`, convertData.ticket_id || convertData.id);
+        } catch (e) {
+          console.error(`Webhook: failed to convert conversation ${conversationId} to ticket:`, e);
+        }
       }
     } else if (isHumanAdmin && (mapping.status === "active" || mapping.status === "active_pending")) {
       // Human admin replied while status was still active — transition to escalated
