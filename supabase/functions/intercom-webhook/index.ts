@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
     }
 
     // Ticket events may use different payload shapes for the conversation ID
-    const conversationId = body.data?.item?.id || body.data?.item?.ticket_id || body.data?.item?.conversation_id;
+    const conversationId = body.data?.item?.id || body.data?.item?.ticket?.id || body.data?.item?.ticket_id || body.data?.item?.conversation_id;
     if (!conversationId) {
       console.error("No conversation ID found in webhook payload");
       return new Response(JSON.stringify({ error: "No conversation ID" }), {
