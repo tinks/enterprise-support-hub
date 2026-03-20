@@ -322,6 +322,30 @@ Deno.serve(async (req) => {
         } else {
           console.warn(`Failed to fetch conversation ${conversationId} from Intercom API: ${await convoRes.text()}`);
         }
+
+        // Fallback: try tickets endpoint if conversation endpoint returned no parts
+        if (!conversationParts || conversationParts.length === 0) {
+          try {
+            const ticketRes = await fetch(`https://api.intercom.io/tickets/${conversationId}`, {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                Accept: "application/json",
+                "Intercom-Version": "2.11",
+              },
+            });
+            if (ticketRes.ok) {
+              const ticketData = await ticketRes.json();
+              const ticketParts = ticketData?.conversation_parts?.conversation_parts;
+              if (Array.isArray(ticketParts) && ticketParts.length > 0) {
+                conversationParts = ticketParts;
+                console.log(`Loaded ${ticketParts.length} parts from tickets API for ${conversationId}`);
+              }
+            }
+          } catch (te) {
+            console.warn(`Tickets API fallback failed for ${conversationId}:`, te);
+          }
+        }
       } catch (e) {
         console.warn(`Error fetching conversation ${conversationId} from Intercom API:`, e);
       }
