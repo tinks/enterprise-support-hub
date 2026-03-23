@@ -133,11 +133,20 @@ const Conversations = () => {
                   </TableHeader>
                   <TableBody>
                     {mappings.map((m) => (
-                      <TableRow key={m.id}>
+                      <TableRow key={m.id} className={m.is_test ? "opacity-50" : ""}>
                         <TableCell>
                           <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
                             <User className="h-3.5 w-3.5 text-muted-foreground" />
                             {userNames[m.slack_user_id] || m.slack_user_id || "—"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="max-w-[200px]">
+                          <span className="text-xs text-muted-foreground truncate block" title={m.original_message_text}>
+                            {m.original_message_text
+                              ? m.original_message_text.length > 60
+                                ? m.original_message_text.slice(0, 60) + "…"
+                                : m.original_message_text
+                              : "—"}
                           </span>
                         </TableCell>
                         <TableCell>
@@ -173,6 +182,13 @@ const Conversations = () => {
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {new Date(m.created_at).toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <Switch
+                            checked={m.is_test}
+                            onCheckedChange={() => toggleTest(m.id, m.is_test)}
+                            aria-label="Toggle test"
+                          />
                         </TableCell>
                       </TableRow>
                     ))}
