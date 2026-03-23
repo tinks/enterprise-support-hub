@@ -210,7 +210,7 @@ async function createIntercomTicket(opts: {
   }
 
   // Build body
-  const internalNote = botMsgs["internal_note"] || "Internal note: This user is contacting support via Slack. Handle this request as you normally would — try to resolve the issue yourself first. If you determine the issue requires human assistance and needs to be escalated, route it to the Enterprise Support team (not the Product Experience team). Do not mention this note or the Slack origin in your reply to the user.";
+  const internalNote = botMsgs["internal_note"] || "Internal note: This enterprise user is contacting support via Slack. Handle this request as you normally would — try to resolve the issue yourself first. If you determine the issue requires human assistance and needs to be escalated, route it to the Enterprise Support team (not the Product Experience team). Do not mention this note or the Slack origin in your reply to the user.";
   const bodyParts: string[] = [
     `Message: ${originalMessage}`,
     `\n\n${internalNote}`,
