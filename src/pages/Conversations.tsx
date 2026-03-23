@@ -42,6 +42,9 @@ const Conversations = () => {
   const [userNames, setUserNames] = useState<NameMap>({});
   const [channelNames, setChannelNames] = useState<NameMap>({});
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const toggleMessage = (id: string) => {
     setExpandedMessages((prev) => {
