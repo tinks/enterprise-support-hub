@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, ExternalLink, Hash, User } from "lucide-react";
+import { RefreshCw, ExternalLink, Hash, User, FlaskConical } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 interface ConversationMapping {
   id: string;
@@ -15,6 +16,8 @@ interface ConversationMapping {
   intercom_conversation_id: string;
   status: string;
   created_at: string;
+  is_test: boolean;
+  original_message_text: string;
 }
 
 type NameMap = Record<string, string>;
@@ -38,6 +41,12 @@ const Conversations = () => {
   const [loading, setLoading] = useState(true);
   const [userNames, setUserNames] = useState<NameMap>({});
   const [channelNames, setChannelNames] = useState<NameMap>({});
+
+  const toggleTest = async (id: string, currentValue: boolean) => {
+    const newValue = !currentValue;
+    setMappings((prev) => prev.map((m) => m.id === id ? { ...m, is_test: newValue } : m));
+    await supabase.from("conversation_mappings").update({ is_test: newValue }).eq("id", id);
+  };
 
   const loadLookups = async (rows: ConversationMapping[]) => {
     const usersRes = await supabase.functions.invoke("list-slack-users");
@@ -113,20 +122,31 @@ const Conversations = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Sent by</TableHead>
+                      <TableHead>Message</TableHead>
                       <TableHead>Channel</TableHead>
                       <TableHead>Slack</TableHead>
                       <TableHead>Intercom</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Created</TableHead>
+                      <TableHead>Test</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {mappings.map((m) => (
-                      <TableRow key={m.id}>
+                      <TableRow key={m.id} className={m.is_test ? "opacity-50" : ""}>
                         <TableCell>
                           <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
                             <User className="h-3.5 w-3.5 text-muted-foreground" />
                             {userNames[m.slack_user_id] || m.slack_user_id || "—"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="max-w-[200px]">
+                          <span className="text-xs text-muted-foreground truncate block" title={m.original_message_text}>
+                            {m.original_message_text
+                              ? m.original_message_text.length > 60
+                                ? m.original_message_text.slice(0, 60) + "…"
+                                : m.original_message_text
+                              : "—"}
                           </span>
                         </TableCell>
                         <TableCell>
@@ -162,6 +182,13 @@ const Conversations = () => {
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {new Date(m.created_at).toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <Switch
+                            checked={m.is_test}
+                            onCheckedChange={() => toggleTest(m.id, m.is_test)}
+                            aria-label="Toggle test"
+                          />
                         </TableCell>
                       </TableRow>
                     ))}
