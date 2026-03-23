@@ -1,36 +1,17 @@
 
 
-## Auto-Lookup Slack User Email
+## Add "Load More" Button to Conversations
 
-### Problem
-When a user clicks "Proceed" (skipping the modal), the Intercom contact is created as "Slack User U091..." with no email. Even when the Slack workspace has the user's email available via `users.info` API.
+### Current State
+The page fetches 50 conversations with `.limit(50)` and no way to see older ones.
 
-### Fix
+### Changes
 
-**File: `supabase/functions/slack-interactions/index.ts`**
+**File: `src/pages/Conversations.tsx`**
 
-At the start of `createIntercomTicket()` (after line 142, before the ack message), if no email was provided, look up the Slack user's email:
-
-```typescript
-// Auto-lookup Slack user email if not provided
-let resolvedEmail = email;
-if (!resolvedEmail) {
-  try {
-    const userRes = await fetch(`${SLACK_API_URL}/users.info?user=${slackUserId}`, {
-      headers: { Authorization: `Bearer ${slackBotToken}` },
-    });
-    const userData = await userRes.json();
-    if (userData.ok && userData.user?.profile?.email) {
-      resolvedEmail = userData.user.profile.email;
-      console.log(`Auto-resolved email for ${slackUserId}: ${resolvedEmail}`);
-    }
-  } catch (e) {
-    console.error("Failed to lookup Slack user email:", e);
-  }
-}
-```
-
-Then use `resolvedEmail` instead of `email` throughout the rest of the function (contact search, create, body parts). The bot already has `users:read.email` scope so this will work.
-
-This means even "Proceed" (no modal) tickets will have the user's real email and name in Intercom.
+1. Add `offset` state (starts at 0) and `hasMore` state (starts at true)
+2. Modify `loadData` to accept an `append` flag — when true, fetch next 50 rows using `.range(offset, offset+49)` and append to existing mappings
+3. Add a "Load more" button below the table that calls `loadData(true)`, incrementing offset by 50
+4. Hide the button when `hasMore` is false (i.e., last fetch returned fewer than 50 rows)
+5. On "Refresh", reset offset to 0 and replace all data
 
