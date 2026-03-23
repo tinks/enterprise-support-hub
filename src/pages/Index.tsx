@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Settings, RefreshCw, Save, Link, Search, Hash, X, Plus } from "lucide-react";
 import BotIdentityCard from "@/components/BotIdentityCard";
+import lovableLogo from "@/assets/lovable-logo.png";
 
 interface SettingsData {
   id: string;
@@ -184,10 +185,10 @@ const Index = () => {
     <div className="bg-background p-6">
       <div className="mx-auto max-w-4xl space-y-6">
         <div className="flex items-center gap-3">
-          <Settings className="h-8 w-8 text-primary" />
+          <img src={lovableLogo} alt="Ask Lovable" className="h-10 w-10 rounded-lg" />
           <div>
             <h1 className="text-2xl font-bold text-foreground">
-              Slack ↔ Intercom Bridge
+              Ask Lovable — Slack ↔ Intercom bridge
             </h1>
             <p className="text-sm text-muted-foreground">
               Event-driven support bridge — @mention the bot to create tickets
