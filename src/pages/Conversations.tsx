@@ -150,14 +150,21 @@ const Conversations = () => {
                             {userNames[m.slack_user_id] || m.slack_user_id || "—"}
                           </span>
                         </TableCell>
-                        <TableCell className="max-w-[200px]">
-                          <span className="text-xs text-muted-foreground truncate block" title={m.original_message_text}>
-                            {m.original_message_text
-                              ? m.original_message_text.length > 60
-                                ? m.original_message_text.slice(0, 60) + "…"
-                                : m.original_message_text
-                              : "—"}
-                          </span>
+                        <TableCell className="max-w-[300px]">
+                          {m.original_message_text ? (
+                            <button
+                              onClick={() => toggleMessage(m.id)}
+                              className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                            >
+                              {expandedMessages.has(m.id)
+                                ? m.original_message_text
+                                : m.original_message_text.length > 60
+                                  ? m.original_message_text.slice(0, 60) + "…"
+                                  : m.original_message_text}
+                            </button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <span className="inline-flex items-center gap-1 text-sm text-foreground">
