@@ -239,13 +239,13 @@ async function createIntercomTicket(opts: {
   if (contactData.data?.length > 0) {
     contactId = contactData.data[0].id;
     // Update contact with email/name if provided and different
-    if (email) {
+    if (resolvedEmail) {
       const existing = contactData.data[0];
-      if (existing.email !== email || existing.name !== email) {
+      if (existing.email !== resolvedEmail || existing.name !== resolvedEmail) {
         await fetch(`https://api.intercom.io/contacts/${contactId}`, {
           method: "PUT",
           headers: intercomHeaders,
-          body: JSON.stringify({ email, name: email }),
+          body: JSON.stringify({ email: resolvedEmail, name: resolvedEmail }),
         });
       }
     }
