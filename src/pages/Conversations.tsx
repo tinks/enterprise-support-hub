@@ -5,7 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, ExternalLink, Hash, User } from "lucide-react";
+import { RefreshCw, ExternalLink, Hash, User, FlaskConical } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 interface ConversationMapping {
   id: string;
@@ -15,6 +16,8 @@ interface ConversationMapping {
   intercom_conversation_id: string;
   status: string;
   created_at: string;
+  is_test: boolean;
+  original_message_text: string;
 }
 
 type NameMap = Record<string, string>;
