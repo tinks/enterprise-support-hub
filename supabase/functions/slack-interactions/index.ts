@@ -254,9 +254,9 @@ async function createIntercomTicket(opts: {
       role: "user",
       external_id: slackUserId,
     };
-    if (email) {
-      createBody.email = email;
-      createBody.name = email;
+    if (resolvedEmail) {
+      createBody.email = resolvedEmail;
+      createBody.name = resolvedEmail;
     } else {
       createBody.name = `Slack User ${slackUserId}`;
     }
