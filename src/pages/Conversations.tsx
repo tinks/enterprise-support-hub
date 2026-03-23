@@ -42,6 +42,9 @@ const Conversations = () => {
   const [userNames, setUserNames] = useState<NameMap>({});
   const [channelNames, setChannelNames] = useState<NameMap>({});
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const toggleMessage = (id: string) => {
     setExpandedMessages((prev) => {
@@ -88,16 +91,30 @@ const Conversations = () => {
     }
   };
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (append = false) => {
+    const currentOffset = append ? offset : 0;
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setOffset(0);
+    }
     const { data } = await supabase
       .from("conversation_mappings")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(50);
+      .range(currentOffset, currentOffset + 49);
     const rows = (data ?? []) as unknown as ConversationMapping[];
-    setMappings(rows);
-    setLoading(false);
+    setHasMore(rows.length === 50);
+    if (append) {
+      setMappings((prev) => [...prev, ...rows]);
+      setOffset(currentOffset + 50);
+      setLoadingMore(false);
+    } else {
+      setMappings(rows);
+      setOffset(50);
+      setLoading(false);
+    }
     return rows;
   };
 
@@ -211,6 +228,13 @@ const Conversations = () => {
                     ))}
                   </TableBody>
                 </Table>
+              )}
+              {hasMore && mappings.length > 0 && (
+                <div className="flex justify-center pt-4">
+                  <Button variant="outline" size="sm" onClick={() => loadData(true)} disabled={loadingMore}>
+                    {loadingMore ? "Loading…" : "Load more"}
+                  </Button>
+                </div>
               )}
             </CardContent>
           </Card>
