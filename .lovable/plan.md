@@ -1,24 +1,19 @@
 
 
-## Add "Mark as Test" Toggle and Message Preview to Conversations Table
+## Widen Conversations Table and Make Message Expandable
 
-### What Changes
+### Changes
 
-1. **Message preview column** — Show the first ~60 characters of `original_message_text` in a new "Message" column so each conversation is easier to identify at a glance.
+1. **Widen the container** — Change `max-w-5xl` to `max-w-7xl` on line 101 so the table has more horizontal space.
 
-2. **Toggle test button** — Add a small button per row to toggle the `is_test` field on `conversation_mappings`. Clicking it flips `is_test` between `true` and `false` and updates the row in the database. A visual indicator (e.g., a "Test" badge or muted row styling) shows which conversations are marked as test.
+2. **Make message preview expandable** — Replace the static truncated text with a clickable element. Clicking it toggles between the truncated preview (60 chars) and the full message text. Use local state (`expandedMessages: Set<string>`) to track which rows are expanded.
 
 ### Technical Details
 
 **File: `src/pages/Conversations.tsx`**
 
-1. Update the `ConversationMapping` interface to include `is_test: boolean` and `original_message_text: string`
-2. Add a "Message" column header after "Sent by"
-3. Render a truncated preview of `original_message_text` (first 60 chars + ellipsis) in each row
-4. Add a "Test" column with a toggle button:
-   - Shows current state (e.g., `<Badge>Test</Badge>` or a `FlaskConical` icon button)
-   - On click, calls `supabase.from("conversation_mappings").update({ is_test: !m.is_test }).eq("id", m.id)` and updates local state
-5. Optionally dim rows where `is_test === true` with `opacity-50` styling
-
-No database changes needed — `is_test` and `original_message_text` columns already exist on `conversation_mappings`.
+- Add state: `const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set())`
+- Add toggle function that adds/removes IDs from the set
+- Line 101: `max-w-5xl` → `max-w-7xl`
+- Lines 143-151: Replace the truncated span with a clickable `button` that shows full text when expanded, truncated + "…" when collapsed. Remove `truncate` class when expanded, keep `max-w-[300px]` base width.
 
