@@ -122,11 +122,13 @@ const Conversations = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Sent by</TableHead>
+                      <TableHead>Message</TableHead>
                       <TableHead>Channel</TableHead>
                       <TableHead>Slack</TableHead>
                       <TableHead>Intercom</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Created</TableHead>
+                      <TableHead>Test</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
