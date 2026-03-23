@@ -108,7 +108,7 @@ const Conversations = () => {
   return (
     <AppLayout>
       <div className="bg-background p-6">
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto max-w-7xl">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
