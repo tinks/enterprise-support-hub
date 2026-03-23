@@ -1,19 +1,36 @@
 
 
-## Widen Conversations Table and Make Message Expandable
+## Auto-Lookup Slack User Email
 
-### Changes
+### Problem
+When a user clicks "Proceed" (skipping the modal), the Intercom contact is created as "Slack User U091..." with no email. Even when the Slack workspace has the user's email available via `users.info` API.
 
-1. **Widen the container** — Change `max-w-5xl` to `max-w-7xl` on line 101 so the table has more horizontal space.
+### Fix
 
-2. **Make message preview expandable** — Replace the static truncated text with a clickable element. Clicking it toggles between the truncated preview (60 chars) and the full message text. Use local state (`expandedMessages: Set<string>`) to track which rows are expanded.
+**File: `supabase/functions/slack-interactions/index.ts`**
 
-### Technical Details
+At the start of `createIntercomTicket()` (after line 142, before the ack message), if no email was provided, look up the Slack user's email:
 
-**File: `src/pages/Conversations.tsx`**
+```typescript
+// Auto-lookup Slack user email if not provided
+let resolvedEmail = email;
+if (!resolvedEmail) {
+  try {
+    const userRes = await fetch(`${SLACK_API_URL}/users.info?user=${slackUserId}`, {
+      headers: { Authorization: `Bearer ${slackBotToken}` },
+    });
+    const userData = await userRes.json();
+    if (userData.ok && userData.user?.profile?.email) {
+      resolvedEmail = userData.user.profile.email;
+      console.log(`Auto-resolved email for ${slackUserId}: ${resolvedEmail}`);
+    }
+  } catch (e) {
+    console.error("Failed to lookup Slack user email:", e);
+  }
+}
+```
 
-- Add state: `const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set())`
-- Add toggle function that adds/removes IDs from the set
-- Line 101: `max-w-5xl` → `max-w-7xl`
-- Lines 143-151: Replace the truncated span with a clickable `button` that shows full text when expanded, truncated + "…" when collapsed. Remove `truncate` class when expanded, keep `max-w-[300px]` base width.
+Then use `resolvedEmail` instead of `email` throughout the rest of the function (contact search, create, body parts). The bot already has `users:read.email` scope so this will work.
+
+This means even "Proceed" (no modal) tickets will have the user's real email and name in Intercom.
 
