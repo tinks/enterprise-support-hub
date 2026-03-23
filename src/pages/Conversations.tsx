@@ -42,6 +42,12 @@ const Conversations = () => {
   const [userNames, setUserNames] = useState<NameMap>({});
   const [channelNames, setChannelNames] = useState<NameMap>({});
 
+  const toggleTest = async (id: string, currentValue: boolean) => {
+    const newValue = !currentValue;
+    setMappings((prev) => prev.map((m) => m.id === id ? { ...m, is_test: newValue } : m));
+    await supabase.from("conversation_mappings").update({ is_test: newValue }).eq("id", id);
+  };
+
   const loadLookups = async (rows: ConversationMapping[]) => {
     const usersRes = await supabase.functions.invoke("list-slack-users");
     if (usersRes.data?.users) {
