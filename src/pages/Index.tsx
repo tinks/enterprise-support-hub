@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Settings, RefreshCw, Save, Link, Search, Hash, X, Plus } from "lucide-react";
 import BotIdentityCard from "@/components/BotIdentityCard";
+import lovableLogo from "@/assets/lovable-logo.png";
 
 interface SettingsData {
   id: string;
