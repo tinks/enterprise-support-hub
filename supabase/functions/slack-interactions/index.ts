@@ -215,7 +215,7 @@ async function createIntercomTicket(opts: {
     `Message: ${originalMessage}`,
     `\n\n${internalNote}`,
   ];
-  if (email) bodyParts.push(`Lovable account email: ${email}`);
+  if (resolvedEmail) bodyParts.push(`Lovable account email: ${resolvedEmail}`);
   if (projectLink) bodyParts.push(`Project: ${projectLink}`);
   if (attachmentUrls?.length) {
     bodyParts.push("Attachments:\n" + attachmentUrls.map((url) => `• ${url}`).join("\n"));
