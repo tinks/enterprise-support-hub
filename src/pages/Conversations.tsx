@@ -41,6 +41,16 @@ const Conversations = () => {
   const [loading, setLoading] = useState(true);
   const [userNames, setUserNames] = useState<NameMap>({});
   const [channelNames, setChannelNames] = useState<NameMap>({});
+  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
+
+  const toggleMessage = (id: string) => {
+    setExpandedMessages((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const toggleTest = async (id: string, currentValue: boolean) => {
     const newValue = !currentValue;
@@ -98,7 +108,7 @@ const Conversations = () => {
   return (
     <AppLayout>
       <div className="bg-background p-6">
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto max-w-7xl">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
@@ -140,14 +150,21 @@ const Conversations = () => {
                             {userNames[m.slack_user_id] || m.slack_user_id || "—"}
                           </span>
                         </TableCell>
-                        <TableCell className="max-w-[200px]">
-                          <span className="text-xs text-muted-foreground truncate block" title={m.original_message_text}>
-                            {m.original_message_text
-                              ? m.original_message_text.length > 60
-                                ? m.original_message_text.slice(0, 60) + "…"
-                                : m.original_message_text
-                              : "—"}
-                          </span>
+                        <TableCell className="max-w-[300px]">
+                          {m.original_message_text ? (
+                            <button
+                              onClick={() => toggleMessage(m.id)}
+                              className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                            >
+                              {expandedMessages.has(m.id)
+                                ? m.original_message_text
+                                : m.original_message_text.length > 60
+                                  ? m.original_message_text.slice(0, 60) + "…"
+                                  : m.original_message_text}
+                            </button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <span className="inline-flex items-center gap-1 text-sm text-foreground">
