@@ -41,6 +41,16 @@ const Conversations = () => {
   const [loading, setLoading] = useState(true);
   const [userNames, setUserNames] = useState<NameMap>({});
   const [channelNames, setChannelNames] = useState<NameMap>({});
+  const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
+
+  const toggleMessage = (id: string) => {
+    setExpandedMessages((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const toggleTest = async (id: string, currentValue: boolean) => {
     const newValue = !currentValue;
