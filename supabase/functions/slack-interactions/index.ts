@@ -141,6 +141,23 @@ async function createIntercomTicket(opts: {
     attachmentUrls, promptMessageTs,
   } = opts;
 
+  // Auto-lookup Slack user email if not provided
+  let resolvedEmail = email;
+  if (!resolvedEmail) {
+    try {
+      const userRes = await fetch(`${SLACK_API_URL}/users.info?user=${slackUserId}`, {
+        headers: { Authorization: `Bearer ${slackBotToken}` },
+      });
+      const userData = await userRes.json();
+      if (userData.ok && userData.user?.profile?.email) {
+        resolvedEmail = userData.user.profile.email;
+        console.log(`Auto-resolved email for ${slackUserId}: ${resolvedEmail}`);
+      }
+    } catch (e) {
+      console.error("Failed to lookup Slack user email:", e);
+    }
+  }
+
   const intercomHeaders = {
     Authorization: `Bearer ${intercomToken}`,
     "Content-Type": "application/json",
@@ -198,7 +215,7 @@ async function createIntercomTicket(opts: {
     `Message: ${originalMessage}`,
     `\n\n${internalNote}`,
   ];
-  if (email) bodyParts.push(`Lovable account email: ${email}`);
+  if (resolvedEmail) bodyParts.push(`Lovable account email: ${resolvedEmail}`);
   if (projectLink) bodyParts.push(`Project: ${projectLink}`);
   if (attachmentUrls?.length) {
     bodyParts.push("Attachments:\n" + attachmentUrls.map((url) => `• ${url}`).join("\n"));
@@ -207,8 +224,8 @@ async function createIntercomTicket(opts: {
 
   // Find or create Intercom contact
   let contactId: string;
-  const searchField = email ? "email" : "external_id";
-  const searchValue = email || slackUserId;
+  const searchField = resolvedEmail ? "email" : "external_id";
+  const searchValue = resolvedEmail || slackUserId;
 
   const contactRes = await fetch("https://api.intercom.io/contacts/search", {
     method: "POST",
@@ -222,13 +239,13 @@ async function createIntercomTicket(opts: {
   if (contactData.data?.length > 0) {
     contactId = contactData.data[0].id;
     // Update contact with email/name if provided and different
-    if (email) {
+    if (resolvedEmail) {
       const existing = contactData.data[0];
-      if (existing.email !== email || existing.name !== email) {
+      if (existing.email !== resolvedEmail || existing.name !== resolvedEmail) {
         await fetch(`https://api.intercom.io/contacts/${contactId}`, {
           method: "PUT",
           headers: intercomHeaders,
-          body: JSON.stringify({ email, name: email }),
+          body: JSON.stringify({ email: resolvedEmail, name: resolvedEmail }),
         });
       }
     }
@@ -237,9 +254,9 @@ async function createIntercomTicket(opts: {
       role: "user",
       external_id: slackUserId,
     };
-    if (email) {
-      createBody.email = email;
-      createBody.name = email;
+    if (resolvedEmail) {
+      createBody.email = resolvedEmail;
+      createBody.name = resolvedEmail;
     } else {
       createBody.name = `Slack User ${slackUserId}`;
     }
@@ -264,11 +281,11 @@ async function createIntercomTicket(opts: {
         console.log(`Contact conflict resolved — using existing id=${conflictId}`);
         contactId = conflictId;
         // Update contact with email if provided
-        if (email) {
+        if (resolvedEmail) {
           await fetch(`https://api.intercom.io/contacts/${conflictId}`, {
             method: "PUT",
             headers: intercomHeaders,
-            body: JSON.stringify({ email, name: email }),
+            body: JSON.stringify({ email: resolvedEmail, name: resolvedEmail }),
           });
         }
       } else {
