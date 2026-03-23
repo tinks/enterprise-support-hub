@@ -224,8 +224,8 @@ async function createIntercomTicket(opts: {
 
   // Find or create Intercom contact
   let contactId: string;
-  const searchField = email ? "email" : "external_id";
-  const searchValue = email || slackUserId;
+  const searchField = resolvedEmail ? "email" : "external_id";
+  const searchValue = resolvedEmail || slackUserId;
 
   const contactRes = await fetch("https://api.intercom.io/contacts/search", {
     method: "POST",
