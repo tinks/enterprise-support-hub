@@ -162,6 +162,15 @@ const Conversations = () => {
                   <TableBody>
                     {mappings.map((m) => (
                       <TableRow key={m.id} className={m.is_test ? "opacity-50" : ""}>
+                        <TableCell
+                          className="font-mono text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                          title="Click to copy full ID"
+                          onClick={() => {
+                            navigator.clipboard.writeText(m.id);
+                          }}
+                        >
+                          {m.id.slice(0, 8)}
+                        </TableCell>
                         <TableCell>
                           <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
                             <User className="h-3.5 w-3.5 text-muted-foreground" />
