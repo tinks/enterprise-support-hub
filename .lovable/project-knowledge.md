@@ -274,6 +274,7 @@ Stored in `bot_messages` table, editable from the Flow Diagram UI:
 | `escalation_notice` | Step 6b | Message when escalating to human |
 | `reply_forwarded` | Step 6b-i | Message when user's Slack reply is forwarded |
 | `conversation_closed` | Step 7 | Message when conversation is closed from Intercom |
+| `context_reminder` | Step 2 (cron) | Reminder posted after 15 min if user hasn't interacted with context prompt |
 | `internal_note` | Step 4 | Anti-escalation context prepended to Intercom conversation body (not shown to user) |
 
 ---
