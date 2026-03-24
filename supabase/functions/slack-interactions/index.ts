@@ -981,6 +981,50 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ===== Helper: restore prompt with buttons after a failure =====
+    async function restorePromptWithButtons(channelId: string, threadTs: string, promptMsgTs: string | undefined) {
+      if (!promptMsgTs) return;
+      const buttonValue = `${channelId}|${threadTs}`;
+      const contextPromptText = "👋 Thank you for contacting the Enterprise Support Team. To help us resolve your issue as quickly and accurately as possible, please share your Lovable account email and your workspace or project name (or a link to it). If these aren't relevant to your question, feel free to click *Proceed*.";
+      try {
+        await fetch(`${SLACK_API_URL}/chat.update`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            channel: channelId,
+            ts: promptMsgTs,
+            text: contextPromptText.replace(/\*/g, ""),
+            blocks: [
+              { type: "section", text: { type: "mrkdwn", text: contextPromptText } },
+              {
+                type: "actions",
+                elements: [
+                  {
+                    type: "button",
+                    text: { type: "plain_text", text: "Add Details", emoji: true },
+                    action_id: "add_details",
+                    value: buttonValue,
+                    style: "primary",
+                  },
+                  {
+                    type: "button",
+                    text: { type: "plain_text", text: "Proceed", emoji: true },
+                    action_id: "proceed_without_context",
+                    value: buttonValue,
+                  },
+                ],
+              },
+            ],
+          }),
+        });
+      } catch (e) {
+        console.error("Failed to restore prompt with buttons:", e);
+      }
+    }
+
     // ===== "Proceed" button =====
     if (actionId === "proceed_without_context") {
       const [channelId, threadTs] = (action.value || "").split("|");
