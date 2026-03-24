@@ -148,6 +148,7 @@ const Conversations = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>#</TableHead>
                       <TableHead>Sent by</TableHead>
                       <TableHead>Message</TableHead>
                       <TableHead>Channel</TableHead>
