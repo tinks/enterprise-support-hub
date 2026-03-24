@@ -640,6 +640,34 @@ async function createIntercomTicket(opts: {
             } catch (e) {
               console.error(`Poll: failed to convert conversation ${conversationId} to ticket:`, e);
             }
+
+            // Post as customer to mark ticket as "Waiting" in Intercom inbox
+            try {
+              const { data: pollMapping } = await supabase
+                .from("conversation_mappings")
+                .select("intercom_contact_id")
+                .eq("intercom_conversation_id", conversationId)
+                .maybeSingle();
+              if (pollMapping?.intercom_contact_id) {
+                await fetch(`https://api.intercom.io/conversations/${conversationId}/reply`, {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${intercomToken}`,
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                  },
+                  body: JSON.stringify({
+                    message_type: "comment",
+                    type: "user",
+                    intercom_user_id: pollMapping.intercom_contact_id,
+                    body: "This ticket has been escalated — awaiting human support response.",
+                  }),
+                });
+                console.log(`Poll: posted customer comment on ${conversationId} to mark as waiting`);
+              }
+            } catch (e) {
+              console.error(`Poll: failed to post escalation customer comment:`, e);
+            }
           }
         }
       }
