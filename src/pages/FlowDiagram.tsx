@@ -148,6 +148,7 @@ function buildNodes(
         details: [
           "Updates prompt message to ack text via chat.update (single bot avatar)",
           "Creates Intercom ticket immediately",
+          "On failure → resets status to awaiting_context, restores prompt with buttons, posts error message",
         ],
         accent: "blue",
       },
