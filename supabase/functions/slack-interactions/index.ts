@@ -1107,6 +1107,27 @@ Deno.serve(async (req) => {
           }
         } catch (e) {
           console.error("Background proceed work failed:", e);
+          // Reset status so user can retry
+          await supabase.from("conversation_mappings")
+            .update({ status: "awaiting_context" })
+            .eq("slack_channel_id", channelId)
+            .eq("slack_thread_ts", threadTs)
+            .eq("status", "processing");
+          // Restore prompt with buttons
+          await restorePromptWithButtons(channelId, threadTs, promptMsgTs);
+          // Notify user
+          try {
+            await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                channel: channelId,
+                thread_ts: threadTs,
+                text: "Something went wrong — please try again using the buttons above.",
+                ...BOT_IDENTITY,
+              }),
+            });
+          } catch (_) { /* best effort */ }
         }
       })();
       if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
