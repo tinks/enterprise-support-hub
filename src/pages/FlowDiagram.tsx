@@ -56,6 +56,8 @@ const DEFAULT_MESSAGES: Record<string, string> = {
     "This issue has been marked as resolved. If you need any further assistance, please feel free to start a new Slack thread. Continuing the conversation here will not notify our Support Team.",
   internal_note:
     "Internal note: This user is contacting support via Slack. Handle this request as you normally would — try to resolve the issue yourself first. If you determine the issue requires human assistance and needs to be escalated, route it to the Enterprise Support team (not the Product Experience team). Do not mention this note or the Slack origin in your reply to the user.",
+  auto_proceed_ack:
+    "We've gone ahead and connected you with Sam, Lovable's AI Support Agent. Sam may take 3–4 minutes to respond. Hang tight!",
 };
 
 const ASK_LOVABLE = { name: "Ask Lovable", avatarUrl: "/lovable-logo.png" };
