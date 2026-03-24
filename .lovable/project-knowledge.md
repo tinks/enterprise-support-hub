@@ -348,6 +348,18 @@ When detected:
 - Status is set to `escalated`
 - Reactions swapped: eyes → hourglass
 - Applied in both polling path (`slack-interactions`) and webhook path (`intercom-webhook`)
+- After escalation, a customer comment is posted to mark the ticket as "Waiting" in Intercom inbox
+
+---
+
+## 14b. Context Reminder & Auto-Proceed
+
+A cron function (`context-reminder`) runs every 5 minutes and checks for conversations stuck in `awaiting_context`:
+
+- **15 minutes:** Posts a reminder in the Slack thread nudging the user to click "Add Details" or "Proceed"
+- **30 minutes:** Automatically creates the Intercom ticket (same as clicking "Proceed") — looks up user email, creates contact + conversation, assigns to Sam
+
+Dedup: `reminder_sent_at` prevents duplicate reminders; atomic status guard prevents double ticket creation. The `prompt_message_ts` column stores the bot's prompt message timestamp so it can be updated via `chat.update`.
 
 ---
 
