@@ -184,7 +184,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      claim_intercom_part: {
+        Args: { p_mapping_id: string; p_part_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
