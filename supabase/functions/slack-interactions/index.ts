@@ -1195,6 +1195,34 @@ Deno.serve(async (req) => {
             console.error("Failed to convert conversation to ticket:", e);
           }
 
+          // Post as customer to mark ticket as "Waiting" in Intercom inbox
+          try {
+            const { data: escalMapping } = await supabase
+              .from("conversation_mappings")
+              .select("intercom_contact_id")
+              .eq("intercom_conversation_id", conversationId)
+              .maybeSingle();
+            if (escalMapping?.intercom_contact_id) {
+              await fetch(`https://api.intercom.io/conversations/${conversationId}/reply`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                  "Content-Type": "application/json",
+                  Accept: "application/json",
+                },
+                body: JSON.stringify({
+                  message_type: "comment",
+                  type: "user",
+                  intercom_user_id: escalMapping.intercom_contact_id,
+                  body: "This ticket has been escalated — awaiting human support response.",
+                }),
+              });
+              console.log(`Posted customer comment on ${conversationId} to mark as waiting`);
+            }
+          } catch (e) {
+            console.error("Failed to post escalation customer comment:", e);
+          }
+
           await removeReaction(SLACK_BOT_TOKEN, channel, threadTs, "eyes");
           await addReaction(SLACK_BOT_TOKEN, channel, threadTs, "hourglass_flowing_sand");
 
