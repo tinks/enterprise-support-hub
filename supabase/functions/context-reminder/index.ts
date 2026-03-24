@@ -240,7 +240,7 @@ Deno.serve(async (req) => {
       }
 
       // Post ack in Slack
-      const ackText = botMsgs["ticket_created_ack"] || "Thanks for sharing those details! You're now being redirected to Sam, Lovable's AI Support Agent. Please note that Sam may take 3–4 minutes to come back to you with a response. Hang tight!";
+      const ackText = botMsgs["auto_proceed_ack"] || "We've gone ahead and connected you with Sam, Lovable's AI Support Agent. Sam may take 3–4 minutes to respond. Hang tight!";
       if (row.prompt_message_ts) {
         await fetch(`${SLACK_API_URL}/chat.update`, {
           method: "POST",
