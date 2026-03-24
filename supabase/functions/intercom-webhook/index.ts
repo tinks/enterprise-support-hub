@@ -903,6 +903,29 @@ Deno.serve(async (req) => {
         } catch (e) {
           console.error(`Webhook: failed to convert conversation ${conversationId} to ticket:`, e);
         }
+
+        // Post as customer to mark ticket as "Waiting" in Intercom inbox
+        try {
+          if (mapping.intercom_contact_id) {
+            await fetch(`https://api.intercom.io/conversations/${conversationId}/reply`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+              body: JSON.stringify({
+                message_type: "comment",
+                type: "user",
+                intercom_user_id: mapping.intercom_contact_id,
+                body: "This ticket has been escalated — awaiting human support response.",
+              }),
+            });
+            console.log(`Webhook: posted customer comment on ${conversationId} to mark as waiting`);
+          }
+        } catch (e) {
+          console.error(`Webhook: failed to post escalation customer comment:`, e);
+        }
       }
     } else if (isHumanAdmin && (mapping.status === "active" || mapping.status === "active_pending")) {
       // Human admin replied while status was still active — transition to escalated
