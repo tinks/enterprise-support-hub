@@ -372,77 +372,25 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Deduplication: monotonic atomic claim on last_intercom_part_id.
-    // Only newer part IDs are allowed to claim; stale or duplicate webhook deliveries are skipped.
+    // Deduplication: atomic claim via Postgres row-level lock
     const partId = lastCommentPart.id ? String(lastCommentPart.id) : null;
     if (partId) {
-      const { data: dedupeResult, error: dedupeError } = await supabase
-        .from("conversation_mappings")
-        .update({ last_intercom_part_id: partId })
-        .eq("id", mapping.id)
-        .or(`last_intercom_part_id.is.null,last_intercom_part_id.lt.${partId}`)
-        .select("id");
+      const { data: claimed, error: claimError } = await supabase
+        .rpc("claim_intercom_part", {
+          p_mapping_id: mapping.id,
+          p_part_id: partId,
+        });
 
-      if (dedupeError) {
-        console.error(`Dedup update failed for mapping ${mapping.id}, part ${partId}:`, dedupeError);
+      if (claimError) {
+        console.error(`Dedup claim RPC failed for mapping ${mapping.id}, part ${partId}:`, claimError);
+        // Default: proceed to avoid dropping messages
       }
 
-      if (!dedupeError && (!dedupeResult || dedupeResult.length === 0)) {
-        console.log(`Duplicate/stale part detected: ${partId} for mapping ${mapping.id}, skipping`);
+      if (!claimError && claimed === false) {
+        console.log(`Duplicate part ${partId} for mapping ${mapping.id}, skipping`);
         return new Response(JSON.stringify({ ok: true, message: "Duplicate skipped" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
-      }
-
-      if (dedupeError) {
-        // Defensive fallback: if marker is already this part OR a newer part, skip.
-        const { data: markerRow, error: selectError } = await supabase
-          .from("conversation_mappings")
-          .select("last_intercom_part_id")
-          .eq("id", mapping.id)
-          .maybeSingle();
-
-        if (selectError) {
-          // Cannot verify dedup state (e.g. schema cache stale) — skip to avoid duplicates
-          console.warn(`Dedup fallback select also failed for mapping ${mapping.id}, skipping to prevent duplicates:`, selectError);
-          return new Response(JSON.stringify({ ok: true, message: "Dedup unavailable, skipped" }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-
-        const marker = markerRow?.last_intercom_part_id;
-        const markerIsNumeric = !!marker && /^\d+$/.test(marker);
-        const partIsNumeric = /^\d+$/.test(partId);
-        const markerAlreadyClaimed = marker
-          ? (markerIsNumeric && partIsNumeric ? BigInt(marker) >= BigInt(partId) : marker === partId)
-          : false;
-
-        if (markerAlreadyClaimed) {
-          console.log(`Duplicate/stale part detected after fallback: ${partId} for mapping ${mapping.id}, skipping`);
-          return new Response(JSON.stringify({ ok: true, message: "Duplicate skipped" }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-
-        // Fallback: try to claim the marker via raw update (no .lt filter) only if marker is null
-        if (!marker) {
-          const { data: claimResult, error: claimError } = await supabase
-            .from("conversation_mappings")
-            .update({ last_intercom_part_id: partId })
-            .eq("id", mapping.id)
-            .is("last_intercom_part_id", null)
-            .select("id");
-
-          if (claimError || !claimResult || claimResult.length === 0) {
-            console.log(`Fallback claim failed for part ${partId}, mapping ${mapping.id} — another process won, skipping`);
-            return new Response(JSON.stringify({ ok: true, message: "Duplicate skipped" }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-          }
-          console.log(`Fallback claim succeeded for part ${partId}, mapping ${mapping.id}`);
-        } else {
-          console.warn(`Proceeding despite dedupe update error for part ${partId} (marker ${marker} differs)`);
-        }
       }
     }
 
