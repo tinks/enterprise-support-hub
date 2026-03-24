@@ -372,6 +372,12 @@ Deno.serve(async (req) => {
 
       if (!promptData.ok) {
         console.error(`app_mention post_failed ${channelId}/${threadTs}: ${promptData.error}`);
+      } else if (promptData.ts) {
+        // Save the prompt message timestamp so context-reminder can update it later
+        await supabase
+          .from("conversation_mappings")
+          .update({ prompt_message_ts: promptData.ts })
+          .eq("id", claimedId);
       }
 
       console.log(`app_mention accepted ${channelId}/${threadTs}`);

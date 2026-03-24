@@ -51,6 +51,8 @@ export type Database = {
           last_intercom_part_id: string | null
           last_processed_event_ts: string | null
           original_message_text: string
+          prompt_message_ts: string | null
+          reminder_sent_at: string | null
           slack_channel_id: string
           slack_thread_ts: string
           slack_user_id: string
@@ -66,6 +68,8 @@ export type Database = {
           last_intercom_part_id?: string | null
           last_processed_event_ts?: string | null
           original_message_text?: string
+          prompt_message_ts?: string | null
+          reminder_sent_at?: string | null
           slack_channel_id: string
           slack_thread_ts: string
           slack_user_id?: string
@@ -81,6 +85,8 @@ export type Database = {
           last_intercom_part_id?: string | null
           last_processed_event_ts?: string | null
           original_message_text?: string
+          prompt_message_ts?: string | null
+          reminder_sent_at?: string | null
           slack_channel_id?: string
           slack_thread_ts?: string
           slack_user_id?: string

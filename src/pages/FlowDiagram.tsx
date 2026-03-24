@@ -96,7 +96,7 @@ function buildNodes(
       position: { x: COL_W, y: ROW_H },
       data: {
         label: "2. Bot posts context prompt",
-        desc: "Bot replies with two buttons to add context or proceed immediately.",
+        desc: "Bot replies with two buttons to add context or proceed immediately. Saves prompt_message_ts for later updates.",
         icon: Bot,
         edgeFunction: "slack-events",
         message: msgs.context_prompt,
@@ -105,6 +105,12 @@ function buildNodes(
         botIdentity: ASK_LOVABLE,
         status: "awaiting_context",
         accent: "blue",
+        details: [
+          "Posts Block Kit message with 'Add Details' and 'Proceed' buttons",
+          "Saves prompt_message_ts to conversation_mappings for later chat.update",
+          "If no action after 15 min → cron posts reminder in thread",
+          "If no action after 30 min → cron auto-proceeds (creates ticket automatically)",
+        ],
       },
     },
     {
