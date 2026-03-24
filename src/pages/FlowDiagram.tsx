@@ -130,6 +130,7 @@ function buildNodes(
           "promptMessageTs stored in modal private_metadata",
           "Modal: Email + Project Link fields",
           "On submit → updates prompt message to ack via chat.update, creates Intercom ticket",
+          "On failure → resets status to awaiting_context, restores prompt with buttons, posts error message",
         ],
         message: "📧 user@example.com\n🔗 https://lovable.dev/projects/...",
         accent: "blue",
@@ -147,6 +148,7 @@ function buildNodes(
         details: [
           "Updates prompt message to ack text via chat.update (single bot avatar)",
           "Creates Intercom ticket immediately",
+          "On failure → resets status to awaiting_context, restores prompt with buttons, posts error message",
         ],
         accent: "blue",
       },

@@ -874,6 +874,27 @@ Deno.serve(async (req) => {
           }
         } catch (e) {
           console.error("Background view_submission work failed:", e);
+          // Reset status so user can retry
+          await supabase.from("conversation_mappings")
+            .update({ status: "awaiting_context" })
+            .eq("slack_channel_id", channelId)
+            .eq("slack_thread_ts", threadTs)
+            .eq("status", "processing");
+          // Restore prompt with buttons
+          await restorePromptWithButtons(channelId, threadTs, storedPromptTs);
+          // Notify user
+          try {
+            await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                channel: channelId,
+                thread_ts: threadTs,
+                text: "Something went wrong — please try again using the buttons above.",
+                ...BOT_IDENTITY,
+              }),
+            });
+          } catch (_) { /* best effort */ }
         }
       })();
       // Keep the isolate alive until background work completes
@@ -928,6 +949,27 @@ Deno.serve(async (req) => {
             });
           } catch (err) {
             console.error("view_closed background error:", err);
+            // Reset status so user can retry
+            await supabase.from("conversation_mappings")
+              .update({ status: "awaiting_context" })
+              .eq("slack_channel_id", channelId)
+              .eq("slack_thread_ts", threadTs)
+              .eq("status", "processing");
+            // Restore prompt with buttons
+            await restorePromptWithButtons(channelId, threadTs, storedPromptTs);
+            // Notify user
+            try {
+              await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  channel: channelId,
+                  thread_ts: threadTs,
+                  text: "Something went wrong — please try again using the buttons above.",
+                  ...BOT_IDENTITY,
+                }),
+              });
+            } catch (_) { /* best effort */ }
           }
         })();
         if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
@@ -981,6 +1023,50 @@ Deno.serve(async (req) => {
       }
     }
 
+    // ===== Helper: restore prompt with buttons after a failure =====
+    async function restorePromptWithButtons(channelId: string, threadTs: string, promptMsgTs: string | undefined) {
+      if (!promptMsgTs) return;
+      const buttonValue = `${channelId}|${threadTs}`;
+      const contextPromptText = "👋 Thank you for contacting the Enterprise Support Team. To help us resolve your issue as quickly and accurately as possible, please share your Lovable account email and your workspace or project name (or a link to it). If these aren't relevant to your question, feel free to click *Proceed*.";
+      try {
+        await fetch(`${SLACK_API_URL}/chat.update`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            channel: channelId,
+            ts: promptMsgTs,
+            text: contextPromptText.replace(/\*/g, ""),
+            blocks: [
+              { type: "section", text: { type: "mrkdwn", text: contextPromptText } },
+              {
+                type: "actions",
+                elements: [
+                  {
+                    type: "button",
+                    text: { type: "plain_text", text: "Add Details", emoji: true },
+                    action_id: "add_details",
+                    value: buttonValue,
+                    style: "primary",
+                  },
+                  {
+                    type: "button",
+                    text: { type: "plain_text", text: "Proceed", emoji: true },
+                    action_id: "proceed_without_context",
+                    value: buttonValue,
+                  },
+                ],
+              },
+            ],
+          }),
+        });
+      } catch (e) {
+        console.error("Failed to restore prompt with buttons:", e);
+      }
+    }
+
     // ===== "Proceed" button =====
     if (actionId === "proceed_without_context") {
       const [channelId, threadTs] = (action.value || "").split("|");
@@ -1021,6 +1107,27 @@ Deno.serve(async (req) => {
           }
         } catch (e) {
           console.error("Background proceed work failed:", e);
+          // Reset status so user can retry
+          await supabase.from("conversation_mappings")
+            .update({ status: "awaiting_context" })
+            .eq("slack_channel_id", channelId)
+            .eq("slack_thread_ts", threadTs)
+            .eq("status", "processing");
+          // Restore prompt with buttons
+          await restorePromptWithButtons(channelId, threadTs, promptMsgTs);
+          // Notify user
+          try {
+            await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                channel: channelId,
+                thread_ts: threadTs,
+                text: "Something went wrong — please try again using the buttons above.",
+                ...BOT_IDENTITY,
+              }),
+            });
+          } catch (_) { /* best effort */ }
         }
       })();
       if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
