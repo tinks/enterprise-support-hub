@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.check-bot-identity]
 verify_jwt = false
+
+[functions.context-reminder]
+verify_jwt = false
