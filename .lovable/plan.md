@@ -1,29 +1,26 @@
 
 
-## Fix Flow Diagram Layout — Increase Spacing
+## Use Dedicated "cancelled" Status Instead of "resolved"
 
 ### Problem
-Nodes have grown larger with additional text and details but the default positions still use tight spacing (`ROW_H = 260`), causing overlaps.
+Cancelled requests currently set `status = "resolved"`, making them indistinguishable from actual resolved conversations in the stats page. They should not appear in stats at all.
 
-### Fix — `src/pages/FlowDiagram.tsx`
+### Changes
 
-**1. Increase spacing constants**
-- `ROW_H`: 260 → 380 (more vertical room for tall nodes)
-- `COL_W`: 360 → 420 (more horizontal room for the 3-column layout at row 2)
+**1. `supabase/functions/slack-interactions/index.ts` (line 1156)**
+Change the cancel handler to set `status: "cancelled"` instead of `status: "resolved"`.
 
-**2. Adjust specific node positions**
-The multipliers on individual nodes also need tuning — especially:
-- Nodes 3a/3b/3c (row 2): widen horizontal spread to prevent overlap
-- Node 4 (Intercom ticket, `wide: true`): needs extra vertical gap below the 3-column row
-- Node 5 (AI responds, `wide: true`): push down further
-- Nodes 6a/6b/6c (row 5): widen spread and increase vertical gap from node 5
-- Nodes 6bi/6bii (row 6.5): adjust accordingly
-- Node 7 (closed): push to bottom
+**2. `src/pages/Stats.tsx`**
+Filter out rows with `status === "cancelled"` from the fetched data before computing any statistics, so cancelled requests are completely excluded from all charts and summary cards.
 
-**3. Clear saved positions**
-Since the DB stores dragged positions that override defaults, we should also reset the `flow_node_positions` table so the new defaults take effect. This will be a one-time migration that truncates the table.
+**3. `src/pages/Conversations.tsx`**
+Add `"cancelled"` to the `statusColor` function so it renders with an appropriate badge color (e.g., gray).
+
+**4. `supabase/functions/context-reminder/index.ts`**
+No change needed — the existing query filters on `status = 'awaiting_context'`, so cancelled conversations are already excluded.
 
 ### Summary
-- One file change: `src/pages/FlowDiagram.tsx` (spacing constants + position coordinates)
-- One migration: truncate `flow_node_positions` to reset saved positions
+- Two edge function lines changed (status value)
+- Two UI files updated (filter in Stats, badge color in Conversations)
+- No database migration needed — `status` is a plain text column
 
