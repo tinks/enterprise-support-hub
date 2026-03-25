@@ -1,22 +1,41 @@
+# Add Direct Message Support
 
+**Status:** Saved for later implementation
+**Date:** 2026-03-25
+**Note:** Only works for users in the same workspace as the bot. External (Slack Connect) users cannot DM the bot.
 
-## Add Row Number / Conversation ID Column to Conversations Table
+## Overview
+Enable users to DM the bot directly in Slack to ask questions privately. When a user sends a DM, the bot treats it the same as an @mention — posting the context prompt and flowing through the existing ticket creation pipeline.
 
-### Change
+## Requirements
+- **Slack App Config**: The custom Slack app needs the `im:history` scope and must subscribe to `message.im` bot events. Update the app manifest at https://api.slack.com/apps.
 
-**File: `src/pages/Conversations.tsx`**
+## Code Change
 
-Add a "#" column as the first column in the table that displays a sequential row number (based on position in the list, starting from 1). This gives each conversation a simple reference number visible in the UI.
+**File: `supabase/functions/slack-events/index.ts`**
 
-Alternatively, we could show the first 8 characters of the UUID `id` field as a short ID (e.g., `a3f2b1c9`). 
+Add a new handler block after the `app_mention` block (after line 384) for DM messages:
 
-The row number approach is simpler but changes when filters/pagination shift. The short UUID is stable and can be used to reference a specific record.
+```
+if (event.type === "message" && event.channel_type === "im" && !event.thread_ts && !event.bot_id && event.user && event.user !== expectedBotId)
+```
 
-**Recommendation:** Show the short UUID (`id.slice(0, 8)`) in a monospace font — it's stable, unique, and copyable.
+This catches top-level DM messages (not thread replies, not from bots). The handler will:
 
-### Details
+1. Use the DM channel ID + message ts as the thread identifier (same as @mention uses `event.ts` when there's no `thread_ts`)
+2. Atomically claim via upsert into `conversation_mappings` (same pattern as app_mention)
+3. Post the same context prompt with "Add Details" / "Proceed" buttons
+4. Save `prompt_message_ts`
 
-- Add `<TableHead>#</TableHead>` as the first column header
-- Add a `<TableCell>` showing `m.id.slice(0, 8)` with monospace styling and a click-to-copy tooltip
-- No database changes needed — the `id` field already exists
+The existing thread reply handler (line 388) already works for threaded replies regardless of channel type, so follow-up messages in the DM thread will flow through normally.
 
+## What Stays the Same
+- The entire downstream flow (context modal, ticket creation, Intercom relay, escalation, reminders) works unchanged — it's all keyed on `slack_channel_id` + `slack_thread_ts`
+- Thread replies in the DM will be handled by the existing message handler at line 388
+
+## Manual Step Required
+Add the `im:history` scope and subscribe to `message.im` events in your Slack app settings.
+
+## Limitations
+- Only works for users in the workspace where the bot is installed
+- External users (Slack Connect) cannot DM the bot — they must use @mentions in shared channels
