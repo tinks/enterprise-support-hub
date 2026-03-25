@@ -244,7 +244,7 @@ function buildNodes(
     {
       id: "6a",
       type: "flowNode",
-      position: { x: COL_W - COL_W * 0.7, y: ROW_H * 5.2 },
+      position: { x: COL_W - COL_W * 0.85, y: ROW_H * 5.9 },
       data: {
         label: "6a. 👍 Positive feedback",
         desc: "User confirms AI resolved their issue.",
