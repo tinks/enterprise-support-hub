@@ -141,7 +141,7 @@ function buildNodes(
     {
       id: "3b",
       type: "flowNode",
-      position: { x: COL_W + COL_W * 0.55, y: ROW_H * 2 },
+      position: { x: COL_W + COL_W * 0.75, y: ROW_H * 2 },
       data: {
         label: '3b. "Proceed" clicked',
         desc: "Skips modal, creates ticket with original message only.",
