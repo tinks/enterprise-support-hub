@@ -36,8 +36,8 @@ import { toast } from "sonner";
 
 const nodeTypes = { flowNode: EditableFlowNode };
 
-const COL_W = 360;
-const ROW_H = 260;
+const COL_W = 420;
+const ROW_H = 380;
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */
@@ -120,7 +120,7 @@ function buildNodes(
     {
       id: "3a",
       type: "flowNode",
-      position: { x: COL_W - COL_W * 0.55, y: ROW_H * 2 },
+      position: { x: COL_W - COL_W * 0.75, y: ROW_H * 2 },
       data: {
         label: '3a. "Add Details" clicked',
         desc: "Opens a Slack modal for email + project link.",
@@ -141,7 +141,7 @@ function buildNodes(
     {
       id: "3b",
       type: "flowNode",
-      position: { x: COL_W + COL_W * 0.55, y: ROW_H * 2 },
+      position: { x: COL_W + COL_W * 0.75, y: ROW_H * 2 },
       data: {
         label: '3b. "Proceed" clicked',
         desc: "Skips modal, creates ticket with original message only.",
@@ -158,7 +158,7 @@ function buildNodes(
     {
       id: "3c",
       type: "flowNode",
-      position: { x: COL_W + COL_W * 1.35, y: ROW_H * 2 },
+      position: { x: COL_W + COL_W * 1.55, y: ROW_H * 2 },
       data: {
         label: '3c. "Cancel" clicked',
         desc: "User dismisses the support request. No Intercom ticket is created.",
@@ -180,7 +180,7 @@ function buildNodes(
     {
       id: "4",
       type: "flowNode",
-      position: { x: COL_W, y: ROW_H * 3 },
+      position: { x: COL_W, y: ROW_H * 3.2 },
       data: {
         label: "4. Intercom ticket created",
         desc: "Bot creates an Intercom conversation and assigns it to the AI agent.",
@@ -211,7 +211,7 @@ function buildNodes(
     {
       id: "5",
       type: "flowNode",
-      position: { x: COL_W, y: ROW_H * 4 },
+      position: { x: COL_W, y: ROW_H * 4.5 },
       data: {
         label: "5. AI responds → posted to Slack",
         desc: "After ticket creation, polls Intercom API for Sam's reply and relays it to Slack with feedback buttons (unless Sam auto-escalates). Webhook serves as fallback for human admin replies.",
@@ -244,7 +244,7 @@ function buildNodes(
     {
       id: "6a",
       type: "flowNode",
-      position: { x: COL_W - COL_W * 0.7, y: ROW_H * 5.2 },
+      position: { x: COL_W - COL_W * 0.85, y: ROW_H * 5.9 },
       data: {
         label: "6a. 👍 Positive feedback",
         desc: "User confirms AI resolved their issue.",
@@ -268,7 +268,7 @@ function buildNodes(
     {
       id: "6c",
       type: "flowNode",
-      position: { x: COL_W + COL_W * 0.7, y: ROW_H * 5.2 },
+      position: { x: COL_W + COL_W * 0.85, y: ROW_H * 5.9 },
       data: {
         label: "6c. User replies in thread",
         desc: "User replies without clicking a button. Atomically transitions status to active_pending to gate the notice, then triggers another AI response — repeats until 👍 or 👎.",
@@ -293,7 +293,7 @@ function buildNodes(
     {
       id: "6b",
       type: "flowNode",
-      position: { x: COL_W, y: ROW_H * 5.2 },
+      position: { x: COL_W, y: ROW_H * 5.9 },
       data: {
         label: "6b. 👎 Escalate to human",
         desc: "User requests human support. Converts conversation to ticket.",
@@ -318,7 +318,7 @@ function buildNodes(
     {
       id: "6bi",
       type: "flowNode",
-      position: { x: COL_W - COL_W * 0.4, y: ROW_H * 6.5 },
+      position: { x: COL_W - COL_W * 0.5, y: ROW_H * 7.3 },
       data: {
         label: "6b-i. Human replies in Slack",
         desc: "After escalation (👎), user replies in Slack → forwarded to Intercom. Atomically gates the notice via escalated → escalated_pending.",
@@ -345,7 +345,7 @@ function buildNodes(
     {
       id: "6bii",
       type: "flowNode",
-      position: { x: COL_W + COL_W * 0.5, y: ROW_H * 6.5 },
+      position: { x: COL_W + COL_W * 0.6, y: ROW_H * 7.3 },
       data: {
         label: "6b-ii. Human replies from Intercom",
         desc: "Agent replies in Intercom → posted to Slack with resolve button. Can repeat indefinitely.",
@@ -365,7 +365,7 @@ function buildNodes(
     {
       id: "7",
       type: "flowNode",
-      position: { x: COL_W + COL_W * 0.05, y: ROW_H * 7.8 },
+      position: { x: COL_W + COL_W * 0.05, y: ROW_H * 8.7 },
       data: {
         label: "7. Conversation / Ticket closed",
         desc: "Conversation or ticket closed in Intercom → thread finalized in Slack.",
