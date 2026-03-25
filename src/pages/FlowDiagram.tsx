@@ -180,7 +180,7 @@ function buildNodes(
     {
       id: "4",
       type: "flowNode",
-      position: { x: COL_W, y: ROW_H * 3 },
+      position: { x: COL_W, y: ROW_H * 3.2 },
       data: {
         label: "4. Intercom ticket created",
         desc: "Bot creates an Intercom conversation and assigns it to the AI agent.",
