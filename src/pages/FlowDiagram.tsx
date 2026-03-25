@@ -156,6 +156,28 @@ function buildNodes(
       },
     },
     {
+      id: "3c",
+      type: "flowNode",
+      position: { x: COL_W + COL_W * 1.35, y: ROW_H * 2 },
+      data: {
+        label: '3c. "Cancel" clicked',
+        desc: "User dismisses the support request. No Intercom ticket is created.",
+        icon: CheckCircle2,
+        edgeFunction: "slack-interactions",
+        details: [
+          "Atomic guard: updates status to 'resolved' only if currently awaiting_context",
+          "Updates prompt message to cancellation acknowledgment via chat.update",
+          "No Intercom ticket created, no reactions added",
+        ],
+        message: msgs.request_cancelled,
+        messageKey: "request_cancelled",
+        onMessageSave: onSave,
+        botIdentity: ASK_LOVABLE,
+        status: "resolved",
+        accent: "green",
+      },
+    },
+    {
       id: "4",
       type: "flowNode",
       position: { x: COL_W, y: ROW_H * 3 },
