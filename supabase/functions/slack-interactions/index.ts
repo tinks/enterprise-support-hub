@@ -1057,6 +1057,12 @@ Deno.serve(async (req) => {
                     action_id: "proceed_without_context",
                     value: buttonValue,
                   },
+                  {
+                    type: "button",
+                    text: { type: "plain_text", text: "Cancel", emoji: true },
+                    action_id: "cancel_request",
+                    value: buttonValue,
+                  },
                 ],
               },
             ],
