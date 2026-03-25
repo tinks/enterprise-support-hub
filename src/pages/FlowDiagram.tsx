@@ -211,7 +211,7 @@ function buildNodes(
     {
       id: "5",
       type: "flowNode",
-      position: { x: COL_W, y: ROW_H * 4 },
+      position: { x: COL_W, y: ROW_H * 4.5 },
       data: {
         label: "5. AI responds → posted to Slack",
         desc: "After ticket creation, polls Intercom API for Sam's reply and relays it to Slack with feedback buttons (unless Sam auto-escalates). Webhook serves as fallback for human admin replies.",
