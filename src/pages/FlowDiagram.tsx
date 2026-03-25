@@ -100,7 +100,7 @@ function buildNodes(
       position: { x: COL_W, y: ROW_H },
       data: {
         label: "2. Bot posts context prompt",
-        desc: "Bot replies with two buttons to add context or proceed immediately. Saves prompt_message_ts for later updates.",
+        desc: "Bot replies with three buttons: add context, proceed immediately, or cancel. Saves prompt_message_ts for later updates.",
         icon: Bot,
         edgeFunction: "slack-events",
         message: msgs.context_prompt,
