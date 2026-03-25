@@ -1,66 +1,66 @@
 
 
-## Update Project Knowledge Document to Match Current State
+## Auto-Mark Lovable Employees as Test + Route to Slack Test Inbox
 
-### Differences Found
+### What changes
 
-Here are all the discrepancies between `.lovable/project-knowledge.md` and the current codebase:
+**1. Database migration — Add test inbox ID to settings**
 
----
+Add `test_intercom_inbox_id` column to `settings` with default value `'10219738'` (the "Slack Test" inbox).
 
-**1. Routes table is outdated (Section 2 — UI Pages)**
+**2. `supabase/functions/slack-events/index.ts` — Auto-detect Lovable employees**
 
-Current doc says `/` is Settings. Actually:
-- `/` → Stats (home page)
-- `/settings` → Settings (Index)
-- `/knowledge` → Project Knowledge (missing entirely)
+After claiming the conversation (upsert), look up the Slack user's email via `users.info`. If the email ends with `@lovable.dev`, update the mapping's `is_test = true` regardless of the `testing_mode` toggle:
 
-**2. Missing: "Cancel" button in context prompt (Sections 2, 5, 6)**
+```typescript
+// After upsert claim succeeds
+const userRes = await fetch(`${SLACK_API_URL}/users.info?user=${slackUserId}`, {
+  headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+});
+const userData = await userRes.json();
+const userEmail = userData.user?.profile?.email || "";
+const isLovableEmployee = userEmail.endsWith("@lovable.dev");
 
-- Step 2 says "two buttons: Add Details and Proceed" → now three: Add Details, Proceed, Cancel
-- No Step 3c for Cancel flow
-- Status flow diagram missing `cancelled` status
-- Status table missing `cancelled` row
-
-**3. Missing: `cancelled` status (Section 5)**
-
-Status flow should include:
+if (isLovableEmployee && !settings.testing_mode) {
+  await supabase.from("conversation_mappings")
+    .update({ is_test: true })
+    .eq("id", claimedId);
+}
 ```
-awaiting_context → cancelled
+
+This applies to both the `app_mention` and DM handler blocks.
+
+**3. `supabase/functions/slack-interactions/index.ts` — Route test conversations to Slack Test inbox**
+
+In `createIntercomTicket`, after resolving the email, check if the conversation is marked `is_test`. If so, use `settings.test_intercom_inbox_id` instead of `settings.intercom_inbox_id` for assignment:
+
+```typescript
+const inboxId = mapping.is_test 
+  ? (settings.test_intercom_inbox_id || settings.intercom_inbox_id)
+  : settings.intercom_inbox_id;
 ```
-And the status table needs: `cancelled` — User dismissed the request without creating a ticket.
 
-Stats page filters out cancelled conversations.
+Same logic in the escalation reassignment block.
 
-**4. Missing: `request_cancelled` bot message (Section 8)**
+**4. `supabase/functions/context-reminder/index.ts` — Same inbox routing for auto-proceed**
 
-The `bot_messages` table now has a `request_cancelled` key used when the Cancel button is clicked.
+Apply the same inbox routing pattern when the auto-proceed flow assigns conversations.
 
-**5. Missing: DM support (Sections 6, Step 1)**
+**5. `supabase/functions/intercom-webhook/index.ts` — Same inbox routing for escalation**
 
-Step 1 only mentions @mentions. The bot now also handles direct messages from workspace members (`channel_type === "im"`), using the same flow.
+Apply the same pattern when escalation reassignment happens.
 
-**6. Intercom part dedup changed to RPC (Section 10)**
+**6. UI — Add test inbox field to Settings page (`src/pages/Index.tsx`)**
 
-Doc says "Atomic UPDATE on `last_intercom_part_id`" for webhook dedup. It now uses a Postgres function `claim_intercom_part` with `SELECT ... FOR UPDATE` row locking.
+Add a "Test Intercom Inbox ID" input field (pre-filled with `10219738`), visible below the existing Intercom fields. Save alongside other settings.
 
-**7. Missing: Channel name overrides (Section 11 or new)**
+**7. Intercom conversation attributes — Tag as test**
 
-`src/lib/channelOverrides.ts` provides manual name mappings for private channels the API can't resolve.
+When `is_test` is true, set `support_tier: "Test"` instead of `"Enterprise Support"` on the Intercom conversation, so test conversations are easily filterable in Intercom reporting.
 
-**8. Missing: Error recovery on modal close/submit failures (Section 6, Step 3a)**
-
-The `view_closed` and `view_submission` catch blocks now reset status to `awaiting_context` and restore the prompt with buttons if ticket creation fails, preventing the "Gathering your details…" freeze.
-
-**9. `knowledge_documents` table missing from DB tables list (Section 2)**
-
-The table exists and is used by the Knowledge page but isn't listed in the Architecture section.
-
----
-
-### Plan
-
-Update `.lovable/project-knowledge.md` with all 9 corrections above. Since the AI must follow the pending-content workflow, this will be written to `pending_content` via a database migration/RPC so you can review and approve it in the Knowledge tab.
-
-**Single action:** Write the updated markdown to `pending_content` + `pending_summary` on the `knowledge_documents` row, then you review the diff in the Knowledge tab.
+### Summary
+- 1 migration (1 new column on `settings`)
+- 4 edge functions updated (employee detection + inbox routing)
+- 1 UI file updated (new settings field)
+- Lovable employees auto-detected via `@lovable.dev` email domain
 
