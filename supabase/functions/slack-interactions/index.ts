@@ -320,20 +320,28 @@ async function createIntercomTicket(opts: {
       cachedSettings = await getSettings(supabase);
     }
     if (cachedSettings.intercom_assignee_id) {
-    await fetch(
-      `https://api.intercom.io/conversations/${conversationId}/parts`,
-      {
-        method: "POST",
-        headers: intercomHeaders,
-        body: JSON.stringify({
-          message_type: "assignment",
-          type: "admin",
-          assignee_id: cachedSettings.intercom_assignee_id,
-          admin_id: cachedSettings.intercom_assignee_id,
-        }),
-      }
-    );
-  }
+      await fetch(
+        `https://api.intercom.io/conversations/${conversationId}/parts`,
+        {
+          method: "POST",
+          headers: intercomHeaders,
+          body: JSON.stringify({
+            message_type: "assignment",
+            type: "admin",
+            assignee_id: cachedSettings.intercom_assignee_id,
+            admin_id: cachedSettings.intercom_assignee_id,
+          }),
+        }
+      );
+    }
+
+    // Check if this is a test conversation to determine routing
+    const { data: routingMapping } = await supabase
+      .from("conversation_mappings")
+      .select("is_test")
+      .eq("id", mappingId)
+      .maybeSingle();
+    const isTestConversation = routingMapping?.is_test === true;
 
   // Update mapping with conversation ID and contact ID
   await supabase
@@ -360,7 +368,7 @@ async function createIntercomTicket(opts: {
           custom_attributes: {
             "Slack channel": channelName,
             source: "Slack",
-            support_tier: "Enterprise Support",
+            support_tier: isTestConversation ? "Test" : "Enterprise Support",
           },
         }),
       }
@@ -606,6 +614,16 @@ async function createIntercomTicket(opts: {
           // Reassign in Intercom to enterprise team inbox (mirrors manual 👎 escalation)
           if (!cachedSettings) cachedSettings = await getSettings(supabase);
           if (cachedSettings.intercom_inbox_id && cachedSettings.intercom_assignee_id) {
+            // Route to test inbox if this is a test conversation
+            const { data: escMapping } = await supabase
+              .from("conversation_mappings")
+              .select("is_test")
+              .eq("id", mappingId)
+              .maybeSingle();
+            const escInboxId = escMapping?.is_test && cachedSettings.test_intercom_inbox_id
+              ? cachedSettings.test_intercom_inbox_id
+              : cachedSettings.intercom_inbox_id;
+
             await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
               method: "POST",
               headers: {
@@ -616,12 +634,12 @@ async function createIntercomTicket(opts: {
               body: JSON.stringify({
                 message_type: "assignment",
                 type: "team",
-                assignee_id: cachedSettings.intercom_inbox_id,
+                assignee_id: escInboxId,
                 admin_id: cachedSettings.intercom_assignee_id,
                 body: "",
               }),
             });
-            console.log(`Poll: reassigned conversation ${conversationId} to team inbox ${cachedSettings.intercom_inbox_id}`);
+            console.log(`Poll: reassigned conversation ${conversationId} to team inbox ${escInboxId}`);
 
             // Convert conversation to ticket (mirrors manual 👎 escalation)
             try {
@@ -1351,6 +1369,16 @@ Deno.serve(async (req) => {
         } else if (actionId === "feedback_negative") {
           if (!cachedSettings) cachedSettings = await getSettings(supabase);
           if (cachedSettings.intercom_inbox_id && cachedSettings.intercom_assignee_id) {
+            // Route to test inbox if this is a test conversation
+            const { data: fbMapping } = await supabase
+              .from("conversation_mappings")
+              .select("is_test")
+              .eq("intercom_conversation_id", conversationId)
+              .maybeSingle();
+            const fbInboxId = fbMapping?.is_test && cachedSettings.test_intercom_inbox_id
+              ? cachedSettings.test_intercom_inbox_id
+              : cachedSettings.intercom_inbox_id;
+
             await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
               method: "POST",
               headers: {
@@ -1361,12 +1389,12 @@ Deno.serve(async (req) => {
               body: JSON.stringify({
                 message_type: "assignment",
                 type: "team",
-                assignee_id: cachedSettings.intercom_inbox_id,
+                assignee_id: fbInboxId,
                 admin_id: cachedSettings.intercom_assignee_id,
                 body: "",
               }),
             });
-            console.log(`Reassigned conversation ${conversationId} to team inbox ${cachedSettings.intercom_inbox_id}`);
+            console.log(`Reassigned conversation ${conversationId} to team inbox ${fbInboxId}`);
           }
 
           // Convert the existing conversation to a ticket

@@ -89,6 +89,7 @@ function buildNodes(
           "Atomic INSERT dedup (ON CONFLICT DO NOTHING) — prevents race from Slack retries",
           "If thread reply → fetches full transcript",
           "Collects file attachments (photos, videos, docs)",
+          "Auto-detects @lovable.dev employees and marks conversations as test (routed to Slack Test inbox)",
           "Conversations tab resolves channel IDs to names via list-slack-channels (bot token first, connector fallback)",
         ],
         message: "@SupportBot I'm having trouble deploying my project...",

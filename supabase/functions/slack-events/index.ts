@@ -289,6 +289,22 @@ Deno.serve(async (req) => {
       }
 
       const claimedId = claimed[0].id;
+
+      // Auto-detect Lovable employees via email domain
+      try {
+        const empRes = await fetch(`${SLACK_API_URL}/users.info?user=${slackUserId}`, {
+          headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+        });
+        const empData = await empRes.json();
+        const empEmail = empData.user?.profile?.email || "";
+        if (empEmail.endsWith("@lovable.dev") && !settings.testing_mode) {
+          await supabase.from("conversation_mappings").update({ is_test: true }).eq("id", claimedId);
+          console.log(`Auto-marked ${slackUserId} (${empEmail}) as test — Lovable employee`);
+        }
+      } catch (e) {
+        console.error("Failed to check Lovable employee status:", e);
+      }
+
       let messageText = cleanSlackMarkup(event.text || "");
 
       // If the mention is a thread reply, fetch the parent message as the actual question
@@ -428,6 +444,21 @@ Deno.serve(async (req) => {
       }
 
       const claimedId = claimed[0].id;
+
+      // Auto-detect Lovable employees via email domain
+      try {
+        const empRes = await fetch(`${SLACK_API_URL}/users.info?user=${slackUserId}`, {
+          headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+        });
+        const empData = await empRes.json();
+        const empEmail = empData.user?.profile?.email || "";
+        if (empEmail.endsWith("@lovable.dev") && !settings.testing_mode) {
+          await supabase.from("conversation_mappings").update({ is_test: true }).eq("id", claimedId);
+          console.log(`DM: Auto-marked ${slackUserId} (${empEmail}) as test — Lovable employee`);
+        }
+      } catch (e) {
+        console.error("DM: Failed to check Lovable employee status:", e);
+      }
 
       // Send Block Kit message with buttons (same prompt as app_mention)
       const buttonValue = `${channelId}|${threadTs}`;

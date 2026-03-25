@@ -1,0 +1,1 @@
+ALTER TABLE public.settings ADD COLUMN test_intercom_inbox_id text NOT NULL DEFAULT '10219738';

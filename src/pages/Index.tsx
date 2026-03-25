@@ -21,6 +21,7 @@ interface SettingsData {
   intercom_assignee_id: string;
   slack_bot_user_id: string;
   testing_mode: boolean;
+  test_intercom_inbox_id: string;
 }
 
 
@@ -101,6 +102,7 @@ const Index = () => {
         intercom_assignee_id: settings.intercom_assignee_id,
         slack_bot_user_id: settings.slack_bot_user_id,
         testing_mode: settings.testing_mode,
+        test_intercom_inbox_id: settings.test_intercom_inbox_id,
       })
       .eq("id", settings.id);
 
@@ -278,6 +280,25 @@ const Index = () => {
                     )
                   }
                 />
+            </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="test-inbox">Test Intercom Inbox ID</Label>
+                <Input
+                  id="test-inbox"
+                  placeholder="10219738"
+                  value={settings?.test_intercom_inbox_id || ""}
+                  onChange={(e) =>
+                    setSettings((s) =>
+                      s ? { ...s, test_intercom_inbox_id: e.target.value } : s
+                    )
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  Conversations from @lovable.dev employees are auto-routed to this inbox
+                </p>
               </div>
             </div>
 
