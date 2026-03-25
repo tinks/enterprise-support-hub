@@ -1,26 +1,58 @@
 
 
-## Use Dedicated "cancelled" Status Instead of "resolved"
+## Add Direct Message Support for Slack Workspace Members
 
-### Problem
-Cancelled requests currently set `status = "resolved"`, making them indistinguishable from actual resolved conversations in the stats page. They should not appear in stats at all.
+### What to add in Slack App settings (at https://api.slack.com/apps)
 
-### Changes
+1. **OAuth & Permissions → Bot Token Scopes**: Add `im:history`
+2. **Event Subscriptions → Subscribe to bot events**: Add `message.im`
+3. **Reinstall the app** to your workspace after making these changes (Slack will prompt you)
 
-**1. `supabase/functions/slack-interactions/index.ts` (line 1156)**
-Change the cancel handler to set `status: "cancelled"` instead of `status: "resolved"`.
+### Code Change
 
-**2. `src/pages/Stats.tsx`**
-Filter out rows with `status === "cancelled"` from the fetched data before computing any statistics, so cancelled requests are completely excluded from all charts and summary cards.
+**File: `supabase/functions/slack-events/index.ts`**
 
-**3. `src/pages/Conversations.tsx`**
-Add `"cancelled"` to the `statusColor` function so it renders with an appropriate badge color (e.g., gray).
+Add a new handler block **between** the `app_mention` block (ends ~line 390) and the thread-reply handler (starts ~line 394). This new block catches top-level DM messages:
 
-**4. `supabase/functions/context-reminder/index.ts`**
-No change needed — the existing query filters on `status = 'awaiting_context'`, so cancelled conversations are already excluded.
+```typescript
+// ===== Handle DM messages (workspace members only) =====
+if (
+  event.type === "message" &&
+  event.channel_type === "im" &&
+  !event.thread_ts &&
+  !event.bot_id &&
+  event.user &&
+  event.user !== expectedBotId &&
+  (!event.subtype || event.subtype === "file_share")
+) {
+  const channelId = event.channel;
+  const threadTs = event.ts; // DM message itself becomes the thread root
+
+  // Atomic claim (same pattern as app_mention)
+  const { data: claimed } = await supabase
+    .from("conversation_mappings")
+    .upsert({ ... same fields as app_mention ... })
+    .select("id");
+
+  if (!claimed || claimed.length === 0) {
+    // Already processed
+    return ok response;
+  }
+
+  // Post context prompt with Add Details / Proceed / Cancel buttons
+  // (identical block kit as app_mention)
+}
+```
+
+The handler reuses the exact same prompt-posting logic as `app_mention`. The downstream flow (thread replies, ticket creation, Intercom relay, reminders) all works unchanged — it's all keyed on `slack_channel_id` + `slack_thread_ts`.
+
+### What stays the same
+- Context modal, ticket creation, Intercom relay, escalation, cancel, reminders — all unchanged
+- Thread replies in the DM are already handled by the existing message handler (line 394) which works regardless of channel type
+- External users cannot DM the bot (Slack limitation — bot is not installed in their workspace)
 
 ### Summary
-- Two edge function lines changed (status value)
-- Two UI files updated (filter in Stats, badge color in Conversations)
-- No database migration needed — `status` is a plain text column
+- One edge function file updated (new ~50-line handler block)
+- No database changes
+- Two Slack app config changes (scope + event subscription) + reinstall
 
