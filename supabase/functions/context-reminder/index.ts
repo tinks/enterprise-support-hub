@@ -202,7 +202,7 @@ Deno.serve(async (req) => {
         .update({ intercom_conversation_id: conversationId, status: "active" })
         .eq("id", row.id);
 
-      // Assign to AI agent (Sam)
+      // Assign to AI agent (Sam) — route to test inbox if is_test
       if (settings?.intercom_assignee_id) {
         await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
           method: "POST",
@@ -215,6 +215,9 @@ Deno.serve(async (req) => {
           }),
         });
       }
+
+      // Set custom attributes — tag as Test if is_test
+      const supportTier = row.is_test ? "Test" : "Enterprise Support";
 
       // Set custom attributes
       try {

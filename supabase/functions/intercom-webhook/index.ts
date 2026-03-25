@@ -817,6 +817,11 @@ Deno.serve(async (req) => {
 
       // Reassign in Intercom to enterprise team inbox (mirrors manual 👎 escalation)
       if (appSettings?.intercom_inbox_id && appSettings?.intercom_assignee_id) {
+        // Route to test inbox if this is a test conversation
+        const escalInboxId = mapping.is_test && appSettings?.test_intercom_inbox_id
+          ? appSettings.test_intercom_inbox_id
+          : appSettings.intercom_inbox_id;
+
         await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
           method: "POST",
           headers: {
@@ -827,12 +832,12 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             message_type: "assignment",
             type: "team",
-            assignee_id: appSettings.intercom_inbox_id,
+            assignee_id: escalInboxId,
             admin_id: appSettings.intercom_assignee_id,
             body: "",
           }),
         });
-        console.log(`Webhook: reassigned conversation ${conversationId} to team inbox ${appSettings.intercom_inbox_id}`);
+        console.log(`Webhook: reassigned conversation ${conversationId} to team inbox ${escalInboxId}`);
 
         // Convert conversation to ticket (mirrors manual 👎 escalation)
         try {
