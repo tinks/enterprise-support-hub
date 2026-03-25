@@ -110,7 +110,7 @@ function buildNodes(
         status: "awaiting_context",
         accent: "blue",
         details: [
-          "Posts Block Kit message with 'Add Details' and 'Proceed' buttons",
+          "Posts Block Kit message with 'Add Details', 'Proceed', and 'Cancel' buttons",
           "Saves prompt_message_ts to conversation_mappings for later chat.update",
           "If no action after 15 min → cron posts reminder in thread",
           "If no action after 30 min → cron auto-proceeds (creates ticket automatically)",
