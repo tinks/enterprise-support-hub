@@ -23,6 +23,7 @@ import { channelNameOverrides } from "@/lib/channelOverrides";
 interface Mapping {
   status: string;
   created_at: string;
+  resolved_at: string | null;
   is_test: boolean;
   slack_channel_id: string;
 }
