@@ -234,7 +234,8 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             custom_attributes: {
               "Slack Channel": `#${channelName}`,
-              "Enterprise Support": true,
+              "Enterprise Support": !row.is_test,
+              support_tier: supportTier,
             },
           }),
         });

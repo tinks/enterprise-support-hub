@@ -280,8 +280,26 @@ const Index = () => {
                     )
                   }
                 />
-              </div>
             </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="test-inbox">Test Intercom Inbox ID</Label>
+                <Input
+                  id="test-inbox"
+                  placeholder="10219738"
+                  value={settings?.test_intercom_inbox_id || ""}
+                  onChange={(e) =>
+                    setSettings((s) =>
+                      s ? { ...s, test_intercom_inbox_id: e.target.value } : s
+                    )
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  Conversations from @lovable.dev employees are auto-routed to this inbox
+                </p>
+              </div>
 
             <div className="flex items-center justify-between rounded-lg border p-4">
               <div className="space-y-0.5">
