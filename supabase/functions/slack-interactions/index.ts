@@ -368,7 +368,7 @@ async function createIntercomTicket(opts: {
           custom_attributes: {
             "Slack channel": channelName,
             source: "Slack",
-            support_tier: "Enterprise Support",
+            support_tier: isTestConversation ? "Test" : "Enterprise Support",
           },
         }),
       }
