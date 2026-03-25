@@ -389,6 +389,106 @@ Deno.serve(async (req) => {
       console.log(`app_mention accepted ${channelId}/${threadTs}`);
     }
 
+    // ===== Handle DM messages (workspace members only) =====
+    if (
+      event.type === "message" &&
+      event.channel_type === "im" &&
+      !event.thread_ts &&
+      !event.bot_id &&
+      event.user &&
+      event.user !== expectedBotId &&
+      (!event.subtype || event.subtype === "file_share")
+    ) {
+      const channelId = event.channel;
+      const threadTs = event.ts; // DM message itself becomes the thread root
+      const slackUserId = event.user;
+
+      // Atomic claim (same pattern as app_mention)
+      const { data: claimed } = await supabase
+        .from("conversation_mappings")
+        .upsert(
+          {
+            slack_channel_id: channelId,
+            slack_thread_ts: threadTs,
+            intercom_conversation_id: "",
+            status: "awaiting_context",
+            original_message_text: cleanSlackMarkup(event.text || ""),
+            slack_user_id: slackUserId,
+            is_test: settings.testing_mode ?? false,
+          },
+          { onConflict: "slack_channel_id,slack_thread_ts", ignoreDuplicates: true }
+        )
+        .select("id");
+
+      if (!claimed || claimed.length === 0) {
+        console.log(`dm already_processed ${channelId}/${threadTs}`);
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const claimedId = claimed[0].id;
+
+      // Send Block Kit message with buttons (same prompt as app_mention)
+      const buttonValue = `${channelId}|${threadTs}`;
+      const contextPromptText = botMessages["context_prompt"] || "👋 Thank you for contacting the Enterprise Support Team. To help us resolve your issue as quickly and accurately as possible, please share your Lovable account email and your workspace or project name (or a link to it). If these aren't relevant to your question, feel free to click *Proceed*.";
+      const promptRes = await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+        method: "POST",
+        headers: slackHeaders,
+        body: JSON.stringify({
+          channel: channelId,
+          thread_ts: threadTs,
+          text: contextPromptText.replace(/\*/g, ""),
+          ...BOT_IDENTITY,
+          blocks: [
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: contextPromptText,
+              },
+            },
+            {
+              type: "actions",
+              elements: [
+                {
+                  type: "button",
+                  text: { type: "plain_text", text: "Add Details", emoji: true },
+                  action_id: "add_details",
+                  value: buttonValue,
+                  style: "primary",
+                },
+                {
+                  type: "button",
+                  text: { type: "plain_text", text: "Proceed", emoji: true },
+                  action_id: "proceed_without_context",
+                  value: buttonValue,
+                },
+                {
+                  type: "button",
+                  text: { type: "plain_text", text: "Cancel", emoji: true },
+                  action_id: "cancel_request",
+                  value: buttonValue,
+                },
+              ],
+            },
+          ],
+        }),
+      });
+      const promptData = await promptRes.json();
+
+      if (!promptData.ok) {
+        console.error(`dm post_failed ${channelId}/${threadTs}: ${promptData.error}`);
+      } else if (promptData.ts) {
+        await supabase
+          .from("conversation_mappings")
+          .update({ prompt_message_ts: promptData.ts })
+          .eq("id", claimedId);
+      }
+
+      console.log(`dm accepted ${channelId}/${threadTs}`);
+    }
+
     // ===== Handle message events in threads (human reply → escalate to Intercom) =====
     const isRegularMessage = !event.subtype || event.subtype === "file_share";
     if (event.type === "message" && isRegularMessage && event.thread_ts && event.user) {
