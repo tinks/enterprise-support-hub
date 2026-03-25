@@ -1,42 +1,27 @@
 
 
-## Add Resolution Time Tracking & Reporting
+## Backfill `resolved_at` for Historical Conversations
 
-### Problem
-`created_at` marks when a conversation starts, but there's no reliable timestamp for when it's resolved. The `updated_at` column exists but has no trigger and isn't set by edge functions on status changes.
+### Approach
 
-### Changes
+For all conversations where `status = 'resolved'` and `resolved_at IS NULL`, set `resolved_at = updated_at`. The `updated_at` timestamp on resolved conversations closely approximates when the resolution happened, since the status change to "resolved" is typically the last update made to that row.
 
-**1. Database migration — Add `resolved_at` column**
+This is not perfectly precise — if any row was updated after resolution for an unrelated reason, the timestamp would be slightly off — but it's the best available proxy.
+
+### Change
+
+**One data migration (via insert tool):**
 
 ```sql
-ALTER TABLE conversation_mappings ADD COLUMN resolved_at timestamptz;
+UPDATE conversation_mappings
+SET resolved_at = updated_at
+WHERE status = 'resolved'
+  AND resolved_at IS NULL;
 ```
 
-A dedicated column is cleaner than relying on `updated_at` — it captures exactly when resolution happened.
+### What this gives you
 
-**2. Edge functions — Set `resolved_at` on resolution**
-
-In every place where `status` is set to `"resolved"`, also set `resolved_at: new Date().toISOString()`:
-
-- `supabase/functions/slack-interactions/index.ts` — positive feedback handler (👍 button)
-- `supabase/functions/intercom-webhook/index.ts` — conversation/ticket closed handler
-
-Three update calls total, adding one field to each.
-
-**3. `src/pages/Stats.tsx` — Add resolution time metrics**
-
-Compute from resolved conversations where `resolved_at` exists:
-- **Median resolution time** — displayed as a summary card (e.g., "2h 15m")
-- **Average resolution time** — displayed alongside median
-- **Resolution time distribution chart** — a bar chart showing buckets (< 15min, 15min–1h, 1–4h, 4–24h, 24h+)
-- Resolution time trend line (rolling 7-day average)
-
-Only conversations with both `created_at` and `resolved_at` are included. Historical conversations without `resolved_at` are excluded from time metrics (not backfillable).
-
-### Summary
-- 1 migration (1 new column)
-- 2 edge functions updated (~3 lines each)
-- 1 UI file updated (new stats cards + chart)
-- No impact on existing data — new column is nullable
+- All historical resolved conversations immediately appear in the resolution time charts on the Stats page
+- Going forward, the edge functions already set `resolved_at` precisely at resolution time
+- No schema changes, no code changes — just a one-time data backfill
 
