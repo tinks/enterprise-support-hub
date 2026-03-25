@@ -506,6 +506,83 @@ const Stats = () => {
           </Card>
         </div>
 
+        {/* Resolution time section */}
+        {resolutionStats && (
+          <>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <Timer className="mb-2 h-5 w-5 text-primary" />
+                  <p className="text-3xl font-bold text-foreground">{formatDuration(resolutionStats.median)}</p>
+                  <p className="text-xs text-muted-foreground">Median resolution time</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
+                  <p className="text-3xl font-bold text-foreground">{formatDuration(resolutionStats.avg)}</p>
+                  <p className="text-xs text-muted-foreground">Average resolution time</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <ThumbsUp className="mb-2 h-5 w-5 text-green-600" />
+                  <p className="text-3xl font-bold text-foreground">{resolutionStats.count}</p>
+                  <p className="text-xs text-muted-foreground">Resolved with time data</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Resolution time distribution</CardTitle>
+                  <CardDescription>How long conversations take to resolve</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {resolutionDistribution.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+                  ) : (
+                    <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                      <BarChart data={resolutionDistribution}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="label" className="text-xs" />
+                        <YAxis allowDecimals={false} className="text-xs" />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="count" fill="hsl(221 83% 53%)" radius={[4, 4, 0, 0]}>
+                          <LabelList dataKey="count" position="top" className="text-xs fill-foreground" />
+                        </Bar>
+                      </BarChart>
+                    </ChartContainer>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Resolution time trend</CardTitle>
+                  <CardDescription>7-day rolling median (minutes)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {resolutionTrend.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">Not enough data yet</p>
+                  ) : (
+                    <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                      <LineChart data={resolutionTrend}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="label" className="text-xs" />
+                        <YAxis unit="m" allowDecimals={false} className="text-xs" />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Line type="monotone" dataKey="resolution" stroke="hsl(221 83% 53%)" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ChartContainer>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </>
+        )}
+
         {/* Conversation volume line chart */}
         <Card>
           <CardHeader>
