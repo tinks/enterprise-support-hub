@@ -1137,6 +1137,59 @@ Deno.serve(async (req) => {
       return new Response("", { status: 200 });
     }
 
+    // ===== "Cancel" button =====
+    if (actionId === "cancel_request") {
+      const [channelId, threadTs] = (action.value || "").split("|");
+      const promptMsgTs = getPromptMessageTs();
+
+      const bgWork = (async () => {
+        try {
+          // Atomic guard: only cancel if status is still awaiting_context
+          const { data: updated } = await supabase
+            .from("conversation_mappings")
+            .update({ status: "resolved" })
+            .eq("slack_channel_id", channelId)
+            .eq("slack_thread_ts", threadTs)
+            .eq("status", "awaiting_context")
+            .select()
+            .maybeSingle();
+
+          if (updated && promptMsgTs) {
+            // Load bot messages for cancellation text
+            const { data: botMsgRows } = await supabase
+              .from("bot_messages")
+              .select("message_key, message_text");
+            const botMsgs: Record<string, string> = {};
+            if (botMsgRows) {
+              for (const r of botMsgRows) botMsgs[r.message_key] = r.message_text;
+            }
+            const cancelText = botMsgs["request_cancelled"] || "✅ Request cancelled. Feel free to reach out again anytime!";
+
+            await fetch(`${SLACK_API_URL}/chat.update`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                channel: channelId,
+                ts: promptMsgTs,
+                text: cancelText.replace(/\*/g, ""),
+                blocks: [{ type: "section", text: { type: "mrkdwn", text: cancelText } }],
+              }),
+            });
+          }
+        } catch (e) {
+          console.error("Cancel request failed:", e);
+        }
+      })();
+      if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+        EdgeRuntime.waitUntil(bgWork);
+      }
+
+      return new Response("", { status: 200 });
+    }
+
     // ===== "Add Details" button — open modal =====
     if (actionId === "add_details") {
       const [channelId, threadTs] = (action.value || "").split("|");
