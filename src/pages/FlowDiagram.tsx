@@ -268,7 +268,7 @@ function buildNodes(
     {
       id: "6c",
       type: "flowNode",
-      position: { x: COL_W + COL_W * 0.7, y: ROW_H * 5.2 },
+      position: { x: COL_W + COL_W * 0.85, y: ROW_H * 5.9 },
       data: {
         label: "6c. User replies in thread",
         desc: "User replies without clicking a button. Atomically transitions status to active_pending to gate the notice, then triggers another AI response — repeats until 👍 or 👎.",
