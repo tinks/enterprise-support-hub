@@ -1,66 +1,42 @@
 
 
-## Auto-Mark Lovable Employees as Test + Route to Slack Test Inbox
+## Add Resolution Time Tracking & Reporting
 
-### What changes
+### Problem
+`created_at` marks when a conversation starts, but there's no reliable timestamp for when it's resolved. The `updated_at` column exists but has no trigger and isn't set by edge functions on status changes.
 
-**1. Database migration — Add test inbox ID to settings**
+### Changes
 
-Add `test_intercom_inbox_id` column to `settings` with default value `'10219738'` (the "Slack Test" inbox).
+**1. Database migration — Add `resolved_at` column**
 
-**2. `supabase/functions/slack-events/index.ts` — Auto-detect Lovable employees**
-
-After claiming the conversation (upsert), look up the Slack user's email via `users.info`. If the email ends with `@lovable.dev`, update the mapping's `is_test = true` regardless of the `testing_mode` toggle:
-
-```typescript
-// After upsert claim succeeds
-const userRes = await fetch(`${SLACK_API_URL}/users.info?user=${slackUserId}`, {
-  headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
-});
-const userData = await userRes.json();
-const userEmail = userData.user?.profile?.email || "";
-const isLovableEmployee = userEmail.endsWith("@lovable.dev");
-
-if (isLovableEmployee && !settings.testing_mode) {
-  await supabase.from("conversation_mappings")
-    .update({ is_test: true })
-    .eq("id", claimedId);
-}
+```sql
+ALTER TABLE conversation_mappings ADD COLUMN resolved_at timestamptz;
 ```
 
-This applies to both the `app_mention` and DM handler blocks.
+A dedicated column is cleaner than relying on `updated_at` — it captures exactly when resolution happened.
 
-**3. `supabase/functions/slack-interactions/index.ts` — Route test conversations to Slack Test inbox**
+**2. Edge functions — Set `resolved_at` on resolution**
 
-In `createIntercomTicket`, after resolving the email, check if the conversation is marked `is_test`. If so, use `settings.test_intercom_inbox_id` instead of `settings.intercom_inbox_id` for assignment:
+In every place where `status` is set to `"resolved"`, also set `resolved_at: new Date().toISOString()`:
 
-```typescript
-const inboxId = mapping.is_test 
-  ? (settings.test_intercom_inbox_id || settings.intercom_inbox_id)
-  : settings.intercom_inbox_id;
-```
+- `supabase/functions/slack-interactions/index.ts` — positive feedback handler (👍 button)
+- `supabase/functions/intercom-webhook/index.ts` — conversation/ticket closed handler
 
-Same logic in the escalation reassignment block.
+Three update calls total, adding one field to each.
 
-**4. `supabase/functions/context-reminder/index.ts` — Same inbox routing for auto-proceed**
+**3. `src/pages/Stats.tsx` — Add resolution time metrics**
 
-Apply the same inbox routing pattern when the auto-proceed flow assigns conversations.
+Compute from resolved conversations where `resolved_at` exists:
+- **Median resolution time** — displayed as a summary card (e.g., "2h 15m")
+- **Average resolution time** — displayed alongside median
+- **Resolution time distribution chart** — a bar chart showing buckets (< 15min, 15min–1h, 1–4h, 4–24h, 24h+)
+- Resolution time trend line (rolling 7-day average)
 
-**5. `supabase/functions/intercom-webhook/index.ts` — Same inbox routing for escalation**
-
-Apply the same pattern when escalation reassignment happens.
-
-**6. UI — Add test inbox field to Settings page (`src/pages/Index.tsx`)**
-
-Add a "Test Intercom Inbox ID" input field (pre-filled with `10219738`), visible below the existing Intercom fields. Save alongside other settings.
-
-**7. Intercom conversation attributes — Tag as test**
-
-When `is_test` is true, set `support_tier: "Test"` instead of `"Enterprise Support"` on the Intercom conversation, so test conversations are easily filterable in Intercom reporting.
+Only conversations with both `created_at` and `resolved_at` are included. Historical conversations without `resolved_at` are excluded from time metrics (not backfillable).
 
 ### Summary
-- 1 migration (1 new column on `settings`)
-- 4 edge functions updated (employee detection + inbox routing)
-- 1 UI file updated (new settings field)
-- Lovable employees auto-detected via `@lovable.dev` email domain
+- 1 migration (1 new column)
+- 2 edge functions updated (~3 lines each)
+- 1 UI file updated (new stats cards + chart)
+- No impact on existing data — new column is nullable
 
