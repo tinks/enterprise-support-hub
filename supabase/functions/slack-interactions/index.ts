@@ -320,20 +320,28 @@ async function createIntercomTicket(opts: {
       cachedSettings = await getSettings(supabase);
     }
     if (cachedSettings.intercom_assignee_id) {
-    await fetch(
-      `https://api.intercom.io/conversations/${conversationId}/parts`,
-      {
-        method: "POST",
-        headers: intercomHeaders,
-        body: JSON.stringify({
-          message_type: "assignment",
-          type: "admin",
-          assignee_id: cachedSettings.intercom_assignee_id,
-          admin_id: cachedSettings.intercom_assignee_id,
-        }),
-      }
-    );
-  }
+      await fetch(
+        `https://api.intercom.io/conversations/${conversationId}/parts`,
+        {
+          method: "POST",
+          headers: intercomHeaders,
+          body: JSON.stringify({
+            message_type: "assignment",
+            type: "admin",
+            assignee_id: cachedSettings.intercom_assignee_id,
+            admin_id: cachedSettings.intercom_assignee_id,
+          }),
+        }
+      );
+    }
+
+    // Check if this is a test conversation to determine routing
+    const { data: routingMapping } = await supabase
+      .from("conversation_mappings")
+      .select("is_test")
+      .eq("id", mappingId)
+      .maybeSingle();
+    const isTestConversation = routingMapping?.is_test === true;
 
   // Update mapping with conversation ID and contact ID
   await supabase
