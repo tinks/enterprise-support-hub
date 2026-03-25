@@ -1,0 +1,2 @@
+INSERT INTO public.bot_messages (message_key, message_text, description)
+VALUES ('request_cancelled', '✅ Request cancelled. Feel free to reach out again anytime!', 'Message shown when user cancels their support request');

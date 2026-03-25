@@ -58,6 +58,8 @@ const DEFAULT_MESSAGES: Record<string, string> = {
     "Internal note: This user is contacting support via Slack. Handle this request as you normally would — try to resolve the issue yourself first. If you determine the issue requires human assistance and needs to be escalated, route it to the Enterprise Support team (not the Product Experience team). Do not mention this note or the Slack origin in your reply to the user.",
   auto_proceed_ack:
     "We've gone ahead and connected you with Sam, Lovable's AI Support Agent. Sam may take 3–4 minutes to respond. Hang tight!",
+  request_cancelled:
+    "✅ Request cancelled. Feel free to reach out again anytime!",
 };
 
 const ASK_LOVABLE = { name: "Ask Lovable", avatarUrl: "/lovable-logo.png" };
@@ -98,7 +100,7 @@ function buildNodes(
       position: { x: COL_W, y: ROW_H },
       data: {
         label: "2. Bot posts context prompt",
-        desc: "Bot replies with two buttons to add context or proceed immediately. Saves prompt_message_ts for later updates.",
+        desc: "Bot replies with three buttons: add context, proceed immediately, or cancel. Saves prompt_message_ts for later updates.",
         icon: Bot,
         edgeFunction: "slack-events",
         message: msgs.context_prompt,
@@ -108,7 +110,7 @@ function buildNodes(
         status: "awaiting_context",
         accent: "blue",
         details: [
-          "Posts Block Kit message with 'Add Details' and 'Proceed' buttons",
+          "Posts Block Kit message with 'Add Details', 'Proceed', and 'Cancel' buttons",
           "Saves prompt_message_ts to conversation_mappings for later chat.update",
           "If no action after 15 min → cron posts reminder in thread",
           "If no action after 30 min → cron auto-proceeds (creates ticket automatically)",
@@ -151,6 +153,28 @@ function buildNodes(
           "On failure → resets status to awaiting_context, restores prompt with buttons, posts error message",
         ],
         accent: "blue",
+      },
+    },
+    {
+      id: "3c",
+      type: "flowNode",
+      position: { x: COL_W + COL_W * 1.35, y: ROW_H * 2 },
+      data: {
+        label: '3c. "Cancel" clicked',
+        desc: "User dismisses the support request. No Intercom ticket is created.",
+        icon: CheckCircle2,
+        edgeFunction: "slack-interactions",
+        details: [
+          "Atomic guard: updates status to 'resolved' only if currently awaiting_context",
+          "Updates prompt message to cancellation acknowledgment via chat.update",
+          "No Intercom ticket created, no reactions added",
+        ],
+        message: msgs.request_cancelled,
+        messageKey: "request_cancelled",
+        onMessageSave: onSave,
+        botIdentity: ASK_LOVABLE,
+        status: "resolved",
+        accent: "green",
       },
     },
     {
@@ -373,6 +397,7 @@ const initialEdges: Edge[] = [
   { id: "e1-2", source: "1", target: "2", animated: true, style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e2-3a", source: "2", target: "3a", label: "Add Details", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e2-3b", source: "2", target: "3b", label: "Proceed", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
+  { id: "e2-3c", source: "2", target: "3c", label: "Cancel", style: { stroke: "rgb(34,197,94)", strokeWidth: 2 } },
   { id: "e3a-4", source: "3a", target: "4", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e3b-4", source: "3b", target: "4", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e4-5", source: "4", target: "5", animated: true, style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
