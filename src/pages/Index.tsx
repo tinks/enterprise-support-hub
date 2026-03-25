@@ -300,6 +300,7 @@ const Index = () => {
                   Conversations from @lovable.dev employees are auto-routed to this inbox
                 </p>
               </div>
+            </div>
 
             <div className="flex items-center justify-between rounded-lg border p-4">
               <div className="space-y-0.5">
