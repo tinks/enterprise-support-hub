@@ -165,7 +165,7 @@ function buildNodes(
         icon: CheckCircle2,
         edgeFunction: "slack-interactions",
         details: [
-          "Atomic guard: updates status to 'resolved' only if currently awaiting_context",
+          "Atomic guard: updates status to 'cancelled' only if currently awaiting_context",
           "Updates prompt message to cancellation acknowledgment via chat.update",
           "No Intercom ticket created, no reactions added",
         ],
