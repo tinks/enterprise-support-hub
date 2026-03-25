@@ -1369,6 +1369,16 @@ Deno.serve(async (req) => {
         } else if (actionId === "feedback_negative") {
           if (!cachedSettings) cachedSettings = await getSettings(supabase);
           if (cachedSettings.intercom_inbox_id && cachedSettings.intercom_assignee_id) {
+            // Route to test inbox if this is a test conversation
+            const { data: fbMapping } = await supabase
+              .from("conversation_mappings")
+              .select("is_test")
+              .eq("intercom_conversation_id", conversationId)
+              .maybeSingle();
+            const fbInboxId = fbMapping?.is_test && cachedSettings.test_intercom_inbox_id
+              ? cachedSettings.test_intercom_inbox_id
+              : cachedSettings.intercom_inbox_id;
+
             await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
               method: "POST",
               headers: {
@@ -1379,12 +1389,12 @@ Deno.serve(async (req) => {
               body: JSON.stringify({
                 message_type: "assignment",
                 type: "team",
-                assignee_id: cachedSettings.intercom_inbox_id,
+                assignee_id: fbInboxId,
                 admin_id: cachedSettings.intercom_assignee_id,
                 body: "",
               }),
             });
-            console.log(`Reassigned conversation ${conversationId} to team inbox ${cachedSettings.intercom_inbox_id}`);
+            console.log(`Reassigned conversation ${conversationId} to team inbox ${fbInboxId}`);
           }
 
           // Convert the existing conversation to a ticket
