@@ -318,7 +318,7 @@ function buildNodes(
     {
       id: "6bi",
       type: "flowNode",
-      position: { x: COL_W - COL_W * 0.4, y: ROW_H * 6.5 },
+      position: { x: COL_W - COL_W * 0.5, y: ROW_H * 7.3 },
       data: {
         label: "6b-i. Human replies in Slack",
         desc: "After escalation (👎), user replies in Slack → forwarded to Intercom. Atomically gates the notice via escalated → escalated_pending.",
