@@ -158,7 +158,7 @@ function buildNodes(
     {
       id: "3c",
       type: "flowNode",
-      position: { x: COL_W + COL_W * 1.35, y: ROW_H * 2 },
+      position: { x: COL_W + COL_W * 1.55, y: ROW_H * 2 },
       data: {
         label: '3c. "Cancel" clicked',
         desc: "User dismisses the support request. No Intercom ticket is created.",
