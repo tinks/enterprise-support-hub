@@ -36,8 +36,8 @@ import { toast } from "sonner";
 
 const nodeTypes = { flowNode: EditableFlowNode };
 
-const COL_W = 360;
-const ROW_H = 260;
+const COL_W = 420;
+const ROW_H = 380;
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */
