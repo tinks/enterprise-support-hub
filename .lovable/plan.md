@@ -1,27 +1,22 @@
 
 
-## Backfill `resolved_at` for Historical Conversations
+## Add Resolution Time Tracking to Project Knowledge
 
-### Approach
+### What to add
 
-For all conversations where `status = 'resolved'` and `resolved_at IS NULL`, set `resolved_at = updated_at`. The `updated_at` timestamp on resolved conversations closely approximates when the resolution happened, since the status change to "resolved" is typically the last update made to that row.
+The `resolved_at` column and resolution time reporting feature need to be documented. Two sections of the knowledge file need updates:
 
-This is not perfectly precise — if any row was updated after resolution for an unrelated reason, the timestamp would be slightly off — but it's the best available proxy.
-
-### Change
-
-**One data migration (via insert tool):**
-
-```sql
-UPDATE conversation_mappings
-SET resolved_at = updated_at
-WHERE status = 'resolved'
-  AND resolved_at IS NULL;
+**1. Database Tables section (line 30)** — Update the `conversation_mappings` row to mention `resolved_at`:
+```
+| `conversation_mappings` | Maps Slack threads ↔ Intercom conversations with status tracking. Includes `resolved_at` timestamp for resolution time metrics |
 ```
 
-### What this gives you
+**2. New section (after Stats/Section 11 area)** — Add a "Resolution Time Tracking" section:
+- `resolved_at` column: set automatically when status changes to `"resolved"` (in `slack-interactions` and `intercom-webhook`)
+- Historical data backfilled using `updated_at` as proxy
+- Stats page displays: median resolution time, average resolution time, distribution chart (buckets: <15m, 15m–1h, 1–4h, 4–24h, 24h+), and 7-day rolling trend line
+- Only conversations with both `created_at` and `resolved_at` are included in time metrics
 
-- All historical resolved conversations immediately appear in the resolution time charts on the Stats page
-- Going forward, the edge functions already set `resolved_at` precisely at resolution time
-- No schema changes, no code changes — just a one-time data backfill
+### How
+Write the updated full markdown to `pending_content` + `pending_summary` on the `knowledge_documents` row via database query, then you review and approve in the Knowledge tab.
 
