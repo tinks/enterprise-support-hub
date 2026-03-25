@@ -1,45 +1,29 @@
 
 
-## Add "Cancel" Button to Context Prompt
+## Fix Flow Diagram Layout — Increase Spacing
 
-### Overview
-Add a third button to the context prompt that lets users dismiss their support request without creating an Intercom ticket. This resolves the conversation immediately.
+### Problem
+Nodes have grown larger with additional text and details but the default positions still use tight spacing (`ROW_H = 260`), causing overlaps.
 
-### Changes
+### Fix — `src/pages/FlowDiagram.tsx`
 
-**1. `supabase/functions/slack-events/index.ts` — Add button to prompt (line ~360)**
+**1. Increase spacing constants**
+- `ROW_H`: 260 → 380 (more vertical room for tall nodes)
+- `COL_W`: 360 → 420 (more horizontal room for the 3-column layout at row 2)
 
-Add a "Cancel" button after the "Proceed" button in the actions block:
-```typescript
-{
-  type: "button",
-  text: { type: "plain_text", text: "Cancel", emoji: true },
-  action_id: "cancel_request",
-  value: buttonValue,
-}
-```
+**2. Adjust specific node positions**
+The multipliers on individual nodes also need tuning — especially:
+- Nodes 3a/3b/3c (row 2): widen horizontal spread to prevent overlap
+- Node 4 (Intercom ticket, `wide: true`): needs extra vertical gap below the 3-column row
+- Node 5 (AI responds, `wide: true`): push down further
+- Nodes 6a/6b/6c (row 5): widen spread and increase vertical gap from node 5
+- Nodes 6bi/6bii (row 6.5): adjust accordingly
+- Node 7 (closed): push to bottom
 
-**2. `supabase/functions/slack-interactions/index.ts` — Handle the button click**
+**3. Clear saved positions**
+Since the DB stores dragged positions that override defaults, we should also reset the `flow_node_positions` table so the new defaults take effect. This will be a one-time migration that truncates the table.
 
-Add a new `cancel_request` action handler (similar to the existing `proceed_without_context` block):
-- Atomically update status from `awaiting_context` → `resolved` (prevents double-processing)
-- Update the prompt message via `chat.update` to show a cancellation acknowledgment (e.g., "✅ Request cancelled. Feel free to reach out again anytime!")
-- No Intercom ticket created, no reactions added
-- Return 200
-
-**3. `bot_messages` table — Add `request_cancelled` message key**
-
-Insert a new editable message:
-- Key: `request_cancelled`
-- Text: `"✅ Request cancelled. Feel free to reach out again anytime!"`
-- Description: `"Message shown when user cancels their support request"`
-
-**4. `context-reminder` function — Skip cancelled conversations**
-
-The existing query filters on `status = 'awaiting_context'`, so cancelled (resolved) conversations are already excluded. No change needed.
-
-### What stays the same
-- "Add Details" and "Proceed" buttons unchanged
-- No Intercom interaction on cancel
-- Auto-proceed reminder logic unaffected (status guard prevents action on resolved conversations)
+### Summary
+- One file change: `src/pages/FlowDiagram.tsx` (spacing constants + position coordinates)
+- One migration: truncate `flow_node_positions` to reset saved positions
 
