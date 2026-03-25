@@ -78,13 +78,14 @@ function buildNodes(
       type: "flowNode",
       position: { x: COL_W, y: 0 },
       data: {
-        label: "1. User @mentions bot",
-        desc: "A user mentions the bot in any Slack channel the bot has been invited to.",
+        label: "1. User @mentions bot or sends DM",
+        desc: "A user mentions the bot in any Slack channel, or sends a direct message to the bot. Both trigger the same flow.",
         icon: MessageSquare,
         edgeFunction: "slack-events",
         details: [
           "Verifies Slack signature",
           "Auto-adds new channels on first @mention, so newly invited channels work without manual setup.",
+          "DMs are detected via channel_type === 'im' — no channel setup needed",
           "Atomic INSERT dedup (ON CONFLICT DO NOTHING) — prevents race from Slack retries",
           "If thread reply → fetches full transcript",
           "Collects file attachments (photos, videos, docs)",
