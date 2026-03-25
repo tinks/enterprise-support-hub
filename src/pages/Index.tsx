@@ -21,6 +21,7 @@ interface SettingsData {
   intercom_assignee_id: string;
   slack_bot_user_id: string;
   testing_mode: boolean;
+  test_intercom_inbox_id: string;
 }
 
 
