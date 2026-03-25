@@ -246,6 +246,75 @@ const Stats = () => {
     return volumeData.reduce((max, d) => (d.total > max.total ? d : max), volumeData[0]);
   }, [volumeData]);
 
+  // Resolution time helpers
+  const formatDuration = (minutes: number): string => {
+    if (minutes < 60) return `${Math.round(minutes)}m`;
+    if (minutes < 1440) return `${Math.floor(minutes / 60)}h ${Math.round(minutes % 60)}m`;
+    const days = Math.floor(minutes / 1440);
+    const hrs = Math.floor((minutes % 1440) / 60);
+    return `${days}d ${hrs}h`;
+  };
+
+  const resolutionTimes = useMemo(() => {
+    return filtered
+      .filter((m) => m.status === "resolved" && m.resolved_at)
+      .map((m) => differenceInMinutes(parseISO(m.resolved_at!), parseISO(m.created_at)))
+      .filter((mins) => mins >= 0)
+      .sort((a, b) => a - b);
+  }, [filtered]);
+
+  const resolutionStats = useMemo(() => {
+    if (resolutionTimes.length === 0) return null;
+    const median = resolutionTimes[Math.floor(resolutionTimes.length / 2)];
+    const avg = resolutionTimes.reduce((s, v) => s + v, 0) / resolutionTimes.length;
+    return { median, avg, count: resolutionTimes.length };
+  }, [resolutionTimes]);
+
+  const resolutionDistribution = useMemo(() => {
+    if (resolutionTimes.length === 0) return [];
+    const buckets = [
+      { label: "< 15m", max: 15, count: 0 },
+      { label: "15m–1h", max: 60, count: 0 },
+      { label: "1–4h", max: 240, count: 0 },
+      { label: "4–24h", max: 1440, count: 0 },
+      { label: "24h+", max: Infinity, count: 0 },
+    ];
+    for (const mins of resolutionTimes) {
+      const bucket = buckets.find((b) => mins < b.max) || buckets[buckets.length - 1];
+      bucket.count++;
+    }
+    return buckets.filter((b) => b.count > 0);
+  }, [resolutionTimes]);
+
+  const resolutionTrend = useMemo(() => {
+    const resolved = filtered
+      .filter((m) => m.status === "resolved" && m.resolved_at)
+      .map((m) => ({
+        day: format(parseISO(m.created_at), "yyyy-MM-dd"),
+        mins: differenceInMinutes(parseISO(m.resolved_at!), parseISO(m.created_at)),
+      }))
+      .filter((r) => r.mins >= 0);
+    if (resolved.length < 2) return [];
+    const byDay: Record<string, number[]> = {};
+    for (const r of resolved) {
+      if (!byDay[r.day]) byDay[r.day] = [];
+      byDay[r.day].push(r.mins);
+    }
+    const days = Object.keys(byDay).sort();
+    const windowSize = Math.min(7, days.length);
+    const result: { label: string; resolution: number }[] = [];
+    for (let i = windowSize - 1; i < days.length; i++) {
+      const windowMins: number[] = [];
+      for (let j = i - windowSize + 1; j <= i; j++) {
+        windowMins.push(...byDay[days[j]]);
+      }
+      windowMins.sort((a, b) => a - b);
+      const median = windowMins[Math.floor(windowMins.length / 2)];
+      result.push({ label: format(parseISO(days[i]), "MMM dd"), resolution: Math.round(median) });
+    }
+    return result;
+  }, [filtered]);
+
   if (loading) {
     return (
       <AppLayout>
