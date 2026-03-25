@@ -1153,7 +1153,7 @@ Deno.serve(async (req) => {
           // Atomic guard: only cancel if status is still awaiting_context
           const { data: updated } = await supabase
             .from("conversation_mappings")
-            .update({ status: "resolved" })
+            .update({ status: "cancelled" })
             .eq("slack_channel_id", channelId)
             .eq("slack_thread_ts", threadTs)
             .eq("status", "awaiting_context")
