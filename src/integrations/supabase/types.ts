@@ -53,6 +53,7 @@ export type Database = {
           original_message_text: string
           prompt_message_ts: string | null
           reminder_sent_at: string | null
+          resolved_at: string | null
           slack_channel_id: string
           slack_thread_ts: string
           slack_user_id: string
@@ -70,6 +71,7 @@ export type Database = {
           original_message_text?: string
           prompt_message_ts?: string | null
           reminder_sent_at?: string | null
+          resolved_at?: string | null
           slack_channel_id: string
           slack_thread_ts: string
           slack_user_id?: string
@@ -87,6 +89,7 @@ export type Database = {
           original_message_text?: string
           prompt_message_ts?: string | null
           reminder_sent_at?: string | null
+          resolved_at?: string | null
           slack_channel_id?: string
           slack_thread_ts?: string
           slack_user_id?: string

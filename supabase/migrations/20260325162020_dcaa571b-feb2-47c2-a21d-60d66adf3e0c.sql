@@ -1,0 +1,1 @@
+ALTER TABLE conversation_mappings ADD COLUMN resolved_at timestamptz;

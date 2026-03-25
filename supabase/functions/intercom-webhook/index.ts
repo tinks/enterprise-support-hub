@@ -271,7 +271,7 @@ Deno.serve(async (req) => {
 
         await supabase
           .from("conversation_mappings")
-          .update({ status: "resolved" })
+          .update({ status: "resolved", resolved_at: new Date().toISOString() })
           .eq("id", mapping.id);
 
         console.log(`Marked conversation ${conversationId} as resolved and notified Slack`);

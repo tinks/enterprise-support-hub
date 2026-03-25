@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
-import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon, ChevronDown } from "lucide-react";
+import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon, ChevronDown, Timer } from "lucide-react";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -12,7 +12,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell,
   LineChart, Line, AreaChart, Area, LabelList,
 } from "recharts";
-import { format, parseISO, subDays, subMonths, startOfDay, endOfDay, isAfter, isBefore, differenceInDays } from "date-fns";
+import { format, parseISO, subDays, subMonths, startOfDay, endOfDay, isAfter, isBefore, differenceInDays, differenceInMinutes } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -23,6 +23,7 @@ import { channelNameOverrides } from "@/lib/channelOverrides";
 interface Mapping {
   status: string;
   created_at: string;
+  resolved_at: string | null;
   is_test: boolean;
   slack_channel_id: string;
 }
@@ -37,6 +38,7 @@ const chartConfig = {
   total: { label: "Total", color: "hsl(var(--primary))" },
   cumulative: { label: "Cumulative", color: "hsl(var(--primary))" },
   rate: { label: "Escalation rate", color: "hsl(var(--destructive))" },
+  resolution: { label: "Resolution time", color: "hsl(221 83% 53%)" },
 };
 
 const rangeLabel: Record<TimeRange, string> = {
@@ -79,7 +81,7 @@ const Stats = () => {
     setLoading(true);
     const { data: mappings } = await supabase
       .from("conversation_mappings")
-      .select("status, created_at, is_test, slack_channel_id")
+      .select("status, created_at, is_test, slack_channel_id, resolved_at")
       .order("created_at", { ascending: true });
     const rows = (mappings as Mapping[]) || [];
     setData(rows);
@@ -243,6 +245,75 @@ const Stats = () => {
     if (volumeData.length === 0) return null;
     return volumeData.reduce((max, d) => (d.total > max.total ? d : max), volumeData[0]);
   }, [volumeData]);
+
+  // Resolution time helpers
+  const formatDuration = (minutes: number): string => {
+    if (minutes < 60) return `${Math.round(minutes)}m`;
+    if (minutes < 1440) return `${Math.floor(minutes / 60)}h ${Math.round(minutes % 60)}m`;
+    const days = Math.floor(minutes / 1440);
+    const hrs = Math.floor((minutes % 1440) / 60);
+    return `${days}d ${hrs}h`;
+  };
+
+  const resolutionTimes = useMemo(() => {
+    return filtered
+      .filter((m) => m.status === "resolved" && m.resolved_at)
+      .map((m) => differenceInMinutes(parseISO(m.resolved_at!), parseISO(m.created_at)))
+      .filter((mins) => mins >= 0)
+      .sort((a, b) => a - b);
+  }, [filtered]);
+
+  const resolutionStats = useMemo(() => {
+    if (resolutionTimes.length === 0) return null;
+    const median = resolutionTimes[Math.floor(resolutionTimes.length / 2)];
+    const avg = resolutionTimes.reduce((s, v) => s + v, 0) / resolutionTimes.length;
+    return { median, avg, count: resolutionTimes.length };
+  }, [resolutionTimes]);
+
+  const resolutionDistribution = useMemo(() => {
+    if (resolutionTimes.length === 0) return [];
+    const buckets = [
+      { label: "< 15m", max: 15, count: 0 },
+      { label: "15m–1h", max: 60, count: 0 },
+      { label: "1–4h", max: 240, count: 0 },
+      { label: "4–24h", max: 1440, count: 0 },
+      { label: "24h+", max: Infinity, count: 0 },
+    ];
+    for (const mins of resolutionTimes) {
+      const bucket = buckets.find((b) => mins < b.max) || buckets[buckets.length - 1];
+      bucket.count++;
+    }
+    return buckets.filter((b) => b.count > 0);
+  }, [resolutionTimes]);
+
+  const resolutionTrend = useMemo(() => {
+    const resolved = filtered
+      .filter((m) => m.status === "resolved" && m.resolved_at)
+      .map((m) => ({
+        day: format(parseISO(m.created_at), "yyyy-MM-dd"),
+        mins: differenceInMinutes(parseISO(m.resolved_at!), parseISO(m.created_at)),
+      }))
+      .filter((r) => r.mins >= 0);
+    if (resolved.length < 2) return [];
+    const byDay: Record<string, number[]> = {};
+    for (const r of resolved) {
+      if (!byDay[r.day]) byDay[r.day] = [];
+      byDay[r.day].push(r.mins);
+    }
+    const days = Object.keys(byDay).sort();
+    const windowSize = Math.min(7, days.length);
+    const result: { label: string; resolution: number }[] = [];
+    for (let i = windowSize - 1; i < days.length; i++) {
+      const windowMins: number[] = [];
+      for (let j = i - windowSize + 1; j <= i; j++) {
+        windowMins.push(...byDay[days[j]]);
+      }
+      windowMins.sort((a, b) => a - b);
+      const median = windowMins[Math.floor(windowMins.length / 2)];
+      result.push({ label: format(parseISO(days[i]), "MMM dd"), resolution: Math.round(median) });
+    }
+    return result;
+  }, [filtered]);
 
   if (loading) {
     return (
@@ -434,6 +505,83 @@ const Stats = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Resolution time section */}
+        {resolutionStats && (
+          <>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <Timer className="mb-2 h-5 w-5 text-primary" />
+                  <p className="text-3xl font-bold text-foreground">{formatDuration(resolutionStats.median)}</p>
+                  <p className="text-xs text-muted-foreground">Median resolution time</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
+                  <p className="text-3xl font-bold text-foreground">{formatDuration(resolutionStats.avg)}</p>
+                  <p className="text-xs text-muted-foreground">Average resolution time</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <ThumbsUp className="mb-2 h-5 w-5 text-green-600" />
+                  <p className="text-3xl font-bold text-foreground">{resolutionStats.count}</p>
+                  <p className="text-xs text-muted-foreground">Resolved with time data</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Resolution time distribution</CardTitle>
+                  <CardDescription>How long conversations take to resolve</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {resolutionDistribution.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+                  ) : (
+                    <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                      <BarChart data={resolutionDistribution}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="label" className="text-xs" />
+                        <YAxis allowDecimals={false} className="text-xs" />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="count" fill="hsl(221 83% 53%)" radius={[4, 4, 0, 0]}>
+                          <LabelList dataKey="count" position="top" className="text-xs fill-foreground" />
+                        </Bar>
+                      </BarChart>
+                    </ChartContainer>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Resolution time trend</CardTitle>
+                  <CardDescription>7-day rolling median (minutes)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {resolutionTrend.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">Not enough data yet</p>
+                  ) : (
+                    <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                      <LineChart data={resolutionTrend}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="label" className="text-xs" />
+                        <YAxis unit="m" allowDecimals={false} className="text-xs" />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Line type="monotone" dataKey="resolution" stroke="hsl(221 83% 53%)" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ChartContainer>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </>
+        )}
 
         {/* Conversation volume line chart */}
         <Card>

@@ -1317,9 +1317,13 @@ Deno.serve(async (req) => {
 
         // Atomic guard: only the first click proceeds
         const targetStatus = actionId === "feedback_positive" ? "resolved" : "escalated";
+        const updatePayload: Record<string, string> = { status: targetStatus };
+        if (targetStatus === "resolved") {
+          updatePayload.resolved_at = new Date().toISOString();
+        }
         const { data: guardResult } = await supabase
           .from("conversation_mappings")
-          .update({ status: targetStatus })
+          .update(updatePayload)
           .eq("intercom_conversation_id", conversationId)
           .in("status", ["active", "awaiting_context", "escalated"])
           .select("id");
