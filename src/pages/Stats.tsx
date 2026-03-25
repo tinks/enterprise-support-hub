@@ -38,6 +38,7 @@ const chartConfig = {
   total: { label: "Total", color: "hsl(var(--primary))" },
   cumulative: { label: "Cumulative", color: "hsl(var(--primary))" },
   rate: { label: "Escalation rate", color: "hsl(var(--destructive))" },
+  resolution: { label: "Resolution time", color: "hsl(221 83% 53%)" },
 };
 
 const rangeLabel: Record<TimeRange, string> = {
