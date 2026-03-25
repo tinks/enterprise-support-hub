@@ -120,7 +120,7 @@ function buildNodes(
     {
       id: "3a",
       type: "flowNode",
-      position: { x: COL_W - COL_W * 0.55, y: ROW_H * 2 },
+      position: { x: COL_W - COL_W * 0.75, y: ROW_H * 2 },
       data: {
         label: '3a. "Add Details" clicked',
         desc: "Opens a Slack modal for email + project link.",
