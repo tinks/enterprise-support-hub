@@ -365,7 +365,7 @@ function buildNodes(
     {
       id: "7",
       type: "flowNode",
-      position: { x: COL_W + COL_W * 0.05, y: ROW_H * 7.8 },
+      position: { x: COL_W + COL_W * 0.05, y: ROW_H * 8.7 },
       data: {
         label: "7. Conversation / Ticket closed",
         desc: "Conversation or ticket closed in Intercom → thread finalized in Slack.",
