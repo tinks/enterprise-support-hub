@@ -81,7 +81,7 @@ const Stats = () => {
     setLoading(true);
     const { data: mappings } = await supabase
       .from("conversation_mappings")
-      .select("status, created_at, is_test, slack_channel_id")
+      .select("status, created_at, is_test, slack_channel_id, resolved_at")
       .order("created_at", { ascending: true });
     const rows = (mappings as Mapping[]) || [];
     setData(rows);
