@@ -348,7 +348,7 @@ const Stats = () => {
           <div className="flex items-center gap-4">
             <img src="/lovable-logo.png" alt="Lovable logo" className="h-12 w-12 rounded-lg" />
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Lovable Support Hub</h1>
+              <h1 className="text-2xl font-bold text-foreground">Lovable Enterprise Support Hub</h1>
               <p className="text-sm text-muted-foreground">Real-time analytics for our Ask Lovable Slack Bot ↔ Intercom Support Pipeline</p>
             </div>
           </div>
