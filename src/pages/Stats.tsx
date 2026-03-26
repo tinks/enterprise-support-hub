@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
-import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon, ChevronDown, Timer, AlertCircle } from "lucide-react";
+import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon, ChevronDown, Timer, AlertCircle, XCircle } from "lucide-react";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -32,7 +32,8 @@ type TimeRange = "7d" | "30d" | "90d" | "all" | "custom";
 
 const chartConfig = {
   resolved: { label: "Resolved", color: "hsl(142 76% 36%)" },
-  escalated: { label: "Escalated", color: "hsl(var(--destructive))" },
+  escalated: { label: "Escalated to human", color: "hsl(var(--destructive))" },
+  cancelled: { label: "Cancelled", color: "hsl(var(--muted-foreground))" },
   active: { label: "Active", color: "hsl(var(--primary))" },
   awaiting_context: { label: "Awaiting context", color: "hsl(var(--muted-foreground))" },
   total: { label: "Total", color: "hsl(var(--primary))" },
@@ -142,8 +143,7 @@ const Stats = () => {
         matchRange = cutoff ? isAfter(parsed, cutoff) : true;
       }
       const matchChannel = selectedChannels.length === 0 || selectedChannels.includes(m.slack_channel_id);
-      const notCancelled = m.status !== "cancelled";
-      return matchView && matchRange && matchChannel && notCancelled;
+      return matchView && matchRange && matchChannel;
     });
   }, [data, view, range, customFrom, customTo, selectedChannels]);
 
@@ -153,6 +153,7 @@ const Stats = () => {
     const escalated = filtered.filter((m) => m.status === "escalated").length;
     const active = filtered.filter((m) => m.status === "active").length;
     const awaiting = filtered.filter((m) => m.status === "awaiting_context").length;
+    const cancelled = filtered.filter((m) => m.status === "cancelled").length;
     const feedbackTotal = resolved + escalated;
     const resolvedPct = feedbackTotal ? Math.round((resolved / feedbackTotal) * 100) : 0;
 
@@ -164,7 +165,7 @@ const Stats = () => {
         : 1;
     const avgPerDay = +(total / daySpan).toFixed(1);
 
-    return { total, resolved, escalated, active, awaiting, resolvedPct, avgPerDay };
+    return { total, resolved, escalated, active, awaiting, cancelled, resolvedPct, avgPerDay };
   }, [filtered, range]);
 
   // Daily volume line chart
@@ -221,9 +222,10 @@ const Stats = () => {
   const pieData = useMemo(() => {
     return [
       { name: "Resolved", value: stats.resolved, fill: chartConfig.resolved.color },
-      { name: "Escalated", value: stats.escalated, fill: chartConfig.escalated.color },
+      { name: "Escalated to human", value: stats.escalated, fill: chartConfig.escalated.color },
       { name: "Active", value: stats.active, fill: chartConfig.active.color },
       { name: "Awaiting", value: stats.awaiting, fill: chartConfig.awaiting_context.color },
+      { name: "Cancelled", value: stats.cancelled, fill: chartConfig.cancelled.color },
     ].filter((d) => d.value > 0);
   }, [stats]);
 
@@ -487,7 +489,7 @@ const Stats = () => {
             <CardContent className="flex flex-col items-center justify-center p-5">
               <ThumbsDown className="mb-2 h-5 w-5 text-destructive" />
               <p className="text-3xl font-bold text-foreground">{stats.escalated}</p>
-              <p className="text-xs text-muted-foreground">Escalated</p>
+              <p className="text-xs text-muted-foreground">Escalated to human</p>
             </CardContent>
           </Card>
           <Card>
@@ -495,6 +497,13 @@ const Stats = () => {
               <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
               <p className="text-3xl font-bold text-foreground">{stats.resolvedPct}%</p>
               <p className="text-xs text-muted-foreground">Success rate</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center p-5">
+              <XCircle className="mb-2 h-5 w-5 text-muted-foreground" />
+              <p className="text-3xl font-bold text-foreground">{stats.cancelled}</p>
+              <p className="text-xs text-muted-foreground">Cancelled</p>
             </CardContent>
           </Card>
           <Card>
@@ -643,7 +652,7 @@ const Stats = () => {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Daily outcomes</CardTitle>
-              <CardDescription>Resolved vs escalated per day</CardDescription>
+              <CardDescription>Resolved vs escalated to human per day</CardDescription>
             </CardHeader>
             <CardContent>
               {dailyOutcomes.length === 0 ? (
