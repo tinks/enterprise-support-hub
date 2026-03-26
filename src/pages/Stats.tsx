@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
-import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon, ChevronDown, Timer, AlertCircle, XCircle } from "lucide-react";
+import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon, ChevronDown, Timer, AlertCircle, XCircle, ArrowUpRight } from "lucide-react";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -151,10 +151,12 @@ const Stats = () => {
   const stats = useMemo(() => {
     const total = filtered.length;
     const resolved = filtered.filter((m) => m.status === "resolved").length;
-    const escalated = filtered.filter((m) => m.status === "escalated").length;
-    const active = filtered.filter((m) => m.status === "active").length;
+    const escalated = filtered.filter((m) => m.status === "escalated" || m.status === "escalated_pending").length;
+    const active = filtered.filter((m) => m.status === "active" || m.status === "active_pending").length;
     const awaiting = filtered.filter((m) => m.status === "awaiting_context").length;
+    const processing = filtered.filter((m) => m.status === "processing").length;
     const cancelled = filtered.filter((m) => m.status === "cancelled").length;
+    const open = total - resolved - cancelled;
     const feedbackTotal = total - cancelled;
     const resolvedPct = feedbackTotal ? Math.round((resolved / feedbackTotal) * 100) : 0;
 
@@ -166,7 +168,7 @@ const Stats = () => {
         : 1;
     const avgPerDay = +(total / daySpan).toFixed(1);
 
-    return { total, resolved, escalated, active, awaiting, cancelled, resolvedPct, avgPerDay };
+    return { total, resolved, escalated, active, awaiting, processing, cancelled, open, resolvedPct, avgPerDay };
   }, [filtered, range]);
 
   // Daily volume line chart
@@ -200,7 +202,7 @@ const Stats = () => {
     // Build per-day escalated counts from filtered data
     const escalatedByDay: Record<string, number> = {};
     filtered.forEach((m) => {
-      if (m.status === "escalated") {
+      if (m.status === "escalated" || m.status === "escalated_pending") {
         const day = format(parseISO(m.created_at), "yyyy-MM-dd");
         escalatedByDay[day] = (escalatedByDay[day] || 0) + 1;
       }
@@ -232,7 +234,7 @@ const Stats = () => {
   const pieData = useMemo(() => {
     return [
       { name: "Resolved", value: stats.resolved, fill: chartConfig.resolved.color },
-      { name: "Open", value: stats.active + stats.awaiting + stats.escalated, fill: "hsl(var(--primary))" },
+      { name: "Open", value: stats.open, fill: "hsl(var(--primary))" },
       { name: "Cancelled", value: stats.cancelled, fill: chartConfig.cancelled.color },
     ].filter((d) => d.value > 0);
   }, [stats]);
@@ -478,7 +480,7 @@ const Stats = () => {
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-7">
           <Card>
             <CardContent className="flex flex-col items-center justify-center p-5">
               <MessageSquare className="mb-2 h-5 w-5 text-primary" />
@@ -503,8 +505,15 @@ const Stats = () => {
           <Card>
             <CardContent className="flex flex-col items-center justify-center p-5">
               <AlertCircle className="mb-2 h-5 w-5 text-orange-500" />
-              <p className="text-3xl font-bold text-foreground">{stats.active + stats.awaiting + stats.escalated}</p>
+              <p className="text-3xl font-bold text-foreground">{stats.open}</p>
               <p className="text-xs text-muted-foreground">Open</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center p-5">
+              <ArrowUpRight className="mb-2 h-5 w-5 text-amber-500" />
+              <p className="text-3xl font-bold text-foreground">{stats.escalated}</p>
+              <p className="text-xs text-muted-foreground">Escalated to human</p>
             </CardContent>
           </Card>
           <Card>
