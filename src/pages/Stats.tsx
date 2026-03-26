@@ -236,7 +236,8 @@ const Stats = () => {
   const pieData = useMemo(() => {
     return [
       { name: "Resolved", value: stats.resolved, fill: chartConfig.resolved.color },
-      { name: "Open", value: stats.open, fill: "hsl(var(--primary))" },
+      { name: "Open", value: stats.open - stats.escalated, fill: chartConfig.open.color },
+      { name: "Escalated to human", value: stats.escalated, fill: chartConfig.escalated.color },
       { name: "Cancelled", value: stats.cancelled, fill: chartConfig.cancelled.color },
     ].filter((d) => d.value > 0);
   }, [stats]);
