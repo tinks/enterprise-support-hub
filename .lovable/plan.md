@@ -1,36 +1,39 @@
 
 
-## Fix stats math: Total = Open + Resolved + Cancelled
+## Fix missing statuses in Open count + add escalation metrics
 
-### Problem
-"Escalated to human" is counted separately, so Total (29) ≠ Open (2) + Resolved (21) + Cancelled (0). The correct model is: escalated conversations are a subset of **Open** (they're not resolved, not cancelled — they're still open, just handed to a human).
+### The problem
+
+**Missing 3 cases:** The "Open" card counts only `active + awaiting_context + escalated`, but your database has conversations in `processing`, `active_pending`, and `escalated_pending` statuses that aren't counted anywhere. Currently there are 3 `escalated_pending` and 1 `processing` conversation missing from the totals.
+
+**Database status breakdown (all time):** resolved: 127, active: 17, escalated: 16, escalated_pending: 3, cancelled: 1, processing: 1
 
 ### Changes to `src/pages/Stats.tsx`
 
-**1. Merge escalated into Open count (line 505)**
-- Change `stats.active + stats.awaiting` → `stats.active + stats.awaiting + stats.escalated`
-- This makes Open = active + awaiting_context + escalated
+**1. Count ALL open statuses**
 
-**2. Remove the standalone "Escalated to human" card (lines 488-493)**
-- Delete that card from the grid
+Add `active_pending`, `escalated_pending`, and `processing` to the stats memo so every conversation is accounted for:
 
-**3. Update grid columns**
-- Change `lg:grid-cols-7` → `lg:grid-cols-6` (one fewer card)
+```
+Open = active + awaiting_context + escalated + active_pending + escalated_pending + processing
+```
 
-**4. Update success rate denominator (line 158)**
-- Change `feedbackTotal = resolved + escalated` → `feedbackTotal = total - cancelled` or keep as-is depending on intent. Current formula is fine if success rate = resolved / (resolved + escalated).
+This ensures Total = Open + Resolved + Cancelled always holds.
 
-**5. Remove "Escalated to human" from pie chart data** and fold it into an "Open" slice, or keep it as a breakdown sub-category. Given the user's model (Total = Open + Resolved + Cancelled), the pie should show three slices: Open, Resolved, Cancelled.
+**2. Add "Escalated to human" metric card**
 
-**6. Update daily outcomes chart** — merge escalated into open in the stacked bar/area data.
+Add a card showing the total number of conversations that reached an escalated state (`escalated` + `escalated_pending`). This is an informational/subset metric — it doesn't change the Total math.
 
-**Resulting card order:** Total → Resolved → Cancelled → Open → Success rate → Avg / day
+Place it after the "Open" card. Adjust grid to `lg:grid-cols-7`.
 
-**Validation:** Total (29) = Resolved (21) + Open (2+6=8) + Cancelled (0) = 29 ✓
+**3. Update pie chart and daily outcomes**
+
+- Pie chart: keep three primary slices (Resolved, Open, Cancelled) but add Escalated as a visual sub-slice of Open
+- Daily outcomes: include escalated as a separate stacked bar for visibility
 
 ### Summary
 - 1 file changed (`Stats.tsx`)
-- Remove escalated card, merge count into Open
-- Update pie chart and daily outcomes to use 3 categories
-- Update grid layout
+- Fix Open to include all non-resolved/non-cancelled statuses
+- Add escalated count as an informational metric
+- Math will validate: Total = Open + Resolved + Cancelled
 
