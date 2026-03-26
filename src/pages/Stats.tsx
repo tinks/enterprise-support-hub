@@ -229,8 +229,8 @@ const Stats = () => {
   // Daily outcomes bar chart
   const dailyOutcomes = useMemo(() => {
     return volumeData
-      .filter((d) => d.resolved > 0 || d.open > 0 || d.cancelled > 0)
-      .map((d) => ({ date: d.label, resolved: d.resolved, open: d.open, cancelled: d.cancelled }));
+      .filter((d) => d.resolved > 0 || d.open > 0 || d.cancelled > 0 || d.escalated > 0)
+      .map((d) => ({ date: d.label, resolved: d.resolved, open: d.open, cancelled: d.cancelled, escalated: d.escalated }));
   }, [volumeData]);
 
   const pieData = useMemo(() => {
