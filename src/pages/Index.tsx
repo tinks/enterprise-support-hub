@@ -22,6 +22,7 @@ interface SettingsData {
   slack_bot_user_id: string;
   testing_mode: boolean;
   test_intercom_inbox_id: string;
+  auto_mark_employee_test: boolean;
 }
 
 
