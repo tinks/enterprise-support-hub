@@ -143,8 +143,7 @@ const Stats = () => {
         matchRange = cutoff ? isAfter(parsed, cutoff) : true;
       }
       const matchChannel = selectedChannels.length === 0 || selectedChannels.includes(m.slack_channel_id);
-      const notCancelled = m.status !== "cancelled";
-      return matchView && matchRange && matchChannel && notCancelled;
+      return matchView && matchRange && matchChannel;
     });
   }, [data, view, range, customFrom, customTo, selectedChannels]);
 
