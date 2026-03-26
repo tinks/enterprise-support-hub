@@ -416,7 +416,7 @@ const Stats = () => {
                       : selectedChannels.length === 0
                         ? "None selected"
                         : selectedChannels.length === 1
-                          ? `#${channelNames[selectedChannels[0]] || selectedChannels[0]}`
+                          ? `#${channelNames[selectedChannels[0]] || channelNameOverrides[selectedChannels[0]] || (selectedChannels[0].startsWith("D") ? "Direct message" : selectedChannels[0])}`
                           : `${selectedChannels.length} channels`}
                     <ChevronDown className="ml-2 h-3.5 w-3.5 opacity-50" />
                   </Button>
