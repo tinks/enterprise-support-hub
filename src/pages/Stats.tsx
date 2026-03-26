@@ -153,6 +153,7 @@ const Stats = () => {
     const escalated = filtered.filter((m) => m.status === "escalated").length;
     const active = filtered.filter((m) => m.status === "active").length;
     const awaiting = filtered.filter((m) => m.status === "awaiting_context").length;
+    const cancelled = filtered.filter((m) => m.status === "cancelled").length;
     const feedbackTotal = resolved + escalated;
     const resolvedPct = feedbackTotal ? Math.round((resolved / feedbackTotal) * 100) : 0;
 
