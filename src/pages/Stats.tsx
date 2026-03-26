@@ -151,10 +151,12 @@ const Stats = () => {
   const stats = useMemo(() => {
     const total = filtered.length;
     const resolved = filtered.filter((m) => m.status === "resolved").length;
-    const escalated = filtered.filter((m) => m.status === "escalated").length;
-    const active = filtered.filter((m) => m.status === "active").length;
+    const escalated = filtered.filter((m) => m.status === "escalated" || m.status === "escalated_pending").length;
+    const active = filtered.filter((m) => m.status === "active" || m.status === "active_pending").length;
     const awaiting = filtered.filter((m) => m.status === "awaiting_context").length;
+    const processing = filtered.filter((m) => m.status === "processing").length;
     const cancelled = filtered.filter((m) => m.status === "cancelled").length;
+    const open = total - resolved - cancelled;
     const feedbackTotal = total - cancelled;
     const resolvedPct = feedbackTotal ? Math.round((resolved / feedbackTotal) * 100) : 0;
 
@@ -166,7 +168,7 @@ const Stats = () => {
         : 1;
     const avgPerDay = +(total / daySpan).toFixed(1);
 
-    return { total, resolved, escalated, active, awaiting, cancelled, resolvedPct, avgPerDay };
+    return { total, resolved, escalated, active, awaiting, processing, cancelled, open, resolvedPct, avgPerDay };
   }, [filtered, range]);
 
   // Daily volume line chart
