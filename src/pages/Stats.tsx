@@ -32,7 +32,8 @@ type TimeRange = "7d" | "30d" | "90d" | "all" | "custom";
 
 const chartConfig = {
   resolved: { label: "Resolved", color: "hsl(142 76% 36%)" },
-  escalated: { label: "Escalated", color: "hsl(var(--destructive))" },
+  escalated: { label: "Escalated to human", color: "hsl(var(--destructive))" },
+  cancelled: { label: "Cancelled", color: "hsl(var(--muted-foreground))" },
   active: { label: "Active", color: "hsl(var(--primary))" },
   awaiting_context: { label: "Awaiting context", color: "hsl(var(--muted-foreground))" },
   total: { label: "Total", color: "hsl(var(--primary))" },
