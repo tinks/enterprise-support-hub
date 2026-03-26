@@ -34,6 +34,7 @@ const chartConfig = {
   resolved: { label: "Resolved", color: "hsl(142 76% 36%)" },
   escalated: { label: "Escalated to human", color: "hsl(var(--destructive))" },
   cancelled: { label: "Cancelled", color: "hsl(var(--muted-foreground))" },
+  open: { label: "Open", color: "hsl(var(--primary))" },
   active: { label: "Active", color: "hsl(var(--primary))" },
   awaiting_context: { label: "Awaiting context", color: "hsl(var(--muted-foreground))" },
   total: { label: "Total", color: "hsl(var(--primary))" },
@@ -154,7 +155,7 @@ const Stats = () => {
     const active = filtered.filter((m) => m.status === "active").length;
     const awaiting = filtered.filter((m) => m.status === "awaiting_context").length;
     const cancelled = filtered.filter((m) => m.status === "cancelled").length;
-    const feedbackTotal = resolved + escalated;
+    const feedbackTotal = total - cancelled;
     const resolvedPct = feedbackTotal ? Math.round((resolved / feedbackTotal) * 100) : 0;
 
     const cutoff = getCutoffDate(range);
@@ -170,13 +171,14 @@ const Stats = () => {
 
   // Daily volume line chart
   const volumeData = useMemo(() => {
-    const byDay: Record<string, { date: string; total: number; resolved: number; escalated: number }> = {};
+    const byDay: Record<string, { date: string; total: number; resolved: number; open: number; cancelled: number }> = {};
     filtered.forEach((m) => {
       const day = format(parseISO(m.created_at), "yyyy-MM-dd");
-      if (!byDay[day]) byDay[day] = { date: day, total: 0, resolved: 0, escalated: 0 };
+      if (!byDay[day]) byDay[day] = { date: day, total: 0, resolved: 0, open: 0, cancelled: 0 };
       byDay[day].total++;
       if (m.status === "resolved") byDay[day].resolved++;
-      if (m.status === "escalated") byDay[day].escalated++;
+      else if (m.status === "cancelled") byDay[day].cancelled++;
+      else byDay[day].open++;
     });
     return Object.values(byDay)
       .sort((a, b) => a.date.localeCompare(b.date))
@@ -192,16 +194,24 @@ const Stats = () => {
     });
   }, [volumeData]);
 
-  // Escalation rate over time (rolling 7-day window)
+  // Escalation rate over time (rolling 7-day window) — computed from raw filtered data
   const escalationRateData = useMemo(() => {
     if (volumeData.length < 2) return [];
+    // Build per-day escalated counts from filtered data
+    const escalatedByDay: Record<string, number> = {};
+    filtered.forEach((m) => {
+      if (m.status === "escalated") {
+        const day = format(parseISO(m.created_at), "yyyy-MM-dd");
+        escalatedByDay[day] = (escalatedByDay[day] || 0) + 1;
+      }
+    });
     const windowSize = Math.min(7, volumeData.length);
     const result: { label: string; rate: number }[] = [];
     for (let i = windowSize - 1; i < volumeData.length; i++) {
       let resolved = 0, escalated = 0;
       for (let j = i - windowSize + 1; j <= i; j++) {
         resolved += volumeData[j].resolved;
-        escalated += volumeData[j].escalated;
+        escalated += escalatedByDay[volumeData[j].date] || 0;
       }
       const total = resolved + escalated;
       result.push({
@@ -210,21 +220,19 @@ const Stats = () => {
       });
     }
     return result;
-  }, [volumeData]);
+  }, [volumeData, filtered]);
 
   // Daily outcomes bar chart
   const dailyOutcomes = useMemo(() => {
     return volumeData
-      .filter((d) => d.resolved > 0 || d.escalated > 0)
-      .map((d) => ({ date: d.label, resolved: d.resolved, escalated: d.escalated }));
+      .filter((d) => d.resolved > 0 || d.open > 0 || d.cancelled > 0)
+      .map((d) => ({ date: d.label, resolved: d.resolved, open: d.open, cancelled: d.cancelled }));
   }, [volumeData]);
 
   const pieData = useMemo(() => {
     return [
       { name: "Resolved", value: stats.resolved, fill: chartConfig.resolved.color },
-      { name: "Escalated to human", value: stats.escalated, fill: chartConfig.escalated.color },
-      { name: "Active", value: stats.active, fill: chartConfig.active.color },
-      { name: "Awaiting", value: stats.awaiting, fill: chartConfig.awaiting_context.color },
+      { name: "Open", value: stats.active + stats.awaiting + stats.escalated, fill: "hsl(var(--primary))" },
       { name: "Cancelled", value: stats.cancelled, fill: chartConfig.cancelled.color },
     ].filter((d) => d.value > 0);
   }, [stats]);
@@ -470,7 +478,7 @@ const Stats = () => {
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
           <Card>
             <CardContent className="flex flex-col items-center justify-center p-5">
               <MessageSquare className="mb-2 h-5 w-5 text-primary" />
@@ -487,13 +495,6 @@ const Stats = () => {
           </Card>
           <Card>
             <CardContent className="flex flex-col items-center justify-center p-5">
-              <ThumbsDown className="mb-2 h-5 w-5 text-destructive" />
-              <p className="text-3xl font-bold text-foreground">{stats.escalated}</p>
-              <p className="text-xs text-muted-foreground">Escalated to human</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center p-5">
               <XCircle className="mb-2 h-5 w-5 text-muted-foreground" />
               <p className="text-3xl font-bold text-foreground">{stats.cancelled}</p>
               <p className="text-xs text-muted-foreground">Cancelled</p>
@@ -502,7 +503,7 @@ const Stats = () => {
           <Card>
             <CardContent className="flex flex-col items-center justify-center p-5">
               <AlertCircle className="mb-2 h-5 w-5 text-orange-500" />
-              <p className="text-3xl font-bold text-foreground">{stats.active + stats.awaiting}</p>
+              <p className="text-3xl font-bold text-foreground">{stats.active + stats.awaiting + stats.escalated}</p>
               <p className="text-xs text-muted-foreground">Open</p>
             </CardContent>
           </Card>
@@ -652,7 +653,7 @@ const Stats = () => {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Daily outcomes</CardTitle>
-              <CardDescription>Resolved vs escalated to human per day</CardDescription>
+              <CardDescription>Resolved vs open vs cancelled per day</CardDescription>
             </CardHeader>
             <CardContent>
               {dailyOutcomes.length === 0 ? (
@@ -665,7 +666,8 @@ const Stats = () => {
                     <YAxis allowDecimals={false} className="text-xs" />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Bar dataKey="resolved" fill={chartConfig.resolved.color} radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="escalated" fill={chartConfig.escalated.color} radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="open" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="cancelled" fill={chartConfig.cancelled.color} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ChartContainer>
               )}
