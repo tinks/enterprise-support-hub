@@ -173,14 +173,16 @@ const Stats = () => {
 
   // Daily volume line chart
   const volumeData = useMemo(() => {
-    const byDay: Record<string, { date: string; total: number; resolved: number; open: number; cancelled: number }> = {};
+    const byDay: Record<string, { date: string; total: number; resolved: number; open: number; cancelled: number; escalated: number }> = {};
     filtered.forEach((m) => {
       const day = format(parseISO(m.created_at), "yyyy-MM-dd");
-      if (!byDay[day]) byDay[day] = { date: day, total: 0, resolved: 0, open: 0, cancelled: 0 };
+      if (!byDay[day]) byDay[day] = { date: day, total: 0, resolved: 0, open: 0, cancelled: 0, escalated: 0 };
       byDay[day].total++;
+      const isEscalated = m.status === "escalated" || m.status === "escalated_pending";
       if (m.status === "resolved") byDay[day].resolved++;
       else if (m.status === "cancelled") byDay[day].cancelled++;
       else byDay[day].open++;
+      if (isEscalated) byDay[day].escalated++;
     });
     return Object.values(byDay)
       .sort((a, b) => a.date.localeCompare(b.date))
@@ -227,14 +229,15 @@ const Stats = () => {
   // Daily outcomes bar chart
   const dailyOutcomes = useMemo(() => {
     return volumeData
-      .filter((d) => d.resolved > 0 || d.open > 0 || d.cancelled > 0)
-      .map((d) => ({ date: d.label, resolved: d.resolved, open: d.open, cancelled: d.cancelled }));
+      .filter((d) => d.resolved > 0 || d.open > 0 || d.cancelled > 0 || d.escalated > 0)
+      .map((d) => ({ date: d.label, resolved: d.resolved, open: d.open, cancelled: d.cancelled, escalated: d.escalated }));
   }, [volumeData]);
 
   const pieData = useMemo(() => {
     return [
       { name: "Resolved", value: stats.resolved, fill: chartConfig.resolved.color },
-      { name: "Open", value: stats.open, fill: "hsl(var(--primary))" },
+      { name: "Open", value: stats.open - stats.escalated, fill: chartConfig.open.color },
+      { name: "Escalated to human", value: stats.escalated, fill: chartConfig.escalated.color },
       { name: "Cancelled", value: stats.cancelled, fill: chartConfig.cancelled.color },
     ].filter((d) => d.value > 0);
   }, [stats]);
@@ -662,7 +665,7 @@ const Stats = () => {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Daily outcomes</CardTitle>
-              <CardDescription>Resolved vs open vs cancelled per day</CardDescription>
+              <CardDescription>Resolved vs open vs escalated vs cancelled per day</CardDescription>
             </CardHeader>
             <CardContent>
               {dailyOutcomes.length === 0 ? (
@@ -675,7 +678,8 @@ const Stats = () => {
                     <YAxis allowDecimals={false} className="text-xs" />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Bar dataKey="resolved" fill={chartConfig.resolved.color} radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="open" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="open" fill={chartConfig.open.color} radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="escalated" fill={chartConfig.escalated.color} radius={[4, 4, 0, 0]} />
                     <Bar dataKey="cancelled" fill={chartConfig.cancelled.color} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ChartContainer>
