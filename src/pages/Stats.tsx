@@ -665,7 +665,7 @@ const Stats = () => {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Daily outcomes</CardTitle>
-              <CardDescription>Resolved vs open vs cancelled per day</CardDescription>
+              <CardDescription>Resolved vs open vs escalated vs cancelled per day</CardDescription>
             </CardHeader>
             <CardContent>
               {dailyOutcomes.length === 0 ? (
@@ -678,7 +678,8 @@ const Stats = () => {
                     <YAxis allowDecimals={false} className="text-xs" />
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Bar dataKey="resolved" fill={chartConfig.resolved.color} radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="open" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="open" fill={chartConfig.open.color} radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="escalated" fill={chartConfig.escalated.color} radius={[4, 4, 0, 0]} />
                     <Bar dataKey="cancelled" fill={chartConfig.cancelled.color} radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ChartContainer>
