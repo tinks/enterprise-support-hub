@@ -5,4 +5,5 @@ export const channelNameOverrides: Record<string, string> = {
   C0AJ1KPQ084: "team-enterprise-support",
   C09BGLB3KLL: "workday-lovable",
   C0ALLNYGWD6: "it-lovable-support",
+  C09A5GSHDGQ: "ext-bts-lovable",
 };
