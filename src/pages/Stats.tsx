@@ -470,7 +470,7 @@ const Stats = () => {
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
           <Card>
             <CardContent className="flex flex-col items-center justify-center p-5">
               <MessageSquare className="mb-2 h-5 w-5 text-primary" />
@@ -494,16 +494,23 @@ const Stats = () => {
           </Card>
           <Card>
             <CardContent className="flex flex-col items-center justify-center p-5">
-              <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
-              <p className="text-3xl font-bold text-foreground">{stats.resolvedPct}%</p>
-              <p className="text-xs text-muted-foreground">Success rate</p>
+              <XCircle className="mb-2 h-5 w-5 text-muted-foreground" />
+              <p className="text-3xl font-bold text-foreground">{stats.cancelled}</p>
+              <p className="text-xs text-muted-foreground">Cancelled</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="flex flex-col items-center justify-center p-5">
-              <XCircle className="mb-2 h-5 w-5 text-muted-foreground" />
-              <p className="text-3xl font-bold text-foreground">{stats.cancelled}</p>
-              <p className="text-xs text-muted-foreground">Cancelled</p>
+              <AlertCircle className="mb-2 h-5 w-5 text-orange-500" />
+              <p className="text-3xl font-bold text-foreground">{stats.active + stats.awaiting}</p>
+              <p className="text-xs text-muted-foreground">Open</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center p-5">
+              <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
+              <p className="text-3xl font-bold text-foreground">{stats.resolvedPct}%</p>
+              <p className="text-xs text-muted-foreground">Success rate</p>
             </CardContent>
           </Card>
           <Card>
@@ -518,7 +525,7 @@ const Stats = () => {
         {/* Resolution time section */}
         {resolutionStats && (
           <>
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+            <div className="grid grid-cols-2 gap-4">
               <Card>
                 <CardContent className="flex flex-col items-center justify-center p-5">
                   <Timer className="mb-2 h-5 w-5 text-primary" />
@@ -531,13 +538,6 @@ const Stats = () => {
                   <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
                   <p className="text-3xl font-bold text-foreground">{formatDuration(resolutionStats.avg)}</p>
                   <p className="text-xs text-muted-foreground">Average resolution time</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center p-5">
-                  <AlertCircle className="mb-2 h-5 w-5 text-orange-500" />
-                  <p className="text-3xl font-bold text-foreground">{stats.active + stats.awaiting}</p>
-                  <p className="text-xs text-muted-foreground">Open cases</p>
                 </CardContent>
               </Card>
             </div>
