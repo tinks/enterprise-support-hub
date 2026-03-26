@@ -1,22 +1,43 @@
 
 
-## Add Resolution Time Tracking to Project Knowledge
+## Add "Auto-mark Lovable employees as test" Toggle
 
-### What to add
+### What changes
 
-The `resolved_at` column and resolution time reporting feature need to be documented. Two sections of the knowledge file need updates:
+**1. Database migration — Add `auto_mark_employee_test` column to `settings`**
 
-**1. Database Tables section (line 30)** — Update the `conversation_mappings` row to mention `resolved_at`:
+```sql
+ALTER TABLE settings ADD COLUMN auto_mark_employee_test boolean NOT NULL DEFAULT true;
 ```
-| `conversation_mappings` | Maps Slack threads ↔ Intercom conversations with status tracking. Includes `resolved_at` timestamp for resolution time metrics |
+
+Defaults to `true` (current behavior preserved).
+
+**2. Settings UI (`src/pages/Index.tsx`)**
+
+- Add `auto_mark_employee_test: boolean` to `SettingsData` interface
+- Include it in `saveSettings` update call
+- Add a new toggle row near the test inbox field:
+  - Label: "Auto-mark Lovable employee conversations as test"
+  - Description: "When enabled, conversations from @lovable.dev users are automatically marked as test and routed to the test inbox"
+
+**3. Edge function `slack-events/index.ts`**
+
+Change the two `@lovable.dev` checks (lines ~300 and ~455) from:
+
+```ts
+if (empEmail.endsWith("@lovable.dev") && !settings.testing_mode)
 ```
 
-**2. New section (after Stats/Section 11 area)** — Add a "Resolution Time Tracking" section:
-- `resolved_at` column: set automatically when status changes to `"resolved"` (in `slack-interactions` and `intercom-webhook`)
-- Historical data backfilled using `updated_at` as proxy
-- Stats page displays: median resolution time, average resolution time, distribution chart (buckets: <15m, 15m–1h, 1–4h, 4–24h, 24h+), and 7-day rolling trend line
-- Only conversations with both `created_at` and `resolved_at` are included in time metrics
+to:
 
-### How
-Write the updated full markdown to `pending_content` + `pending_summary` on the `knowledge_documents` row via database query, then you review and approve in the Knowledge tab.
+```ts
+if (empEmail.endsWith("@lovable.dev") && settings.auto_mark_employee_test)
+```
+
+This decouples the employee auto-marking from the debug testing mode toggle, giving you independent control.
+
+### Summary
+- 1 migration (1 new boolean column)
+- 1 UI file updated (new toggle + save)
+- 1 edge function updated (2 condition changes)
 
