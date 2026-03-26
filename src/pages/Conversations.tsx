@@ -197,7 +197,7 @@ const Conversations = () => {
                         <TableCell>
                           <span className="inline-flex items-center gap-1 text-sm text-foreground">
                             <Hash className="h-3.5 w-3.5 text-muted-foreground" />
-                            {channelNames[m.slack_channel_id] || channelNameOverrides[m.slack_channel_id] || m.slack_channel_id}
+                            {channelNames[m.slack_channel_id] || channelNameOverrides[m.slack_channel_id] || (m.slack_channel_id.startsWith("D") ? "Direct message" : m.slack_channel_id)}
                           </span>
                         </TableCell>
                         <TableCell>

@@ -233,7 +233,7 @@ const Stats = () => {
     filtered.forEach((m) => {
       const id = m.slack_channel_id;
       if (!id) return;
-      const name = channelNames[id] || id;
+      const name = channelNames[id] || channelNameOverrides[id] || (id.startsWith("D") ? "Direct message" : id);
       if (!byChannel[id]) byChannel[id] = { channel: name, total: 0 };
       byChannel[id].total++;
     });
@@ -416,7 +416,7 @@ const Stats = () => {
                       : selectedChannels.length === 0
                         ? "None selected"
                         : selectedChannels.length === 1
-                          ? `#${channelNames[selectedChannels[0]] || selectedChannels[0]}`
+                          ? `#${channelNames[selectedChannels[0]] || channelNameOverrides[selectedChannels[0]] || (selectedChannels[0].startsWith("D") ? "Direct message" : selectedChannels[0])}`
                           : `${selectedChannels.length} channels`}
                     <ChevronDown className="ml-2 h-3.5 w-3.5 opacity-50" />
                   </Button>
@@ -427,7 +427,7 @@ const Stats = () => {
                     <CommandList>
                       <CommandEmpty>No channels found.</CommandEmpty>
                       {allChannelIds
-                        .map((id) => ({ id, name: channelNames[id] || id }))
+                        .map((id) => ({ id, name: channelNames[id] || channelNameOverrides[id] || (id.startsWith("D") ? "Direct message" : id) }))
                         .sort((a, b) => a.name.localeCompare(b.name))
                         .map((ch) => (
                           <CommandItem

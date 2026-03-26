@@ -164,7 +164,33 @@ Deno.serve(async (req) => {
       }
     }
 
-    allChannels.sort((a, b) => a.name.localeCompare(b.name));
+    // Resolve DM channel names — fetch the other user's display name
+    const SLACK_BOT_TOKEN_VAL = SLACK_BOT_TOKEN;
+    for (const ch of allChannels) {
+      if (!ch.name && ch.id.startsWith("D")) {
+        // Try to get the DM user via conversations.info
+        try {
+          const infoRes = await fetch(`${SLACK_API_URL}/conversations.info?channel=${ch.id}`, {
+            headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN_VAL}` },
+          });
+          const infoData = await infoRes.json();
+          if (infoData.ok && infoData.channel?.user) {
+            const userRes = await fetch(`${SLACK_API_URL}/users.info?user=${infoData.channel.user}`, {
+              headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN_VAL}` },
+            });
+            const userData = await userRes.json();
+            if (userData.ok && userData.user) {
+              ch.name = `DM: ${userData.user.profile?.display_name || userData.user.real_name || userData.user.name || "Unknown"}`;
+            }
+          }
+        } catch (err) {
+          console.error(`DM name resolution failed for ${ch.id}:`, err);
+        }
+        if (!ch.name) ch.name = "Direct message";
+      }
+    }
+
+    allChannels.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 
     return new Response(JSON.stringify({ channels: allChannels }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
