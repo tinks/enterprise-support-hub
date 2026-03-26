@@ -165,7 +165,7 @@ const Stats = () => {
         : 1;
     const avgPerDay = +(total / daySpan).toFixed(1);
 
-    return { total, resolved, escalated, active, awaiting, resolvedPct, avgPerDay };
+    return { total, resolved, escalated, active, awaiting, cancelled, resolvedPct, avgPerDay };
   }, [filtered, range]);
 
   // Daily volume line chart
