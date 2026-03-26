@@ -202,7 +202,7 @@ const Stats = () => {
     // Build per-day escalated counts from filtered data
     const escalatedByDay: Record<string, number> = {};
     filtered.forEach((m) => {
-      if (m.status === "escalated") {
+      if (m.status === "escalated" || m.status === "escalated_pending") {
         const day = format(parseISO(m.created_at), "yyyy-MM-dd");
         escalatedByDay[day] = (escalatedByDay[day] || 0) + 1;
       }
