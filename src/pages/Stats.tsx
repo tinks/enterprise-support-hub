@@ -501,6 +501,13 @@ const Stats = () => {
           </Card>
           <Card>
             <CardContent className="flex flex-col items-center justify-center p-5">
+              <XCircle className="mb-2 h-5 w-5 text-muted-foreground" />
+              <p className="text-3xl font-bold text-foreground">{stats.cancelled}</p>
+              <p className="text-xs text-muted-foreground">Cancelled</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center p-5">
               <Activity className="mb-2 h-5 w-5 text-primary" />
               <p className="text-3xl font-bold text-foreground">{stats.avgPerDay}</p>
               <p className="text-xs text-muted-foreground">Avg / day</p>
