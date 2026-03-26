@@ -515,6 +515,7 @@ const Stats = () => {
               <p className="text-3xl font-bold text-foreground">{stats.escalated}</p>
               <p className="text-xs text-muted-foreground">Escalated to human</p>
             </CardContent>
+          </Card>
           <Card>
             <CardContent className="flex flex-col items-center justify-center p-5">
               <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
