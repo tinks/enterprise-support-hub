@@ -591,63 +591,93 @@ Deno.serve(async (req) => {
             const intercomSettings = await supabase.from("settings").select("*").limit(1).single();
             const adminId = intercomSettings.data?.intercom_assignee_id;
 
-            // Forward message to Intercom as the customer (contact)
-            if (mapping.intercom_contact_id) {
-              const replyPayload: Record<string, any> = {
+            // Resolve the replying user's identity for sender attribution
+            let senderName = "";
+            let senderEmail = "";
+            try {
+              const userInfoRes = await fetch(`${SLACK_API_URL}/users.info?user=${event.user}`, {
+                headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
+              });
+              const userInfoData = await userInfoRes.json();
+              if (userInfoData.ok && userInfoData.user) {
+                senderName = userInfoData.user.profile?.display_name || userInfoData.user.real_name || userInfoData.user.name || "";
+                senderEmail = userInfoData.user.profile?.email || "";
+              }
+            } catch (e) {
+              console.error("Failed to resolve sender identity:", e);
+            }
+
+            const isOriginalRequester = event.user === mapping.slack_user_id;
+            const isEmployee = senderEmail.endsWith("@lovable.dev");
+
+            // Determine reply type and body based on sender
+            let replyPayload: Record<string, any>;
+
+            if (isEmployee && adminId) {
+              // Employee → send as admin reply with name attribution
+              const prefixedBody = `*[From: ${senderName || senderEmail} via Slack]*\n\n${replyBody}`;
+              replyPayload = {
+                message_type: "comment",
+                type: "admin",
+                admin_id: adminId,
+                body: prefixedBody,
+              };
+              console.log(`Attributing reply as admin (employee: ${senderEmail})`);
+            } else if (isOriginalRequester && mapping.intercom_contact_id) {
+              // Original requester → send as customer (current behavior)
+              replyPayload = {
                 message_type: "comment",
                 type: "user",
                 intercom_user_id: mapping.intercom_contact_id,
                 body: replyBody,
               };
-              if (replyAttachmentUrls.length) {
-                replyPayload.attachment_urls = replyAttachmentUrls;
-              }
-              const replyRes = await fetch(
-                `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/reply`,
-                {
-                  method: "POST",
-                  headers: {
-                    Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
-                    "Content-Type": "application/json",
-                    Accept: "application/json",
-                    "Intercom-Version": "2.11",
-                  },
-                  body: JSON.stringify(replyPayload),
-                }
-              );
-              if (!replyRes.ok) {
-                console.error(`Failed to forward reply to Intercom: ${await replyRes.text()}`);
-              } else {
-                console.log(`Forwarded Slack reply as contact ${mapping.intercom_contact_id} to Intercom conversation ${mapping.intercom_conversation_id}`);
-              }
+              console.log(`Attributing reply as original requester (${event.user})`);
+            } else if (mapping.intercom_contact_id) {
+              // Someone else → send as customer but prefix with name
+              const prefixedBody = `*[From: ${senderName || event.user} via Slack]*\n\n${replyBody}`;
+              replyPayload = {
+                message_type: "comment",
+                type: "user",
+                intercom_user_id: mapping.intercom_contact_id,
+                body: prefixedBody,
+              };
+              console.log(`Attributing reply as other user (${senderName || event.user})`);
             } else if (adminId) {
-              const adminPayload: Record<string, any> = {
+              // Fallback → send as admin
+              const prefixedBody = senderName ? `*[From: ${senderName} via Slack]*\n\n${replyBody}` : replyBody;
+              replyPayload = {
                 message_type: "comment",
                 type: "admin",
                 admin_id: adminId,
-                body: replyBody,
+                body: prefixedBody,
               };
-              if (replyAttachmentUrls.length) {
-                adminPayload.attachment_urls = replyAttachmentUrls;
+              console.log(`Attributing reply as admin fallback`);
+            } else {
+              console.error("No intercom_contact_id or admin_id available to forward reply");
+              return;
+            }
+
+            if (replyAttachmentUrls.length) {
+              replyPayload.attachment_urls = replyAttachmentUrls;
+            }
+
+            const replyRes = await fetch(
+              `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/reply`,
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                  "Content-Type": "application/json",
+                  Accept: "application/json",
+                  "Intercom-Version": "2.11",
+                },
+                body: JSON.stringify(replyPayload),
               }
-              const replyRes = await fetch(
-                `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/reply`,
-                {
-                  method: "POST",
-                  headers: {
-                    Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
-                    "Content-Type": "application/json",
-                    Accept: "application/json",
-                    "Intercom-Version": "2.11",
-                  },
-                  body: JSON.stringify(adminPayload),
-                }
-              );
-              if (!replyRes.ok) {
-                console.error(`Failed to forward reply to Intercom: ${await replyRes.text()}`);
-              } else {
-                console.log(`Forwarded Slack reply as admin to Intercom conversation ${mapping.intercom_conversation_id}`);
-              }
+            );
+            if (!replyRes.ok) {
+              console.error(`Failed to forward reply to Intercom: ${await replyRes.text()}`);
+            } else {
+              console.log(`Forwarded Slack reply to Intercom conversation ${mapping.intercom_conversation_id} (type: ${replyPayload.type})`);
             }
 
             // Remove feedback buttons from thread messages
