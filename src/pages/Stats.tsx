@@ -652,7 +652,7 @@ const Stats = () => {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Daily outcomes</CardTitle>
-              <CardDescription>Resolved vs escalated per day</CardDescription>
+              <CardDescription>Resolved vs escalated to human per day</CardDescription>
             </CardHeader>
             <CardContent>
               {dailyOutcomes.length === 0 ? (
