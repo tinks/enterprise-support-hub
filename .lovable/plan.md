@@ -1,39 +1,21 @@
 
 
-## Fix missing statuses in Open count + add escalation metrics
+## Add app name to knowledge file
 
-### The problem
+### What to update
 
-**Missing 3 cases:** The "Open" card counts only `active + awaiting_context + escalated`, but your database has conversations in `processing`, `active_pending`, and `escalated_pending` statuses that aren't counted anywhere. Currently there are 3 `escalated_pending` and 1 `processing` conversation missing from the totals.
+Submit a pending knowledge update that adds "Lovable Enterprise Support Hub" as the official app name. Two changes:
 
-**Database status breakdown (all time):** resolved: 127, active: 17, escalated: 16, escalated_pending: 3, cancelled: 1, processing: 1
+**1. Section 1 (Overview, line 10):** Add the app name at the start — "**Lovable Enterprise Support Hub** — A Slack-to-Intercom support bridge..."
 
-### Changes to `src/pages/Stats.tsx`
+**2. Section 4 (UI Pages table, line 40):** Update the Stats row description from "System statistics" to "Lovable Enterprise Support Hub dashboard — system statistics and metrics"
 
-**1. Count ALL open statuses**
+### How
 
-Add `active_pending`, `escalated_pending`, and `processing` to the stats memo so every conversation is accounted for:
-
-```
-Open = active + awaiting_context + escalated + active_pending + escalated_pending + processing
-```
-
-This ensures Total = Open + Resolved + Cancelled always holds.
-
-**2. Add "Escalated to human" metric card**
-
-Add a card showing the total number of conversations that reached an escalated state (`escalated` + `escalated_pending`). This is an informational/subset metric — it doesn't change the Total math.
-
-Place it after the "Open" card. Adjust grid to `lg:grid-cols-7`.
-
-**3. Update pie chart and daily outcomes**
-
-- Pie chart: keep three primary slices (Resolved, Open, Cancelled) but add Escalated as a visual sub-slice of Open
-- Daily outcomes: include escalated as a separate stacked bar for visibility
+Use a `read_query` to fetch current content, then `UPDATE` the `pending_content` and `pending_summary` columns on the `knowledge_documents` table (per the established agent workflow in Section 18). The user will review and approve in the Knowledge tab.
 
 ### Summary
-- 1 file changed (`Stats.tsx`)
-- Fix Open to include all non-resolved/non-cancelled statuses
-- Add escalated count as an informational metric
-- Math will validate: Total = Open + Resolved + Cancelled
+- No code file changes
+- 1 database update (pending knowledge content)
+- User approval required via Knowledge tab
 
