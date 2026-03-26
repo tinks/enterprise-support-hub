@@ -148,6 +148,7 @@ export type Database = {
       }
       settings: {
         Row: {
+          auto_mark_employee_test: boolean
           created_at: string
           id: string
           intercom_assignee_id: string
@@ -160,6 +161,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          auto_mark_employee_test?: boolean
           created_at?: string
           id?: string
           intercom_assignee_id?: string
@@ -172,6 +174,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          auto_mark_employee_test?: boolean
           created_at?: string
           id?: string
           intercom_assignee_id?: string
