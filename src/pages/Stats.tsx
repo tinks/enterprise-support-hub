@@ -470,7 +470,7 @@ const Stats = () => {
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
           <Card>
             <CardContent className="flex flex-col items-center justify-center p-5">
               <MessageSquare className="mb-2 h-5 w-5 text-primary" />
@@ -487,13 +487,6 @@ const Stats = () => {
           </Card>
           <Card>
             <CardContent className="flex flex-col items-center justify-center p-5">
-              <ThumbsDown className="mb-2 h-5 w-5 text-destructive" />
-              <p className="text-3xl font-bold text-foreground">{stats.escalated}</p>
-              <p className="text-xs text-muted-foreground">Escalated to human</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center p-5">
               <XCircle className="mb-2 h-5 w-5 text-muted-foreground" />
               <p className="text-3xl font-bold text-foreground">{stats.cancelled}</p>
               <p className="text-xs text-muted-foreground">Cancelled</p>
@@ -502,7 +495,7 @@ const Stats = () => {
           <Card>
             <CardContent className="flex flex-col items-center justify-center p-5">
               <AlertCircle className="mb-2 h-5 w-5 text-orange-500" />
-              <p className="text-3xl font-bold text-foreground">{stats.active + stats.awaiting}</p>
+              <p className="text-3xl font-bold text-foreground">{stats.active + stats.awaiting + stats.escalated}</p>
               <p className="text-xs text-muted-foreground">Open</p>
             </CardContent>
           </Card>
