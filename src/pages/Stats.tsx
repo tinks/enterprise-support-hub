@@ -489,7 +489,7 @@ const Stats = () => {
             <CardContent className="flex flex-col items-center justify-center p-5">
               <ThumbsDown className="mb-2 h-5 w-5 text-destructive" />
               <p className="text-3xl font-bold text-foreground">{stats.escalated}</p>
-              <p className="text-xs text-muted-foreground">Escalated</p>
+              <p className="text-xs text-muted-foreground">Escalated to human</p>
             </CardContent>
           </Card>
           <Card>
