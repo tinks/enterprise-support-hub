@@ -104,6 +104,7 @@ const Index = () => {
         slack_bot_user_id: settings.slack_bot_user_id,
         testing_mode: settings.testing_mode,
         test_intercom_inbox_id: settings.test_intercom_inbox_id,
+        auto_mark_employee_test: settings.auto_mark_employee_test,
       })
       .eq("id", settings.id);
 
