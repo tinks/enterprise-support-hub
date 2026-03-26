@@ -456,6 +456,15 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Skip replies that originated from Slack (they already appear in the thread)
+    const slackOriginPattern = /\[From:.*via Slack\]/i;
+    if (slackOriginPattern.test(replyText) || slackOriginPattern.test((lastCommentPart.body as string) || "")) {
+      console.log(`Skipping Slack-originated reply for conversation ${conversationId} (already in thread)`);
+      return new Response(JSON.stringify({ ok: true, message: "Slack-originated reply skipped" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (!replyText && attachments.length === 0) {
       console.log("No reply text or attachments found");
       return new Response(JSON.stringify({ ok: true }), {
