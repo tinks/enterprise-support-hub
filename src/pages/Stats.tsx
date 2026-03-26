@@ -173,14 +173,16 @@ const Stats = () => {
 
   // Daily volume line chart
   const volumeData = useMemo(() => {
-    const byDay: Record<string, { date: string; total: number; resolved: number; open: number; cancelled: number }> = {};
+    const byDay: Record<string, { date: string; total: number; resolved: number; open: number; cancelled: number; escalated: number }> = {};
     filtered.forEach((m) => {
       const day = format(parseISO(m.created_at), "yyyy-MM-dd");
-      if (!byDay[day]) byDay[day] = { date: day, total: 0, resolved: 0, open: 0, cancelled: 0 };
+      if (!byDay[day]) byDay[day] = { date: day, total: 0, resolved: 0, open: 0, cancelled: 0, escalated: 0 };
       byDay[day].total++;
+      const isEscalated = m.status === "escalated" || m.status === "escalated_pending";
       if (m.status === "resolved") byDay[day].resolved++;
       else if (m.status === "cancelled") byDay[day].cancelled++;
       else byDay[day].open++;
+      if (isEscalated) byDay[day].escalated++;
     });
     return Object.values(byDay)
       .sort((a, b) => a.date.localeCompare(b.date))
