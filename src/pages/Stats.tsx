@@ -233,7 +233,7 @@ const Stats = () => {
     filtered.forEach((m) => {
       const id = m.slack_channel_id;
       if (!id) return;
-      const name = channelNames[id] || id;
+      const name = channelNames[id] || channelNameOverrides[id] || (id.startsWith("D") ? "Direct message" : id);
       if (!byChannel[id]) byChannel[id] = { channel: name, total: 0 };
       byChannel[id].total++;
     });
