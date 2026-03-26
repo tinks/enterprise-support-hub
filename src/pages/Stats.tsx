@@ -427,7 +427,7 @@ const Stats = () => {
                     <CommandList>
                       <CommandEmpty>No channels found.</CommandEmpty>
                       {allChannelIds
-                        .map((id) => ({ id, name: channelNames[id] || id }))
+                        .map((id) => ({ id, name: channelNames[id] || channelNameOverrides[id] || (id.startsWith("D") ? "Direct message" : id) }))
                         .sort((a, b) => a.name.localeCompare(b.name))
                         .map((ch) => (
                           <CommandItem
