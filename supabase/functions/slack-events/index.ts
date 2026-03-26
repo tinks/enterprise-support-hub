@@ -297,7 +297,7 @@ Deno.serve(async (req) => {
         });
         const empData = await empRes.json();
         const empEmail = empData.user?.profile?.email || "";
-        if (empEmail.endsWith("@lovable.dev") && !settings.testing_mode) {
+        if (empEmail.endsWith("@lovable.dev") && settings.auto_mark_employee_test) {
           await supabase.from("conversation_mappings").update({ is_test: true }).eq("id", claimedId);
           console.log(`Auto-marked ${slackUserId} (${empEmail}) as test — Lovable employee`);
         }
