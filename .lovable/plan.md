@@ -1,39 +1,33 @@
 
 
-## Attribute Slack Replies to Actual Sender in Intercom
+## Fix Unresolved Slack Channel Names
 
-### Problem
+### Root Causes
 
-When someone replies in a Slack thread, the message is forwarded to Intercom as the **original contact** (the customer who opened the ticket). This means if you or another team member replies in Slack, it shows up in Intercom as if the customer said it — there's no way to tell who actually wrote it.
+1. **Edge function crash**: Line 167 of `list-slack-channels` does `a.name.localeCompare(b.name)` — if any channel object has `undefined` name (e.g. DMs with `D`-prefix IDs), the function throws a 500 error and returns nothing, causing ALL channel names to fail resolution.
 
-### Current behavior (lines 594-651 of `slack-events`)
+2. **DMs have no `name` field**: `D`-prefixed IDs are direct messages. Slack's `conversations.info` returns them without a `name` property, only user IDs.
 
-1. If `intercom_contact_id` exists → reply as the customer (`type: "user"`)
-2. Fallback → reply as the configured admin (`type: "admin"`)
-
-### Proposed behavior
-
-When a Slack thread reply is detected:
-
-1. **Look up the Slack user's email** via `users.info` API (already done elsewhere in the function)
-2. **If the sender is a Lovable employee** (`@lovable.dev` email) → send as an **admin reply** (`type: "admin"`) with a prefix like `*[From: Alice Smith via Slack]*` so it's clear in Intercom who wrote it
-3. **If the sender is the original requester** (same `slack_user_id` as `mapping.slack_user_id`) → keep current behavior, reply as the customer contact
-4. **If it's someone else** (non-employee, not the original requester) → reply as customer but prefix with `*[From: {name} via Slack]*`
+3. **Private channels not accessible**: Some `C`-prefixed channels may be private channels the bot isn't a member of, so all 3 resolution tiers fail.
 
 ### Changes
 
-**1. `supabase/functions/slack-events/index.ts`** — Thread reply handler (~line 566-728)
+**1. Fix edge function crash (`supabase/functions/list-slack-channels/index.ts`)**
 
-- After entering `backgroundWork`, resolve the replying user's display name and email via Slack `users.info`
-- Branch the Intercom reply logic:
-  - **Employee sender** → use `type: "admin"`, `admin_id` from settings, prefix body with sender name
-  - **Original requester** → keep `type: "user"`, `intercom_user_id: mapping.intercom_contact_id` (current behavior)
-  - **Other** → use `type: "user"` but prefix body with sender name
-- This ensures Intercom shows admin-attributed replies when team members respond from Slack
+- Guard the sort: `allChannels.sort((a, b) => (a.name || "").localeCompare(b.name || ""))`
+- For DMs resolved via `conversations.info`, set `name` to the DM user's display name (via `conversations.info` response's `user` field + `users.info` lookup), or fall back to `"DM"` as a label
 
-### What this gives you
+**2. Add missing channel IDs to overrides (`src/lib/channelOverrides.ts`)**
 
-- When you reply in Slack, the Intercom ticket shows it as an admin response with your name
-- When the original customer replies in Slack, it still shows as their message
-- Clear audit trail of who said what across both platforms
+After fixing the crash, re-test the edge function to see which IDs now resolve. For any that still can't be resolved (private channels the bot can't access), add manual overrides. I'll need you to provide the names for any IDs that remain unresolved after the fix.
+
+**3. Handle DM display in both UI pages**
+
+In `Conversations.tsx` and `Stats.tsx`, when displaying a channel name, if the ID starts with `D` and has no resolved name, show "Direct Message" instead of the raw ID.
+
+### Summary
+- 1 edge function fix (null-safe sort + DM handling)
+- 1 overrides file update (after identifying remaining unresolved IDs)
+- 2 UI files updated (DM fallback display)
+- Deploy edge function
 
