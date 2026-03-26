@@ -1,24 +1,20 @@
 
 
-## Update Stats Labels and Add Cancelled Data
+## Reorder stats cards and rename "Open cases" to "Open"
 
 ### Changes to `src/pages/Stats.tsx`
 
-**1. Rename "Escalated" to "Escalated to human"**
-- Update `chartConfig.escalated.label` from `"Escalated"` to `"Escalated to human"`
-- Update the summary card label (line 490) from `"Escalated"` to `"Escalated to human"`
-- Update pie chart name (line 224) from `"Escalated"` to `"Escalated to human"`
-- Update chart description (line 646) to `"Resolved vs escalated to human per day"`
+**1. Move "Open" card from resolution time section (lines 536-542) into the main stats grid (lines 466-516)**
+- Place it right after "Cancelled" (after line 508)
+- Rename label from "Open cases" to "Open"
 
-**2. Include cancelled conversations in stats**
-- Remove the `notCancelled` filter (line 145-146) so cancelled conversations are included in the dataset
-- Add `cancelled` count to the `stats` memo: `const cancelled = filtered.filter((m) => m.status === "cancelled").length;`
-- Add `cancelled` to the `chartConfig` with a muted/gray color
-- Add a new summary card for "Cancelled" with an `XCircle` icon
-- Add cancelled slice to the pie chart data
-- Optionally add cancelled to daily volume data
+**2. Move "Success rate" card (lines 495-501) to after the new "Open" card position**
+
+**Resulting card order in main grid:**
+Total → Resolved → Escalated to human → Cancelled → Open → Success rate → Avg / day
+
+**3. Resolution time section** will keep only Median and Average resolution time (2 cards instead of 3), update grid to `grid-cols-2`.
 
 ### Summary
-- 1 file changed (`Stats.tsx`)
-- ~15 lines modified across label renames and cancelled data additions
+- 1 file changed, ~15 lines moved/reordered
 
