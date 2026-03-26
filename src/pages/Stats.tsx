@@ -155,7 +155,7 @@ const Stats = () => {
     const active = filtered.filter((m) => m.status === "active").length;
     const awaiting = filtered.filter((m) => m.status === "awaiting_context").length;
     const cancelled = filtered.filter((m) => m.status === "cancelled").length;
-    const feedbackTotal = resolved + escalated;
+    const feedbackTotal = total - cancelled;
     const resolvedPct = feedbackTotal ? Math.round((resolved / feedbackTotal) * 100) : 0;
 
     const cutoff = getCutoffDate(range);
