@@ -470,7 +470,7 @@ const Stats = () => {
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-7">
           <Card>
             <CardContent className="flex flex-col items-center justify-center p-5">
               <MessageSquare className="mb-2 h-5 w-5 text-primary" />
