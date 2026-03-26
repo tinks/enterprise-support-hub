@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
-import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon, ChevronDown, Timer } from "lucide-react";
+import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon, ChevronDown, Timer, AlertCircle } from "lucide-react";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -526,9 +526,9 @@ const Stats = () => {
               </Card>
               <Card>
                 <CardContent className="flex flex-col items-center justify-center p-5">
-                  <ThumbsUp className="mb-2 h-5 w-5 text-green-600" />
-                  <p className="text-3xl font-bold text-foreground">{resolutionStats.count}</p>
-                  <p className="text-xs text-muted-foreground">Resolved with time data</p>
+                  <AlertCircle className="mb-2 h-5 w-5 text-orange-500" />
+                  <p className="text-3xl font-bold text-foreground">{stats.active + stats.awaiting}</p>
+                  <p className="text-xs text-muted-foreground">Open cases</p>
                 </CardContent>
               </Card>
             </div>
