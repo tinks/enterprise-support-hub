@@ -1,0 +1,1 @@
+ALTER TABLE settings ADD COLUMN auto_mark_employee_test boolean NOT NULL DEFAULT true;

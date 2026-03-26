@@ -306,7 +306,23 @@ const Index = () => {
 
             <div className="flex items-center justify-between rounded-lg border p-4">
               <div className="space-y-0.5">
-                <Label htmlFor="testing-mode" className="text-sm font-medium">Testing Mode</Label>
+                <Label htmlFor="auto-mark-employee" className="text-sm font-medium">Auto-mark Lovable employee conversations as test</Label>
+                <p className="text-xs text-muted-foreground">
+                  When enabled, conversations from @lovable.dev users are automatically marked as test and routed to the test inbox
+                </p>
+              </div>
+              <Switch
+                id="auto-mark-employee"
+                checked={settings?.auto_mark_employee_test ?? true}
+                onCheckedChange={(checked) =>
+                  setSettings((s) => s ? { ...s, auto_mark_employee_test: checked } : s)
+                }
+              />
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="testing-mode" className="text-sm font-medium">Testing mode</Label>
                 <p className="text-xs text-muted-foreground">
                   Show Intercom conversation IDs in Slack messages for debugging
                 </p>
