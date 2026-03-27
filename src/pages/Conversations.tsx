@@ -39,6 +39,7 @@ const buildSlackLink = (channelId: string, threadTs: string) =>
   `https://lovable-dev.slack.com/archives/${channelId}/p${threadTs.replace(".", "")}`;
 
 const Conversations = () => {
+  const navigate = useNavigate();
   const [mappings, setMappings] = useState<ConversationMapping[]>([]);
   const [loading, setLoading] = useState(true);
   const [userNames, setUserNames] = useState<NameMap>({});
