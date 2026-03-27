@@ -552,15 +552,12 @@ Deno.serve(async (req) => {
           .or(`last_processed_event_ts.neq.${eventTs}`)
           .select("id");
 
-        // Also handle the case where column already equals this eventTs (retry)
+        // If no rows were claimed, another request already processed this event
         if (!claimed || claimed.length === 0) {
-          // Check if it's because we already processed this exact event
-          if (mapping.last_processed_event_ts === eventTs) {
-            console.log(`Dedup: already processed event ${eventTs} for thread ${threadTs}`);
-            return new Response(JSON.stringify({ ok: true }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-          }
+          console.log(`Dedup: event ${eventTs} already claimed for thread ${threadTs}`);
+          return new Response(JSON.stringify({ ok: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
         }
 
         // Return 200 immediately, process in background to avoid Slack 3s timeout retries
