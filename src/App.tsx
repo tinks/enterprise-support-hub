@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import Stats from "./pages/Stats";
 import FlowDiagram from "./pages/FlowDiagram";
 import Conversations from "./pages/Conversations";
+import ConversationDetail from "./pages/ConversationDetail";
 import ProjectKnowledge from "./pages/ProjectKnowledge";
 import NotFound from "./pages/NotFound";
 
