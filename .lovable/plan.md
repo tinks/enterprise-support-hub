@@ -1,57 +1,46 @@
 
 
-## Route all Slack conversations to the enterprise inbox from the start
+## Fix employee replies sent as Sam — use hardcoded admin IDs
 
-### What's changing
+### Problem
 
-Currently, new conversations are assigned only to Sam (AI agent). The enterprise team inbox only sees them after escalation. You want every conversation to appear in the enterprise inbox immediately — while Sam still handles it.
+When a Lovable employee replies in a Slack thread, the message is forwarded to Intercom using `admin_id: adminId` — which is Sam's ID (the AI agent). This makes Sam auto-assign himself and close the ticket.
 
-### How it works in Intercom
+### Fix in `supabase/functions/slack-events/index.ts`
 
-In Intercom, a conversation can be assigned to a **team inbox** and simultaneously to an **individual admin** within that team. The approach: after assigning to Sam, make a second assignment call to move the conversation into the enterprise team inbox (keeping Sam as the handler).
-
-### Changes
-
-**1. `supabase/functions/slack-interactions/index.ts` — `createIntercomTicket()` (after line ~336)**
-
-After the existing Sam assignment block, add a second assignment call to the enterprise team inbox:
+**Add a hardcoded email→admin ID map** (before the reply attribution block, ~line 614):
 
 ```typescript
-// Also move to enterprise inbox so it's visible to the team
-const inboxId = isTestConversation && cachedSettings.test_intercom_inbox_id
-  ? cachedSettings.test_intercom_inbox_id
-  : cachedSettings.intercom_inbox_id;
-if (inboxId) {
-  await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
-    method: "POST",
-    headers: intercomHeaders,
-    body: JSON.stringify({
-      message_type: "assignment",
-      type: "team",
-      assignee_id: inboxId,
-      admin_id: cachedSettings.intercom_assignee_id,
-      body: "",
-    }),
-  });
+const EMPLOYEE_ADMIN_IDS: Record<string, string> = {
+  "joel@lovable.dev": "8430778",
+  "kristina@lovable.dev": "9985999",
+};
+```
+
+**Use the employee's real admin ID** in the employee branch (lines 616-624):
+
+```typescript
+if (isEmployee && adminId) {
+  const employeeAdminId = senderEmail
+    ? EMPLOYEE_ADMIN_IDS[senderEmail.toLowerCase()]
+    : null;
+  const prefixedBody = `*[From: ${senderName || senderEmail} via Slack]*\n\n${replyBody}`;
+  replyPayload = {
+    message_type: "comment",
+    type: "admin",
+    admin_id: employeeAdminId || adminId,
+    body: prefixedBody,
+  };
+  console.log(`Attributing reply as admin (employee: ${senderEmail}, adminId: ${employeeAdminId || adminId})`);
 }
 ```
 
-Note: the `is_test` check needs to be moved before this block (currently it's after line 338). We'll reorder so the `isTestConversation` variable is available.
+Same change for the fallback admin branch (~line 645-654) — if `isEmployee` and email matches, use the employee's ID.
 
-**2. `supabase/functions/context-reminder/index.ts` — auto-proceed path (~line 206)**
+**Update flow diagram** (`src/pages/FlowDiagram.tsx`): Update the employee reply node description to note that employee replies use their real Intercom admin ID.
 
-Same pattern: after assigning to Sam, add the team inbox assignment call.
-
-**3. No changes to escalation logic**
-
-The existing escalation code (👎 button, auto-escalation) already reassigns to the enterprise inbox — but since the conversation is already there, these become no-ops for inbox routing. The escalation still handles ticket conversion (Type ID 1) and reaction swaps, so no code removal needed.
-
-### Consideration
-
-After this change, the enterprise inbox will show **all** conversations (including ones Sam resolves on its own). This increases inbox volume but gives full visibility. If this becomes noisy, we could later add a filter or tag to distinguish AI-handled vs escalated conversations.
-
-### Files changed
-- `supabase/functions/slack-interactions/index.ts` — add inbox assignment after Sam assignment
-- `supabase/functions/context-reminder/index.ts` — same addition for auto-proceed path
-- Flow diagram update if needed (per project rules)
+### Summary
+- 2 files changed (`slack-events/index.ts`, `FlowDiagram.tsx`)
+- Employee replies now post as the actual admin, preventing Sam from auto-closing
+- Falls back to Sam's ID if employee email isn't in the map
 
