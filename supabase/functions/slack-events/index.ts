@@ -243,6 +243,14 @@ Deno.serve(async (req) => {
 
     // ===== Handle app_mention events =====
     if (event.type === "app_mention") {
+      // Ignore mentions from other bots
+      if (event.bot_id || event.subtype === "bot_message") {
+        console.log(`Ignoring app_mention from bot (bot_id=${event.bot_id}, subtype=${event.subtype})`);
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const channelId = event.channel;
 
       // Auto-enable new channels on first mention so manual setup isn't required
