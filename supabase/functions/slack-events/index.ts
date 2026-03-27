@@ -610,19 +610,28 @@ Deno.serve(async (req) => {
             const isOriginalRequester = event.user === mapping.slack_user_id;
             const isEmployee = senderEmail.endsWith("@lovable.dev");
 
+            // Hardcoded employee email → Intercom admin ID mapping
+            const EMPLOYEE_ADMIN_IDS: Record<string, string> = {
+              "joel@lovable.dev": "8430778",
+              "kristina@lovable.dev": "9985999",
+            };
+
             // Determine reply type and body based on sender
             let replyPayload: Record<string, any>;
 
             if (isEmployee && adminId) {
-              // Employee → send as admin reply with name attribution
+              // Employee → send as admin reply with their real Intercom admin ID
+              const employeeAdminId = senderEmail
+                ? EMPLOYEE_ADMIN_IDS[senderEmail.toLowerCase()]
+                : null;
               const prefixedBody = `*[From: ${senderName || senderEmail} via Slack]*\n\n${replyBody}`;
               replyPayload = {
                 message_type: "comment",
                 type: "admin",
-                admin_id: adminId,
+                admin_id: employeeAdminId || adminId,
                 body: prefixedBody,
               };
-              console.log(`Attributing reply as admin (employee: ${senderEmail})`);
+              console.log(`Attributing reply as admin (employee: ${senderEmail}, adminId: ${employeeAdminId || adminId})`);
             } else if (isOriginalRequester && mapping.intercom_contact_id) {
               // Original requester → send as customer (current behavior)
               replyPayload = {
@@ -643,15 +652,18 @@ Deno.serve(async (req) => {
               };
               console.log(`Attributing reply as other user (${senderName || event.user})`);
             } else if (adminId) {
-              // Fallback → send as admin
+              // Fallback → send as admin (use employee's real ID if available)
+              const employeeFallbackId = senderEmail
+                ? EMPLOYEE_ADMIN_IDS[senderEmail.toLowerCase()]
+                : null;
               const prefixedBody = senderName ? `*[From: ${senderName} via Slack]*\n\n${replyBody}` : replyBody;
               replyPayload = {
                 message_type: "comment",
                 type: "admin",
-                admin_id: adminId,
+                admin_id: employeeFallbackId || adminId,
                 body: prefixedBody,
               };
-              console.log(`Attributing reply as admin fallback`);
+              console.log(`Attributing reply as admin fallback (adminId: ${employeeFallbackId || adminId})`);
             } else {
               console.error("No intercom_contact_id or admin_id available to forward reply");
               return;
