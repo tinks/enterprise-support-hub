@@ -1,28 +1,14 @@
 
 
-## Fix "continue chatting with Sam" hint on human admin replies
+## Fix triple admin name in human replies
 
 ### Problem
-
-When a human admin (e.g. Joel) replies via Intercom, the hint still says "To continue chatting with Sam, please send a reply in the thread" — it should say something like "To continue chatting, please send a reply in the thread" (dropping "with Sam").
+When a human admin replies via Intercom, their name appears three times in Slack: as the bot username, in the reply header, and as a body prefix. The body prefix is redundant.
 
 ### Change in `supabase/functions/intercom-webhook/index.ts`
-
-**Lines 763-766** — Make the hint text conditional on `isHumanAdmin`:
-
-```typescript
-const hintText = isHumanAdmin
-  ? "_To continue chatting, please send a reply in the thread_"
-  : "_To continue chatting with Sam, please send a reply in the thread_";
-blocks.push({
-  type: "context",
-  elements: [{ type: "mrkdwn", text: hintText }],
-});
-```
-
-**Line 740** (incident.io branch) — Same fix: use the conditional hint text instead of hardcoded "with Sam".
+Remove the block (~lines 557-559) that prepends `*${adminName}:*\n` to `replyText` for human admins. The bot username and reply header already attribute the message.
 
 ### Summary
-- 1 file changed (`intercom-webhook/index.ts`)
-- 2 lines updated to make hint text dynamic based on reply author
+- 1 file, ~3 lines deleted
+- No logic change — formatting only, no flow diagram update needed
 
