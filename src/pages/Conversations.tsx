@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +39,7 @@ const buildSlackLink = (channelId: string, threadTs: string) =>
   `https://lovable-dev.slack.com/archives/${channelId}/p${threadTs.replace(".", "")}`;
 
 const Conversations = () => {
+  const navigate = useNavigate();
   const [mappings, setMappings] = useState<ConversationMapping[]>([]);
   const [loading, setLoading] = useState(true);
   const [userNames, setUserNames] = useState<NameMap>({});
@@ -162,11 +164,16 @@ const Conversations = () => {
                   </TableHeader>
                   <TableBody>
                     {mappings.map((m) => (
-                      <TableRow key={m.id} className={m.is_test ? "opacity-50" : ""}>
+                      <TableRow
+                        key={m.id}
+                        className={`cursor-pointer hover:bg-muted/50 transition-colors ${m.is_test ? "opacity-50" : ""}`}
+                        onClick={() => navigate(`/conversations/${m.id}`)}
+                      >
                         <TableCell
                           className="font-mono text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
                           title="Click to copy full ID"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             navigator.clipboard.writeText(m.id);
                           }}
                         >
