@@ -1,46 +1,34 @@
 
 
-## Fix employee replies sent as Sam — use hardcoded admin IDs
+## Update knowledge file with recent changes
 
-### Problem
+### What's being added
 
-When a Lovable employee replies in a Slack thread, the message is forwarded to Intercom using `admin_id: adminId` — which is Sam's ID (the AI agent). This makes Sam auto-assign himself and close the ticket.
+Submit a pending knowledge update covering these 5 recent changes:
 
-### Fix in `supabase/functions/slack-events/index.ts`
+**1. Employee admin ID attribution (§7, new subsection after "Human Admin Identity")**
+Add documentation about the hardcoded `EMPLOYEE_ADMIN_IDS` map (`joel@lovable.dev → 8430778`, `kristina@lovable.dev → 9985999`) used in `slack-events` to post employee replies as their real Intercom admin, preventing Sam from auto-assigning/closing.
 
-**Add a hardcoded email→admin ID map** (before the reply attribution block, ~line 614):
+**2. Enterprise inbox routing (§4, Step 4 update + §6 Step 4 update)**
+Update Step 4 to note that after assigning to Sam, a second assignment call moves the conversation into the enterprise team inbox so all conversations are visible to the team from creation — not just after escalation. Same for auto-proceed in context-reminder.
 
-```typescript
-const EMPLOYEE_ADMIN_IDS: Record<string, string> = {
-  "joel@lovable.dev": "8430778",
-  "kristina@lovable.dev": "9985999",
-};
-```
+**3. Dynamic "continue chatting" hint (§6, Step 6b-ii update)**
+Note that the hint text is now conditional: "To continue chatting, please send a reply in the thread" for human admin replies (drops "with Sam").
 
-**Use the employee's real admin ID** in the employee branch (lines 616-624):
+**4. Triple admin name fix (§7, Human Admin Identity update)**
+Note that the body prefix (`*AdminName:*`) was removed for human admin replies since the bot username and reply header already attribute the sender.
 
-```typescript
-if (isEmployee && adminId) {
-  const employeeAdminId = senderEmail
-    ? EMPLOYEE_ADMIN_IDS[senderEmail.toLowerCase()]
-    : null;
-  const prefixedBody = `*[From: ${senderName || senderEmail} via Slack]*\n\n${replyBody}`;
-  replyPayload = {
-    message_type: "comment",
-    type: "admin",
-    admin_id: employeeAdminId || adminId,
-    body: prefixedBody,
-  };
-  console.log(`Attributing reply as admin (employee: ${senderEmail}, adminId: ${employeeAdminId || adminId})`);
-}
-```
+**5. Conversation detail page (§2, UI Pages table)**
+Add `/conversations/:id` → ConversationDetail → "View full conversation details, change status, toggle test flag, quick links to Slack/Intercom"
 
-Same change for the fallback admin branch (~line 645-654) — if `isEmployee` and email matches, use the employee's ID.
-
-**Update flow diagram** (`src/pages/FlowDiagram.tsx`): Update the employee reply node description to note that employee replies use their real Intercom admin ID.
+### How
+- Read current `content` from `knowledge_documents`
+- Apply all 5 changes
+- Write to `pending_content` + `pending_summary` via database update
+- User reviews and approves in Knowledge tab
 
 ### Summary
-- 2 files changed (`slack-events/index.ts`, `FlowDiagram.tsx`)
-- Employee replies now post as the actual admin, preventing Sam from auto-closing
-- Falls back to Sam's ID if employee email isn't in the map
+- No code file changes
+- 1 database update (pending knowledge content)
+- User approval required via Knowledge tab
 
