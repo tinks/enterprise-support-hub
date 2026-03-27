@@ -554,10 +554,6 @@ Deno.serve(async (req) => {
       .replace(/\n*(Best|Regards|Thanks|Cheers|Kind regards|Warm regards|All the best),?\s*$/i, "")
       .trim();
 
-    // Prepend admin name for human replies so users know who responded
-    if (isHumanAdmin && adminName) {
-      replyText = `*${adminName}:*\n${replyText}`;
-    }
 
     // Split long text into chunks to avoid Slack's "See more" collapse.
     // Slack truncates at ~3000 chars OR ~40 lines — use whichever limit is hit first.
