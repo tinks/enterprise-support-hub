@@ -194,7 +194,7 @@ function buildNodes(
           "Downloads & re-hosts file attachments to storage",
           "Prepends anti-escalation context (enterprise Slack origin) to conversation body",
           "Creates conversation with text + attachment URLs",
-          "Assigns to AI agent",
+          "Assigns to AI agent + moves to enterprise team inbox",
           "Sets Slack channel + Enterprise Support attributes",
         ],
         message: msgs.ticket_created_ack,
