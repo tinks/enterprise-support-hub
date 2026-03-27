@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.context-reminder]
 verify_jwt = false
+
+[functions.fetch-thread-messages]
+verify_jwt = false
