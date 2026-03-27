@@ -652,15 +652,18 @@ Deno.serve(async (req) => {
               };
               console.log(`Attributing reply as other user (${senderName || event.user})`);
             } else if (adminId) {
-              // Fallback → send as admin
+              // Fallback → send as admin (use employee's real ID if available)
+              const employeeFallbackId = senderEmail
+                ? EMPLOYEE_ADMIN_IDS[senderEmail.toLowerCase()]
+                : null;
               const prefixedBody = senderName ? `*[From: ${senderName} via Slack]*\n\n${replyBody}` : replyBody;
               replyPayload = {
                 message_type: "comment",
                 type: "admin",
-                admin_id: adminId,
+                admin_id: employeeFallbackId || adminId,
                 body: prefixedBody,
               };
-              console.log(`Attributing reply as admin fallback`);
+              console.log(`Attributing reply as admin fallback (adminId: ${employeeFallbackId || adminId})`);
             } else {
               console.error("No intercom_contact_id or admin_id available to forward reply");
               return;
