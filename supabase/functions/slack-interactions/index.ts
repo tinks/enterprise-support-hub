@@ -343,6 +343,27 @@ async function createIntercomTicket(opts: {
       .maybeSingle();
     const isTestConversation = routingMapping?.is_test === true;
 
+    // Also move to enterprise inbox so it's visible to the team from the start
+    const inboxId = isTestConversation && cachedSettings.test_intercom_inbox_id
+      ? cachedSettings.test_intercom_inbox_id
+      : cachedSettings.intercom_inbox_id;
+    if (inboxId) {
+      await fetch(
+        `https://api.intercom.io/conversations/${conversationId}/parts`,
+        {
+          method: "POST",
+          headers: intercomHeaders,
+          body: JSON.stringify({
+            message_type: "assignment",
+            type: "team",
+            assignee_id: inboxId,
+            admin_id: cachedSettings.intercom_assignee_id,
+            body: "",
+          }),
+        }
+      );
+    }
+
   // Update mapping with conversation ID and contact ID
   await supabase
     .from("conversation_mappings")
