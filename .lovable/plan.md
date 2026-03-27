@@ -1,40 +1,38 @@
 
 
-## Show full conversation thread on detail page
+## Fix triple-send dedup bug in slack-events
 
 ### Problem
-The conversation detail page only shows the `original_message_text` from the database. The actual back-and-forth (Sam's replies, user follow-ups, employee replies) lives in Slack threads and isn't displayed.
 
-### Approach
-Create a new edge function that fetches the full Slack thread for a conversation, then display all messages in the detail page as a chat-style timeline.
+When a Slack thread reply is forwarded to Intercom, it gets sent 3 times. This is caused by a race condition in the deduplication logic (lines 545-564 of `slack-events/index.ts`).
 
-### Steps
+**Root cause:** Slack retries requests if it doesn't get a response within ~3 seconds. Three concurrent requests arrive for the same `event.ts`. Here's what happens:
 
-**1. New edge function: `supabase/functions/fetch-thread-messages/index.ts`**
-- Accepts `{ channelId, threadTs }` in the request body
-- Calls Slack `conversations.replies` API (already used elsewhere in the codebase)
-- For each message, resolves the sender via `users.info` (can batch-cache)
-- Returns an array of `{ text, user_name, user_avatar, ts, is_bot }` sorted chronologically
-- Uses existing `SLACK_BOT_TOKEN` secret
+1. All 3 requests fetch `mapping` via `select` (line 538) — they all read the **same stale** `last_processed_event_ts` (some old value).
+2. The atomic `update` (line 547-553) correctly ensures only **one** request wins the row lock. The first one sets `last_processed_event_ts = eventTs` and gets `claimed.length = 1`.
+3. Requests 2 and 3 run the update after request 1 commits. Now `last_processed_event_ts` already equals `eventTs`, so both `IS NULL` and `neq.eventTs` are false → `claimed` is empty.
+4. **The bug:** At line 556-558, the code checks `mapping.last_processed_event_ts === eventTs` — but `mapping` is the **stale** object from step 1 (old value, not `eventTs`). So this check is `false`, and requests 2 and 3 **fall through** to the forwarding logic instead of returning early.
 
-**2. Update `src/pages/ConversationDetail.tsx`**
-- After loading the conversation mapping, call the new edge function with `slack_channel_id` and `slack_thread_ts`
-- Render messages in a chat timeline below the "Original message" card:
-  - Each message shows: avatar, sender name, timestamp, message text
-  - Bot messages (from Ask Lovable / Sam) styled differently (e.g. left-aligned with bot icon)
-  - User/employee messages styled on the other side or with different background
-  - Slack markup cleaned for display
-- Add a "Refresh" button to re-fetch the thread
+### Fix
 
-**3. Update flow diagram** — No logic change, just a new utility function; minimal update to note the thread viewer exists.
+When `claimed` is empty, **always return early**. If the atomic update didn't match any rows, it means another request already claimed this event — regardless of what the stale `mapping` object says.
 
-### Technical notes
-- Slack `conversations.replies` returns up to 100 messages per call (with cursor pagination for longer threads)
-- The edge function handles pagination to return all messages
-- No database schema changes needed — messages are fetched live from Slack
-- Bot messages identified by matching `user` field against `settings.slack_bot_user_id`
+**In `supabase/functions/slack-events/index.ts`, replace lines 555-564:**
 
-### Files changed
-- `supabase/functions/fetch-thread-messages/index.ts` (new)
-- `src/pages/ConversationDetail.tsx` (add thread timeline UI)
+```typescript
+// If no rows were claimed, another request already processed this event
+if (!claimed || claimed.length === 0) {
+  console.log(`Dedup: event ${eventTs} already claimed for thread ${threadTs}`);
+  return new Response(JSON.stringify({ ok: true }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+```
+
+This removes the flawed stale-object check and makes the dedup airtight: only the first request to atomically update the row proceeds.
+
+### Summary
+- 1 file changed (`supabase/functions/slack-events/index.ts`)
+- ~10 lines replaced with ~6 lines
+- Fixes the race condition causing triple Intercom messages on Slack retries
 
