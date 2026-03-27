@@ -1,34 +1,40 @@
 
 
-## Update knowledge file with recent changes
+## Show full conversation thread on detail page
 
-### What's being added
+### Problem
+The conversation detail page only shows the `original_message_text` from the database. The actual back-and-forth (Sam's replies, user follow-ups, employee replies) lives in Slack threads and isn't displayed.
 
-Submit a pending knowledge update covering these 5 recent changes:
+### Approach
+Create a new edge function that fetches the full Slack thread for a conversation, then display all messages in the detail page as a chat-style timeline.
 
-**1. Employee admin ID attribution (§7, new subsection after "Human Admin Identity")**
-Add documentation about the hardcoded `EMPLOYEE_ADMIN_IDS` map (`joel@lovable.dev → 8430778`, `kristina@lovable.dev → 9985999`) used in `slack-events` to post employee replies as their real Intercom admin, preventing Sam from auto-assigning/closing.
+### Steps
 
-**2. Enterprise inbox routing (§4, Step 4 update + §6 Step 4 update)**
-Update Step 4 to note that after assigning to Sam, a second assignment call moves the conversation into the enterprise team inbox so all conversations are visible to the team from creation — not just after escalation. Same for auto-proceed in context-reminder.
+**1. New edge function: `supabase/functions/fetch-thread-messages/index.ts`**
+- Accepts `{ channelId, threadTs }` in the request body
+- Calls Slack `conversations.replies` API (already used elsewhere in the codebase)
+- For each message, resolves the sender via `users.info` (can batch-cache)
+- Returns an array of `{ text, user_name, user_avatar, ts, is_bot }` sorted chronologically
+- Uses existing `SLACK_BOT_TOKEN` secret
 
-**3. Dynamic "continue chatting" hint (§6, Step 6b-ii update)**
-Note that the hint text is now conditional: "To continue chatting, please send a reply in the thread" for human admin replies (drops "with Sam").
+**2. Update `src/pages/ConversationDetail.tsx`**
+- After loading the conversation mapping, call the new edge function with `slack_channel_id` and `slack_thread_ts`
+- Render messages in a chat timeline below the "Original message" card:
+  - Each message shows: avatar, sender name, timestamp, message text
+  - Bot messages (from Ask Lovable / Sam) styled differently (e.g. left-aligned with bot icon)
+  - User/employee messages styled on the other side or with different background
+  - Slack markup cleaned for display
+- Add a "Refresh" button to re-fetch the thread
 
-**4. Triple admin name fix (§7, Human Admin Identity update)**
-Note that the body prefix (`*AdminName:*`) was removed for human admin replies since the bot username and reply header already attribute the sender.
+**3. Update flow diagram** — No logic change, just a new utility function; minimal update to note the thread viewer exists.
 
-**5. Conversation detail page (§2, UI Pages table)**
-Add `/conversations/:id` → ConversationDetail → "View full conversation details, change status, toggle test flag, quick links to Slack/Intercom"
+### Technical notes
+- Slack `conversations.replies` returns up to 100 messages per call (with cursor pagination for longer threads)
+- The edge function handles pagination to return all messages
+- No database schema changes needed — messages are fetched live from Slack
+- Bot messages identified by matching `user` field against `settings.slack_bot_user_id`
 
-### How
-- Read current `content` from `knowledge_documents`
-- Apply all 5 changes
-- Write to `pending_content` + `pending_summary` via database update
-- User reviews and approves in Knowledge tab
-
-### Summary
-- No code file changes
-- 1 database update (pending knowledge content)
-- User approval required via Knowledge tab
+### Files changed
+- `supabase/functions/fetch-thread-messages/index.ts` (new)
+- `src/pages/ConversationDetail.tsx` (add thread timeline UI)
 
