@@ -334,7 +334,7 @@ function buildNodes(
           "Only triggers when status is 'escalated'",
           "Atomic status gate: escalated → escalated_pending",
           "Resolves sender identity via Slack users.info (name + email)",
-          "Sender attribution: employee → admin reply with name; original requester → customer reply; other → customer reply with name prefix",
+          "Sender attribution: employee → admin reply using real Intercom admin ID; original requester → customer reply; other → customer reply with name prefix",
           "Downloads & re-hosts any attached files",
           "Removes remaining feedback buttons",
           "Posts 'reply forwarded' notice only on successful transition",
