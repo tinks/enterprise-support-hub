@@ -762,7 +762,7 @@ Deno.serve(async (req) => {
           blocks.push({ type: "actions", elements: actionElements });
           blocks.push({
             type: "context",
-            elements: [{ type: "mrkdwn", text: "_To continue chatting with Sam, please send a reply in the thread_" }],
+            elements: [{ type: "mrkdwn", text: isHumanAdmin ? "_To continue chatting, please send a reply in the thread_" : "_To continue chatting with Sam, please send a reply in the thread_" }],
           });
         }
       }
