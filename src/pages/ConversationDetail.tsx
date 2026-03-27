@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy } from "lucide-react";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot } from "lucide-react";
 import { toast } from "sonner";
 import { channelNameOverrides } from "@/lib/channelOverrides";
 
@@ -31,6 +32,14 @@ interface ConversationMapping {
   updated_at: string;
 }
 
+interface ThreadMessage {
+  text: string;
+  user_name: string;
+  user_avatar: string;
+  ts: string;
+  is_bot: boolean;
+}
+
 const STATUS_OPTIONS = ["active", "resolved", "cancelled", "escalated", "awaiting_context"];
 
 const statusColor = (status: string) => {
@@ -51,6 +60,25 @@ const copyToClipboard = (text: string, label: string) => {
   toast.success(`${label} copied`);
 };
 
+const formatSlackTs = (ts: string) => {
+  const date = new Date(parseFloat(ts) * 1000);
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
+const cleanSlackText = (text: string) => {
+  return text
+    .replace(/<@[A-Z0-9]+>/g, "")
+    .replace(/<#[A-Z0-9]+\|([^>]+)>/g, "#$1")
+    .replace(/<(https?:\/\/[^|>]+)\|([^>]+)>/g, "$2")
+    .replace(/<(https?:\/\/[^>]+)>/g, "$1")
+    .trim();
+};
+
 const ConversationDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -60,6 +88,25 @@ const ConversationDetail = () => {
   const [channelName, setChannelName] = useState<string>("");
   const [idsOpen, setIdsOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [threadMessages, setThreadMessages] = useState<ThreadMessage[]>([]);
+  const [threadLoading, setThreadLoading] = useState(false);
+
+  const fetchThread = async (channelId: string, threadTs: string) => {
+    setThreadLoading(true);
+    try {
+      const res = await supabase.functions.invoke("fetch-thread-messages", {
+        body: { channelId, threadTs },
+      });
+      if (res.data?.messages) {
+        setThreadMessages(res.data.messages);
+      }
+    } catch (err) {
+      console.error("Failed to fetch thread:", err);
+      toast.error("Failed to load thread messages");
+    } finally {
+      setThreadLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -75,6 +122,9 @@ const ConversationDetail = () => {
       setLoading(false);
 
       if (row) {
+        // Fetch thread messages
+        fetchThread(row.slack_channel_id, row.slack_thread_ts);
+
         // Resolve user name
         const usersRes = await supabase.functions.invoke("list-slack-users");
         if (usersRes.data?.users) {
@@ -222,15 +272,65 @@ const ConversationDetail = () => {
             </CardContent>
           </Card>
 
-          {/* Original message */}
+          {/* Thread timeline */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Original message</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-sm">Thread</CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => fetchThread(conv.slack_channel_id, conv.slack_thread_ts)}
+                disabled={threadLoading}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${threadLoading ? "animate-spin" : ""}`} />
+              </Button>
             </CardHeader>
             <CardContent>
-              <p className="whitespace-pre-wrap text-sm text-foreground">
-                {conv.original_message_text || "—"}
-              </p>
+              {threadLoading && threadMessages.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Loading thread…</p>
+              ) : threadMessages.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No messages found.</p>
+              ) : (
+                <div className="space-y-4">
+                  {threadMessages.map((msg) => (
+                    <div
+                      key={msg.ts}
+                      className={`flex gap-3 ${msg.is_bot ? "" : ""}`}
+                    >
+                      <Avatar className="h-8 w-8 shrink-0 mt-0.5">
+                        {msg.is_bot ? (
+                          <AvatarFallback className="bg-primary/10 text-primary">
+                            <Bot className="h-4 w-4" />
+                          </AvatarFallback>
+                        ) : msg.user_avatar ? (
+                          <AvatarImage src={msg.user_avatar} alt={msg.user_name} />
+                        ) : (
+                          <AvatarFallback className="bg-muted text-muted-foreground text-xs">
+                            {msg.user_name.slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        )}
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2">
+                          <span className={`text-sm font-medium ${msg.is_bot ? "text-primary" : "text-foreground"}`}>
+                            {msg.user_name}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {formatSlackTs(msg.ts)}
+                          </span>
+                        </div>
+                        <p className={`mt-0.5 text-sm whitespace-pre-wrap break-words ${
+                          msg.is_bot
+                            ? "text-muted-foreground bg-muted/50 rounded-md p-2 -ml-2"
+                            : "text-foreground"
+                        }`}>
+                          {cleanSlackText(msg.text)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 
