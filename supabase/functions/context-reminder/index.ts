@@ -216,6 +216,24 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Also move to enterprise inbox so it's visible to the team from the start
+      const inboxId = row.is_test && settings?.test_intercom_inbox_id
+        ? settings.test_intercom_inbox_id
+        : settings?.intercom_inbox_id;
+      if (inboxId && settings?.intercom_assignee_id) {
+        await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
+          method: "POST",
+          headers: intercomHeaders,
+          body: JSON.stringify({
+            message_type: "assignment",
+            type: "team",
+            assignee_id: inboxId,
+            admin_id: settings.intercom_assignee_id,
+            body: "",
+          }),
+        });
+      }
+
       // Set custom attributes — tag as Test if is_test
       const supportTier = row.is_test ? "Test" : "Enterprise Support";
 
