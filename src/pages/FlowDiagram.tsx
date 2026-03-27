@@ -282,7 +282,7 @@ function buildNodes(
           "Idempotency: deduplicates by event.ts to prevent Slack retry duplicates",
           "Removes old feedback buttons from thread",
           "Resolves sender identity via Slack users.info (name + email)",
-          "Sender attribution: employee (@lovable.dev) → admin reply with name prefix; original requester → customer reply (unchanged); other → customer reply with name prefix",
+          "Sender attribution: employee (@lovable.dev) → admin reply using their real Intercom admin ID (hardcoded map); original requester → customer reply (unchanged); other → customer reply with name prefix",
           "Atomic status gate: active → active_pending (skips notice if already pending)",
           "Posts '⏳ Sam is writing a response...' only on successful transition",
           "Downloads & re-hosts any attached files",
