@@ -251,6 +251,14 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Ignore mentions with no user ID (e.g. integrations without a real Slack user)
+      if (!event.user) {
+        console.log(`Ignoring app_mention with no user ID`);
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const channelId = event.channel;
 
       // Auto-enable new channels on first mention so manual setup isn't required
