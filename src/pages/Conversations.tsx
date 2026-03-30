@@ -236,6 +236,7 @@ const Conversations = () => {
                       <TableHead>Message / Subject</TableHead>
                       <TableHead>Channel</TableHead>
                       <TableHead>Link</TableHead>
+                      <TableHead>Intercom</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Test</TableHead>
