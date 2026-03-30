@@ -47,6 +47,9 @@ const Index = () => {
   const [channelSearch, setChannelSearch] = useState("");
   const [channelNameMap, setChannelNameMap] = useState<Record<string, string>>({});
 
+  const [gmailConnected, setGmailConnected] = useState<string | null>(null);
+  const [gmailLoading, setGmailLoading] = useState(false);
+
   const edgeFunctionBaseUrl = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1`;
 
   const monitoredIds = (settings?.monitored_channels || "")
