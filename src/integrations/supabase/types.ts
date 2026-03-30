@@ -119,6 +119,45 @@ export type Database = {
         }
         Relationships: []
       }
+      gmail_conversations: {
+        Row: {
+          created_at: string
+          from_email: string | null
+          from_name: string | null
+          gmail_message_id: string
+          gmail_thread_id: string | null
+          id: string
+          is_test: boolean
+          received_at: string | null
+          snippet: string | null
+          subject: string | null
+        }
+        Insert: {
+          created_at?: string
+          from_email?: string | null
+          from_name?: string | null
+          gmail_message_id: string
+          gmail_thread_id?: string | null
+          id?: string
+          is_test?: boolean
+          received_at?: string | null
+          snippet?: string | null
+          subject?: string | null
+        }
+        Update: {
+          created_at?: string
+          from_email?: string | null
+          from_name?: string | null
+          gmail_message_id?: string
+          gmail_thread_id?: string | null
+          id?: string
+          is_test?: boolean
+          received_at?: string | null
+          snippet?: string | null
+          subject?: string | null
+        }
+        Relationships: []
+      }
       knowledge_documents: {
         Row: {
           content: string
@@ -150,6 +189,7 @@ export type Database = {
         Row: {
           auto_mark_employee_test: boolean
           created_at: string
+          gmail_last_polled_at: string | null
           id: string
           intercom_assignee_id: string
           intercom_inbox_id: string
@@ -163,6 +203,7 @@ export type Database = {
         Insert: {
           auto_mark_employee_test?: boolean
           created_at?: string
+          gmail_last_polled_at?: string | null
           id?: string
           intercom_assignee_id?: string
           intercom_inbox_id?: string
@@ -176,6 +217,7 @@ export type Database = {
         Update: {
           auto_mark_employee_test?: boolean
           created_at?: string
+          gmail_last_polled_at?: string | null
           id?: string
           intercom_assignee_id?: string
           intercom_inbox_id?: string

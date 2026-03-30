@@ -28,6 +28,13 @@ interface Mapping {
   slack_channel_id: string;
 }
 
+interface GmailRow {
+  received_at: string | null;
+  created_at: string;
+  is_test: boolean;
+}
+
+type SourceFilter = "all" | "slack" | "gmail";
 type TimeRange = "7d" | "30d" | "90d" | "all" | "custom";
 
 const chartConfig = {
@@ -38,6 +45,8 @@ const chartConfig = {
   active: { label: "Active", color: "hsl(var(--primary))" },
   awaiting_context: { label: "Awaiting context", color: "hsl(var(--muted-foreground))" },
   total: { label: "Total", color: "hsl(var(--primary))" },
+  slack: { label: "Slack", color: "hsl(var(--primary))" },
+  gmail: { label: "Gmail", color: "hsl(35 92% 50%)" },
   cumulative: { label: "Cumulative", color: "hsl(var(--primary))" },
   rate: { label: "Escalation rate", color: "hsl(var(--destructive))" },
   resolution: { label: "Resolution time", color: "hsl(221 83% 53%)" },
@@ -63,9 +72,11 @@ const getCutoffDate = (range: TimeRange): Date | null => {
 
 const Stats = () => {
   const [data, setData] = useState<Mapping[]>([]);
+  const [gmailData, setGmailData] = useState<GmailRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"real" | "test">("real");
   const [range, setRange] = useState<TimeRange>("30d");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
   const [channelNames, setChannelNames] = useState<Record<string, string>>({});
@@ -81,18 +92,23 @@ const Stats = () => {
 
   const loadStats = async () => {
     setLoading(true);
-    const { data: mappings } = await supabase
-      .from("conversation_mappings")
-      .select("status, created_at, is_test, slack_channel_id, resolved_at")
-      .order("created_at", { ascending: true });
-    const rows = (mappings as Mapping[]) || [];
+    const [slackRes, gmailRes] = await Promise.all([
+      supabase
+        .from("conversation_mappings")
+        .select("status, created_at, is_test, slack_channel_id, resolved_at")
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("gmail_conversations")
+        .select("received_at, created_at, is_test")
+        .order("received_at", { ascending: true }),
+    ]);
+    const rows = (slackRes.data as Mapping[]) || [];
     setData(rows);
+    setGmailData((gmailRes.data as unknown as GmailRow[]) || []);
 
     // Resolve channel names
     const uniqueIds = [...new Set(rows.map((r) => r.slack_channel_id).filter(Boolean))];
     const names: Record<string, string> = { ...channelNameOverrides };
-
-    // Fetch from edge function for IDs not in overrides
     const unresolvedIds = uniqueIds.filter((id) => !names[id]);
     if (unresolvedIds.length > 0) {
       try {
@@ -106,14 +122,11 @@ const Stats = () => {
         }
       } catch { /* fallback to raw IDs */ }
     }
-
-    // Fill remaining with raw IDs
     for (const id of uniqueIds) {
       if (!names[id]) names[id] = id;
     }
-
     setChannelNames(names);
-    setSelectedChannels(uniqueIds); // all selected by default
+    setSelectedChannels(uniqueIds);
     setLoading(false);
   };
 
@@ -148,8 +161,35 @@ const Stats = () => {
     });
   }, [data, view, range, customFrom, customTo, selectedChannels]);
 
+  const filteredGmail = useMemo(() => {
+    const cutoff = getCutoffDate(range);
+    return gmailData.filter((g) => {
+      const matchView = view === "test" ? g.is_test : !g.is_test;
+      const dateStr = g.received_at || g.created_at;
+      const parsed = parseISO(dateStr);
+      let matchRange: boolean;
+      if (range === "custom") {
+        matchRange = (!customFrom || isAfter(parsed, startOfDay(customFrom))) &&
+                     (!customTo || isBefore(parsed, endOfDay(customTo)));
+      } else {
+        matchRange = cutoff ? isAfter(parsed, cutoff) : true;
+      }
+      return matchView && matchRange;
+    });
+  }, [gmailData, view, range, customFrom, customTo]);
+
+  const gmailVolumeData = useMemo(() => {
+    const byDay: Record<string, number> = {};
+    filteredGmail.forEach((g) => {
+      const day = format(parseISO(g.received_at || g.created_at), "yyyy-MM-dd");
+      byDay[day] = (byDay[day] || 0) + 1;
+    });
+    return byDay;
+  }, [filteredGmail]);
+
   const stats = useMemo(() => {
     const total = filtered.length;
+    const gmailTotal = filteredGmail.length;
     const resolved = filtered.filter((m) => m.status === "resolved").length;
     const escalated = filtered.filter((m) => m.status === "escalated" || m.status === "escalated_pending").length;
     const active = filtered.filter((m) => m.status === "active" || m.status === "active_pending").length;
@@ -161,15 +201,16 @@ const Stats = () => {
     const resolvedPct = feedbackTotal ? Math.round((resolved / feedbackTotal) * 100) : 0;
 
     const cutoff = getCutoffDate(range);
+    const combinedTotal = sourceFilter === "gmail" ? gmailTotal : sourceFilter === "slack" ? total : total + gmailTotal;
     const daySpan = cutoff
       ? differenceInDays(new Date(), cutoff) || 1
       : filtered.length > 0
         ? differenceInDays(new Date(), parseISO(filtered[0].created_at)) || 1
         : 1;
-    const avgPerDay = +(total / daySpan).toFixed(1);
+    const avgPerDay = +(combinedTotal / daySpan).toFixed(1);
 
-    return { total, resolved, escalated, active, awaiting, processing, cancelled, open, resolvedPct, avgPerDay };
-  }, [filtered, range]);
+    return { total, gmailTotal, resolved, escalated, active, awaiting, processing, cancelled, open, resolvedPct, avgPerDay };
+  }, [filtered, filteredGmail, range, sourceFilter]);
 
   // Daily volume line chart
   const volumeData = useMemo(() => {

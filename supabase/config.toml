@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.fetch-thread-messages]
 verify_jwt = false
+
+[functions.poll-gmail]
+verify_jwt = false
