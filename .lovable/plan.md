@@ -1,46 +1,47 @@
 
-Current status after your reconnect (from the latest backend state):
-- Gmail ingestion is still not landing in the database (`gmail_conversations` has 0 rows).
-- The poll function still fails with `401 Credential not found` in recent logs.
-- Conversations/Stats UI wiring is already in place for Gmail data.
-- The 15-minute cron job exists and is active, but it cannot ingest while credentials fail.
 
-Plan to finish this cleanly
+## Bug: wrong email on Intercom ticket (race condition)
 
-1) Revalidate the Gmail connection binding
-- Confirm the linked `EnterpriseSupportDL` grant is fully active and mapped to this project key.
-- Confirm required Gmail permission set is present (`gmail.modify`).
-- If the credential mapping still fails, force a full fresh authorization for the same mailbox identity (not a reused stale grant).
+### Root cause
 
-2) Harden `poll-gmail` diagnostics
-- Update `supabase/functions/poll-gmail/index.ts` to add a preflight Gmail profile call before listing messages.
-- Return structured error categories so we can distinguish:
-  - connector credential resolution failure,
-  - scope/permission failure,
-  - Gmail API transport failure.
-- Keep logs non-sensitive.
+When two tickets are created from the **same Slack user** with **different emails**, the second ticket overwrites the first contact's email. Here's the sequence:
 
-3) Verify ingestion end-to-end immediately
-- Trigger one manual poll run after reconnection.
-- Validate insertions in `public.gmail_conversations` (including your recent test subject if within query window).
-- Confirm rows appear in Conversations and Stats when Source = Gmail/All.
+1. **Ticket 1** (email: `josef.vilimek@sap.com`) — no Intercom contact exists yet, so one is created with `external_id = <your Slack user ID>` and email = `josef.vilimek@sap.com`. Contact ID saved.
 
-4) Persist scheduler setup in codebase
-- Add an idempotent migration to manage `poll-gmail-every-15-min` (unschedule existing name, then schedule once).
-- This prevents environment drift where cron exists in runtime but is missing from migrations history.
+2. **Ticket 2** (email: `liad.shiri@sap.com`) — searches Intercom by email `liad.shiri@sap.com`, finds nothing. Tries to **create** a new contact with the same `external_id`. Intercom rejects it as a **conflict** (duplicate `external_id`). The conflict handler (line 280) extracts the existing contact ID (the one from step 1) and then **overwrites its email** to `liad.shiri@sap.com` (line 284-289).
 
-5) Keep architecture docs aligned
-- Update `src/pages/FlowDiagram.tsx` only if polling behavior/diagnostics text changes.
-- Update knowledge content with the finalized credential failure mode and recovery path.
+Now both tickets point to the same contact, and that contact's email is `liad.shiri@sap.com` — ticket 1's email (`josef.vilimek@sap.com`) is gone.
 
-Technical details
-- Function: `supabase/functions/poll-gmail/index.ts`
-- Migration: `supabase/migrations/<timestamp>_schedule_poll_gmail.sql`
-- Validation table: `public.gmail_conversations`
-- Existing UI files already integrated: `src/pages/Conversations.tsx`, `src/pages/Stats.tsx`
+### Fix
 
-Success criteria
-- Manual poll returns `ok: true` with `inserted > 0`.
-- Your test email appears in Conversations.
-- Gmail metrics are visible in Stats.
-- 15-minute polling is both active and migration-backed.
+In the conflict handler, **stop overwriting the email** when the existing contact already has a different email. Instead, search by email first, and only fall back to `external_id` if no email was provided. When a conflict occurs on `external_id` but the user supplied a different email, create the contact **without** `external_id` so each email gets its own Intercom contact.
+
+### Changes
+
+**File: `supabase/functions/slack-interactions/index.ts`** — `createIntercomTicket` function (lines 225-298)
+
+1. When an email is provided and the initial email search finds no match, attempt to create the contact **without `external_id`** (use email as the unique identifier instead). This prevents the `external_id` conflict from merging unrelated emails into one contact.
+
+2. Only set `external_id` on the contact when **no email** is provided (anonymous Slack user fallback).
+
+3. In the conflict handler, do **not** overwrite the email if the existing contact already has a different email set. Instead, log a warning and use the conflicting contact as-is.
+
+4. Update the Flow diagram page to reflect this fix.
+
+### Technical detail
+
+```text
+BEFORE (buggy):
+  create contact { external_id: slackUserId, email: newEmail }
+  → conflict on external_id
+  → reuse contact, overwrite email ← BUG
+
+AFTER (fixed):
+  if email provided:
+    create contact { email: newEmail }  (no external_id)
+    → no conflict, separate contact per email
+  if no email:
+    create contact { external_id: slackUserId }
+    → conflict handler reuses contact WITHOUT overwriting email
+```
+
