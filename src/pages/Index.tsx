@@ -383,7 +383,50 @@ const Index = () => {
         {/* Bot Identity Card */}
         <BotIdentityCard />
 
-        {/* Webhook URLs Card */}
+        {/* Gmail OAuth Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Mail className="h-5 w-5" />
+              Gmail connection
+            </CardTitle>
+            <CardDescription>
+              Connect a Gmail account to monitor incoming emails
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {gmailConnected ? (
+              <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950 p-4">
+                <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-green-800 dark:text-green-200">Connected</p>
+                  <p className="text-xs text-green-600 dark:text-green-400">{gmailConnected}</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={connectGmail} disabled={gmailLoading}>
+                  Reconnect
+                </Button>
+                <Button variant="outline" size="sm" onClick={checkGmailConnection}>
+                  <RefreshCw className="h-3 w-3" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 p-4">
+                <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Not connected</p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400">Click connect to authorize Gmail access</p>
+                </div>
+                <Button size="sm" onClick={connectGmail} disabled={gmailLoading}>
+                  {gmailLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Connect Gmail"}
+                </Button>
+                <Button variant="outline" size="sm" onClick={checkGmailConnection}>
+                  <RefreshCw className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
