@@ -733,7 +733,8 @@ const Stats = () => {
           </CardContent>
         </Card>
 
-        {/* Conversations by channel */}
+        {sourceFilter !== "gmail" && (
+        /* Conversations by channel */
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Conversations by channel</CardTitle>
