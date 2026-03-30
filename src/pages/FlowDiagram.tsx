@@ -398,13 +398,15 @@ function buildNodes(
       position: { x: COL_W * 2.6, y: 0 },
       data: {
         label: "Gmail polling",
-        desc: "Edge function polls Gmail DL every 15 min, stores email metadata in gmail_conversations table. Displayed alongside Slack data on Conversations and Stats pages.",
+        desc: "Edge function polls Gmail DL every 15 min, stores email metadata in gmail_conversations table, and exposes structured failure categories for credential/scope diagnostics.",
         icon: Mail,
         edgeFunction: "poll-gmail",
         details: [
           "Runs on pg_cron schedule every 15 minutes",
+          "Preflight check calls users/me/profile before listing messages",
           "Calls Gmail API via connector gateway (newer_than:1d)",
-          "Deduplicates with ON CONFLICT (gmail_message_id) DO NOTHING",
+          "Classifies failures as connector_credentials, scope_permission, gmail_transport, or database",
+          "Deduplicates by unique gmail_message_id (duplicate inserts are skipped)",
           "Tracks gmail_last_polled_at high-water mark in settings table",
           "Read-only: no replies from dashboard",
         ],
