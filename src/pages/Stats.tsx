@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
-import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon, ChevronDown, Timer, AlertCircle, XCircle, ArrowUpRight } from "lucide-react";
+import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon, ChevronDown, Timer, AlertCircle, XCircle, ArrowUpRight, Mail } from "lucide-react";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -186,6 +186,27 @@ const Stats = () => {
     });
     return byDay;
   }, [filteredGmail]);
+
+  const mergedVolumeData = useMemo(() => {
+    const allDays = new Set<string>();
+    // Collect Slack days from volumeData
+    filtered.forEach((m) => allDays.add(format(parseISO(m.created_at), "yyyy-MM-dd")));
+    // Collect Gmail days
+    filteredGmail.forEach((g) => allDays.add(format(parseISO(g.received_at || g.created_at), "yyyy-MM-dd")));
+    
+    const slackByDay: Record<string, number> = {};
+    filtered.forEach((m) => {
+      const day = format(parseISO(m.created_at), "yyyy-MM-dd");
+      slackByDay[day] = (slackByDay[day] || 0) + 1;
+    });
+
+    return [...allDays].sort().map((day) => ({
+      date: day,
+      label: format(parseISO(day), "MMM dd"),
+      slack: slackByDay[day] || 0,
+      gmail: gmailVolumeData[day] || 0,
+    }));
+  }, [filtered, filteredGmail, gmailVolumeData]);
 
   const stats = useMemo(() => {
     const total = filtered.length;
@@ -420,6 +441,19 @@ const Stats = () => {
             </Select>
           </div>
           <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-muted-foreground">Source:</span>
+            <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as SourceFilter)}>
+              <SelectTrigger className="w-[180px] h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All sources</SelectItem>
+                <SelectItem value="slack">Slack only</SelectItem>
+                <SelectItem value="gmail">Gmail only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-muted-foreground">Timeframe:</span>
             <Select value={range} onValueChange={(v) => setRange(v as TimeRange)}>
             <SelectTrigger className="w-[180px] h-9">
@@ -524,49 +558,64 @@ const Stats = () => {
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-7">
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center p-5">
-              <MessageSquare className="mb-2 h-5 w-5 text-primary" />
-              <p className="text-3xl font-bold text-foreground">{stats.total}</p>
-              <p className="text-xs text-muted-foreground">Total</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center p-5">
-              <ThumbsUp className="mb-2 h-5 w-5 text-green-600" />
-              <p className="text-3xl font-bold text-foreground">{stats.resolved}</p>
-              <p className="text-xs text-muted-foreground">Resolved</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center p-5">
-              <XCircle className="mb-2 h-5 w-5 text-muted-foreground" />
-              <p className="text-3xl font-bold text-foreground">{stats.cancelled}</p>
-              <p className="text-xs text-muted-foreground">Cancelled</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center p-5">
-              <AlertCircle className="mb-2 h-5 w-5 text-orange-500" />
-              <p className="text-3xl font-bold text-foreground">{stats.open}</p>
-              <p className="text-xs text-muted-foreground">Open</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center p-5">
-              <ArrowUpRight className="mb-2 h-5 w-5 text-amber-500" />
-              <p className="text-3xl font-bold text-foreground">{stats.escalated}</p>
-              <p className="text-xs text-muted-foreground">Escalated to human</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center p-5">
-              <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
-              <p className="text-3xl font-bold text-foreground">{stats.resolvedPct}%</p>
-              <p className="text-xs text-muted-foreground">Success rate</p>
-            </CardContent>
-          </Card>
+        <div className={cn("grid grid-cols-2 gap-4 md:grid-cols-3", sourceFilter === "gmail" ? "lg:grid-cols-3" : "lg:grid-cols-8")}>
+          {sourceFilter !== "gmail" && (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center p-5">
+                <MessageSquare className="mb-2 h-5 w-5 text-primary" />
+                <p className="text-3xl font-bold text-foreground">{stats.total}</p>
+                <p className="text-xs text-muted-foreground">Slack total</p>
+              </CardContent>
+            </Card>
+          )}
+          {sourceFilter !== "slack" && (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center p-5">
+                <Mail className="mb-2 h-5 w-5 text-amber-500" />
+                <p className="text-3xl font-bold text-foreground">{stats.gmailTotal}</p>
+                <p className="text-xs text-muted-foreground">Gmail emails</p>
+              </CardContent>
+            </Card>
+          )}
+          {sourceFilter !== "gmail" && (
+            <>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <ThumbsUp className="mb-2 h-5 w-5 text-green-600" />
+                  <p className="text-3xl font-bold text-foreground">{stats.resolved}</p>
+                  <p className="text-xs text-muted-foreground">Resolved</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <XCircle className="mb-2 h-5 w-5 text-muted-foreground" />
+                  <p className="text-3xl font-bold text-foreground">{stats.cancelled}</p>
+                  <p className="text-xs text-muted-foreground">Cancelled</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <AlertCircle className="mb-2 h-5 w-5 text-orange-500" />
+                  <p className="text-3xl font-bold text-foreground">{stats.open}</p>
+                  <p className="text-xs text-muted-foreground">Open</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <ArrowUpRight className="mb-2 h-5 w-5 text-amber-500" />
+                  <p className="text-3xl font-bold text-foreground">{stats.escalated}</p>
+                  <p className="text-xs text-muted-foreground">Escalated to human</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
+                  <p className="text-3xl font-bold text-foreground">{stats.resolvedPct}%</p>
+                  <p className="text-xs text-muted-foreground">Success rate</p>
+                </CardContent>
+              </Card>
+            </>
+          )}
           <Card>
             <CardContent className="flex flex-col items-center justify-center p-5">
               <Activity className="mb-2 h-5 w-5 text-primary" />
@@ -577,7 +626,7 @@ const Stats = () => {
         </div>
 
         {/* Resolution time section */}
-        {resolutionStats && (
+        {sourceFilter !== "gmail" && resolutionStats && (
           <>
             <div className="grid grid-cols-2 gap-4">
               <Card>
@@ -653,29 +702,39 @@ const Stats = () => {
             <CardDescription>Daily conversations over {activeRangeLabel.toLowerCase()}</CardDescription>
           </CardHeader>
           <CardContent>
-            {volumeData.length === 0 ? (
+            {volumeData.length === 0 && filteredGmail.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
             ) : (
               <ChartContainer config={chartConfig} className="h-[280px] w-full">
-                <AreaChart data={volumeData}>
+                <AreaChart data={mergedVolumeData}>
                   <defs>
-                    <linearGradient id="gradTotal" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="gradSlack" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
                       <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gradGmail" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(35 92% 50%)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="hsl(35 92% 50%)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="label" className="text-xs" />
                   <YAxis allowDecimals={false} className="text-xs" />
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <Area type="monotone" dataKey="total" stroke="hsl(var(--primary))" fill="url(#gradTotal)" strokeWidth={2} />
+                  {sourceFilter !== "gmail" && (
+                    <Area type="monotone" dataKey="slack" stroke="hsl(var(--primary))" fill="url(#gradSlack)" strokeWidth={2} />
+                  )}
+                  {sourceFilter !== "slack" && (
+                    <Area type="monotone" dataKey="gmail" stroke="hsl(35 92% 50%)" fill="url(#gradGmail)" strokeWidth={2} />
+                  )}
                 </AreaChart>
               </ChartContainer>
             )}
           </CardContent>
         </Card>
 
-        {/* Conversations by channel */}
+        {sourceFilter !== "gmail" && (
+        /* Conversations by channel */
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Conversations by channel</CardTitle>
@@ -699,7 +758,10 @@ const Stats = () => {
             )}
           </CardContent>
         </Card>
+        )}
 
+        {sourceFilter !== "gmail" && (
+        <>
         {/* Two-column charts */}
         <div className="grid gap-6 md:grid-cols-2">
           {/* Daily outcomes */}
@@ -806,6 +868,8 @@ const Stats = () => {
             </CardContent>
           </Card>
         </div>
+        </>
+        )}
 
         {/* Insights footer */}
         {peakDay && (
