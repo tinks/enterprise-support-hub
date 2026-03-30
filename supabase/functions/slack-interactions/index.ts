@@ -250,14 +250,15 @@ async function createIntercomTicket(opts: {
       }
     }
   } else {
-    const createBody: Record<string, string> = {
-      role: "user",
-      external_id: slackUserId,
-    };
+    // When email is provided, create contact by email only (no external_id)
+    // to prevent merging different emails into the same contact via external_id conflicts.
+    // Only use external_id as identifier when no email is available.
+    const createBody: Record<string, string> = { role: "user" };
     if (resolvedEmail) {
       createBody.email = resolvedEmail;
       createBody.name = resolvedEmail;
     } else {
+      createBody.external_id = slackUserId;
       createBody.name = `Slack User ${slackUserId}`;
     }
 
@@ -278,16 +279,9 @@ async function createIntercomTicket(opts: {
       } catch (_) { /* ignore parse error */ }
 
       if (conflictId) {
-        console.log(`Contact conflict resolved — using existing id=${conflictId}`);
+        console.log(`Contact conflict resolved — using existing id=${conflictId}, NOT overwriting email`);
         contactId = conflictId;
-        // Update contact with email if provided
-        if (resolvedEmail) {
-          await fetch(`https://api.intercom.io/contacts/${conflictId}`, {
-            method: "PUT",
-            headers: intercomHeaders,
-            body: JSON.stringify({ email: resolvedEmail, name: resolvedEmail }),
-          });
-        }
+        // Do NOT overwrite email on the existing contact — it may belong to a different ticket
       } else {
         console.error(`Failed to create Intercom contact: ${createResText}`);
         return;

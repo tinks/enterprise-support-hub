@@ -190,7 +190,9 @@ function buildNodes(
         edgeFunction: "slack-interactions",
         details: [
           "Adds 👀 reaction to original message",
-          "Searches/creates Intercom contact",
+          "Searches Intercom contact by email first; falls back to external_id only when no email provided",
+          "Creates contact by email only (no external_id) to prevent race conditions merging different emails into one contact",
+          "On conflict: reuses existing contact WITHOUT overwriting its email — each email stays separate",
           "Downloads & re-hosts file attachments to storage",
           "Prepends anti-escalation context (enterprise Slack origin) to conversation body",
           "Creates conversation with text + attachment URLs",
