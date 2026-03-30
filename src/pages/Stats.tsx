@@ -537,49 +537,64 @@ const Stats = () => {
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-7">
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center p-5">
-              <MessageSquare className="mb-2 h-5 w-5 text-primary" />
-              <p className="text-3xl font-bold text-foreground">{stats.total}</p>
-              <p className="text-xs text-muted-foreground">Total</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center p-5">
-              <ThumbsUp className="mb-2 h-5 w-5 text-green-600" />
-              <p className="text-3xl font-bold text-foreground">{stats.resolved}</p>
-              <p className="text-xs text-muted-foreground">Resolved</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center p-5">
-              <XCircle className="mb-2 h-5 w-5 text-muted-foreground" />
-              <p className="text-3xl font-bold text-foreground">{stats.cancelled}</p>
-              <p className="text-xs text-muted-foreground">Cancelled</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center p-5">
-              <AlertCircle className="mb-2 h-5 w-5 text-orange-500" />
-              <p className="text-3xl font-bold text-foreground">{stats.open}</p>
-              <p className="text-xs text-muted-foreground">Open</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center p-5">
-              <ArrowUpRight className="mb-2 h-5 w-5 text-amber-500" />
-              <p className="text-3xl font-bold text-foreground">{stats.escalated}</p>
-              <p className="text-xs text-muted-foreground">Escalated to human</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center p-5">
-              <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
-              <p className="text-3xl font-bold text-foreground">{stats.resolvedPct}%</p>
-              <p className="text-xs text-muted-foreground">Success rate</p>
-            </CardContent>
-          </Card>
+        <div className={cn("grid grid-cols-2 gap-4 md:grid-cols-3", sourceFilter === "gmail" ? "lg:grid-cols-3" : "lg:grid-cols-8")}>
+          {sourceFilter !== "gmail" && (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center p-5">
+                <MessageSquare className="mb-2 h-5 w-5 text-primary" />
+                <p className="text-3xl font-bold text-foreground">{stats.total}</p>
+                <p className="text-xs text-muted-foreground">Slack total</p>
+              </CardContent>
+            </Card>
+          )}
+          {sourceFilter !== "slack" && (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center p-5">
+                <Mail className="mb-2 h-5 w-5 text-amber-500" />
+                <p className="text-3xl font-bold text-foreground">{stats.gmailTotal}</p>
+                <p className="text-xs text-muted-foreground">Gmail emails</p>
+              </CardContent>
+            </Card>
+          )}
+          {sourceFilter !== "gmail" && (
+            <>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <ThumbsUp className="mb-2 h-5 w-5 text-green-600" />
+                  <p className="text-3xl font-bold text-foreground">{stats.resolved}</p>
+                  <p className="text-xs text-muted-foreground">Resolved</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <XCircle className="mb-2 h-5 w-5 text-muted-foreground" />
+                  <p className="text-3xl font-bold text-foreground">{stats.cancelled}</p>
+                  <p className="text-xs text-muted-foreground">Cancelled</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <AlertCircle className="mb-2 h-5 w-5 text-orange-500" />
+                  <p className="text-3xl font-bold text-foreground">{stats.open}</p>
+                  <p className="text-xs text-muted-foreground">Open</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <ArrowUpRight className="mb-2 h-5 w-5 text-amber-500" />
+                  <p className="text-3xl font-bold text-foreground">{stats.escalated}</p>
+                  <p className="text-xs text-muted-foreground">Escalated to human</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
+                  <p className="text-3xl font-bold text-foreground">{stats.resolvedPct}%</p>
+                  <p className="text-xs text-muted-foreground">Success rate</p>
+                </CardContent>
+              </Card>
+            </>
+          )}
           <Card>
             <CardContent className="flex flex-col items-center justify-center p-5">
               <Activity className="mb-2 h-5 w-5 text-primary" />
