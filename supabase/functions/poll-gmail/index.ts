@@ -15,6 +15,7 @@ Deno.serve(async (req) => {
 
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) {
+    console.error("poll-gmail: LOVABLE_API_KEY secret is missing from project");
     return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -23,11 +24,13 @@ Deno.serve(async (req) => {
 
   const GOOGLE_MAIL_API_KEY = Deno.env.get("GOOGLE_MAIL_API_KEY");
   if (!GOOGLE_MAIL_API_KEY) {
+    console.error("poll-gmail: GOOGLE_MAIL_API_KEY secret is missing — is the Gmail connector linked?");
     return new Response(JSON.stringify({ error: "GOOGLE_MAIL_API_KEY not configured" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+  console.log("poll-gmail: secrets loaded, calling Gmail API…");
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -46,7 +49,12 @@ Deno.serve(async (req) => {
     );
     if (!listRes.ok) {
       const body = await listRes.text();
-      throw new Error(`Gmail list failed [${listRes.status}]: ${body}`);
+      const hint = listRes.status === 401
+        ? " (connector credentials invalid or expired — try reconnecting the Gmail connection)"
+        : listRes.status === 403
+          ? " (insufficient Gmail scope — gmail.modify is required)"
+          : "";
+      throw new Error(`Gmail list failed [${listRes.status}]: ${body}${hint}`);
     }
 
     const listData = await listRes.json();
