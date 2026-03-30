@@ -59,6 +59,7 @@ const Index = () => {
 
   useEffect(() => {
     loadData();
+    checkGmailConnection();
   }, []);
 
   // Fetch channel names on mount to resolve existing IDs
