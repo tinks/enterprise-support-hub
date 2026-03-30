@@ -8,6 +8,92 @@ const corsHeaders = {
 
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/google_mail/gmail/v1";
 
+type PollErrorCategory =
+  | "connector_credentials"
+  | "scope_permission"
+  | "gmail_transport"
+  | "database";
+
+class PollError extends Error {
+  category: PollErrorCategory;
+  status?: number;
+  stage: "preflight" | "list" | "message" | "insert";
+
+  constructor(
+    message: string,
+    params: {
+      category: PollErrorCategory;
+      stage: "preflight" | "list" | "message" | "insert";
+      status?: number;
+    },
+  ) {
+    super(message);
+    this.name = "PollError";
+    this.category = params.category;
+    this.stage = params.stage;
+    this.status = params.status;
+  }
+}
+
+const classifyGatewayError = (
+  status: number,
+  body: string,
+): { category: PollErrorCategory; hint: string } => {
+  const normalized = body.toLowerCase();
+
+  if (
+    status === 401 &&
+    (normalized.includes("credential not found") ||
+      normalized.includes("unauthorized"))
+  ) {
+    return {
+      category: "connector_credentials",
+      hint:
+        "Gmail connector credentials are not resolving in the gateway. Reconnect the same Gmail mailbox and retry.",
+    };
+  }
+
+  if (
+    status === 403 ||
+    normalized.includes("insufficient") ||
+    normalized.includes("permission") ||
+    normalized.includes("scope")
+  ) {
+    return {
+      category: "scope_permission",
+      hint:
+        "Gmail permissions are insufficient. Ensure the connection includes gmail.modify scope.",
+    };
+  }
+
+  return {
+    category: "gmail_transport",
+    hint: "Gmail API request failed. Retry and inspect gateway/Gmail status.",
+  };
+};
+
+const parseGatewayBody = async (res: Response): Promise<string> => {
+  const text = await res.text();
+  return text.length > 700 ? `${text.slice(0, 700)}…` : text;
+};
+
+const makeGatewayRequest = async (
+  path: string,
+  stage: "preflight" | "list" | "message",
+  headers: Record<string, string>,
+) => {
+  const res = await fetch(`${GATEWAY_URL}${path}`, { headers });
+  if (!res.ok) {
+    const body = await parseGatewayBody(res);
+    const { category, hint } = classifyGatewayError(res.status, body);
+    throw new PollError(
+      `Gmail ${stage} failed [${res.status}]: ${body}. ${hint}`,
+      { category, stage, status: res.status },
+    );
+  }
+  return res;
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -42,20 +128,21 @@ Deno.serve(async (req) => {
   };
 
   try {
-    // List messages from the last day
-    const listRes = await fetch(
-      `${GATEWAY_URL}/users/me/messages?maxResults=100&q=newer_than:1d`,
-      { headers: gatewayHeaders }
+    const preflightRes = await makeGatewayRequest(
+      "/users/me/profile",
+      "preflight",
+      gatewayHeaders,
     );
-    if (!listRes.ok) {
-      const body = await listRes.text();
-      const hint = listRes.status === 401
-        ? " (connector credentials invalid or expired — try reconnecting the Gmail connection)"
-        : listRes.status === 403
-          ? " (insufficient Gmail scope — gmail.modify is required)"
-          : "";
-      throw new Error(`Gmail list failed [${listRes.status}]: ${body}${hint}`);
-    }
+    const profile = await preflightRes.json();
+    console.log(
+      `poll-gmail: preflight ok for mailbox ${profile.emailAddress ?? "unknown"}`,
+    );
+
+    const listRes = await makeGatewayRequest(
+      "/users/me/messages?maxResults=100&q=newer_than:1d",
+      "list",
+      gatewayHeaders,
+    );
 
     const listData = await listRes.json();
     const messageIds: string[] = (listData.messages || []).map((m: any) => m.id);
@@ -70,15 +157,11 @@ Deno.serve(async (req) => {
     let inserted = 0;
 
     for (const msgId of messageIds) {
-      // Fetch metadata for each message
-      const msgRes = await fetch(
-        `${GATEWAY_URL}/users/me/messages/${msgId}?format=metadata`,
-        { headers: gatewayHeaders }
+      const msgRes = await makeGatewayRequest(
+        `/users/me/messages/${msgId}?format=metadata`,
+        "message",
+        gatewayHeaders,
       );
-      if (!msgRes.ok) {
-        console.error(`Failed to fetch message ${msgId}: ${msgRes.status}`);
-        continue;
-      }
 
       const msg = await msgRes.json();
       const headers = msg.payload?.headers || [];
@@ -93,7 +176,12 @@ Deno.serve(async (req) => {
 
       const subject = getHeader("Subject") || "(no subject)";
       const dateStr = getHeader("Date");
-      const receivedAt = dateStr ? new Date(dateStr).toISOString() : new Date(Number(msg.internalDate)).toISOString();
+      const dateCandidate = dateStr
+        ? new Date(dateStr)
+        : new Date(Number(msg.internalDate));
+      const receivedAt = Number.isNaN(dateCandidate.getTime())
+        ? new Date().toISOString()
+        : dateCandidate.toISOString();
 
       const { error } = await supabase.from("gmail_conversations").insert({
         gmail_message_id: msgId,
@@ -108,8 +196,10 @@ Deno.serve(async (req) => {
       if (error) {
         // Unique constraint violation = already exists, skip
         if (error.code === "23505") continue;
-        console.error(`Insert error for ${msgId}:`, error.message);
-        continue;
+        throw new PollError(`Insert error for ${msgId}: ${error.message}`, {
+          category: "database",
+          stage: "insert",
+        });
       }
       inserted++;
     }
@@ -127,9 +217,25 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
-    console.error("poll-gmail error:", err);
+    const error = err instanceof PollError ? err : null;
+    const category = error?.category ?? "gmail_transport";
+    const stage = error?.stage ?? "list";
+    const status = error?.status;
+
+    console.error("poll-gmail error:", {
+      category,
+      stage,
+      status,
+      message: err instanceof Error ? err.message : "Unknown error",
+    });
+
     return new Response(
-      JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }),
+      JSON.stringify({
+        error: err instanceof Error ? err.message : "Unknown error",
+        category,
+        stage,
+        status,
+      }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
