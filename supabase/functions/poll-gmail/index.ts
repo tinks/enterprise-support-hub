@@ -49,7 +49,12 @@ Deno.serve(async (req) => {
     );
     if (!listRes.ok) {
       const body = await listRes.text();
-      throw new Error(`Gmail list failed [${listRes.status}]: ${body}`);
+      const hint = listRes.status === 401
+        ? " (connector credentials invalid or expired — try reconnecting the Gmail connection)"
+        : listRes.status === 403
+          ? " (insufficient Gmail scope — gmail.modify is required)"
+          : "";
+      throw new Error(`Gmail list failed [${listRes.status}]: ${body}${hint}`);
     }
 
     const listData = await listRes.json();
