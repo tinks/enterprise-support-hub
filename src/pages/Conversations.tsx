@@ -375,6 +375,9 @@ const Conversations = () => {
                               ) : "—"}
                             </TableCell>
                             <TableCell>
+                              <span className="text-xs text-muted-foreground">—</span>
+                            </TableCell>
+                            <TableCell>
                               <Badge variant="outline">email</Badge>
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground">
