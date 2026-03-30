@@ -1,42 +1,57 @@
 
+## What I just re-checked
 
-## Update knowledge base with recent changes
+- I retried the Gmail poll endpoint.
+- It still fails with: `Gmail list failed [401]: Credential not found`.
+- `gmail_conversations` is still empty (`0` rows), so Conversations and Stats have nothing to show.
+- The Gmail connection is linked, but the backend gateway still cannot resolve valid credentials for that linked key.
+- I also found there is currently no scheduled polling job in migrations, so automatic 15-minute polling is not actually active yet.
 
-### What's being added
+## Plan to fix this fully
 
-Three sections of new documentation will be submitted as `pending_content`:
+1. Stabilize the Gmail connection used by the backend
+- Unlink the current broken Gmail connection from this project.
+- Link a fresh Gmail connection (new auth grant), not a reused stale one.
+- Ensure the granted scope includes `gmail.modify` (covers metadata/listing needed by poller).
 
-**1. Gmail integration (new §23)**
-- New `gmail_conversations` table (columns: gmail_message_id, gmail_thread_id, from_email, from_name, subject, received_at, snippet, is_test)
-- New `poll-gmail` edge function: polls Gmail DL every 15 min via connector gateway, inserts with `ON CONFLICT DO NOTHING` dedup
-- `pg_cron` job: `poll-gmail-every-15-min` runs every 15 minutes
-- New `gmail_last_polled_at` column in `settings` table
-- Required secrets: `LOVABLE_API_KEY`, `GOOGLE_MAIL_API_KEY` (connector gateway)
-- Conversations page: unified view with source filter (All/Slack/Gmail), Gmail rows show Mail badge and link to Gmail threads
-- Stats page: source filter, Gmail volume card, dual-area chart overlaying Slack and Gmail volume
+2. Refresh backend runtime for the Gmail poll function
+- Redeploy `poll-gmail` so it picks up the newly linked connection key cleanly.
+- Keep current logic intact for now (no behavior changes yet).
 
-**2. Employee admin ID attribution (addition to §17 sender attribution)**
-- Hardcoded `EMPLOYEE_ADMIN_IDS` map: `joel@lovable.dev → 8430778`, `kristina@lovable.dev → 9985999`
-- Employee replies use the real admin's Intercom ID instead of Sam's, preventing auto-assignment/close
-- Falls back to Sam's `intercom_assignee_id` if email not in map
+3. Verify ingestion end-to-end immediately
+- Trigger `poll-gmail` manually once.
+- Confirm at least one row is inserted into `gmail_conversations`.
+- Confirm the subject you sent (for example `test ignore`) appears in Conversations (Gmail source) and contributes to Stats totals.
 
-**3. Fetch thread messages (addition to §2 architecture table + conversation detail §)**
-- New edge function `fetch-thread-messages`: fetches full Slack thread via `conversations.replies` with cursor pagination
-- Conversation detail page now shows a full message timeline with bot/user/employee attribution
+4. Add the missing scheduled poll job
+- Create a migration that schedules `poll-gmail` every 15 minutes.
+- Include safe idempotency in migration (unschedule existing job name first, then schedule) to avoid duplicate cron jobs.
 
-### Updates to existing sections
-- §2 Edge Functions table: add `poll-gmail` and `fetch-thread-messages` rows
-- §2 Database Tables: add `gmail_conversations` row
-- §12 Required Secrets: add `LOVABLE_API_KEY` and `GOOGLE_MAIL_API_KEY`
-- §11 Configuration: add `gmail_last_polled_at` field
-- Update last-updated date to 2026-03-30
+5. Improve observability for future debugging
+- Extend `poll-gmail` logging so failures clearly show whether it is:
+  - missing project secret,
+  - connector unauthorized,
+  - Gmail API response issue.
+- Keep logs non-sensitive (no token values).
 
-### How
-- Read current `content` from `knowledge_documents`
-- Apply all changes to produce updated document
-- Write to `pending_content` + `pending_summary` via database update
-- User reviews and approves in Knowledge tab
+6. Keep docs and flow aligned
+- Update the Flow page node details only if behavior/logging text changes.
+- Update project knowledge with:
+  - the credential failure mode,
+  - the required Gmail permission set,
+  - the scheduled polling setup.
 
-### Files changed
-- No code files — 1 database update (`knowledge_documents.pending_content` + `pending_summary`)
+## Technical details
 
+- Backend function file: `supabase/functions/poll-gmail/index.ts`
+- Migration to add scheduler: `supabase/migrations/<new_timestamp>_schedule_poll_gmail.sql`
+- Data table validation target: `public.gmail_conversations`
+- Existing settings field already available: `settings.gmail_last_polled_at`
+- Flow doc sync file (if text changes): `src/pages/FlowDiagram.tsx`
+
+## Success criteria
+
+- Manual poll returns `ok: true` with `inserted > 0`.
+- New Gmail message appears in `/conversations` under Gmail rows.
+- Stats page Gmail metrics are non-zero.
+- Automatic polling runs every 15 minutes without manual triggering.
