@@ -758,7 +758,10 @@ const Stats = () => {
             )}
           </CardContent>
         </Card>
+        )}
 
+        {sourceFilter !== "gmail" && (
+        <>
         {/* Two-column charts */}
         <div className="grid gap-6 md:grid-cols-2">
           {/* Daily outcomes */}
@@ -865,6 +868,8 @@ const Stats = () => {
             </CardContent>
           </Card>
         </div>
+        </>
+        )}
 
         {/* Insights footer */}
         {peakDay && (

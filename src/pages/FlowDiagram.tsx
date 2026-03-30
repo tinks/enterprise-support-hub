@@ -392,6 +392,25 @@ function buildNodes(
         accent: "green",
       },
     },
+    {
+      id: "gmail",
+      type: "flowNode",
+      position: { x: COL_W * 2.6, y: 0 },
+      data: {
+        label: "Gmail polling",
+        desc: "Edge function polls Gmail DL every 15 min, stores email metadata in gmail_conversations table. Displayed alongside Slack data on Conversations and Stats pages.",
+        icon: Mail,
+        edgeFunction: "poll-gmail",
+        details: [
+          "Runs on pg_cron schedule every 15 minutes",
+          "Calls Gmail API via connector gateway (newer_than:1d)",
+          "Deduplicates with ON CONFLICT (gmail_message_id) DO NOTHING",
+          "Tracks gmail_last_polled_at high-water mark in settings table",
+          "Read-only: no replies from dashboard",
+        ],
+        accent: "orange",
+      },
+    },
   ];
 }
 
