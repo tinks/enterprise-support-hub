@@ -187,6 +187,27 @@ const Stats = () => {
     return byDay;
   }, [filteredGmail]);
 
+  const mergedVolumeData = useMemo(() => {
+    const allDays = new Set<string>();
+    // Collect Slack days from volumeData
+    filtered.forEach((m) => allDays.add(format(parseISO(m.created_at), "yyyy-MM-dd")));
+    // Collect Gmail days
+    filteredGmail.forEach((g) => allDays.add(format(parseISO(g.received_at || g.created_at), "yyyy-MM-dd")));
+    
+    const slackByDay: Record<string, number> = {};
+    filtered.forEach((m) => {
+      const day = format(parseISO(m.created_at), "yyyy-MM-dd");
+      slackByDay[day] = (slackByDay[day] || 0) + 1;
+    });
+
+    return [...allDays].sort().map((day) => ({
+      date: day,
+      label: format(parseISO(day), "MMM dd"),
+      slack: slackByDay[day] || 0,
+      gmail: gmailVolumeData[day] || 0,
+    }));
+  }, [filtered, filteredGmail, gmailVolumeData]);
+
   const stats = useMemo(() => {
     const total = filtered.length;
     const gmailTotal = filteredGmail.length;
