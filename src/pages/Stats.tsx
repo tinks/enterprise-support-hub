@@ -681,22 +681,31 @@ const Stats = () => {
             <CardDescription>Daily conversations over {activeRangeLabel.toLowerCase()}</CardDescription>
           </CardHeader>
           <CardContent>
-            {volumeData.length === 0 ? (
+            {volumeData.length === 0 && filteredGmail.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
             ) : (
               <ChartContainer config={chartConfig} className="h-[280px] w-full">
-                <AreaChart data={volumeData}>
+                <AreaChart data={mergedVolumeData}>
                   <defs>
-                    <linearGradient id="gradTotal" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="gradSlack" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
                       <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="gradGmail" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(35 92% 50%)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="hsl(35 92% 50%)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="label" className="text-xs" />
                   <YAxis allowDecimals={false} className="text-xs" />
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <Area type="monotone" dataKey="total" stroke="hsl(var(--primary))" fill="url(#gradTotal)" strokeWidth={2} />
+                  {sourceFilter !== "gmail" && (
+                    <Area type="monotone" dataKey="slack" stroke="hsl(var(--primary))" fill="url(#gradSlack)" strokeWidth={2} />
+                  )}
+                  {sourceFilter !== "slack" && (
+                    <Area type="monotone" dataKey="gmail" stroke="hsl(35 92% 50%)" fill="url(#gradGmail)" strokeWidth={2} />
+                  )}
                 </AreaChart>
               </ChartContainer>
             )}
