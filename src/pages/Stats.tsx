@@ -626,7 +626,7 @@ const Stats = () => {
         </div>
 
         {/* Resolution time section */}
-        {resolutionStats && (
+        {sourceFilter !== "gmail" && resolutionStats && (
           <>
             <div className="grid grid-cols-2 gap-4">
               <Card>
