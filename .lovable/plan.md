@@ -1,31 +1,42 @@
 
 
-## Complete Gmail integration — Stats UI + Flow diagram
+## Update knowledge base with recent changes
 
-### What's left
+### What's being added
 
-The Stats page already loads and filters Gmail data, but the UI doesn't expose it. The Conversations page is complete. Two things remain:
+Three sections of new documentation will be submitted as `pending_content`:
 
-1. **Stats page UI enhancements**
-2. **Flow diagram update**
+**1. Gmail integration (new §23)**
+- New `gmail_conversations` table (columns: gmail_message_id, gmail_thread_id, from_email, from_name, subject, received_at, snippet, is_test)
+- New `poll-gmail` edge function: polls Gmail DL every 15 min via connector gateway, inserts with `ON CONFLICT DO NOTHING` dedup
+- `pg_cron` job: `poll-gmail-every-15-min` runs every 15 minutes
+- New `gmail_last_polled_at` column in `settings` table
+- Required secrets: `LOVABLE_API_KEY`, `GOOGLE_MAIL_API_KEY` (connector gateway)
+- Conversations page: unified view with source filter (All/Slack/Gmail), Gmail rows show Mail badge and link to Gmail threads
+- Stats page: source filter, Gmail volume card, dual-area chart overlaying Slack and Gmail volume
 
-### Stats page changes (`src/pages/Stats.tsx`)
+**2. Employee admin ID attribution (addition to §17 sender attribution)**
+- Hardcoded `EMPLOYEE_ADMIN_IDS` map: `joel@lovable.dev → 8430778`, `kristina@lovable.dev → 9985999`
+- Employee replies use the real admin's Intercom ID instead of Sam's, preventing auto-assignment/close
+- Falls back to Sam's `intercom_assignee_id` if email not in map
 
-**A. Source filter dropdown** — Add a "Source" dropdown next to the existing Environment filter (after line 421), matching the Conversations page pattern: All sources / Slack only / Gmail only.
+**3. Fetch thread messages (addition to §2 architecture table + conversation detail §)**
+- New edge function `fetch-thread-messages`: fetches full Slack thread via `conversations.replies` with cursor pagination
+- Conversation detail page now shows a full message timeline with bot/user/employee attribution
 
-**B. Gmail volume card** — Add a card after the "Total" card showing `stats.gmailTotal` with a Mail icon and "Gmail emails" label. Conditionally hide it when source is "slack".
+### Updates to existing sections
+- §2 Edge Functions table: add `poll-gmail` and `fetch-thread-messages` rows
+- §2 Database Tables: add `gmail_conversations` row
+- §12 Required Secrets: add `LOVABLE_API_KEY` and `GOOGLE_MAIL_API_KEY`
+- §11 Configuration: add `gmail_last_polled_at` field
+- Update last-updated date to 2026-03-30
 
-**C. Volume chart Gmail overlay** — In the "Conversation volume" AreaChart, add a second Area for Gmail daily volume. Merge `gmailVolumeData` into `volumeData` so each day object has both `total` (Slack) and `gmail` keys. When source filter is "gmail", show only the Gmail area; when "slack", only Slack; when "all", show both.
-
-**D. Source-aware summary cards** — When source is "gmail", hide Slack-specific cards (Resolved, Cancelled, Open, Escalated, Success rate) since Gmail has no statuses. Show only Total (gmail count) and Avg/day.
-
-### Flow diagram changes (`src/pages/FlowDiagram.tsx`)
-
-Add a new node for the Gmail polling branch:
-- Node: "Gmail polling" — description: "Edge function polls Gmail DL every 15 min, stores email metadata in gmail_conversations table"
-- Connected from a root/start node to show it as a parallel intake path alongside Slack
+### How
+- Read current `content` from `knowledge_documents`
+- Apply all changes to produce updated document
+- Write to `pending_content` + `pending_summary` via database update
+- User reviews and approves in Knowledge tab
 
 ### Files changed
-- `src/pages/Stats.tsx` — source filter UI, Gmail card, chart overlay, conditional card visibility
-- `src/pages/FlowDiagram.tsx` — new Gmail polling node + edge
+- No code files — 1 database update (`knowledge_documents.pending_content` + `pending_summary`)
 
