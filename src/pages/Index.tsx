@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Settings, RefreshCw, Save, Link, Search, Hash, X, Plus } from "lucide-react";
+import { Settings, RefreshCw, Save, Link, Search, Hash, X, Plus, Mail, CheckCircle2, AlertCircle } from "lucide-react";
 import BotIdentityCard from "@/components/BotIdentityCard";
 import lovableLogo from "@/assets/lovable-logo.png";
 
