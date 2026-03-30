@@ -3,13 +3,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const GATEWAY_URL = "https://connector-gateway.lovable.dev/google_mail/gmail/v1";
+const GMAIL_API = "https://gmail.googleapis.com/gmail/v1";
 
 type PollErrorCategory =
-  | "connector_credentials"
+  | "oauth_tokens"
+  | "token_refresh"
   | "scope_permission"
   | "gmail_transport"
   | "database";
@@ -17,13 +18,13 @@ type PollErrorCategory =
 class PollError extends Error {
   category: PollErrorCategory;
   status?: number;
-  stage: "preflight" | "list" | "message" | "insert";
+  stage: "auth" | "preflight" | "list" | "message" | "insert";
 
   constructor(
     message: string,
     params: {
       category: PollErrorCategory;
-      stage: "preflight" | "list" | "message" | "insert";
+      stage: "auth" | "preflight" | "list" | "message" | "insert";
       status?: number;
     },
   ) {
@@ -35,117 +36,153 @@ class PollError extends Error {
   }
 }
 
-const classifyGatewayError = (
-  status: number,
-  body: string,
-): { category: PollErrorCategory; hint: string } => {
-  const normalized = body.toLowerCase();
+/** Refresh the access token using the stored refresh token */
+async function refreshAccessToken(
+  refreshToken: string,
+  clientId: string,
+  clientSecret: string,
+): Promise<{ access_token: string; expires_in: number }> {
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      refresh_token: refreshToken,
+      client_id: clientId,
+      client_secret: clientSecret,
+      grant_type: "refresh_token",
+    }),
+  });
 
-  if (
-    status === 401 &&
-    (normalized.includes("credential not found") ||
-      normalized.includes("unauthorized"))
-  ) {
-    return {
-      category: "connector_credentials",
-      hint:
-        "Gmail connector credentials are not resolving in the gateway. Reconnect the same Gmail mailbox and retry.",
-    };
-  }
-
-  if (
-    status === 403 ||
-    normalized.includes("insufficient") ||
-    normalized.includes("permission") ||
-    normalized.includes("scope")
-  ) {
-    return {
-      category: "scope_permission",
-      hint:
-        "Gmail permissions are insufficient. Ensure the connection includes gmail.modify scope.",
-    };
-  }
-
-  return {
-    category: "gmail_transport",
-    hint: "Gmail API request failed. Retry and inspect gateway/Gmail status.",
-  };
-};
-
-const parseGatewayBody = async (res: Response): Promise<string> => {
-  const text = await res.text();
-  return text.length > 700 ? `${text.slice(0, 700)}…` : text;
-};
-
-const makeGatewayRequest = async (
-  path: string,
-  stage: "preflight" | "list" | "message",
-  headers: Record<string, string>,
-) => {
-  const res = await fetch(`${GATEWAY_URL}${path}`, { headers });
   if (!res.ok) {
-    const body = await parseGatewayBody(res);
-    const { category, hint } = classifyGatewayError(res.status, body);
+    const body = await res.text();
     throw new PollError(
-      `Gmail ${stage} failed [${res.status}]: ${body}. ${hint}`,
+      `Token refresh failed [${res.status}]: ${body.slice(0, 500)}`,
+      { category: "token_refresh", stage: "auth", status: res.status },
+    );
+  }
+
+  return res.json();
+}
+
+/** Make an authenticated Gmail API request */
+async function gmailRequest(
+  path: string,
+  accessToken: string,
+  stage: "preflight" | "list" | "message",
+): Promise<Response> {
+  const res = await fetch(`${GMAIL_API}${path}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    const normalized = body.toLowerCase();
+
+    let category: PollErrorCategory = "gmail_transport";
+    if (res.status === 401) category = "oauth_tokens";
+    else if (
+      res.status === 403 ||
+      normalized.includes("insufficient") ||
+      normalized.includes("scope")
+    )
+      category = "scope_permission";
+
+    throw new PollError(
+      `Gmail ${stage} failed [${res.status}]: ${body.slice(0, 500)}`,
       { category, stage, status: res.status },
     );
   }
+
   return res;
-};
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response("ok", { headers: corsHeaders });
   }
 
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
-    console.error("poll-gmail: LOVABLE_API_KEY secret is missing from project");
-    return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+  const clientId = Deno.env.get("GMAIL_CLIENT_ID");
+  const clientSecret = Deno.env.get("GMAIL_CLIENT_SECRET");
 
-  const GOOGLE_MAIL_API_KEY = Deno.env.get("GOOGLE_MAIL_API_KEY");
-  if (!GOOGLE_MAIL_API_KEY) {
-    console.error("poll-gmail: GOOGLE_MAIL_API_KEY secret is missing — is the Gmail connector linked?");
-    return new Response(JSON.stringify({ error: "GOOGLE_MAIL_API_KEY not configured" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  if (!clientId || !clientSecret) {
+    console.error("poll-gmail: GMAIL_CLIENT_ID or GMAIL_CLIENT_SECRET not configured");
+    return new Response(
+      JSON.stringify({ error: "Gmail OAuth credentials not configured" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   }
-  console.log("poll-gmail: secrets loaded, calling Gmail API…");
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  const gatewayHeaders = {
-    Authorization: `Bearer ${LOVABLE_API_KEY}`,
-    "X-Connection-Api-Key": GOOGLE_MAIL_API_KEY,
-  };
-
   try {
-    const preflightRes = await makeGatewayRequest(
+    // 1. Load stored OAuth tokens
+    const { data: tokenRows, error: tokenError } = await supabase
+      .from("gmail_oauth_tokens")
+      .select("*")
+      .limit(1)
+      .order("created_at", { ascending: false });
+
+    if (tokenError || !tokenRows?.length) {
+      throw new PollError(
+        "No Gmail OAuth tokens found. Please complete the Gmail OAuth flow first.",
+        { category: "oauth_tokens", stage: "auth" },
+      );
+    }
+
+    let tokenRow = tokenRows[0];
+    let accessToken = tokenRow.access_token;
+
+    // 2. Refresh token if expired (or within 2 min of expiry)
+    const expiresAt = new Date(tokenRow.token_expires_at).getTime();
+    if (Date.now() > expiresAt - 120_000) {
+      console.log("poll-gmail: access token expired, refreshing…");
+      const refreshed = await refreshAccessToken(
+        tokenRow.refresh_token,
+        clientId,
+        clientSecret,
+      );
+
+      accessToken = refreshed.access_token;
+      const newExpiresAt = new Date(
+        Date.now() + refreshed.expires_in * 1000,
+      ).toISOString();
+
+      await supabase
+        .from("gmail_oauth_tokens")
+        .update({
+          access_token: accessToken,
+          token_expires_at: newExpiresAt,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", tokenRow.id);
+
+      console.log("poll-gmail: token refreshed successfully");
+    }
+
+    // 3. Preflight check
+    const preflightRes = await gmailRequest(
       "/users/me/profile",
+      accessToken,
       "preflight",
-      gatewayHeaders,
     );
     const profile = await preflightRes.json();
     console.log(
       `poll-gmail: preflight ok for mailbox ${profile.emailAddress ?? "unknown"}`,
     );
 
-    const listRes = await makeGatewayRequest(
+    // 4. List recent messages
+    const listRes = await gmailRequest(
       "/users/me/messages?maxResults=100&q=newer_than:1d",
+      accessToken,
       "list",
-      gatewayHeaders,
     );
 
     const listData = await listRes.json();
-    const messageIds: string[] = (listData.messages || []).map((m: any) => m.id);
+    const messageIds: string[] = (listData.messages || []).map(
+      (m: any) => m.id,
+    );
 
     if (messageIds.length === 0) {
       console.log("No new messages found");
@@ -154,24 +191,28 @@ Deno.serve(async (req) => {
       });
     }
 
+    // 5. Fetch and insert each message
     let inserted = 0;
 
     for (const msgId of messageIds) {
-      const msgRes = await makeGatewayRequest(
+      const msgRes = await gmailRequest(
         `/users/me/messages/${msgId}?format=metadata`,
+        accessToken,
         "message",
-        gatewayHeaders,
       );
 
       const msg = await msgRes.json();
       const headers = msg.payload?.headers || [];
       const getHeader = (name: string) =>
-        headers.find((h: any) => h.name.toLowerCase() === name.toLowerCase())?.value || null;
+        headers.find(
+          (h: any) => h.name.toLowerCase() === name.toLowerCase(),
+        )?.value || null;
 
       const fromRaw = getHeader("From") || "";
-      // Parse "Name <email>" format
       const fromMatch = fromRaw.match(/^(.+?)\s*<(.+?)>$/);
-      const fromName = fromMatch ? fromMatch[1].replace(/^"|"$/g, "").trim() : fromRaw;
+      const fromName = fromMatch
+        ? fromMatch[1].replace(/^"|"$/g, "").trim()
+        : fromRaw;
       const fromEmail = fromMatch ? fromMatch[2] : fromRaw;
 
       const subject = getHeader("Subject") || "(no subject)";
@@ -194,7 +235,6 @@ Deno.serve(async (req) => {
       });
 
       if (error) {
-        // Unique constraint violation = already exists, skip
         if (error.code === "23505") continue;
         throw new PollError(`Insert error for ${msgId}: ${error.message}`, {
           category: "database",
@@ -204,17 +244,23 @@ Deno.serve(async (req) => {
       inserted++;
     }
 
-    // Update high-water mark
+    // 6. Update high-water mark
     await supabase
       .from("settings")
       .update({ gmail_last_polled_at: new Date().toISOString() })
       .not("id", "is", null);
 
-    console.log(`Processed ${messageIds.length} messages, inserted ${inserted} new`);
+    console.log(
+      `Processed ${messageIds.length} messages, inserted ${inserted} new`,
+    );
 
     return new Response(
-      JSON.stringify({ ok: true, processed: messageIds.length, inserted }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({
+        ok: true,
+        processed: messageIds.length,
+        inserted,
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err) {
     const error = err instanceof PollError ? err : null;
@@ -236,7 +282,10 @@ Deno.serve(async (req) => {
         stage,
         status,
       }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });

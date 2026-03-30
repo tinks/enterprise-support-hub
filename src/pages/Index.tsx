@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Settings, RefreshCw, Save, Link, Search, Hash, X, Plus } from "lucide-react";
+import { Settings, RefreshCw, Save, Link, Search, Hash, X, Plus, Mail, CheckCircle2, AlertCircle } from "lucide-react";
 import BotIdentityCard from "@/components/BotIdentityCard";
 import lovableLogo from "@/assets/lovable-logo.png";
 
@@ -47,6 +47,9 @@ const Index = () => {
   const [channelSearch, setChannelSearch] = useState("");
   const [channelNameMap, setChannelNameMap] = useState<Record<string, string>>({});
 
+  const [gmailConnected, setGmailConnected] = useState<string | null>(null);
+  const [gmailLoading, setGmailLoading] = useState(false);
+
   const edgeFunctionBaseUrl = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1`;
 
   const monitoredIds = (settings?.monitored_channels || "")
@@ -54,8 +57,42 @@ const Index = () => {
     .map((c) => c.trim())
     .filter(Boolean);
 
+  const checkGmailConnection = async () => {
+    const { data } = await supabase
+      .from("gmail_oauth_tokens")
+      .select("email_address")
+      .limit(1)
+      .order("created_at", { ascending: false });
+    if (data && data.length > 0) {
+      setGmailConnected(data[0].email_address || "Connected");
+    } else {
+      setGmailConnected(null);
+    }
+  };
+
+  const connectGmail = async () => {
+    setGmailLoading(true);
+    try {
+      const res = await fetch(`${edgeFunctionBaseUrl}/gmail-auth-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.open(data.url, "_blank", "width=600,height=700");
+        toast.info("Complete the Google sign-in in the popup, then click 'Refresh status'");
+      } else {
+        toast.error("Failed to get auth URL: " + (data.error || "Unknown error"));
+      }
+    } catch (err) {
+      toast.error("Request failed: " + (err instanceof Error ? err.message : "Unknown"));
+    }
+    setGmailLoading(false);
+  };
+
   useEffect(() => {
     loadData();
+    checkGmailConnection();
   }, []);
 
   // Fetch channel names on mount to resolve existing IDs
@@ -346,7 +383,50 @@ const Index = () => {
         {/* Bot Identity Card */}
         <BotIdentityCard />
 
-        {/* Webhook URLs Card */}
+        {/* Gmail OAuth Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Mail className="h-5 w-5" />
+              Gmail connection
+            </CardTitle>
+            <CardDescription>
+              Connect a Gmail account to monitor incoming emails
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {gmailConnected ? (
+              <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950 p-4">
+                <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-green-800 dark:text-green-200">Connected</p>
+                  <p className="text-xs text-green-600 dark:text-green-400">{gmailConnected}</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={connectGmail} disabled={gmailLoading}>
+                  Reconnect
+                </Button>
+                <Button variant="outline" size="sm" onClick={checkGmailConnection}>
+                  <RefreshCw className="h-3 w-3" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950 p-4">
+                <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Not connected</p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400">Click connect to authorize Gmail access</p>
+                </div>
+                <Button size="sm" onClick={connectGmail} disabled={gmailLoading}>
+                  {gmailLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : "Connect Gmail"}
+                </Button>
+                <Button variant="outline" size="sm" onClick={checkGmailConnection}>
+                  <RefreshCw className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
