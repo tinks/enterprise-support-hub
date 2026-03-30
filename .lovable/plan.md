@@ -1,57 +1,46 @@
 
-## What I just re-checked
+Current status after your reconnect (from the latest backend state):
+- Gmail ingestion is still not landing in the database (`gmail_conversations` has 0 rows).
+- The poll function still fails with `401 Credential not found` in recent logs.
+- Conversations/Stats UI wiring is already in place for Gmail data.
+- The 15-minute cron job exists and is active, but it cannot ingest while credentials fail.
 
-- I retried the Gmail poll endpoint.
-- It still fails with: `Gmail list failed [401]: Credential not found`.
-- `gmail_conversations` is still empty (`0` rows), so Conversations and Stats have nothing to show.
-- The Gmail connection is linked, but the backend gateway still cannot resolve valid credentials for that linked key.
-- I also found there is currently no scheduled polling job in migrations, so automatic 15-minute polling is not actually active yet.
+Plan to finish this cleanly
 
-## Plan to fix this fully
+1) Revalidate the Gmail connection binding
+- Confirm the linked `EnterpriseSupportDL` grant is fully active and mapped to this project key.
+- Confirm required Gmail permission set is present (`gmail.modify`).
+- If the credential mapping still fails, force a full fresh authorization for the same mailbox identity (not a reused stale grant).
 
-1. Stabilize the Gmail connection used by the backend
-- Unlink the current broken Gmail connection from this project.
-- Link a fresh Gmail connection (new auth grant), not a reused stale one.
-- Ensure the granted scope includes `gmail.modify` (covers metadata/listing needed by poller).
+2) Harden `poll-gmail` diagnostics
+- Update `supabase/functions/poll-gmail/index.ts` to add a preflight Gmail profile call before listing messages.
+- Return structured error categories so we can distinguish:
+  - connector credential resolution failure,
+  - scope/permission failure,
+  - Gmail API transport failure.
+- Keep logs non-sensitive.
 
-2. Refresh backend runtime for the Gmail poll function
-- Redeploy `poll-gmail` so it picks up the newly linked connection key cleanly.
-- Keep current logic intact for now (no behavior changes yet).
+3) Verify ingestion end-to-end immediately
+- Trigger one manual poll run after reconnection.
+- Validate insertions in `public.gmail_conversations` (including your recent test subject if within query window).
+- Confirm rows appear in Conversations and Stats when Source = Gmail/All.
 
-3. Verify ingestion end-to-end immediately
-- Trigger `poll-gmail` manually once.
-- Confirm at least one row is inserted into `gmail_conversations`.
-- Confirm the subject you sent (for example `test ignore`) appears in Conversations (Gmail source) and contributes to Stats totals.
+4) Persist scheduler setup in codebase
+- Add an idempotent migration to manage `poll-gmail-every-15-min` (unschedule existing name, then schedule once).
+- This prevents environment drift where cron exists in runtime but is missing from migrations history.
 
-4. Add the missing scheduled poll job
-- Create a migration that schedules `poll-gmail` every 15 minutes.
-- Include safe idempotency in migration (unschedule existing job name first, then schedule) to avoid duplicate cron jobs.
+5) Keep architecture docs aligned
+- Update `src/pages/FlowDiagram.tsx` only if polling behavior/diagnostics text changes.
+- Update knowledge content with the finalized credential failure mode and recovery path.
 
-5. Improve observability for future debugging
-- Extend `poll-gmail` logging so failures clearly show whether it is:
-  - missing project secret,
-  - connector unauthorized,
-  - Gmail API response issue.
-- Keep logs non-sensitive (no token values).
+Technical details
+- Function: `supabase/functions/poll-gmail/index.ts`
+- Migration: `supabase/migrations/<timestamp>_schedule_poll_gmail.sql`
+- Validation table: `public.gmail_conversations`
+- Existing UI files already integrated: `src/pages/Conversations.tsx`, `src/pages/Stats.tsx`
 
-6. Keep docs and flow aligned
-- Update the Flow page node details only if behavior/logging text changes.
-- Update project knowledge with:
-  - the credential failure mode,
-  - the required Gmail permission set,
-  - the scheduled polling setup.
-
-## Technical details
-
-- Backend function file: `supabase/functions/poll-gmail/index.ts`
-- Migration to add scheduler: `supabase/migrations/<new_timestamp>_schedule_poll_gmail.sql`
-- Data table validation target: `public.gmail_conversations`
-- Existing settings field already available: `settings.gmail_last_polled_at`
-- Flow doc sync file (if text changes): `src/pages/FlowDiagram.tsx`
-
-## Success criteria
-
+Success criteria
 - Manual poll returns `ok: true` with `inserted > 0`.
-- New Gmail message appears in `/conversations` under Gmail rows.
-- Stats page Gmail metrics are non-zero.
-- Automatic polling runs every 15 minutes without manual triggering.
+- Your test email appears in Conversations.
+- Gmail metrics are visible in Stats.
+- 15-minute polling is both active and migration-backed.
