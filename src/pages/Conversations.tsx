@@ -295,6 +295,21 @@ const Conversations = () => {
                               </a>
                             </TableCell>
                             <TableCell>
+                              {m.intercom_conversation_id ? (
+                                <a
+                                  href={`https://app.intercom.com/a/apps/esqnv6i1/conversations/${m.intercom_conversation_id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs font-mono text-primary underline hover:text-primary/80 transition-colors"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  {m.intercom_conversation_id} <ExternalLink className="h-3 w-3" />
+                                </a>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
                               <Badge variant={statusColor(m.status)}>{m.status}</Badge>
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground">
