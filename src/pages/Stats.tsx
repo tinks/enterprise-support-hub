@@ -223,7 +223,32 @@ const Stats = () => {
     return { median, avg, count: gmailResolutionTimes.length };
   }, [gmailResolutionTimes]);
 
-  const gmailVolumeData = useMemo(() => {
+  const customerDomainData = useMemo(() => {
+    // Group threads by subject (same dedup as email total), then extract customer domain
+    const threadDomains: Record<string, string | null> = {};
+    let orphanIdx = 0;
+    filteredGmail.forEach((g) => {
+      const threadKey = g.subject || `__orphan_${orphanIdx++}`;
+      if (threadDomains[threadKey] !== undefined) return; // already processed this thread
+      const allEmails = [g.from_email, g.to_emails, g.cc_emails]
+        .filter(Boolean)
+        .join(",")
+        .split(",")
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes("@") && !e.endsWith("@lovable.dev"));
+      threadDomains[threadKey] = allEmails.length > 0 ? allEmails[0].split("@")[1] : null;
+    });
+    const domainCounts: Record<string, number> = {};
+    Object.values(threadDomains).forEach((domain) => {
+      if (!domain) return;
+      domainCounts[domain] = (domainCounts[domain] || 0) + 1;
+    });
+    return Object.entries(domainCounts)
+      .map(([domain, count]) => ({ domain, threads: count }))
+      .sort((a, b) => b.threads - a.threads);
+  }, [filteredGmail]);
+
+
     const byDay: Record<string, number> = {};
     filteredGmail.forEach((g) => {
       const day = format(parseISO(g.received_at || g.created_at), "yyyy-MM-dd");
