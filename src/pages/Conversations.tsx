@@ -12,9 +12,7 @@ import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug, Filter, G
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { channelNameOverrides } from "@/lib/channelOverrides";
-import ImportTab from "@/components/ImportTab";
 
 interface ConversationMapping {
   id: string;
@@ -591,12 +589,7 @@ const Conversations = () => {
     <AppLayout>
       <div className="h-full min-h-0 flex flex-col bg-background p-6">
         <div className="mx-auto max-w-7xl w-full min-h-0 flex flex-col flex-1">
-          <Tabs defaultValue="conversations" className="flex flex-col flex-1 min-h-0">
-            <TabsList className="mb-4 w-fit">
-              <TabsTrigger value="conversations">Conversations</TabsTrigger>
-              <TabsTrigger value="import">Import</TabsTrigger>
-            </TabsList>
-            <TabsContent value="conversations" className="flex-1 min-h-0 flex flex-col mt-0">
+          <div className="flex flex-col flex-1 min-h-0">
           {paramDay !== null && paramHour !== null && (
             <div className="mb-4 flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-4 py-2 text-sm">
               <span className="text-foreground">
@@ -765,11 +758,7 @@ const Conversations = () => {
               )}
             </CardContent>
           </Card>
-            </TabsContent>
-            <TabsContent value="import" className="flex-1 min-h-0 mt-0">
-              <ImportTab />
-            </TabsContent>
-          </Tabs>
+          </div>
         </div>
       </div>
     </AppLayout>
