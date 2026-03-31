@@ -1,45 +1,39 @@
 
 
-## Backfill To/CC headers and re-poll Gmail
+## Exclude internal-only Gmail threads from all metrics
 
 ### Problem
-All ~existing gmail_conversations rows have `to_emails = NULL` and `cc_emails = NULL` because these columns were added after the data was already ingested. The `poll-gmail` function now captures these headers, but it skips messages that already exist (duplicate key check on `gmail_message_id`). So existing rows will never get the data unless we backfill.
+Gmail threads where every participant is `@lovable.dev` (internal emails) are currently counted in "Email total", "Gmail messages", "Gmail open", and all other Gmail metrics. They should be excluded entirely.
 
 ### Changes
 
-**1. Create a one-time backfill edge function**
+**File: `src/pages/Stats.tsx`**
 
-**File: `supabase/functions/backfill-gmail-headers/index.ts`**
-- Reads all `gmail_conversations` rows where `to_emails IS NULL`
-- For each, calls `Gmail API /users/me/messages/{id}?format=metadata` using the stored OAuth tokens
-- Extracts `To` and `Cc` headers
-- Updates the row with the extracted values
-- Processes in batches to avoid rate limits
+1. Add a helper function `isInternalOnly(g: GmailRow): boolean` that collects all email addresses from `from_email`, `to_emails`, and `cc_emails`, parses RFC format (`Name <email>`), and returns `true` if every address ends with `@lovable.dev` (or if no addresses found).
 
-**2. Update `poll-gmail` insert logic**
+2. Update the `filteredGmail` memo to add `.filter(g => !isInternalOnly(g))` — this single change propagates to all downstream metrics (Email total, Gmail messages, Gmail open, Gmail resolved, resolution times, customer domains, volume chart) since they all derive from `filteredGmail`.
 
-The current insert uses `gmail_message_id` as a unique key and skips duplicates (`error.code === "23505"`). This is correct for new messages. No change needed here — the fix is the backfill.
-
-**3. Trigger the backfill**
-
-After deploying, invoke the function once to populate all existing rows. The "Threads by customer" chart will then show real data.
+**File: `src/pages/FlowDiagram.tsx`**
+- Add a note to the Gmail analytics node documenting that internal-only threads (all participants `@lovable.dev`) are excluded from all metrics.
 
 ### Technical detail
-
-```text
-For each row where to_emails IS NULL:
-  1. GET /gmail/v1/users/me/messages/{gmail_message_id}?format=metadata
-  2. Extract To, Cc headers
-  3. UPDATE gmail_conversations SET to_emails = ?, cc_emails = ? WHERE id = ?
-  
-Rate limiting: 50ms delay between requests to stay under Gmail API quota
+```ts
+function isInternalOnly(g: GmailRow): boolean {
+  const raw = [g.from_email, g.to_emails, g.cc_emails].filter(Boolean).join(",");
+  const emails = raw.split(",").map(e => {
+    const match = e.match(/<([^>]+)>/);
+    return (match ? match[1] : e).trim().toLowerCase();
+  }).filter(e => e.includes("@"));
+  if (emails.length === 0) return true;
+  return emails.every(e => e.endsWith("@lovable.dev"));
+}
 ```
 
-### Files to create/edit
-- `supabase/functions/backfill-gmail-headers/index.ts` — new one-time backfill function
-- No Stats.tsx changes needed — the existing domain extraction logic is correct, it just needs data
-
-### After backfill
-- The "Threads by customer" chart will populate with domains like `retal.com.sa`, `sap.com`, etc.
-- Can delete the backfill function afterward since `poll-gmail` handles it going forward
+Filter applied once at source:
+```ts
+const filteredGmail = useMemo(() => {
+  // ...existing date/view filters...
+  return gmailData.filter(g => matchView && matchRange && !isInternalOnly(g));
+}, [...]);
+```
 
