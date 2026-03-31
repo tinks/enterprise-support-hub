@@ -103,7 +103,7 @@ const Stats = () => {
         .order("created_at", { ascending: true }),
       supabase
         .from("gmail_conversations")
-        .select("received_at, created_at, is_test, subject")
+        .select("received_at, created_at, is_test, subject, status, resolved_at, gmail_thread_id")
         .order("received_at", { ascending: true }),
     ]);
     const rows = (slackRes.data as Mapping[]) || [];
