@@ -46,7 +46,7 @@ type SourceFilter = "all" | "slack" | "gmail";
 type TimeRange = "7d" | "30d" | "90d" | "all" | "custom";
 
 const chartConfig = {
-  resolved: { label: "Resolved", color: "hsl(142 76% 36%)" },
+  resolved: { label: "Resolved", color: "#9B87F5" },
   escalated: { label: "Escalated to human", color: "hsl(var(--destructive))" },
   cancelled: { label: "Cancelled", color: "hsl(var(--muted-foreground))" },
   open: { label: "Open", color: "#FF6B6B" },
@@ -739,7 +739,7 @@ const Stats = () => {
               </Card>
               <Card>
                 <CardContent className="flex flex-col items-center justify-center p-5">
-                  <ThumbsUp className="mb-2 h-5 w-5 text-green-600" />
+                  <ThumbsUp className="mb-2 h-5 w-5 text-[#9B87F5]" />
                   <p className="text-3xl font-bold text-foreground">{stats.gmailResolved}</p>
                   <p className="text-xs text-muted-foreground">Gmail resolved</p>
                 </CardContent>
@@ -757,7 +757,7 @@ const Stats = () => {
             <>
               <Card>
                 <CardContent className="flex flex-col items-center justify-center p-5">
-                  <ThumbsUp className="mb-2 h-5 w-5 text-green-600" />
+                  <ThumbsUp className="mb-2 h-5 w-5 text-[#9B87F5]" />
                   <p className="text-3xl font-bold text-foreground">{stats.resolved}</p>
                   <p className="text-xs text-muted-foreground">Resolved</p>
                 </CardContent>
@@ -1155,7 +1155,7 @@ const Stats = () => {
                 Escalation rate trend
                 {escalationRateData.length >= 2 && (
                   escalationRateData[escalationRateData.length - 1].rate < escalationRateData[0].rate
-                    ? <TrendingDown className="h-4 w-4 text-green-600" />
+                    ? <TrendingDown className="h-4 w-4 text-[#9B87F5]" />
                     : <TrendingUp className="h-4 w-4 text-destructive" />
                 )}
               </CardTitle>
