@@ -1,39 +1,43 @@
 
 
-## Exclude internal-only Gmail threads from all metrics
+## Add "Activity by hour of day" chart to Stats page
 
-### Problem
-Gmail threads where every participant is `@lovable.dev` (internal emails) are currently counted in "Email total", "Gmail messages", "Gmail open", and all other Gmail metrics. They should be excluded entirely.
+### Overview
+Add a bar chart showing the distribution of activity by hour of day (in CET timezone) combining both Gmail emails and Slack conversations.
 
 ### Changes
 
 **File: `src/pages/Stats.tsx`**
 
-1. Add a helper function `isInternalOnly(g: GmailRow): boolean` that collects all email addresses from `from_email`, `to_emails`, and `cc_emails`, parses RFC format (`Name <email>`), and returns `true` if every address ends with `@lovable.dev` (or if no addresses found).
+1. **New `useMemo` — `hourlyActivityData`**: Iterate over `filtered` (Slack) and `filteredGmail` (Gmail), extract the hour of day in CET (Europe/Berlin, UTC+1/+2) from `created_at` / `received_at`, and bucket into 24 slots (0–23). Each slot has `{ hour: "08:00", slack: N, gmail: N }`.
 
-2. Update the `filteredGmail` memo to add `.filter(g => !isInternalOnly(g))` — this single change propagates to all downstream metrics (Email total, Gmail messages, Gmail open, Gmail resolved, resolution times, customer domains, volume chart) since they all derive from `filteredGmail`.
+2. **New chart card** — placed after the "Conversation volume" card and before "Conversations by channel". Shows a grouped `BarChart` with hours 00–23 on X-axis and stacked/grouped bars for Slack (blue) and Gmail (amber). Visible when `sourceFilter` is "all", "slack", or "gmail" (hides the irrelevant series). Title: "Activity by hour of day (CET)".
+
+3. **CET conversion**: Use `toLocaleString("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false })` to extract the CET hour from each timestamp — no extra dependency needed.
 
 **File: `src/pages/FlowDiagram.tsx`**
-- Add a note to the Gmail analytics node documenting that internal-only threads (all participants `@lovable.dev`) are excluded from all metrics.
+- Add a note documenting the hourly activity chart under analytics.
 
 ### Technical detail
+
 ```ts
-function isInternalOnly(g: GmailRow): boolean {
-  const raw = [g.from_email, g.to_emails, g.cc_emails].filter(Boolean).join(",");
-  const emails = raw.split(",").map(e => {
-    const match = e.match(/<([^>]+)>/);
-    return (match ? match[1] : e).trim().toLowerCase();
-  }).filter(e => e.includes("@"));
-  if (emails.length === 0) return true;
-  return emails.every(e => e.endsWith("@lovable.dev"));
-}
+const hourlyActivityData = useMemo(() => {
+  const buckets = Array.from({ length: 24 }, (_, i) => ({
+    hour: `${String(i).padStart(2, "0")}:00`,
+    slack: 0,
+    gmail: 0,
+  }));
+  const getCETHour = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return parseInt(d.toLocaleString("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false }));
+  };
+  filtered.forEach(m => { buckets[getCETHour(m.created_at)].slack++; });
+  filteredGmail.forEach(g => { buckets[getCETHour(g.received_at || g.created_at)].gmail++; });
+  return buckets;
+}, [filtered, filteredGmail]);
 ```
 
-Filter applied once at source:
-```ts
-const filteredGmail = useMemo(() => {
-  // ...existing date/view filters...
-  return gmailData.filter(g => matchView && matchRange && !isInternalOnly(g));
-}, [...]);
-```
+### Files to edit
+- `src/pages/Stats.tsx` — add hourly activity memo + chart card
+- `src/pages/FlowDiagram.tsx` — document the new metric
 
