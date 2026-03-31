@@ -96,6 +96,20 @@ const Conversations = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>(paramSource || "all");
 
+  const ALL_STATUSES = ["active", "awaiting_context", "escalated", "resolved", "cancelled", "test"] as const;
+  const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(
+    new Set(["test", "cancelled", "resolved"])
+  );
+
+  const toggleHidden = (status: string) => {
+    setHiddenStatuses((prev) => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+  };
+
   const toggleMessage = (id: string) => {
     setExpandedMessages((prev) => {
       const next = new Set(prev);
