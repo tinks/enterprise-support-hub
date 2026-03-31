@@ -608,6 +608,13 @@ const Conversations = () => {
                                 aria-label="Toggle bug"
                               />
                             </TableCell>
+                            <TableCell>
+                              <Switch
+                                checked={g.is_feature_request}
+                                onCheckedChange={() => toggleFeatureRequest(g.id, g.is_feature_request, "gmail")}
+                                aria-label="Toggle feature request"
+                              />
+                            </TableCell>
                           </TableRow>
                         );
                       }
