@@ -975,7 +975,7 @@ const Stats = () => {
                     <Bar dataKey="slack" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                   )}
                   {sourceFilter !== "slack" && (
-                    <Bar dataKey="gmail" fill="hsl(35 92% 50%)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="gmail" fill="#E66FD2" radius={[4, 4, 0, 0]} />
                   )}
                 </BarChart>
               </ChartContainer>
