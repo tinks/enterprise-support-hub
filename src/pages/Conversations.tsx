@@ -226,14 +226,24 @@ const Conversations = () => {
               <span className="text-foreground">
                 Showing activity for <strong>{paramDay} {String(paramHour).padStart(2, "0")}:00–{String(paramHour).padStart(2, "0")}:59 CET</strong>
               </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="ml-auto h-7 px-2"
-                onClick={() => setSearchParams({})}
-              >
-                <X className="mr-1 h-3 w-3" /> Clear filter
-              </Button>
+              <div className="ml-auto flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => navigate("/stats")}
+                >
+                  <ArrowLeft className="mr-1 h-3 w-3" /> Back to stats
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => setSearchParams({})}
+                >
+                  <X className="mr-1 h-3 w-3" /> Clear filter
+                </Button>
+              </div>
             </div>
           )}
           <Card>
