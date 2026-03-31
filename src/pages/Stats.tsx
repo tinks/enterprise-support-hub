@@ -1155,7 +1155,7 @@ const Stats = () => {
                 Escalation rate trend
                 {escalationRateData.length >= 2 && (
                   escalationRateData[escalationRateData.length - 1].rate < escalationRateData[0].rate
-                    ? <TrendingDown className="h-4 w-4 text-green-600" />
+                    ? <TrendingDown className="h-4 w-4 text-[#9B87F5]" />
                     : <TrendingUp className="h-4 w-4 text-destructive" />
                 )}
               </CardTitle>
