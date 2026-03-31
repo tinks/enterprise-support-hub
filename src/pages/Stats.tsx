@@ -46,7 +46,7 @@ type SourceFilter = "all" | "slack" | "gmail";
 type TimeRange = "7d" | "30d" | "90d" | "all" | "custom";
 
 const chartConfig = {
-  resolved: { label: "Resolved", color: "hsl(142 76% 36%)" },
+  resolved: { label: "Resolved", color: "#9B87F5" },
   escalated: { label: "Escalated to human", color: "hsl(var(--destructive))" },
   cancelled: { label: "Cancelled", color: "hsl(var(--muted-foreground))" },
   open: { label: "Open", color: "#FF6B6B" },
