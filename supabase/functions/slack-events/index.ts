@@ -576,15 +576,14 @@ Deno.serve(async (req) => {
           });
         }
 
-        // Return 200 immediately, process in background to avoid Slack 3s timeout retries
-        const backgroundWork = async () => {
-          try {
-            const INTERCOM_API_TOKEN = Deno.env.get("INTERCOM_API_TOKEN");
-            if (!INTERCOM_API_TOKEN) {
-              console.error("INTERCOM_API_TOKEN not configured");
-              return;
-            }
+        // ---- Inline: forward reply to Intercom (must complete before response) ----
+        console.log(`[INLINE] Processing thread reply ${eventTs} in ${channelId}/${threadTs} from ${event.user}`);
 
+        try {
+          const INTERCOM_API_TOKEN = Deno.env.get("INTERCOM_API_TOKEN");
+          if (!INTERCOM_API_TOKEN) {
+            console.error("INTERCOM_API_TOKEN not configured");
+          } else {
             const replyText = cleanSlackMarkup(event.text || "");
             console.log(`Thread reply in ${channelId}/${threadTs} from ${event.user}: "${replyText.substring(0, 100)}"`);
 
@@ -633,7 +632,6 @@ Deno.serve(async (req) => {
             let replyPayload: Record<string, any>;
 
             if (isEmployee && adminId) {
-              // Employee → send as admin reply with their real Intercom admin ID
               const employeeAdminId = senderEmail
                 ? EMPLOYEE_ADMIN_IDS[senderEmail.toLowerCase()]
                 : null;
@@ -646,7 +644,6 @@ Deno.serve(async (req) => {
               };
               console.log(`Attributing reply as admin (employee: ${senderEmail}, adminId: ${employeeAdminId || adminId})`);
             } else if (isOriginalRequester && mapping.intercom_contact_id) {
-              // Original requester → send as customer (current behavior)
               replyPayload = {
                 message_type: "comment",
                 type: "user",
@@ -655,7 +652,6 @@ Deno.serve(async (req) => {
               };
               console.log(`Attributing reply as original requester (${event.user})`);
             } else if (mapping.intercom_contact_id) {
-              // Someone else → send as customer but prefix with name
               const prefixedBody = `*[From: ${senderName || event.user} via Slack]*\n\n${replyBody}`;
               replyPayload = {
                 message_type: "comment",
@@ -665,7 +661,6 @@ Deno.serve(async (req) => {
               };
               console.log(`Attributing reply as other user (${senderName || event.user})`);
             } else if (adminId) {
-              // Fallback → send as admin (use employee's real ID if available)
               const employeeFallbackId = senderEmail
                 ? EMPLOYEE_ADMIN_IDS[senderEmail.toLowerCase()]
                 : null;
@@ -679,32 +674,41 @@ Deno.serve(async (req) => {
               console.log(`Attributing reply as admin fallback (adminId: ${employeeFallbackId || adminId})`);
             } else {
               console.error("No intercom_contact_id or admin_id available to forward reply");
-              return;
+              replyPayload = null as any;
             }
 
-            if (replyAttachmentUrls.length) {
-              replyPayload.attachment_urls = replyAttachmentUrls;
-            }
-
-            const replyRes = await fetch(
-              `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/reply`,
-              {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
-                  "Content-Type": "application/json",
-                  Accept: "application/json",
-                  "Intercom-Version": "2.11",
-                },
-                body: JSON.stringify(replyPayload),
+            if (replyPayload) {
+              if (replyAttachmentUrls.length) {
+                replyPayload.attachment_urls = replyAttachmentUrls;
               }
-            );
-            if (!replyRes.ok) {
-              console.error(`Failed to forward reply to Intercom: ${await replyRes.text()}`);
-            } else {
-              console.log(`Forwarded Slack reply to Intercom conversation ${mapping.intercom_conversation_id} (type: ${replyPayload.type})`);
-            }
 
+              const replyRes = await fetch(
+                `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/reply`,
+                {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                    "Intercom-Version": "2.11",
+                  },
+                  body: JSON.stringify(replyPayload),
+                }
+              );
+              if (!replyRes.ok) {
+                console.error(`Failed to forward reply to Intercom: ${await replyRes.text()}`);
+              } else {
+                console.log(`Forwarded Slack reply to Intercom conversation ${mapping.intercom_conversation_id} (type: ${replyPayload.type})`);
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Inline thread-reply forwarding error:", err);
+        }
+
+        // ---- Background: cosmetic work (button removal, status notices) ----
+        const cosmeticWork = async () => {
+          try {
             // Remove feedback buttons from thread messages
             try {
               const repliesRes = await fetch(
@@ -778,11 +782,11 @@ Deno.serve(async (req) => {
               }
             }
           } catch (err) {
-            console.error("Background thread-reply processing error:", err);
+            console.error("Background cosmetic work error:", err);
           }
         };
 
-        EdgeRuntime.waitUntil(backgroundWork());
+        EdgeRuntime.waitUntil(cosmeticWork());
       }
     }
 
