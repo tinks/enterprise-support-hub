@@ -432,7 +432,7 @@ function buildNodes(
           "Manual resolve: users can mark Gmail threads as resolved from Conversations UI",
           "Auto-close: pg_cron runs hourly — threads with no new messages for 24h are auto-resolved",
           "Resolution time = resolved_at minus earliest received_at in the thread",
-          "Stats page shows Gmail resolved/open counts and median/avg resolution time",
+          "Stats page shows Gmail resolved/open counts and median/avg resolution time — both are deduplicated by subject (same thread = 1 count), matching the 'Email total' dedup logic",
           "Read-only: no replies from dashboard",
         ],
         accent: "orange",
