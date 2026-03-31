@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.gmail-oauth-callback]
 verify_jwt = false
+
+[functions.backfill-gmail-headers]
+verify_jwt = false
