@@ -219,7 +219,7 @@ const Conversations = () => {
   }, [mappings, gmailRows, sourceFilter, paramDay, paramHour]);
 
   const canLoadMore =
-    (sourceFilter !== "gmail" && hasMore) || (sourceFilter !== "slack" && hasMoreGmail);
+    !isHeatmapMode && ((sourceFilter !== "gmail" && hasMore) || (sourceFilter !== "slack" && hasMoreGmail));
 
   return (
     <AppLayout>
