@@ -498,6 +498,14 @@ const Conversations = () => {
                                 onClick={(e) => e.stopPropagation()}
                               />
                             </TableCell>
+                            <TableCell>
+                              <Switch
+                                checked={m.is_feature_request}
+                                onCheckedChange={() => toggleFeatureRequest(m.id, m.is_feature_request, "slack")}
+                                aria-label="Toggle feature request"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </TableCell>
                           </TableRow>
                         );
                       } else {
