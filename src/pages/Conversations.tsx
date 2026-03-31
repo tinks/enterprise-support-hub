@@ -425,14 +425,15 @@ const Conversations = () => {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="min-h-0 flex-1 flex flex-col overflow-hidden p-0 px-6 pb-6">
               {unified.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
                   {loading ? "Loading…" : "No conversations found."}
                 </p>
               ) : (
+              <div className="min-h-0 flex-1 overflow-auto">
                 <Table>
-                  <TableHeader className="sticky top-0 z-10 bg-card">
+                  <TableHeader className="sticky top-0 z-20 bg-card [&_tr]:border-b">
                     <TableRow>
                       <TableHead>#</TableHead>
                       <TableHead>Source</TableHead>
