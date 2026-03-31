@@ -33,6 +33,9 @@ interface GmailRow {
   created_at: string;
   is_test: boolean;
   subject: string | null;
+  status: string;
+  resolved_at: string | null;
+  gmail_thread_id: string | null;
 }
 
 type SourceFilter = "all" | "slack" | "gmail";
