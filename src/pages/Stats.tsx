@@ -1001,9 +1001,15 @@ const Stats = () => {
                         return (
                           <div
                             key={h}
-                            className="flex-1 aspect-square rounded-sm bg-primary transition-opacity"
+                            className={cn(
+                              "flex-1 aspect-square rounded-sm bg-primary transition-opacity",
+                              val > 0 && "cursor-pointer hover:ring-2 hover:ring-primary/50"
+                            )}
                             style={{ opacity: val > 0 ? opacity : 0.04 }}
                             title={`${day} ${String(h).padStart(2, "0")}:00 — Slack: ${cell.slack}, Gmail: ${cell.gmail}, Total: ${cell.total}`}
+                            onClick={() => {
+                              if (val > 0) navigate(`/conversations?day=${day}&hour=${h}&source=${sourceFilter}`);
+                            }}
                           />
                         );
                       })}

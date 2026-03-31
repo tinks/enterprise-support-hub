@@ -202,8 +202,17 @@ const Conversations = () => {
     }
 
     rows.sort((a, b) => new Date(b.sortDate).getTime() - new Date(a.sortDate).getTime());
+
+    // Apply heatmap filter from query params
+    if (paramDay !== null && paramHour !== null) {
+      return rows.filter((r) => {
+        const { day, hour } = getCET(r.sortDate);
+        return day === paramDay && hour === paramHour;
+      });
+    }
+
     return rows;
-  }, [mappings, gmailRows, sourceFilter]);
+  }, [mappings, gmailRows, sourceFilter, paramDay, paramHour]);
 
   const canLoadMore =
     (sourceFilter !== "gmail" && hasMore) || (sourceFilter !== "slack" && hasMoreGmail);
