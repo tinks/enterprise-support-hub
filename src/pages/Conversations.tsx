@@ -284,6 +284,7 @@ const Conversations = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>#</TableHead>
                       <TableHead>Source</TableHead>
                       <TableHead>Sent by</TableHead>
                       <TableHead>Message / Subject</TableHead>
