@@ -861,7 +861,7 @@ const Stats = () => {
                         <XAxis dataKey="label" className="text-xs" />
                         <YAxis unit="m" allowDecimals={false} className="text-xs" />
                         <ChartTooltip content={<ChartTooltipContent />} />
-                        <Line type="monotone" dataKey="resolution" stroke="hsl(221 83% 53%)" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="resolution" stroke="#9B87F5" strokeWidth={2} dot={false} />
                       </LineChart>
                     </ChartContainer>
                   )}
