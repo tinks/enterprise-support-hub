@@ -284,6 +284,7 @@ const Conversations = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>#</TableHead>
                       <TableHead>Source</TableHead>
                       <TableHead>Sent by</TableHead>
                       <TableHead>Message / Subject</TableHead>
@@ -305,6 +306,9 @@ const Conversations = () => {
                             className={`cursor-pointer hover:bg-muted/50 transition-colors ${m.is_test ? "opacity-50" : ""}`}
                             onClick={() => navigate(`/conversations/${m.id}`)}
                           >
+                            <TableCell className="text-xs text-muted-foreground font-mono">
+                              {m.id.slice(0, 8)}
+                            </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-xs">Slack</Badge>
                             </TableCell>
@@ -385,6 +389,9 @@ const Conversations = () => {
                             key={`gmail-${g.id}`}
                             className={`hover:bg-muted/50 transition-colors ${g.is_test ? "opacity-50" : ""}`}
                           >
+                            <TableCell className="text-xs text-muted-foreground font-mono">
+                              {g.id.slice(0, 8)}
+                            </TableCell>
                             <TableCell>
                               <Badge variant="secondary" className="text-xs">
                                 <Mail className="mr-1 h-3 w-3" />Gmail
