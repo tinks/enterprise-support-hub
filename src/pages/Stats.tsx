@@ -32,6 +32,7 @@ interface GmailRow {
   received_at: string | null;
   created_at: string;
   is_test: boolean;
+  subject: string | null;
 }
 
 type SourceFilter = "all" | "slack" | "gmail";
