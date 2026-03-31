@@ -455,6 +455,35 @@ const Conversations = () => {
                                 onClick={(e) => e.stopPropagation()}
                               />
                             </TableCell>
+                            <TableCell>
+                              <Select
+                                value={m.product_area || ""}
+                                onValueChange={(v) => updateProductArea(m.id, v, "slack")}
+                              >
+                                <SelectTrigger
+                                  className="h-8 w-[130px] text-xs"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <SelectValue placeholder="—" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {PRODUCT_AREAS.map((area) => (
+                                    <SelectItem key={area} value={area}>{area}</SelectItem>
+                                  ))}
+                                  {m.product_area && (
+                                    <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              <Switch
+                                checked={m.is_bug}
+                                onCheckedChange={() => toggleBug(m.id, m.is_bug, "slack")}
+                                aria-label="Toggle bug"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </TableCell>
                           </TableRow>
                         );
                       } else {
