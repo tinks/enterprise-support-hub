@@ -181,7 +181,16 @@ const Stats = () => {
       } else {
         matchRange = cutoff ? isAfter(parsed, cutoff) : true;
       }
-      return matchView && matchRange;
+      if (!matchView || !matchRange) return false;
+      // Exclude internal-only threads (all participants @lovable.dev)
+      const raw = [g.from_email, g.to_emails, g.cc_emails].filter(Boolean).join(",");
+      const emails = raw.split(",").map(e => {
+        const match = e.match(/<([^>]+)>/);
+        return (match ? match[1] : e).trim().toLowerCase();
+      }).filter(e => e.includes("@"));
+      if (emails.length === 0) return false;
+      const allInternal = emails.every(e => e.endsWith("@lovable.dev"));
+      return !allInternal;
     });
   }, [gmailData, view, range, customFrom, customTo]);
 
