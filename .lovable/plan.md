@@ -1,37 +1,74 @@
 
 
-## Add "Product area" dropdown and "Bug" toggle columns to conversations table
+## Update project knowledge file with all missing documentation
 
-### Database changes
-Add two new columns to both `conversation_mappings` and `gmail_conversations`:
+### What's missing
 
-```sql
-ALTER TABLE conversation_mappings
-  ADD COLUMN product_area text DEFAULT NULL,
-  ADD COLUMN is_bug boolean NOT NULL DEFAULT false;
+The knowledge file was last updated 2026-03-18 and is missing significant features added since then. Here is everything that needs to be added or corrected:
 
-ALTER TABLE gmail_conversations
-  ADD COLUMN product_area text DEFAULT NULL,
-  ADD COLUMN is_bug boolean NOT NULL DEFAULT false;
-```
+### 1. Fix routing table (Section 2 — UI Pages)
+Current doc says `/` is Settings. Actual routes:
 
-Product area options: `SSO`, `Credits`, `Account access`, `Remix/transfer`
+| Route | Page | Purpose |
+|---|---|---|
+| `/` | Stats | Dashboard with KPI cards, charts, filters |
+| `/conversations` | Conversations | Unified Slack + Gmail conversation management |
+| `/conversations/:id` | Conversation detail | Thread view with status controls |
+| `/settings` | Settings (Index) | Configure channels, Intercom IDs, testing mode, Gmail OAuth |
+| `/flow` | Flow diagram | Interactive workflow visualisation |
+| `/knowledge` | Project knowledge | Markdown knowledge base with review workflow |
 
-### UI changes — `src/pages/Conversations.tsx`
+### 2. Add Gmail integration section (new section ~Section 19)
+Document the full Gmail monitoring system:
+- **Edge functions:** `poll-gmail` (cron every 15 min), `gmail-auth-url`, `gmail-oauth-callback`, `backfill-gmail-headers`
+- **Tables:** `gmail_conversations` (message metadata, status, test/bug/product area), `gmail_oauth_tokens` (OAuth credentials, RLS denies all public access)
+- Read-only integration for EnterpriseSupportDL Google Group
+- High-water mark polling via `settings.gmail_last_polled_at`
+- Token refresh logic when near expiry
 
-1. **Interfaces**: Add `product_area: string | null` and `is_bug: boolean` to both `ConversationMapping` and `GmailConversation`
-2. **Table header**: Add two new `<TableHead>` columns after "Resolved": `Product area` and `Bug`
-3. **For each row** (both Slack and Gmail):
-   - **Product area cell**: Inline `<Select>` dropdown with a placeholder "—", options SSO / Credits / Account access / Remix/transfer. On change, persist to DB optimistically with error revert + toast.
-   - **Bug cell**: `<Switch>` toggle, same optimistic pattern as Test/Resolved toggles.
-4. **New handler functions**: `updateProductArea(id, value, source)` and `toggleBug(id, currentValue, source)` — optimistic update → Supabase write → revert on error.
-5. Click handlers on the select and switch use `e.stopPropagation()` to prevent row navigation.
+### 3. Add missing tables to Section 2 architecture
+Add to database tables list:
+- `gmail_conversations` — Gmail thread metadata and status tracking
+- `gmail_oauth_tokens` — OAuth tokens for Gmail API access
+- `knowledge_documents` — Project knowledge content and pending changes
 
-### Flow diagram — `src/pages/FlowDiagram.tsx`
-Document the new Product area and Bug columns on the conversations table.
+### 4. Add missing edge functions to Section 2 architecture
+- `poll-gmail`, `gmail-auth-url`, `gmail-oauth-callback`, `backfill-gmail-headers`, `list-slack-users`
+
+### 5. Add Product area and Bug columns documentation
+Both `conversation_mappings` and `gmail_conversations` now have:
+- `product_area` (text, nullable) — dropdown options: SSO, SCIM, Credits, Account access, Remix/transfer
+- `is_bug` (boolean, default false) — toggle to flag bugs
+
+### 6. Add Resolved toggle documentation
+The Conversations page has independent toggles:
+- **Test** — excludes from stats
+- **Resolved** — marks as resolved (sets `status` to `resolved` / `resolved_at`)
+- These are fully separate columns, not shared
+
+### 7. Add Stats page documentation (new section ~Section 20)
+- KPI cards: total conversations, Gmail resolved (deduped by subject), Slack resolved, escalation rate, avg resolution time
+- Charts: daily volume, daily outcomes, status distribution pie, conversations by channel, cumulative trend, hourly activity, escalation rate trend, heatmap
+- Filters: environment (live/test/all), source (all/slack/gmail), time range, custom date range, channel multi-select
+- Heatmap drill-down: clicking a cell navigates to `/conversations?day=...&hour=...&source=...`
+- Gmail resolved dedup: groups by subject, counts unique subjects (orphan rows without subject count individually)
+- Brand colour palette: coral `#FF6B6B`, pink `#E66FD2`, purple `#9B87F5`
+
+### 8. Add undocumented settings fields to Section 11
+- `test_intercom_inbox_id` — separate Intercom inbox for test-mode conversations
+- `auto_mark_employee_test` — auto-flag Lovable employee conversations as test
+- `gmail_last_polled_at` — high-water mark for Gmail polling
+
+### 9. Add Gmail secrets to Section 12
+- `GMAIL_CLIENT_ID` — Google OAuth client ID
+- `GMAIL_CLIENT_SECRET` — Google OAuth client secret
+
+### Implementation
+Use the knowledge document pending content workflow:
+1. Read current content from `knowledge_documents`
+2. Write the updated full document to `pending_content` with a `pending_summary`
+3. User reviews and approves in the Knowledge tab
 
 ### Files to edit
-- Database migration (2 ALTER TABLE statements)
-- `src/pages/Conversations.tsx` — interfaces, headers, cells, handlers
-- `src/pages/FlowDiagram.tsx` — document change
+- Database update only (write to `pending_content` column on `knowledge_documents` table via Supabase)
 
