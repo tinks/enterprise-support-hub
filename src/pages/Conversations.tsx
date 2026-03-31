@@ -137,6 +137,8 @@ const Conversations = () => {
     }
   };
 
+  const isHeatmapMode = paramDay !== null && paramHour !== null;
+
   const loadData = async (append = false) => {
     const currentOffset = append ? offset : 0;
     const currentGmailOffset = append ? gmailOffset : 0;
@@ -148,36 +150,38 @@ const Conversations = () => {
       setGmailOffset(0);
     }
 
+    const pageSize = isHeatmapMode ? 1000 : 50;
+
     const [slackRes, gmailRes] = await Promise.all([
       supabase
         .from("conversation_mappings")
         .select("*")
         .order("created_at", { ascending: false })
-        .range(currentOffset, currentOffset + 49),
+        .range(currentOffset, currentOffset + pageSize - 1),
       supabase
         .from("gmail_conversations")
         .select("*")
         .order("received_at", { ascending: false })
-        .range(currentGmailOffset, currentGmailOffset + 49),
+        .range(currentGmailOffset, currentGmailOffset + pageSize - 1),
     ]);
 
     const slackRows = (slackRes.data ?? []) as unknown as ConversationMapping[];
     const gmailData = (gmailRes.data ?? []) as unknown as GmailConversation[];
 
-    setHasMore(slackRows.length === 50);
-    setHasMoreGmail(gmailData.length === 50);
+    setHasMore(slackRows.length === pageSize);
+    setHasMoreGmail(gmailData.length === pageSize);
 
     if (append) {
       setMappings((prev) => [...prev, ...slackRows]);
       setGmailRows((prev) => [...prev, ...gmailData]);
-      setOffset(currentOffset + 50);
-      setGmailOffset(currentGmailOffset + 50);
+      setOffset(currentOffset + pageSize);
+      setGmailOffset(currentGmailOffset + pageSize);
       setLoadingMore(false);
     } else {
       setMappings(slackRows);
       setGmailRows(gmailData);
-      setOffset(50);
-      setGmailOffset(50);
+      setOffset(pageSize);
+      setGmailOffset(pageSize);
       setLoading(false);
     }
     return slackRows;
@@ -215,7 +219,7 @@ const Conversations = () => {
   }, [mappings, gmailRows, sourceFilter, paramDay, paramHour]);
 
   const canLoadMore =
-    (sourceFilter !== "gmail" && hasMore) || (sourceFilter !== "slack" && hasMoreGmail);
+    !isHeatmapMode && ((sourceFilter !== "gmail" && hasMore) || (sourceFilter !== "slack" && hasMoreGmail));
 
   return (
     <AppLayout>
