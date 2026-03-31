@@ -306,6 +306,9 @@ const Conversations = () => {
                             className={`cursor-pointer hover:bg-muted/50 transition-colors ${m.is_test ? "opacity-50" : ""}`}
                             onClick={() => navigate(`/conversations/${m.id}`)}
                           >
+                            <TableCell className="text-xs text-muted-foreground font-mono">
+                              {m.id.slice(0, 8)}
+                            </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-xs">Slack</Badge>
                             </TableCell>
