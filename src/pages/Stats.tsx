@@ -837,7 +837,7 @@ const Stats = () => {
                         <XAxis dataKey="label" className="text-xs" />
                         <YAxis allowDecimals={false} className="text-xs" />
                         <ChartTooltip content={<ChartTooltipContent />} />
-                        <Bar dataKey="count" fill="hsl(221 83% 53%)" radius={[4, 4, 0, 0]}>
+                        <Bar dataKey="count" fill="#9B87F5" radius={[4, 4, 0, 0]}>
                           <LabelList dataKey="count" position="top" className="text-xs fill-foreground" />
                         </Bar>
                       </BarChart>
@@ -861,7 +861,7 @@ const Stats = () => {
                         <XAxis dataKey="label" className="text-xs" />
                         <YAxis unit="m" allowDecimals={false} className="text-xs" />
                         <ChartTooltip content={<ChartTooltipContent />} />
-                        <Line type="monotone" dataKey="resolution" stroke="hsl(221 83% 53%)" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="resolution" stroke="#9B87F5" strokeWidth={2} dot={false} />
                       </LineChart>
                     </ChartContainer>
                   )}
@@ -908,7 +908,7 @@ const Stats = () => {
                     <XAxis type="number" allowDecimals={false} className="text-xs" />
                     <YAxis type="category" dataKey="domain" className="text-xs" width={160} tick={{ fontSize: 12 }} />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar dataKey="threads" fill="hsl(35 92% 50%)" radius={[0, 4, 4, 0]}>
+                    <Bar dataKey="threads" fill="#E66FD2" radius={[0, 4, 4, 0]}>
                       <LabelList dataKey="threads" position="right" className="text-xs fill-foreground" />
                     </Bar>
                   </BarChart>
@@ -935,8 +935,8 @@ const Stats = () => {
                       <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="gradGmail" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(35 92% 50%)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(35 92% 50%)" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#E66FD2" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#E66FD2" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -947,7 +947,7 @@ const Stats = () => {
                     <Area type="monotone" dataKey="slack" stroke="hsl(var(--primary))" fill="url(#gradSlack)" strokeWidth={2} />
                   )}
                   {sourceFilter !== "slack" && (
-                    <Area type="monotone" dataKey="gmail" stroke="hsl(35 92% 50%)" fill="url(#gradGmail)" strokeWidth={2} />
+                    <Area type="monotone" dataKey="gmail" stroke="#E66FD2" fill="url(#gradGmail)" strokeWidth={2} />
                   )}
                 </AreaChart>
               </ChartContainer>
@@ -975,7 +975,7 @@ const Stats = () => {
                     <Bar dataKey="slack" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                   )}
                   {sourceFilter !== "slack" && (
-                    <Bar dataKey="gmail" fill="hsl(35 92% 50%)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="gmail" fill="#E66FD2" radius={[4, 4, 0, 0]} />
                   )}
                 </BarChart>
               </ChartContainer>
@@ -1060,7 +1060,7 @@ const Stats = () => {
                   <XAxis type="number" allowDecimals={false} className="text-xs" />
                   <YAxis type="category" dataKey="channel" className="text-xs" width={160} tick={{ fontSize: 12 }} />
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="total" fill={chartConfig.resolved.color} radius={[0, 4, 4, 0]}>
+                  <Bar dataKey="total" fill="#FF6B6B" radius={[0, 4, 4, 0]}>
                     <LabelList dataKey="total" position="right" className="text-xs fill-foreground" />
                   </Bar>
                 </BarChart>
