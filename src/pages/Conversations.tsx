@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft } from "lucide-react";
+import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { channelNameOverrides } from "@/lib/channelOverrides";
 
@@ -22,6 +22,8 @@ interface ConversationMapping {
   created_at: string;
   is_test: boolean;
   original_message_text: string;
+  product_area: string | null;
+  is_bug: boolean;
 }
 
 interface GmailConversation {
@@ -37,6 +39,8 @@ interface GmailConversation {
   created_at: string;
   status: string;
   resolved_at: string | null;
+  product_area: string | null;
+  is_bug: boolean;
 }
 
 type SourceFilter = "all" | "slack" | "gmail";
@@ -138,7 +142,35 @@ const Conversations = () => {
     }
   };
 
-  const loadLookups = async (rows: ConversationMapping[]) => {
+  const PRODUCT_AREAS = ["SSO", "Credits", "Account access", "Remix/transfer"] as const;
+
+  const updateProductArea = async (id: string, value: string, source: "slack" | "gmail") => {
+    const newValue = value === "clear" ? null : value;
+    const table = source === "slack" ? "conversation_mappings" : "gmail_conversations";
+    const setState = source === "slack" ? setMappings : setGmailRows;
+
+    setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, product_area: newValue } : m));
+    const { error } = await supabase.from(table).update({ product_area: newValue } as any).eq("id", id);
+    if (error) {
+      setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, product_area: value === "clear" ? value : null } : m));
+      toast.error("Failed to update product area");
+    }
+  };
+
+  const toggleBug = async (id: string, currentValue: boolean, source: "slack" | "gmail") => {
+    const newValue = !currentValue;
+    const table = source === "slack" ? "conversation_mappings" : "gmail_conversations";
+    const setState = source === "slack" ? setMappings : setGmailRows;
+
+    setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, is_bug: newValue } : m));
+    const { error } = await supabase.from(table).update({ is_bug: newValue } as any).eq("id", id);
+    if (error) {
+      setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, is_bug: currentValue } : m));
+      toast.error("Failed to update bug flag");
+    }
+  };
+
+
     const usersRes = await supabase.functions.invoke("list-slack-users");
     if (usersRes.data?.users) {
       const map: NameMap = {};
@@ -326,6 +358,8 @@ const Conversations = () => {
                       <TableHead>Date</TableHead>
                       <TableHead>Test</TableHead>
                       <TableHead>Resolved</TableHead>
+                      <TableHead>Product area</TableHead>
+                      <TableHead>Bug</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -420,6 +454,35 @@ const Conversations = () => {
                                 onClick={(e) => e.stopPropagation()}
                               />
                             </TableCell>
+                            <TableCell>
+                              <Select
+                                value={m.product_area || ""}
+                                onValueChange={(v) => updateProductArea(m.id, v, "slack")}
+                              >
+                                <SelectTrigger
+                                  className="h-8 w-[130px] text-xs"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <SelectValue placeholder="—" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {PRODUCT_AREAS.map((area) => (
+                                    <SelectItem key={area} value={area}>{area}</SelectItem>
+                                  ))}
+                                  {m.product_area && (
+                                    <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              <Switch
+                                checked={m.is_bug}
+                                onCheckedChange={() => toggleBug(m.id, m.is_bug, "slack")}
+                                aria-label="Toggle bug"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </TableCell>
                           </TableRow>
                         );
                       } else {
@@ -495,6 +558,31 @@ const Conversations = () => {
                                 checked={g.status === "resolved"}
                                 onCheckedChange={() => toggleResolved(g.id, g.status, "gmail")}
                                 aria-label="Toggle resolved"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Select
+                                value={g.product_area || ""}
+                                onValueChange={(v) => updateProductArea(g.id, v, "gmail")}
+                              >
+                                <SelectTrigger className="h-8 w-[130px] text-xs">
+                                  <SelectValue placeholder="—" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {PRODUCT_AREAS.map((area) => (
+                                    <SelectItem key={area} value={area}>{area}</SelectItem>
+                                  ))}
+                                  {g.product_area && (
+                                    <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              <Switch
+                                checked={g.is_bug}
+                                onCheckedChange={() => toggleBug(g.id, g.is_bug, "gmail")}
+                                aria-label="Toggle bug"
                               />
                             </TableCell>
                           </TableRow>

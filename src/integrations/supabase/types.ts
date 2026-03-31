@@ -47,10 +47,12 @@ export type Database = {
           id: string
           intercom_contact_id: string
           intercom_conversation_id: string | null
+          is_bug: boolean
           is_test: boolean
           last_intercom_part_id: string | null
           last_processed_event_ts: string | null
           original_message_text: string
+          product_area: string | null
           prompt_message_ts: string | null
           reminder_sent_at: string | null
           resolved_at: string | null
@@ -65,10 +67,12 @@ export type Database = {
           id?: string
           intercom_contact_id?: string
           intercom_conversation_id?: string | null
+          is_bug?: boolean
           is_test?: boolean
           last_intercom_part_id?: string | null
           last_processed_event_ts?: string | null
           original_message_text?: string
+          product_area?: string | null
           prompt_message_ts?: string | null
           reminder_sent_at?: string | null
           resolved_at?: string | null
@@ -83,10 +87,12 @@ export type Database = {
           id?: string
           intercom_contact_id?: string
           intercom_conversation_id?: string | null
+          is_bug?: boolean
           is_test?: boolean
           last_intercom_part_id?: string | null
           last_processed_event_ts?: string | null
           original_message_text?: string
+          product_area?: string | null
           prompt_message_ts?: string | null
           reminder_sent_at?: string | null
           resolved_at?: string | null
@@ -128,7 +134,9 @@ export type Database = {
           gmail_message_id: string
           gmail_thread_id: string | null
           id: string
+          is_bug: boolean
           is_test: boolean
+          product_area: string | null
           received_at: string | null
           resolved_at: string | null
           snippet: string | null
@@ -144,7 +152,9 @@ export type Database = {
           gmail_message_id: string
           gmail_thread_id?: string | null
           id?: string
+          is_bug?: boolean
           is_test?: boolean
+          product_area?: string | null
           received_at?: string | null
           resolved_at?: string | null
           snippet?: string | null
@@ -160,7 +170,9 @@ export type Database = {
           gmail_message_id?: string
           gmail_thread_id?: string | null
           id?: string
+          is_bug?: boolean
           is_test?: boolean
+          product_area?: string | null
           received_at?: string | null
           resolved_at?: string | null
           snippet?: string | null
