@@ -9,6 +9,10 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     <div className="min-h-screen bg-background">
       <nav className="border-b border-border bg-card">
         <div className="mx-auto max-w-4xl flex items-center gap-1 px-6 py-2">
+          <div className="flex items-center gap-2 mr-4">
+            <img src="/lovable-logo.png" alt="Lovable" className="h-6 w-6" />
+            <span className="text-sm font-semibold text-foreground hidden sm:inline">Lovable Enterprise Support Hub</span>
+          </div>
           <NavLink to="/" className={linkClass} activeClassName={activeClass} end>
             <BarChart3 className="h-4 w-4" />
             Stats
@@ -31,6 +35,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
           </NavLink>
         </div>
       </nav>
+      <div className="h-0.5 bg-gradient-to-r from-[#FF6B6B] via-[#E66FD2] to-[#9B87F5]" />
       {children}
     </div>
   );

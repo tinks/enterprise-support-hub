@@ -40,6 +40,11 @@ const COL_W = 420;
 const ROW_H = 380;
 
 /* ------------------------------------------------------------------ */
+/*  Design: Lovable brand palette — coral #FF6B6B, pink #E66FD2,       */
+/*  purple #9B87F5. Charts use these for Slack/Gmail/resolution.       */
+/* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */
 /* ------------------------------------------------------------------ */
 const DEFAULT_MESSAGES: Record<string, string> = {

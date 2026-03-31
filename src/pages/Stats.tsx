@@ -49,15 +49,15 @@ const chartConfig = {
   resolved: { label: "Resolved", color: "hsl(142 76% 36%)" },
   escalated: { label: "Escalated to human", color: "hsl(var(--destructive))" },
   cancelled: { label: "Cancelled", color: "hsl(var(--muted-foreground))" },
-  open: { label: "Open", color: "hsl(var(--primary))" },
-  active: { label: "Active", color: "hsl(var(--primary))" },
+  open: { label: "Open", color: "#FF6B6B" },
+  active: { label: "Active", color: "#FF6B6B" },
   awaiting_context: { label: "Awaiting context", color: "hsl(var(--muted-foreground))" },
-  total: { label: "Total", color: "hsl(var(--primary))" },
-  slack: { label: "Slack", color: "hsl(var(--primary))" },
-  gmail: { label: "Gmail", color: "hsl(35 92% 50%)" },
-  cumulative: { label: "Cumulative", color: "hsl(var(--primary))" },
+  total: { label: "Total", color: "#FF6B6B" },
+  slack: { label: "Slack", color: "#FF6B6B" },
+  gmail: { label: "Gmail", color: "#E66FD2" },
+  cumulative: { label: "Cumulative", color: "#FF6B6B" },
   rate: { label: "Escalation rate", color: "hsl(var(--destructive))" },
-  resolution: { label: "Resolution time", color: "hsl(221 83% 53%)" },
+  resolution: { label: "Resolution time", color: "#9B87F5" },
 };
 
 const rangeLabel: Record<TimeRange, string> = {
@@ -546,7 +546,7 @@ const Stats = () => {
     <AppLayout>
       <div className="mx-auto max-w-5xl space-y-6 p-6">
         {/* Hero banner */}
-        <div className="flex items-center justify-between rounded-xl border border-border bg-card p-6">
+        <div className="flex items-center justify-between rounded-xl border border-border bg-gradient-to-br from-card via-card to-accent p-6">
           <div className="flex items-center gap-4">
             <img src="/lovable-logo.png" alt="Lovable logo" className="h-12 w-12 rounded-lg" />
             <div>
