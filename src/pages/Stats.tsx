@@ -478,6 +478,21 @@ const Stats = () => {
     return result;
   }, [filtered]);
 
+  const hourlyActivityData = useMemo(() => {
+    const buckets = Array.from({ length: 24 }, (_, i) => ({
+      hour: `${String(i).padStart(2, "0")}:00`,
+      slack: 0,
+      gmail: 0,
+    }));
+    const getCETHour = (dateStr: string) => {
+      const d = new Date(dateStr);
+      return parseInt(d.toLocaleString("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false }));
+    };
+    filtered.forEach((m) => { buckets[getCETHour(m.created_at)].slack++; });
+    filteredGmail.forEach((g) => { buckets[getCETHour(g.received_at || g.created_at)].gmail++; });
+    return buckets;
+  }, [filtered, filteredGmail]);
+
   if (loading) {
     return (
       <AppLayout>
