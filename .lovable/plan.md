@@ -1,40 +1,36 @@
 
 
-## Add separate "Resolved" toggle column to conversations table
+## Deduplicate Gmail resolved count by subject
 
 ### Problem
-Currently there's only a "Test" toggle column. The Gmail "Resolve" button exists but is not a toggle, and Slack rows have no resolve UI at all. The user wants two independent toggles side by side: **Test** (exclude from stats) and **Resolved** (mark as resolved).
+Line 318 in `Stats.tsx` counts every `gmail_conversations` row with `status === 'resolved'` individually. When multiple rows share the same subject (same email thread), toggling them all resolved counts each one — inflating the resolved metric. It should count as 1 resolved thread per unique subject, matching the "Email total" dedup logic.
 
-### Approach
-Both `conversation_mappings` and `gmail_conversations` already have `status` and `resolved_at` columns in the database — no schema changes needed. We just need to add a new "Resolved" column with a `Switch` toggle that reads/writes the `status` field.
+### Change
 
-### Changes
+**`src/pages/Stats.tsx`** — Replace the simple `.filter().length` with subject-based dedup:
 
-**`src/pages/Conversations.tsx`**
-
-1. Add a new `<TableHead>Resolved</TableHead>` column after the existing "Test" column
-2. For **Slack rows**: add a `Switch` that is checked when `m.status === 'resolved'`, and on toggle:
-   - Optimistically update status to `'resolved'` (+ set `resolved_at`) or back to `'active'` (+ clear `resolved_at`)
-   - Write to `conversation_mappings` table
-   - Revert + toast on error
-3. For **Gmail rows**: replace the current "Resolve" button with a `Switch` toggle using the same pattern — checked when `g.status === 'resolved'`, toggles between `'resolved'` and `'open'`
-   - Write to `gmail_conversations` table
-   - Revert + toast on error
-4. Remove the existing Gmail "Resolve" button (replaced by the toggle)
-
-**`src/pages/FlowDiagram.tsx`** — document the new resolved toggle column
-
-### Technical detail
 ```tsx
-// Slack resolved toggle
-const toggleResolved = async (id, currentStatus, source) => {
-  const newStatus = currentStatus === 'resolved' ? (source === 'slack' ? 'active' : 'open') : 'resolved';
-  const resolvedAt = newStatus === 'resolved' ? new Date().toISOString() : null;
-  // optimistic update, then supabase write, revert on error
-};
+// Current (line 318):
+const gmailResolved = filteredGmail.filter((g) => g.status === "resolved").length;
+
+// New:
+const gmailResolvedSubjects = new Set<string>();
+let gmailResolvedOrphans = 0;
+filteredGmail.forEach((g) => {
+  if (g.status !== "resolved") return;
+  if (g.subject) gmailResolvedSubjects.add(g.subject);
+  else gmailResolvedOrphans++;
+});
+const gmailResolved = gmailResolvedSubjects.size + gmailResolvedOrphans;
 ```
 
+Same dedup approach as the existing `gmailUniqueEmails` memo — group by subject, count unique subjects. Rows without a subject each count individually.
+
+Apply the same pattern to `gmailOpen` for consistency.
+
+**`src/pages/FlowDiagram.tsx`** — Document the dedup logic for Gmail resolved counting.
+
 ### Files to edit
-- `src/pages/Conversations.tsx` — add Resolved toggle column, remove Resolve button
+- `src/pages/Stats.tsx` — deduplicate gmailResolved and gmailOpen by subject
 - `src/pages/FlowDiagram.tsx` — document the change
 
