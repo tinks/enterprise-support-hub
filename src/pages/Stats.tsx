@@ -908,7 +908,7 @@ const Stats = () => {
                     <XAxis type="number" allowDecimals={false} className="text-xs" />
                     <YAxis type="category" dataKey="domain" className="text-xs" width={160} tick={{ fontSize: 12 }} />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar dataKey="threads" fill="hsl(35 92% 50%)" radius={[0, 4, 4, 0]}>
+                    <Bar dataKey="threads" fill="#E66FD2" radius={[0, 4, 4, 0]}>
                       <LabelList dataKey="threads" position="right" className="text-xs fill-foreground" />
                     </Bar>
                   </BarChart>
