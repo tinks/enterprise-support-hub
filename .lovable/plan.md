@@ -1,36 +1,53 @@
 
 
-## Update project knowledge document to reflect all current features
+## Add day-of-week × hour-of-day heatmap to Stats page
 
-### Gaps identified
+### Overview
+Add a heatmap grid below the existing "Activity by hour of day" bar chart showing activity intensity across 7 days (Mon–Sun) × 24 hours (00–23) in CET. Each cell is color-coded by combined Slack + Gmail count.
 
-The knowledge file (sections 1–18) was written before Gmail integration, stats enhancements, and several recent changes. The following are **not documented at all**:
+### Changes
 
-1. **Architecture — missing edge functions**: `poll-gmail`, `gmail-auth-url`, `gmail-oauth-callback`, `backfill-gmail-headers`, `context-reminder` (listed in 14b but not in the architecture table)
-2. **Architecture — missing database tables**: `gmail_conversations`, `gmail_oauth_tokens`, `knowledge_documents` (mentioned in §18 but not in §2 table)
-3. **Architecture — missing UI routes**: `/knowledge` (Knowledge page), `/stats` description is too vague
-4. **Gmail integration section (entirely new)**: OAuth flow, poll-gmail cron (every 15 min), gmail_conversations schema (`subject`, `from_email`, `to_emails`, `cc_emails`, `gmail_thread_id`, `gmail_message_id`, `status`, `resolved_at`, `snippet`, `is_test`), read-only metadata tracking
-5. **Hybrid Gmail resolution tracking**: `status` and `resolved_at` columns on `gmail_conversations`, `auto_close_gmail_threads` database function called by pg_cron daily, 24-hour inactivity auto-close logic, manual resolve from Conversations page
-6. **Stats page analytics**: Three source filters (All/Slack/Gmail), Gmail metrics (Email total deduplicated by subject, Gmail messages raw count, Gmail open/resolved, median/avg resolution time), threads by customer domain (non-lovable.dev domain extraction from To/CC/From with RFC format parsing), internal-only email exclusion (all participants @lovable.dev), activity by hour of day (CET) chart, conversation volume overlay
-7. **Gmail To/CC header extraction**: `poll-gmail` extracts To and CC headers, `backfill-gmail-headers` one-time function for existing rows
-8. **Required secrets — missing**: `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`
-9. **Slack reply forwarding fix**: Thread replies after escalation now forward to Intercom inline (not in background) to prevent silent failures; cosmetic work (button removal, notices) remains in `EdgeRuntime.waitUntil()`
+**File: `src/pages/Stats.tsx`**
 
-### Changes to make
+1. **New `useMemo` — `heatmapData`**: Reuse the same `getCETHour` helper. Build a 7×24 grid where each cell has `{ day, hour, slack, gmail, total }`. Day of week extracted via `toLocaleDateString("en-GB", { timeZone: "Europe/Berlin", weekday: "short" })`.
 
-Write to `pending_content` and `pending_summary` on the `knowledge_documents` table with an updated document that adds/modifies:
+2. **New card** — placed directly after the hourly bar chart card (~line 932). Renders a CSS grid (7 rows × 24 columns) with:
+   - Column headers: 00–23
+   - Row headers: Mon–Sun
+   - Each cell colored using an opacity scale (e.g. `bg-primary` with opacity proportional to `cell.total / maxCount`)
+   - Tooltip on hover showing exact counts (Slack + Gmail breakdown)
+   - Respects `sourceFilter` — sums only relevant source
 
-- **§2 Architecture**: Add missing edge functions, database tables, and UI routes to the tables
-- **§11 Configuration**: Add `gmail_last_polled_at` field
-- **§12 Required secrets**: Add `GMAIL_CLIENT_ID` and `GMAIL_CLIENT_SECRET`
-- **New §19 — Gmail integration**: OAuth setup, poll-gmail cron, gmail_conversations schema, read-only metadata tracking
-- **New §20 — Gmail resolution tracking**: Hybrid approach with manual resolve + 24h auto-close cron
-- **New §21 — Stats & analytics**: Source filtering, all Slack metrics, all Gmail metrics (including dedup logic, internal exclusion, customer domain extraction, RFC email parsing), hourly activity chart (CET), volume overlay
-- **§6 Step 6b-i / 6c**: Note that Intercom forwarding is now inline, cosmetic work in background
+3. **Styling**: Pure Tailwind — no extra dependency. Cells are small squares with rounded corners. Uses `title` attribute for simple hover info (no Recharts needed).
 
-### How
+**File: `src/pages/FlowDiagram.tsx`**
+- Add note documenting the heatmap under analytics.
 
-- Single database UPDATE to `knowledge_documents` setting `pending_content`, `pending_summary`, `pending_at`
-- User reviews diff in the Knowledge tab and approves/rejects
-- No code file changes
+### Technical detail
+
+```ts
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+const heatmapData = useMemo(() => {
+  const grid: Record<string, Record<number, { slack: number; gmail: number }>> = {};
+  DAYS.forEach(d => { grid[d] = {}; for (let h = 0; h < 24; h++) grid[d][h] = { slack: 0, gmail: 0 }; });
+  
+  const getCET = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const day = d.toLocaleDateString("en-GB", { timeZone: "Europe/Berlin", weekday: "short" });
+    const hour = parseInt(d.toLocaleString("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false }));
+    return { day, hour };
+  };
+  
+  filtered.forEach(m => { const { day, hour } = getCET(m.created_at); if (grid[day]) grid[day][hour].slack++; });
+  filteredGmail.forEach(g => { const { day, hour } = getCET(g.received_at || g.created_at); if (grid[day]) grid[day][hour].gmail++; });
+  return { grid, max: /* compute max total across all cells */ };
+}, [filtered, filteredGmail]);
+```
+
+Rendering: simple nested `div` grid with inline `opacity` or `backgroundColor` based on intensity.
+
+### Files to edit
+- `src/pages/Stats.tsx` — heatmap memo + card
+- `src/pages/FlowDiagram.tsx` — document the heatmap
 
