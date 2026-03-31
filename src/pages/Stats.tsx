@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
@@ -78,6 +79,7 @@ const getCutoffDate = (range: TimeRange): Date | null => {
 };
 
 const Stats = () => {
+  const navigate = useNavigate();
   const [data, setData] = useState<Mapping[]>([]);
   const [gmailData, setGmailData] = useState<GmailRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1000,9 +1002,15 @@ const Stats = () => {
                         return (
                           <div
                             key={h}
-                            className="flex-1 aspect-square rounded-sm bg-primary transition-opacity"
+                            className={cn(
+                              "flex-1 aspect-square rounded-sm bg-primary transition-opacity",
+                              val > 0 && "cursor-pointer hover:ring-2 hover:ring-primary/50"
+                            )}
                             style={{ opacity: val > 0 ? opacity : 0.04 }}
                             title={`${day} ${String(h).padStart(2, "0")}:00 — Slack: ${cell.slack}, Gmail: ${cell.gmail}, Total: ${cell.total}`}
+                            onClick={() => {
+                              if (val > 0) navigate(`/conversations?day=${day}&hour=${h}&source=${sourceFilter}`);
+                            }}
                           />
                         );
                       })}

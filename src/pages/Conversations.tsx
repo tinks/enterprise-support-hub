@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, ExternalLink, Hash, User, Mail } from "lucide-react";
+import { RefreshCw, ExternalLink, Hash, User, Mail, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { channelNameOverrides } from "@/lib/channelOverrides";
 
@@ -59,8 +59,21 @@ const statusColor = (status: string) => {
 const buildSlackLink = (channelId: string, threadTs: string) =>
   `https://lovable-dev.slack.com/archives/${channelId}/p${threadTs.replace(".", "")}`;
 
+const getCET = (dateStr: string) => {
+  const d = new Date(dateStr);
+  return {
+    day: d.toLocaleDateString("en-GB", { timeZone: "Europe/Berlin", weekday: "short" }),
+    hour: parseInt(d.toLocaleString("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false })),
+  };
+};
+
 const Conversations = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const paramDay = searchParams.get("day");
+  const paramHour = searchParams.get("hour") !== null ? parseInt(searchParams.get("hour")!) : null;
+  const paramSource = searchParams.get("source") as SourceFilter | null;
+
   const [mappings, setMappings] = useState<ConversationMapping[]>([]);
   const [gmailRows, setGmailRows] = useState<GmailConversation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +85,7 @@ const Conversations = () => {
   const [hasMore, setHasMore] = useState(true);
   const [hasMoreGmail, setHasMoreGmail] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>(paramSource || "all");
 
   const toggleMessage = (id: string) => {
     setExpandedMessages((prev) => {
@@ -189,8 +202,17 @@ const Conversations = () => {
     }
 
     rows.sort((a, b) => new Date(b.sortDate).getTime() - new Date(a.sortDate).getTime());
+
+    // Apply heatmap filter from query params
+    if (paramDay !== null && paramHour !== null) {
+      return rows.filter((r) => {
+        const { day, hour } = getCET(r.sortDate);
+        return day === paramDay && hour === paramHour;
+      });
+    }
+
     return rows;
-  }, [mappings, gmailRows, sourceFilter]);
+  }, [mappings, gmailRows, sourceFilter, paramDay, paramHour]);
 
   const canLoadMore =
     (sourceFilter !== "gmail" && hasMore) || (sourceFilter !== "slack" && hasMoreGmail);
@@ -199,6 +221,21 @@ const Conversations = () => {
     <AppLayout>
       <div className="bg-background p-6">
         <div className="mx-auto max-w-7xl">
+          {paramDay !== null && paramHour !== null && (
+            <div className="mb-4 flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-4 py-2 text-sm">
+              <span className="text-foreground">
+                Showing activity for <strong>{paramDay} {String(paramHour).padStart(2, "0")}:00–{String(paramHour).padStart(2, "0")}:59 CET</strong>
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto h-7 px-2"
+                onClick={() => setSearchParams({})}
+              >
+                <X className="mr-1 h-3 w-3" /> Clear filter
+              </Button>
+            </div>
+          )}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
