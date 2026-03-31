@@ -267,6 +267,11 @@ const Conversations = () => {
 
   useEffect(() => {
     loadData().then((rows) => loadLookups(rows));
+    supabase.from("settings").select("product_areas").limit(1).single().then(({ data }) => {
+      if (data?.product_areas) {
+        setProductAreas(data.product_areas.split(",").map((s: string) => s.trim()).filter(Boolean));
+      }
+    });
   }, []);
 
   const unified = useMemo<UnifiedRow[]>(() => {
