@@ -561,6 +561,31 @@ const Conversations = () => {
                                 aria-label="Toggle resolved"
                               />
                             </TableCell>
+                            <TableCell>
+                              <Select
+                                value={g.product_area || ""}
+                                onValueChange={(v) => updateProductArea(g.id, v, "gmail")}
+                              >
+                                <SelectTrigger className="h-8 w-[130px] text-xs">
+                                  <SelectValue placeholder="—" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {PRODUCT_AREAS.map((area) => (
+                                    <SelectItem key={area} value={area}>{area}</SelectItem>
+                                  ))}
+                                  {g.product_area && (
+                                    <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
+                              <Switch
+                                checked={g.is_bug}
+                                onCheckedChange={() => toggleBug(g.id, g.is_bug, "gmail")}
+                                aria-label="Toggle bug"
+                              />
+                            </TableCell>
                           </TableRow>
                         );
                       }
