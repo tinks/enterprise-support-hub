@@ -80,6 +80,7 @@ const ASK_LOVABLE = { name: "Ask Lovable", avatarUrl: "/lovable-logo.png" };
 /*  Build nodes — uses message map so they update from DB              */
 /*  Dedup: thread reply claim uses .or() with IS NULL + NEQ in one    */
 /*  filter to prevent AND-null regression (fixed 2026-03-31)          */
+/*  Detail page: bug, feature request, product area controls added    */
 /* ------------------------------------------------------------------ */
 function buildNodes(
   msgs: Record<string, string>,
