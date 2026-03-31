@@ -739,7 +739,7 @@ const Stats = () => {
               </Card>
               <Card>
                 <CardContent className="flex flex-col items-center justify-center p-5">
-                  <ThumbsUp className="mb-2 h-5 w-5 text-green-600" />
+                  <ThumbsUp className="mb-2 h-5 w-5 text-[#9B87F5]" />
                   <p className="text-3xl font-bold text-foreground">{stats.gmailResolved}</p>
                   <p className="text-xs text-muted-foreground">Gmail resolved</p>
                 </CardContent>
