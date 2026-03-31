@@ -39,6 +39,8 @@ interface GmailConversation {
   created_at: string;
   status: string;
   resolved_at: string | null;
+  product_area: string | null;
+  is_bug: boolean;
 }
 
 type SourceFilter = "all" | "slack" | "gmail";
