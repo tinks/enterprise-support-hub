@@ -234,7 +234,11 @@ const Stats = () => {
         .filter(Boolean)
         .join(",")
         .split(",")
-        .map((e) => e.trim().toLowerCase())
+        .map((e) => {
+          // Extract email from RFC format like "Name <email@domain.com>" or bare "email@domain.com>"
+          const match = e.match(/<([^>]+)>/);
+          return (match ? match[1] : e).trim().toLowerCase();
+        })
         .filter((e) => e.includes("@") && !e.endsWith("@lovable.dev"));
       threadDomains[threadKey] = allEmails.length > 0 ? allEmails[0].split("@")[1] : null;
     });
