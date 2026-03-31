@@ -143,6 +143,7 @@ const Index = () => {
         testing_mode: settings.testing_mode,
         test_intercom_inbox_id: settings.test_intercom_inbox_id,
         auto_mark_employee_test: settings.auto_mark_employee_test,
+        product_areas: settings.product_areas,
       })
       .eq("id", settings.id);
 
