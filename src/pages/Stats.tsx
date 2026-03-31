@@ -834,7 +834,7 @@ const Stats = () => {
           </Card>
         )}
 
-
+        <Card>
           <CardHeader>
             <CardTitle className="text-lg">Conversation volume</CardTitle>
             <CardDescription>Daily conversations over {activeRangeLabel.toLowerCase()}</CardDescription>
