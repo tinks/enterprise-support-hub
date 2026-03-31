@@ -378,7 +378,7 @@ const Conversations = () => {
                               <span className="text-xs text-muted-foreground">—</span>
                             </TableCell>
                             <TableCell>
-                              <Badge variant="outline">email</Badge>
+                              <Badge variant={g.status === "resolved" ? "secondary" : "default"}>{g.status || "open"}</Badge>
                             </TableCell>
                             <TableCell className="text-xs text-muted-foreground">
                               {g.received_at ? new Date(g.received_at).toLocaleString() : new Date(g.created_at).toLocaleString()}
