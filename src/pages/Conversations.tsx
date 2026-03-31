@@ -412,6 +412,14 @@ const Conversations = () => {
                                 onClick={(e) => e.stopPropagation()}
                               />
                             </TableCell>
+                            <TableCell>
+                              <Switch
+                                checked={m.status === "resolved"}
+                                onCheckedChange={() => toggleResolved(m.id, m.status, "slack")}
+                                aria-label="Toggle resolved"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </TableCell>
                           </TableRow>
                         );
                       } else {
