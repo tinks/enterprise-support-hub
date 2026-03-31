@@ -79,6 +79,7 @@ const getCutoffDate = (range: TimeRange): Date | null => {
 };
 
 const Stats = () => {
+  const navigate = useNavigate();
   const [data, setData] = useState<Mapping[]>([]);
   const [gmailData, setGmailData] = useState<GmailRow[]>([]);
   const [loading, setLoading] = useState(true);
