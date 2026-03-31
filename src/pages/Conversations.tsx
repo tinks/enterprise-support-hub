@@ -389,6 +389,9 @@ const Conversations = () => {
                             key={`gmail-${g.id}`}
                             className={`hover:bg-muted/50 transition-colors ${g.is_test ? "opacity-50" : ""}`}
                           >
+                            <TableCell className="text-xs text-muted-foreground font-mono">
+                              {g.id.slice(0, 8)}
+                            </TableCell>
                             <TableCell>
                               <Badge variant="secondary" className="text-xs">
                                 <Mail className="mr-1 h-3 w-3" />Gmail
