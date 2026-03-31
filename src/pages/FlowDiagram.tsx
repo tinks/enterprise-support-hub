@@ -101,7 +101,7 @@ function buildNodes(
           "Collects file attachments (photos, videos, docs)",
           "Auto-detects @lovable.dev employees and marks conversations as test when 'auto_mark_employee_test' setting is enabled (routed to Slack Test inbox)",
           "Conversations tab resolves channel IDs to names via list-slack-channels (bot token first, connector fallback)",
-          "Conversations tab has 'Product area' dropdown (SSO, Credits, Account access, Remix/transfer) and 'Bug' toggle per row, persisted to DB",
+          "Conversations tab has 'Product area' dropdown (SSO, SCIM, Credits, Account access, Remix/transfer) and 'Bug' toggle per row, persisted to DB",
         ],
         message: "@SupportBot I'm having trouble deploying my project...",
         accent: "blue",
