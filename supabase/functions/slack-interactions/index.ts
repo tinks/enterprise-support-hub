@@ -1367,9 +1367,27 @@ Deno.serve(async (req) => {
             }),
           });
 
-          // Close conversation without reassigning — keep current admin
+          // Close conversation as the actual assignee so the human agent gets credit
           if (!cachedSettings) cachedSettings = await getSettings(supabase);
-          const adminId = cachedSettings.intercom_assignee_id || "8430778";
+          let adminId = cachedSettings.intercom_assignee_id || "8430778";
+          try {
+            const convoRes = await fetch(`https://api.intercom.io/conversations/${conversationId}`, {
+              headers: {
+                Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                Accept: "application/json",
+                "Intercom-Version": "2.11",
+              },
+            });
+            if (convoRes.ok) {
+              const convoData = await convoRes.json();
+              if (convoData.admin_assignee_id) {
+                adminId = String(convoData.admin_assignee_id);
+                console.log(`Closing conversation ${conversationId} as assignee ${adminId}`);
+              }
+            }
+          } catch (e) {
+            console.error("Failed to fetch conversation assignee, falling back to default:", e);
+          }
           await fetch(`https://api.intercom.io/conversations/${conversationId}/parts`, {
             method: "POST",
             headers: {
