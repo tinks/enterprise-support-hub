@@ -144,7 +144,7 @@ const Conversations = () => {
     }
   };
 
-  const PRODUCT_AREAS = ["SSO", "SCIM", "Credits", "Account access", "Remix/transfer", "Cloud/AI"] as const;
+  const [productAreas, setProductAreas] = useState<string[]>(["SSO", "SCIM", "Credits", "Account access", "Remix/transfer", "Cloud/AI"]);
 
   const updateProductArea = async (id: string, value: string, source: "slack" | "gmail") => {
     const newValue = value === "clear" ? null : value;
