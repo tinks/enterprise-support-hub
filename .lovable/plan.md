@@ -1,25 +1,40 @@
 
 
-## Fix conversation 1075c6ca test flag
+## Add separate "Resolved" toggle column to conversations table
 
-### Clarification
-The database already has fully separate columns for test (`is_test`) and resolve (`status` + `resolved_at`) on `gmail_conversations`. They are not shared. The problem is that conversation `1075c6ca` was incorrectly flagged as `is_test: true`, which excluded it from the default "Live" stats view — making it look like the resolve was not counted.
+### Problem
+Currently there's only a "Test" toggle column. The Gmail "Resolve" button exists but is not a toggle, and Slack rows have no resolve UI at all. The user wants two independent toggles side by side: **Test** (exclude from stats) and **Resolved** (mark as resolved).
 
-### Data fix
-```sql
-UPDATE gmail_conversations
-SET is_test = false
-WHERE id = '1075c6ca-6295-4f66-b2db-51cdc20a738e';
+### Approach
+Both `conversation_mappings` and `gmail_conversations` already have `status` and `resolved_at` columns in the database — no schema changes needed. We just need to add a new "Resolved" column with a `Switch` toggle that reads/writes the `status` field.
+
+### Changes
+
+**`src/pages/Conversations.tsx`**
+
+1. Add a new `<TableHead>Resolved</TableHead>` column after the existing "Test" column
+2. For **Slack rows**: add a `Switch` that is checked when `m.status === 'resolved'`, and on toggle:
+   - Optimistically update status to `'resolved'` (+ set `resolved_at`) or back to `'active'` (+ clear `resolved_at`)
+   - Write to `conversation_mappings` table
+   - Revert + toast on error
+3. For **Gmail rows**: replace the current "Resolve" button with a `Switch` toggle using the same pattern — checked when `g.status === 'resolved'`, toggles between `'resolved'` and `'open'`
+   - Write to `gmail_conversations` table
+   - Revert + toast on error
+4. Remove the existing Gmail "Resolve" button (replaced by the toggle)
+
+**`src/pages/FlowDiagram.tsx`** — document the new resolved toggle column
+
+### Technical detail
+```tsx
+// Slack resolved toggle
+const toggleResolved = async (id, currentStatus, source) => {
+  const newStatus = currentStatus === 'resolved' ? (source === 'slack' ? 'active' : 'open') : 'resolved';
+  const resolvedAt = newStatus === 'resolved' ? new Date().toISOString() : null;
+  // optimistic update, then supabase write, revert on error
+};
 ```
 
-After this, the conversation will appear in the "Live" environment filter on Stats and its resolved status will count toward the Gmail resolved total.
-
-### No schema changes needed
-The current schema already separates test and resolve concerns properly:
-- `is_test` — whether the conversation is a test
-- `status` — 'open' or 'resolved'
-- `resolved_at` — timestamp of resolution
-
-### Files to change
-- Database data update only (via insert tool) — set `is_test = false`
+### Files to edit
+- `src/pages/Conversations.tsx` — add Resolved toggle column, remove Resolve button
+- `src/pages/FlowDiagram.tsx` — document the change
 
