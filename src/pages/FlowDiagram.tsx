@@ -43,6 +43,9 @@ const ROW_H = 380;
 /*  Design: Lovable brand palette — coral #FF6B6B, pink #E66FD2,       */
 /*  purple #9B87F5. Charts use these for Slack/Gmail/resolution.       */
 /* ------------------------------------------------------------------ */
+/*  Gmail resolve & toggleTest: optimistic UI update with error        */
+/*  handling — reverts state and shows toast on failure. No `as any`.  */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */

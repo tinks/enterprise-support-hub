@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { toast } from "sonner";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
@@ -100,10 +101,18 @@ const Conversations = () => {
     const newValue = !currentValue;
     if (source === "slack") {
       setMappings((prev) => prev.map((m) => m.id === id ? { ...m, is_test: newValue } : m));
-      await supabase.from("conversation_mappings").update({ is_test: newValue }).eq("id", id);
+      const { error } = await supabase.from("conversation_mappings").update({ is_test: newValue }).eq("id", id);
+      if (error) {
+        setMappings((prev) => prev.map((m) => m.id === id ? { ...m, is_test: currentValue } : m));
+        toast.error("Failed to update test flag");
+      }
     } else {
       setGmailRows((prev) => prev.map((m) => m.id === id ? { ...m, is_test: newValue } : m));
-      await supabase.from("gmail_conversations").update({ is_test: newValue } as any).eq("id", id);
+      const { error } = await supabase.from("gmail_conversations").update({ is_test: newValue }).eq("id", id);
+      if (error) {
+        setGmailRows((prev) => prev.map((m) => m.id === id ? { ...m, is_test: currentValue } : m));
+        toast.error("Failed to update test flag");
+      }
     }
   };
 
@@ -457,8 +466,13 @@ const Conversations = () => {
                                     className="h-6 px-2 text-xs"
                                     onClick={async (e) => {
                                       e.stopPropagation();
+                                      const prevRows = [...gmailRows];
                                       setGmailRows((prev) => prev.map((r) => r.id === g.id ? { ...r, status: "resolved", resolved_at: new Date().toISOString() } : r));
-                                      await supabase.from("gmail_conversations").update({ status: "resolved", resolved_at: new Date().toISOString() } as any).eq("id", g.id);
+                                      const { error } = await supabase.from("gmail_conversations").update({ status: "resolved", resolved_at: new Date().toISOString() }).eq("id", g.id);
+                                      if (error) {
+                                        setGmailRows(prevRows);
+                                        toast.error("Failed to resolve conversation");
+                                      }
                                     }}
                                   >
                                     Resolve
