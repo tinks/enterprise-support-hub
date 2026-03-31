@@ -34,6 +34,8 @@ interface GmailConversation {
   snippet: string | null;
   is_test: boolean;
   created_at: string;
+  status: string;
+  resolved_at: string | null;
 }
 
 type SourceFilter = "all" | "slack" | "gmail";
