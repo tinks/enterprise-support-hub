@@ -336,8 +336,8 @@ const Conversations = () => {
 
   return (
     <AppLayout>
-      <div className="bg-background p-6">
-        <div className="mx-auto max-w-7xl">
+      <div className="h-full min-h-0 flex flex-col bg-background p-6">
+        <div className="mx-auto max-w-7xl w-full min-h-0 flex flex-col flex-1">
           {paramDay !== null && paramHour !== null && (
             <div className="mb-4 flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-4 py-2 text-sm">
               <span className="text-foreground">
@@ -363,8 +363,8 @@ const Conversations = () => {
               </div>
             </div>
           )}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+          <Card className="min-h-0 flex-1 flex flex-col">
+            <CardHeader className="flex flex-row items-center justify-between flex-shrink-0">
               <div>
                 <CardTitle className="text-lg">Recent conversations</CardTitle>
                 <CardDescription>
@@ -425,14 +425,15 @@ const Conversations = () => {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="min-h-0 flex-1 flex flex-col overflow-hidden p-0 px-6 pb-6">
               {unified.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
                   {loading ? "Loading…" : "No conversations found."}
                 </p>
               ) : (
+              <div className="min-h-0 flex-1 overflow-auto">
                 <Table>
-                  <TableHeader className="sticky top-0 z-10 bg-card">
+                  <TableHeader className="sticky top-0 z-20 bg-card [&_tr]:border-b">
                     <TableRow>
                       <TableHead>#</TableHead>
                       <TableHead>Source</TableHead>
@@ -694,6 +695,7 @@ const Conversations = () => {
                     })}
                   </TableBody>
                 </Table>
+              </div>
               )}
               {canLoadMore && unified.length > 0 && (
                 <div className="flex justify-center pt-4">
