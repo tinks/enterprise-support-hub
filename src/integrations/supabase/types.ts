@@ -121,6 +121,7 @@ export type Database = {
       }
       gmail_conversations: {
         Row: {
+          cc_emails: string | null
           created_at: string
           from_email: string | null
           from_name: string | null
@@ -133,8 +134,10 @@ export type Database = {
           snippet: string | null
           status: string
           subject: string | null
+          to_emails: string | null
         }
         Insert: {
+          cc_emails?: string | null
           created_at?: string
           from_email?: string | null
           from_name?: string | null
@@ -147,8 +150,10 @@ export type Database = {
           snippet?: string | null
           status?: string
           subject?: string | null
+          to_emails?: string | null
         }
         Update: {
+          cc_emails?: string | null
           created_at?: string
           from_email?: string | null
           from_name?: string | null
@@ -161,6 +166,7 @@ export type Database = {
           snippet?: string | null
           status?: string
           subject?: string | null
+          to_emails?: string | null
         }
         Relationships: []
       }
