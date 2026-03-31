@@ -32,6 +32,7 @@ interface GmailRow {
   received_at: string | null;
   created_at: string;
   is_test: boolean;
+  subject: string | null;
 }
 
 type SourceFilter = "all" | "slack" | "gmail";
@@ -99,7 +100,7 @@ const Stats = () => {
         .order("created_at", { ascending: true }),
       supabase
         .from("gmail_conversations")
-        .select("received_at, created_at, is_test")
+        .select("received_at, created_at, is_test, subject")
         .order("received_at", { ascending: true }),
     ]);
     const rows = (slackRes.data as Mapping[]) || [];
@@ -178,6 +179,16 @@ const Stats = () => {
     });
   }, [gmailData, view, range, customFrom, customTo]);
 
+  const gmailUniqueEmails = useMemo(() => {
+    const subjects = new Set<string>();
+    let nullCount = 0;
+    filteredGmail.forEach((g) => {
+      if (g.subject) subjects.add(g.subject);
+      else nullCount++;
+    });
+    return subjects.size + nullCount;
+  }, [filteredGmail]);
+
   const gmailVolumeData = useMemo(() => {
     const byDay: Record<string, number> = {};
     filteredGmail.forEach((g) => {
@@ -230,8 +241,8 @@ const Stats = () => {
         : 1;
     const avgPerDay = +(combinedTotal / daySpan).toFixed(1);
 
-    return { total, gmailTotal, resolved, escalated, active, awaiting, processing, cancelled, open, resolvedPct, avgPerDay };
-  }, [filtered, filteredGmail, range, sourceFilter]);
+    return { total, gmailTotal, emailTotal: gmailUniqueEmails, resolved, escalated, active, awaiting, processing, cancelled, open, resolvedPct, avgPerDay };
+  }, [filtered, filteredGmail, range, sourceFilter, gmailUniqueEmails]);
 
   // Daily volume line chart
   const volumeData = useMemo(() => {
@@ -569,13 +580,22 @@ const Stats = () => {
             </Card>
           )}
           {sourceFilter !== "slack" && (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center p-5">
-                <Mail className="mb-2 h-5 w-5 text-amber-500" />
-                <p className="text-3xl font-bold text-foreground">{stats.gmailTotal}</p>
-                <p className="text-xs text-muted-foreground">Gmail emails</p>
-              </CardContent>
-            </Card>
+            <>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <Mail className="mb-2 h-5 w-5 text-amber-500" />
+                  <p className="text-3xl font-bold text-foreground">{stats.emailTotal}</p>
+                  <p className="text-xs text-muted-foreground">Email total</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <Mail className="mb-2 h-5 w-5 text-muted-foreground" />
+                  <p className="text-3xl font-bold text-foreground">{stats.gmailTotal}</p>
+                  <p className="text-xs text-muted-foreground">Gmail messages</p>
+                </CardContent>
+              </Card>
+            </>
           )}
           {sourceFilter !== "gmail" && (
             <>
