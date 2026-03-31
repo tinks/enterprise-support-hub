@@ -27,6 +27,9 @@ interface ConversationMapping {
   resolved_at: string | null;
   status: string;
   is_test: boolean;
+  is_bug: boolean;
+  is_feature_request: boolean;
+  product_area: string | null;
   original_message_text: string;
   created_at: string;
   updated_at: string;
