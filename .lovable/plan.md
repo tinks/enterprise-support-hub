@@ -1,65 +1,45 @@
 
 
-## Track Gmail threads by customer domain on Stats tab
+## Backfill To/CC headers and re-poll Gmail
 
 ### Problem
-We want to show a breakdown of Gmail threads grouped by customer (identified by email domain), but the `gmail_conversations` table currently only stores the `from_email`. To determine the customer, we need the `to` and `cc` headers, then exclude `@lovable.dev` domains to find the customer domain.
+All ~existing gmail_conversations rows have `to_emails = NULL` and `cc_emails = NULL` because these columns were added after the data was already ingested. The `poll-gmail` function now captures these headers, but it skips messages that already exist (duplicate key check on `gmail_message_id`). So existing rows will never get the data unless we backfill.
 
-### Database changes (migration)
+### Changes
 
-Add two new columns to `gmail_conversations`:
-- `to_emails text` — comma-separated list of To recipients
-- `cc_emails text` — comma-separated list of CC recipients
+**1. Create a one-time backfill edge function**
 
-### Edge function changes
+**File: `supabase/functions/backfill-gmail-headers/index.ts`**
+- Reads all `gmail_conversations` rows where `to_emails IS NULL`
+- For each, calls `Gmail API /users/me/messages/{id}?format=metadata` using the stored OAuth tokens
+- Extracts `To` and `Cc` headers
+- Updates the row with the extracted values
+- Processes in batches to avoid rate limits
 
-**File: `supabase/functions/poll-gmail/index.ts`**
-- Extract `To` and `Cc` headers alongside existing `From`, `Subject`, `Date`
-- Store raw header values in the new `to_emails` and `cc_emails` columns on insert
+**2. Update `poll-gmail` insert logic**
 
-### Stats page changes
+The current insert uses `gmail_message_id` as a unique key and skips duplicates (`error.code === "23505"`). This is correct for new messages. No change needed here — the fix is the backfill.
 
-**File: `src/pages/Stats.tsx`**
+**3. Trigger the backfill**
 
-1. Update `GmailRow` interface to include `from_email`, `to_emails`, `cc_emails`
-2. Update the Gmail query to fetch these new fields
-3. Add a `useMemo` that:
-   - For each Gmail thread (grouped by `gmail_thread_id` or subject), collects all email addresses from `from_email`, `to_emails`, and `cc_emails`
-   - Filters out `@lovable.dev` domains
-   - Extracts the domain (e.g., `sap.com` from `user@sap.com`)
-   - Groups deduplicated threads by customer domain
-4. Add a new card/chart section showing "Threads by customer" — a bar chart or ranked list of domains with thread counts
-
-### Flow diagram update
-
-**File: `src/pages/FlowDiagram.tsx`**
-- Update the Gmail polling node to mention that `To`/`CC` headers are now captured for customer domain analytics
+After deploying, invoke the function once to populate all existing rows. The "Threads by customer" chart will then show real data.
 
 ### Technical detail
 
-Customer domain extraction logic:
-```ts
-function extractCustomerDomain(row: GmailRow): string | null {
-  const allEmails = [row.from_email, row.to_emails, row.cc_emails]
-    .filter(Boolean)
-    .join(",")
-    .split(",")
-    .map(e => e.trim().toLowerCase())
-    .filter(e => e.includes("@") && !e.endsWith("@lovable.dev"));
+```text
+For each row where to_emails IS NULL:
+  1. GET /gmail/v1/users/me/messages/{gmail_message_id}?format=metadata
+  2. Extract To, Cc headers
+  3. UPDATE gmail_conversations SET to_emails = ?, cc_emails = ? WHERE id = ?
   
-  if (allEmails.length === 0) return null;
-  return allEmails[0].split("@")[1]; // first non-lovable domain
-}
+Rate limiting: 50ms delay between requests to stay under Gmail API quota
 ```
 
-Thread grouping: same dedup-by-subject logic used for "Email total", but instead of counting totals, groups by extracted customer domain.
+### Files to create/edit
+- `supabase/functions/backfill-gmail-headers/index.ts` — new one-time backfill function
+- No Stats.tsx changes needed — the existing domain extraction logic is correct, it just needs data
 
-### Files to edit
-- Migration: add `to_emails`, `cc_emails` columns
-- `supabase/functions/poll-gmail/index.ts` — extract To/CC headers
-- `src/pages/Stats.tsx` — customer domain breakdown metric
-- `src/pages/FlowDiagram.tsx` — document change
-
-### Note
-Existing Gmail rows won't have `to_emails`/`cc_emails` populated. We can either backfill by re-polling, or accept that only new emails will have this data. The `from_email` alone can serve as a fallback for older rows (excluding `@lovable.dev` senders).
+### After backfill
+- The "Threads by customer" chart will populate with domains like `retal.com.sa`, `sap.com`, etc.
+- Can delete the backfill function afterward since `poll-gmail` handles it going forward
 
