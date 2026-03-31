@@ -603,7 +603,7 @@ const Stats = () => {
         </div>
 
         {/* Summary cards */}
-        <div className={cn("grid grid-cols-2 gap-4 md:grid-cols-3", sourceFilter === "gmail" ? "lg:grid-cols-3" : "lg:grid-cols-8")}>
+        <div className={cn("grid grid-cols-2 gap-4 md:grid-cols-3", sourceFilter === "gmail" ? "lg:grid-cols-5" : "lg:grid-cols-8")}>
           {sourceFilter !== "gmail" && (
             <Card>
               <CardContent className="flex flex-col items-center justify-center p-5">
