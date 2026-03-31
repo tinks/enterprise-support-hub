@@ -248,7 +248,7 @@ const Stats = () => {
       .sort((a, b) => b.threads - a.threads);
   }, [filteredGmail]);
 
-
+  const gmailVolumeData = useMemo(() => {
     const byDay: Record<string, number> = {};
     filteredGmail.forEach((g) => {
       const day = format(parseISO(g.received_at || g.created_at), "yyyy-MM-dd");
