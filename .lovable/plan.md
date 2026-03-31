@@ -1,31 +1,43 @@
 
 
-## Add bug, feature request, and product area controls to conversation detail page
+## Add drag-and-drop column reordering to conversations table
 
-### Problem
-The conversation detail page (`/conversations/:id`) is missing the bug toggle, feature request toggle, and product area dropdown that exist on the list page. Users must go back to the list to classify conversations.
+### Approach
+Use the HTML5 Drag and Drop API (no extra dependencies) to let you grab column headers and rearrange them. The new order persists in `localStorage` so it survives refreshes but remains easy to reset.
 
 ### Changes
 
-**`src/pages/ConversationDetail.tsx`**
+**`src/pages/Conversations.tsx`**
 
-1. Add `is_bug`, `is_feature_request`, and `product_area` to the `ConversationMapping` interface
+1. Define a column config array with keys matching each current `TableHead`:
+   ```ts
+   const ALL_COLUMNS = ["id", "source", "sent_by", "message", "channel", "link", "intercom", "status", "date", "test", "resolved", "product_area", "bug", "feature_req"] as const;
+   ```
 
-2. Fetch dynamic product areas from `settings` table (same pattern as Conversations.tsx) on mount
+2. Add state for column order, initialized from `localStorage` (falling back to `ALL_COLUMNS`):
+   ```ts
+   const saved = localStorage.getItem("conv-column-order");
+   const [columnOrder, setColumnOrder] = useState<string[]>(saved ? JSON.parse(saved) : [...ALL_COLUMNS]);
+   ```
+   Persist on change via `useEffect`.
 
-3. Add three toggle/select handlers:
-   - `toggleBug` — update `is_bug` in `conversation_mappings`
-   - `toggleFeatureRequest` — update `is_feature_request`
-   - `updateProductArea` — update `product_area`
+3. Add drag state (`draggedCol`, `dragOverCol`) and handlers:
+   - `onDragStart` — store the dragged column key
+   - `onDragOver` — track the drop target, prevent default
+   - `onDrop` — reorder the array, update state
+   - Visual feedback: highlight the drop target header with a left-border accent
 
-4. Add a new section in the details card (after the existing rows) with:
-   - Bug toggle (Switch) — same as list page
-   - Feature request toggle (Switch)
-   - Product area dropdown (Select with dynamic options from settings + "None")
+4. Refactor the table rendering to be column-driven:
+   - Create a `columnDefs` map: `{ id: { header: "#", renderSlack: (m) => ..., renderGmail: (g) => ... } }`
+   - `TableHeader` iterates `columnOrder` and renders each `TableHead` with drag attributes
+   - `TableBody` rows iterate `columnOrder` and render the matching `TableCell` for each column
+   - This replaces the current hardcoded header/cell order with a data-driven approach
 
-**`src/pages/FlowDiagram.tsx`** — Document that classification controls are now available on the detail page.
+5. Add a small "Reset columns" button (e.g. next to the existing filters) that clears `localStorage` and resets to `ALL_COLUMNS`.
+
+**`src/pages/FlowDiagram.tsx`** — Document that column headers are draggable for reordering.
 
 ### Files to edit
-- `src/pages/ConversationDetail.tsx` — interface update, settings fetch, 3 handlers, 3 UI controls
+- `src/pages/Conversations.tsx` — column config, drag handlers, data-driven rendering
 - `src/pages/FlowDiagram.tsx` — document change
 
