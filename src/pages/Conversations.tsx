@@ -94,12 +94,17 @@ const Conversations = () => {
   const [hasMore, setHasMore] = useState(true);
   const [hasMoreGmail, setHasMoreGmail] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>(paramSource || "all");
+  const savedSource = localStorage.getItem("conv-source-filter") as SourceFilter | null;
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>(paramSource || savedSource || "all");
 
   const ALL_STATUSES = ["active", "awaiting_context", "escalated", "resolved", "cancelled", "test"] as const;
+  const savedHidden = localStorage.getItem("conv-hidden-statuses");
   const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(
-    new Set(["test", "cancelled", "resolved"])
+    savedHidden ? new Set(JSON.parse(savedHidden)) : new Set(["test", "cancelled", "resolved"])
   );
+
+  useEffect(() => { localStorage.setItem("conv-source-filter", sourceFilter); }, [sourceFilter]);
+  useEffect(() => { localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses]);
 
   const toggleHidden = (status: string) => {
     setHiddenStatuses((prev) => {
