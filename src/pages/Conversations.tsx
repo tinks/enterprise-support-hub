@@ -100,10 +100,18 @@ const Conversations = () => {
     const newValue = !currentValue;
     if (source === "slack") {
       setMappings((prev) => prev.map((m) => m.id === id ? { ...m, is_test: newValue } : m));
-      await supabase.from("conversation_mappings").update({ is_test: newValue }).eq("id", id);
+      const { error } = await supabase.from("conversation_mappings").update({ is_test: newValue }).eq("id", id);
+      if (error) {
+        setMappings((prev) => prev.map((m) => m.id === id ? { ...m, is_test: currentValue } : m));
+        toast.error("Failed to update test flag");
+      }
     } else {
       setGmailRows((prev) => prev.map((m) => m.id === id ? { ...m, is_test: newValue } : m));
-      await supabase.from("gmail_conversations").update({ is_test: newValue } as any).eq("id", id);
+      const { error } = await supabase.from("gmail_conversations").update({ is_test: newValue }).eq("id", id);
+      if (error) {
+        setGmailRows((prev) => prev.map((m) => m.id === id ? { ...m, is_test: currentValue } : m));
+        toast.error("Failed to update test flag");
+      }
     }
   };
 
