@@ -811,7 +811,30 @@ const Stats = () => {
           </div>
         )}
 
-        <Card>
+        {/* Threads by customer domain */}
+        {sourceFilter !== "slack" && customerDomainData.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Threads by customer</CardTitle>
+              <CardDescription>Gmail threads grouped by customer email domain (excluding @lovable.dev)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer config={chartConfig} className="w-full" style={{ height: Math.max(200, customerDomainData.length * 40) }}>
+                <BarChart data={customerDomainData} layout="vertical" margin={{ left: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} className="text-xs" />
+                  <YAxis type="category" dataKey="domain" className="text-xs" width={160} tick={{ fontSize: 12 }} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="threads" fill="hsl(35 92% 50%)" radius={[0, 4, 4, 0]}>
+                    <LabelList dataKey="threads" position="right" className="text-xs fill-foreground" />
+                  </Bar>
+                </BarChart>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+        )}
+
+
           <CardHeader>
             <CardTitle className="text-lg">Conversation volume</CardTitle>
             <CardDescription>Daily conversations over {activeRangeLabel.toLowerCase()}</CardDescription>
