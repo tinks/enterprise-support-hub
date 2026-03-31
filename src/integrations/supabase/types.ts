@@ -255,6 +255,7 @@ export type Database = {
           intercom_inbox_id: string
           last_polled_ts: string
           monitored_channels: string
+          product_areas: string
           slack_bot_user_id: string
           test_intercom_inbox_id: string
           testing_mode: boolean
@@ -269,6 +270,7 @@ export type Database = {
           intercom_inbox_id?: string
           last_polled_ts?: string
           monitored_channels?: string
+          product_areas?: string
           slack_bot_user_id?: string
           test_intercom_inbox_id?: string
           testing_mode?: boolean
@@ -283,6 +285,7 @@ export type Database = {
           intercom_inbox_id?: string
           last_polled_ts?: string
           monitored_channels?: string
+          product_areas?: string
           slack_bot_user_id?: string
           test_intercom_inbox_id?: string
           testing_mode?: boolean
