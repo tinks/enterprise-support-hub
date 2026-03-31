@@ -8,8 +8,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug } from "lucide-react";
+import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug, Filter } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { channelNameOverrides } from "@/lib/channelOverrides";
 
 interface ConversationMapping {
@@ -93,6 +95,20 @@ const Conversations = () => {
   const [hasMoreGmail, setHasMoreGmail] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>(paramSource || "all");
+
+  const ALL_STATUSES = ["active", "awaiting_context", "escalated", "resolved", "cancelled", "test"] as const;
+  const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(
+    new Set(["test", "cancelled", "resolved"])
+  );
+
+  const toggleHidden = (status: string) => {
+    setHiddenStatuses((prev) => {
+      const next = new Set(prev);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+  };
 
   const toggleMessage = (id: string) => {
     setExpandedMessages((prev) => {
@@ -298,8 +314,17 @@ const Conversations = () => {
       });
     }
 
-    return rows;
-  }, [mappings, gmailRows, sourceFilter, paramDay, paramHour]);
+    // Apply status filter
+    const filtered = hiddenStatuses.size > 0
+      ? rows.filter((r) => {
+          if (hiddenStatuses.has("test") && r.data.is_test) return false;
+          if (hiddenStatuses.has(r.data.status)) return false;
+          return true;
+        })
+      : rows;
+
+    return filtered;
+  }, [mappings, gmailRows, sourceFilter, paramDay, paramHour, hiddenStatuses]);
 
   const canLoadMore =
     !isHeatmapMode && ((sourceFilter !== "gmail" && hasMore) || (sourceFilter !== "slack" && hasMoreGmail));
@@ -352,6 +377,43 @@ const Conversations = () => {
                     <SelectItem value="gmail">Gmail only</SelectItem>
                   </SelectContent>
                 </Select>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-9 gap-1">
+                      <Filter className="h-3 w-3" />
+                      Status
+                      {hiddenStatuses.size > 0 && (
+                        <Badge variant="secondary" className="ml-1 h-5 px-1 text-xs">
+                          {hiddenStatuses.size} hidden
+                        </Badge>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-52 p-3" align="end">
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">Hide statuses</p>
+                    <div className="flex flex-col gap-2">
+                      {ALL_STATUSES.map((s) => (
+                        <label key={s} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={hiddenStatuses.has(s)}
+                            onCheckedChange={() => toggleHidden(s)}
+                          />
+                          <span className="capitalize">{s.replace("_", " ")}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {hiddenStatuses.size > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="mt-2 h-7 w-full text-xs"
+                        onClick={() => setHiddenStatuses(new Set())}
+                      >
+                        Show all
+                      </Button>
+                    )}
+                  </PopoverContent>
+                </Popover>
                 <Button variant="outline" size="sm" onClick={() => { loadData().then((rows) => loadLookups(rows)); }} disabled={loading}>
                   <RefreshCw className={`mr-1 h-3 w-3 ${loading ? "animate-spin" : ""}`} />
                   Refresh
