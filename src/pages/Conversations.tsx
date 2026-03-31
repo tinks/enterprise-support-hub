@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug, Filter } from "lucide-react";
+import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug, Filter, GripVertical, RotateCcw } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -76,6 +76,11 @@ const getCET = (dateStr: string) => {
   };
 };
 
+const ALL_COLUMNS = ["id", "source", "sent_by", "message", "channel", "link", "intercom", "status", "date", "test", "resolved", "product_area", "bug", "feature_req"] as const;
+type ColKey = typeof ALL_COLUMNS[number];
+
+const COLUMN_STORAGE_KEY = "conv-column-order";
+
 const Conversations = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -103,8 +108,50 @@ const Conversations = () => {
     savedHidden ? new Set(JSON.parse(savedHidden)) : new Set(["test", "cancelled", "resolved"])
   );
 
+  // Column order state
+  const savedColOrder = localStorage.getItem(COLUMN_STORAGE_KEY);
+  const [columnOrder, setColumnOrder] = useState<ColKey[]>(() => {
+    if (savedColOrder) {
+      try {
+        const parsed = JSON.parse(savedColOrder) as string[];
+        // Validate: only keep known keys, append any missing ones
+        const valid = parsed.filter((k): k is ColKey => (ALL_COLUMNS as readonly string[]).includes(k));
+        const missing = ALL_COLUMNS.filter((k) => !valid.includes(k));
+        return [...valid, ...missing];
+      } catch { return [...ALL_COLUMNS]; }
+    }
+    return [...ALL_COLUMNS];
+  });
+
+  // Drag state
+  const dragCol = useRef<ColKey | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<ColKey | null>(null);
+
+  useEffect(() => { localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(columnOrder)); }, [columnOrder]);
   useEffect(() => { localStorage.setItem("conv-source-filter", sourceFilter); }, [sourceFilter]);
   useEffect(() => { localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses]);
+
+  const handleDragStart = useCallback((col: ColKey) => { dragCol.current = col; }, []);
+  const handleDragOver = useCallback((e: React.DragEvent, col: ColKey) => {
+    e.preventDefault();
+    setDragOverCol(col);
+  }, []);
+  const handleDrop = useCallback((col: ColKey) => {
+    const from = dragCol.current;
+    if (!from || from === col) { setDragOverCol(null); dragCol.current = null; return; }
+    setColumnOrder((prev) => {
+      const next = [...prev];
+      const fromIdx = next.indexOf(from);
+      const toIdx = next.indexOf(col);
+      next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, from);
+      return next;
+    });
+    setDragOverCol(null);
+    dragCol.current = null;
+  }, []);
+  const handleDragEnd = useCallback(() => { setDragOverCol(null); dragCol.current = null; }, []);
+  const resetColumns = useCallback(() => { setColumnOrder([...ALL_COLUMNS]); }, []);
 
   const toggleHidden = (status: string) => {
     setHiddenStatuses((prev) => {
@@ -334,6 +381,210 @@ const Conversations = () => {
   const canLoadMore =
     !isHeatmapMode && ((sourceFilter !== "gmail" && hasMore) || (sourceFilter !== "slack" && hasMoreGmail));
 
+  // Column definitions
+  const columnHeaders: Record<ColKey, string> = {
+    id: "#",
+    source: "Source",
+    sent_by: "Sent by",
+    message: "Message / Subject",
+    channel: "Channel",
+    link: "Link",
+    intercom: "Intercom",
+    status: "Status",
+    date: "Date",
+    test: "Test",
+    resolved: "Resolved",
+    product_area: "Product area",
+    bug: "Bug",
+    feature_req: "Feature req.",
+  };
+
+  const renderSlackCell = (col: ColKey, m: ConversationMapping): ReactNode => {
+    switch (col) {
+      case "id": return <span className="text-xs text-muted-foreground font-mono">{m.id.slice(0, 8)}</span>;
+      case "source": return <Badge variant="outline" className="text-xs">Slack</Badge>;
+      case "sent_by": return (
+        <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
+          <User className="h-3.5 w-3.5 text-muted-foreground" />
+          {userNames[m.slack_user_id] || m.slack_user_id || "—"}
+        </span>
+      );
+      case "message": return m.original_message_text ? (
+        <button
+          onClick={(e) => { e.stopPropagation(); toggleMessage(m.id); }}
+          className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+        >
+          {expandedMessages.has(m.id)
+            ? m.original_message_text
+            : m.original_message_text.length > 60
+              ? m.original_message_text.slice(0, 60) + "…"
+              : m.original_message_text}
+        </button>
+      ) : <span className="text-xs text-muted-foreground">—</span>;
+      case "channel": return (
+        <span className="inline-flex items-center gap-1 text-sm text-foreground">
+          <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+          {channelNames[m.slack_channel_id] || channelNameOverrides[m.slack_channel_id] || (m.slack_channel_id.startsWith("D") ? "Direct message" : m.slack_channel_id)}
+        </span>
+      );
+      case "link": return (
+        <a
+          href={buildSlackLink(m.slack_channel_id, m.slack_thread_ts)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs font-mono text-primary underline hover:text-primary/80 transition-colors"
+          onClick={(e) => e.stopPropagation()}
+        >
+          Thread <ExternalLink className="h-3 w-3" />
+        </a>
+      );
+      case "intercom": return m.intercom_conversation_id ? (
+        <a
+          href={`https://app.intercom.com/a/apps/esqnv6i1/conversations/${m.intercom_conversation_id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs font-mono text-primary underline hover:text-primary/80 transition-colors"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {m.intercom_conversation_id} <ExternalLink className="h-3 w-3" />
+        </a>
+      ) : <span className="text-xs text-muted-foreground">—</span>;
+      case "status": return <Badge variant={statusColor(m.status)}>{m.status}</Badge>;
+      case "date": return <span className="text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString()}</span>;
+      case "test": return (
+        <Switch
+          checked={m.is_test}
+          onCheckedChange={() => toggleTest(m.id, m.is_test, "slack")}
+          aria-label="Toggle test"
+          onClick={(e) => e.stopPropagation()}
+        />
+      );
+      case "resolved": return (
+        <Switch
+          checked={m.status === "resolved"}
+          onCheckedChange={() => toggleResolved(m.id, m.status, "slack")}
+          aria-label="Toggle resolved"
+          onClick={(e) => e.stopPropagation()}
+        />
+      );
+      case "product_area": return (
+        <Select value={m.product_area || ""} onValueChange={(v) => updateProductArea(m.id, v, "slack")}>
+          <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent>
+            {productAreas.map((area) => (
+              <SelectItem key={area} value={area}>{area}</SelectItem>
+            ))}
+            {m.product_area && (
+              <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+      );
+      case "bug": return (
+        <Switch
+          checked={m.is_bug}
+          onCheckedChange={() => toggleBug(m.id, m.is_bug, "slack")}
+          aria-label="Toggle bug"
+          onClick={(e) => e.stopPropagation()}
+        />
+      );
+      case "feature_req": return (
+        <Switch
+          checked={m.is_feature_request}
+          onCheckedChange={() => toggleFeatureRequest(m.id, m.is_feature_request, "slack")}
+          aria-label="Toggle feature request"
+          onClick={(e) => e.stopPropagation()}
+        />
+      );
+    }
+  };
+
+  const renderGmailCell = (col: ColKey, g: GmailConversation): ReactNode => {
+    switch (col) {
+      case "id": return <span className="text-xs text-muted-foreground font-mono">{g.id.slice(0, 8)}</span>;
+      case "source": return <Badge variant="secondary" className="text-xs"><Mail className="mr-1 h-3 w-3" />Gmail</Badge>;
+      case "sent_by": return (
+        <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
+          <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+          {g.from_name || g.from_email || "—"}
+        </span>
+      );
+      case "message": return g.subject ? (
+        <button
+          onClick={() => toggleMessage(g.id)}
+          className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+        >
+          {expandedMessages.has(g.id)
+            ? `${g.subject}\n${g.snippet || ""}`
+            : g.subject.length > 60
+              ? g.subject.slice(0, 60) + "…"
+              : g.subject}
+        </button>
+      ) : <span className="text-xs text-muted-foreground">—</span>;
+      case "channel": return <span className="text-xs text-muted-foreground">Gmail inbox</span>;
+      case "link": return g.gmail_thread_id ? (
+        <a
+          href={`https://mail.google.com/mail/u/0/#inbox/${g.gmail_thread_id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs font-mono text-primary underline hover:text-primary/80 transition-colors"
+        >
+          Email <ExternalLink className="h-3 w-3" />
+        </a>
+      ) : <span className="text-xs text-muted-foreground">—</span>;
+      case "intercom": return <span className="text-xs text-muted-foreground">—</span>;
+      case "status": return <Badge variant={g.status === "resolved" ? "secondary" : "default"}>{g.status || "open"}</Badge>;
+      case "date": return <span className="text-xs text-muted-foreground">{g.received_at ? new Date(g.received_at).toLocaleString() : new Date(g.created_at).toLocaleString()}</span>;
+      case "test": return (
+        <Switch
+          checked={g.is_test}
+          onCheckedChange={() => toggleTest(g.id, g.is_test, "gmail")}
+          aria-label="Toggle test"
+        />
+      );
+      case "resolved": return (
+        <Switch
+          checked={g.status === "resolved"}
+          onCheckedChange={() => toggleResolved(g.id, g.status, "gmail")}
+          aria-label="Toggle resolved"
+        />
+      );
+      case "product_area": return (
+        <Select value={g.product_area || ""} onValueChange={(v) => updateProductArea(g.id, v, "gmail")}>
+          <SelectTrigger className="h-8 w-[130px] text-xs">
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent>
+            {productAreas.map((area) => (
+              <SelectItem key={area} value={area}>{area}</SelectItem>
+            ))}
+            {g.product_area && (
+              <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+      );
+      case "bug": return (
+        <Switch
+          checked={g.is_bug}
+          onCheckedChange={() => toggleBug(g.id, g.is_bug, "gmail")}
+          aria-label="Toggle bug"
+        />
+      );
+      case "feature_req": return (
+        <Switch
+          checked={g.is_feature_request}
+          onCheckedChange={() => toggleFeatureRequest(g.id, g.is_feature_request, "gmail")}
+          aria-label="Toggle feature request"
+        />
+      );
+    }
+  };
+
+  const isCustomOrder = JSON.stringify(columnOrder) !== JSON.stringify([...ALL_COLUMNS]);
+
   return (
     <AppLayout>
       <div className="h-full min-h-0 flex flex-col bg-background p-6">
@@ -372,6 +623,11 @@ const Conversations = () => {
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
+                {isCustomOrder && (
+                  <Button variant="ghost" size="sm" className="h-9 gap-1 text-xs" onClick={resetColumns}>
+                    <RotateCcw className="h-3 w-3" /> Reset columns
+                  </Button>
+                )}
                 <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as SourceFilter)}>
                   <SelectTrigger className="w-[130px] h-9">
                     <SelectValue />
@@ -435,20 +691,24 @@ const Conversations = () => {
                 <Table>
                   <TableHeader className="sticky top-0 z-20 bg-card [&_tr]:border-b">
                     <TableRow>
-                      <TableHead>#</TableHead>
-                      <TableHead>Source</TableHead>
-                      <TableHead>Sent by</TableHead>
-                      <TableHead>Message / Subject</TableHead>
-                      <TableHead>Channel</TableHead>
-                      <TableHead>Link</TableHead>
-                      <TableHead>Intercom</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Test</TableHead>
-                      <TableHead>Resolved</TableHead>
-                      <TableHead>Product area</TableHead>
-                      <TableHead>Bug</TableHead>
-                      <TableHead>Feature req.</TableHead>
+                      {columnOrder.map((col) => (
+                        <TableHead
+                          key={col}
+                          draggable
+                          onDragStart={() => handleDragStart(col)}
+                          onDragOver={(e) => handleDragOver(e, col)}
+                          onDrop={() => handleDrop(col)}
+                          onDragEnd={handleDragEnd}
+                          className={`cursor-grab select-none transition-colors ${
+                            dragOverCol === col ? "border-l-2 border-l-primary bg-primary/5" : ""
+                          }`}
+                        >
+                          <span className="inline-flex items-center gap-1">
+                            <GripVertical className="h-3 w-3 text-muted-foreground/50" />
+                            {columnHeaders[col]}
+                          </span>
+                        </TableHead>
+                      ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -461,125 +721,11 @@ const Conversations = () => {
                             className={`cursor-pointer hover:bg-muted/50 transition-colors ${m.is_test ? "opacity-50" : ""}`}
                             onClick={() => navigate(`/conversations/${m.id}`)}
                           >
-                            <TableCell className="text-xs text-muted-foreground font-mono">
-                              {m.id.slice(0, 8)}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="text-xs">Slack</Badge>
-                            </TableCell>
-                            <TableCell>
-                              <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
-                                <User className="h-3.5 w-3.5 text-muted-foreground" />
-                                {userNames[m.slack_user_id] || m.slack_user_id || "—"}
-                              </span>
-                            </TableCell>
-                            <TableCell className="max-w-[300px]">
-                              {m.original_message_text ? (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); toggleMessage(m.id); }}
-                                  className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                                >
-                                  {expandedMessages.has(m.id)
-                                    ? m.original_message_text
-                                    : m.original_message_text.length > 60
-                                      ? m.original_message_text.slice(0, 60) + "…"
-                                      : m.original_message_text}
-                                </button>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">—</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <span className="inline-flex items-center gap-1 text-sm text-foreground">
-                                <Hash className="h-3.5 w-3.5 text-muted-foreground" />
-                                {channelNames[m.slack_channel_id] || channelNameOverrides[m.slack_channel_id] || (m.slack_channel_id.startsWith("D") ? "Direct message" : m.slack_channel_id)}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <a
-                                href={buildSlackLink(m.slack_channel_id, m.slack_thread_ts)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs font-mono text-primary underline hover:text-primary/80 transition-colors"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                Thread <ExternalLink className="h-3 w-3" />
-                              </a>
-                            </TableCell>
-                            <TableCell>
-                              {m.intercom_conversation_id ? (
-                                <a
-                                  href={`https://app.intercom.com/a/apps/esqnv6i1/conversations/${m.intercom_conversation_id}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-xs font-mono text-primary underline hover:text-primary/80 transition-colors"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  {m.intercom_conversation_id} <ExternalLink className="h-3 w-3" />
-                                </a>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">—</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant={statusColor(m.status)}>{m.status}</Badge>
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              {new Date(m.created_at).toLocaleString()}
-                            </TableCell>
-                            <TableCell>
-                              <Switch
-                                checked={m.is_test}
-                                onCheckedChange={() => toggleTest(m.id, m.is_test, "slack")}
-                                aria-label="Toggle test"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Switch
-                                checked={m.status === "resolved"}
-                                onCheckedChange={() => toggleResolved(m.id, m.status, "slack")}
-                                aria-label="Toggle resolved"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Select
-                                value={m.product_area || ""}
-                                onValueChange={(v) => updateProductArea(m.id, v, "slack")}
-                              >
-                                <SelectTrigger
-                                  className="h-8 w-[130px] text-xs"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <SelectValue placeholder="—" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {productAreas.map((area) => (
-                                    <SelectItem key={area} value={area}>{area}</SelectItem>
-                                  ))}
-                                  {m.product_area && (
-                                    <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>
-                                  )}
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell>
-                              <Switch
-                                checked={m.is_bug}
-                                onCheckedChange={() => toggleBug(m.id, m.is_bug, "slack")}
-                                aria-label="Toggle bug"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Switch
-                                checked={m.is_feature_request}
-                                onCheckedChange={() => toggleFeatureRequest(m.id, m.is_feature_request, "slack")}
-                                aria-label="Toggle feature request"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </TableCell>
+                            {columnOrder.map((col) => (
+                              <TableCell key={col} className={col === "message" ? "max-w-[300px]" : ""}>
+                                {renderSlackCell(col, m)}
+                              </TableCell>
+                            ))}
                           </TableRow>
                         );
                       } else {
@@ -589,106 +735,11 @@ const Conversations = () => {
                             key={`gmail-${g.id}`}
                             className={`hover:bg-muted/50 transition-colors ${g.is_test ? "opacity-50" : ""}`}
                           >
-                            <TableCell className="text-xs text-muted-foreground font-mono">
-                              {g.id.slice(0, 8)}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="secondary" className="text-xs">
-                                <Mail className="mr-1 h-3 w-3" />Gmail
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
-                                <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                                {g.from_name || g.from_email || "—"}
-                              </span>
-                            </TableCell>
-                            <TableCell className="max-w-[300px]">
-                              {g.subject ? (
-                                <button
-                                  onClick={() => toggleMessage(g.id)}
-                                  className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                                >
-                                  {expandedMessages.has(g.id)
-                                    ? `${g.subject}\n${g.snippet || ""}`
-                                    : g.subject.length > 60
-                                      ? g.subject.slice(0, 60) + "…"
-                                      : g.subject}
-                                </button>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">—</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-xs text-muted-foreground">Gmail inbox</span>
-                            </TableCell>
-                            <TableCell>
-                              {g.gmail_thread_id ? (
-                                <a
-                                  href={`https://mail.google.com/mail/u/0/#inbox/${g.gmail_thread_id}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 text-xs font-mono text-primary underline hover:text-primary/80 transition-colors"
-                                >
-                                  Email <ExternalLink className="h-3 w-3" />
-                                </a>
-                              ) : "—"}
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-xs text-muted-foreground">—</span>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant={g.status === "resolved" ? "secondary" : "default"}>{g.status || "open"}</Badge>
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              {g.received_at ? new Date(g.received_at).toLocaleString() : new Date(g.created_at).toLocaleString()}
-                            </TableCell>
-                            <TableCell>
-                              <Switch
-                                checked={g.is_test}
-                                onCheckedChange={() => toggleTest(g.id, g.is_test, "gmail")}
-                                aria-label="Toggle test"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Switch
-                                checked={g.status === "resolved"}
-                                onCheckedChange={() => toggleResolved(g.id, g.status, "gmail")}
-                                aria-label="Toggle resolved"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Select
-                                value={g.product_area || ""}
-                                onValueChange={(v) => updateProductArea(g.id, v, "gmail")}
-                              >
-                                <SelectTrigger className="h-8 w-[130px] text-xs">
-                                  <SelectValue placeholder="—" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {productAreas.map((area) => (
-                                    <SelectItem key={area} value={area}>{area}</SelectItem>
-                                  ))}
-                                  {g.product_area && (
-                                    <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>
-                                  )}
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                            <TableCell>
-                              <Switch
-                                checked={g.is_bug}
-                                onCheckedChange={() => toggleBug(g.id, g.is_bug, "gmail")}
-                                aria-label="Toggle bug"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Switch
-                                checked={g.is_feature_request}
-                                onCheckedChange={() => toggleFeatureRequest(g.id, g.is_feature_request, "gmail")}
-                                aria-label="Toggle feature request"
-                              />
-                            </TableCell>
+                            {columnOrder.map((col) => (
+                              <TableCell key={col} className={col === "message" ? "max-w-[300px]" : ""}>
+                                {renderGmailCell(col, g)}
+                              </TableCell>
+                            ))}
                           </TableRow>
                         );
                       }

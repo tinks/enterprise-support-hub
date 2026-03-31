@@ -49,6 +49,10 @@ const ROW_H = 380;
 /*  Product areas are user-configurable via Settings page. The         */
 /*  Conversations page fetches the list from settings.product_areas.   */
 /* ------------------------------------------------------------------ */
+/*  Column headers in the Conversations table are drag-and-drop        */
+/*  reorderable. Order persists in localStorage (conv-column-order).   */
+/*  A "Reset columns" button restores the default order.               */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */
