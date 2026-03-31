@@ -36,6 +36,9 @@ interface GmailRow {
   status: string;
   resolved_at: string | null;
   gmail_thread_id: string | null;
+  from_email: string | null;
+  to_emails: string | null;
+  cc_emails: string | null;
 }
 
 type SourceFilter = "all" | "slack" | "gmail";
@@ -103,7 +106,7 @@ const Stats = () => {
         .order("created_at", { ascending: true }),
       supabase
         .from("gmail_conversations")
-        .select("received_at, created_at, is_test, subject, status, resolved_at, gmail_thread_id")
+        .select("received_at, created_at, is_test, subject, status, resolved_at, gmail_thread_id, from_email, to_emails, cc_emails")
         .order("received_at", { ascending: true }),
     ]);
     const rows = (slackRes.data as Mapping[]) || [];
@@ -219,6 +222,31 @@ const Stats = () => {
     const avg = gmailResolutionTimes.reduce((s, v) => s + v, 0) / gmailResolutionTimes.length;
     return { median, avg, count: gmailResolutionTimes.length };
   }, [gmailResolutionTimes]);
+
+  const customerDomainData = useMemo(() => {
+    // Group threads by subject (same dedup as email total), then extract customer domain
+    const threadDomains: Record<string, string | null> = {};
+    let orphanIdx = 0;
+    filteredGmail.forEach((g) => {
+      const threadKey = g.subject || `__orphan_${orphanIdx++}`;
+      if (threadDomains[threadKey] !== undefined) return; // already processed this thread
+      const allEmails = [g.from_email, g.to_emails, g.cc_emails]
+        .filter(Boolean)
+        .join(",")
+        .split(",")
+        .map((e) => e.trim().toLowerCase())
+        .filter((e) => e.includes("@") && !e.endsWith("@lovable.dev"));
+      threadDomains[threadKey] = allEmails.length > 0 ? allEmails[0].split("@")[1] : null;
+    });
+    const domainCounts: Record<string, number> = {};
+    Object.values(threadDomains).forEach((domain) => {
+      if (!domain) return;
+      domainCounts[domain] = (domainCounts[domain] || 0) + 1;
+    });
+    return Object.entries(domainCounts)
+      .map(([domain, count]) => ({ domain, threads: count }))
+      .sort((a, b) => b.threads - a.threads);
+  }, [filteredGmail]);
 
   const gmailVolumeData = useMemo(() => {
     const byDay: Record<string, number> = {};
@@ -781,6 +809,29 @@ const Stats = () => {
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {/* Threads by customer domain */}
+        {sourceFilter !== "slack" && customerDomainData.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Threads by customer</CardTitle>
+              <CardDescription>Gmail threads grouped by customer email domain (excluding @lovable.dev)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer config={chartConfig} className="w-full" style={{ height: Math.max(200, customerDomainData.length * 40) }}>
+                <BarChart data={customerDomainData} layout="vertical" margin={{ left: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} className="text-xs" />
+                  <YAxis type="category" dataKey="domain" className="text-xs" width={160} tick={{ fontSize: 12 }} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="threads" fill="hsl(35 92% 50%)" radius={[0, 4, 4, 0]}>
+                    <LabelList dataKey="threads" position="right" className="text-xs fill-foreground" />
+                  </Bar>
+                </BarChart>
+              </ChartContainer>
+            </CardContent>
+          </Card>
         )}
 
         <Card>
