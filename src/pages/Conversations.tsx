@@ -142,7 +142,35 @@ const Conversations = () => {
     }
   };
 
-  const loadLookups = async (rows: ConversationMapping[]) => {
+  const PRODUCT_AREAS = ["SSO", "Credits", "Account access", "Remix/transfer"] as const;
+
+  const updateProductArea = async (id: string, value: string, source: "slack" | "gmail") => {
+    const newValue = value === "clear" ? null : value;
+    const table = source === "slack" ? "conversation_mappings" : "gmail_conversations";
+    const setState = source === "slack" ? setMappings : setGmailRows;
+
+    setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, product_area: newValue } : m));
+    const { error } = await supabase.from(table).update({ product_area: newValue } as any).eq("id", id);
+    if (error) {
+      setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, product_area: value === "clear" ? value : null } : m));
+      toast.error("Failed to update product area");
+    }
+  };
+
+  const toggleBug = async (id: string, currentValue: boolean, source: "slack" | "gmail") => {
+    const newValue = !currentValue;
+    const table = source === "slack" ? "conversation_mappings" : "gmail_conversations";
+    const setState = source === "slack" ? setMappings : setGmailRows;
+
+    setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, is_bug: newValue } : m));
+    const { error } = await supabase.from(table).update({ is_bug: newValue } as any).eq("id", id);
+    if (error) {
+      setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, is_bug: currentValue } : m));
+      toast.error("Failed to update bug flag");
+    }
+  };
+
+
     const usersRes = await supabase.functions.invoke("list-slack-users");
     if (usersRes.data?.users) {
       const map: NameMap = {};
