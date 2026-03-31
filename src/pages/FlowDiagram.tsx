@@ -270,7 +270,7 @@ function buildNodes(
           "Atomic guard: updates status to 'resolved' only if currently active/awaiting_context — second click is a no-op",
           "Removes feedback buttons",
           "Removes 👀 and ⏳, adds ✅",
-          "Closes Intercom conversation (keeps current admin)",
+          "Fetches current conversation assignee from Intercom, closes as that admin (human agent gets credit; falls back to Sam if no assignee)",
         ],
         message: msgs.feedback_positive,
         messageKey: "feedback_positive",
