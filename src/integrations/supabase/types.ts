@@ -129,7 +129,9 @@ export type Database = {
           id: string
           is_test: boolean
           received_at: string | null
+          resolved_at: string | null
           snippet: string | null
+          status: string
           subject: string | null
         }
         Insert: {
@@ -141,7 +143,9 @@ export type Database = {
           id?: string
           is_test?: boolean
           received_at?: string | null
+          resolved_at?: string | null
           snippet?: string | null
+          status?: string
           subject?: string | null
         }
         Update: {
@@ -153,7 +157,9 @@ export type Database = {
           id?: string
           is_test?: boolean
           received_at?: string | null
+          resolved_at?: string | null
           snippet?: string | null
+          status?: string
           subject?: string | null
         }
         Relationships: []
@@ -265,6 +271,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      auto_close_gmail_threads: { Args: never; Returns: undefined }
       claim_intercom_part: {
         Args: { p_mapping_id: string; p_part_id: string }
         Returns: boolean

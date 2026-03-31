@@ -386,11 +386,27 @@ const Conversations = () => {
                               {g.received_at ? new Date(g.received_at).toLocaleString() : new Date(g.created_at).toLocaleString()}
                             </TableCell>
                             <TableCell>
-                              <Switch
-                                checked={g.is_test}
-                                onCheckedChange={() => toggleTest(g.id, g.is_test, "gmail")}
-                                aria-label="Toggle test"
-                              />
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  checked={g.is_test}
+                                  onCheckedChange={() => toggleTest(g.id, g.is_test, "gmail")}
+                                  aria-label="Toggle test"
+                                />
+                                {g.status !== "resolved" && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2 text-xs"
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      setGmailRows((prev) => prev.map((r) => r.id === g.id ? { ...r, status: "resolved", resolved_at: new Date().toISOString() } : r));
+                                      await supabase.from("gmail_conversations").update({ status: "resolved", resolved_at: new Date().toISOString() } as any).eq("id", g.id);
+                                    }}
+                                  >
+                                    Resolve
+                                  </Button>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         );
