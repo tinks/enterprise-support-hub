@@ -1,46 +1,26 @@
 
 
-## Close Intercom conversation as the actual assignee, not Sam
-
-### Problem
-When a user clicks 👍 in Slack, the `slack-interactions` function closes the Intercom conversation using `intercom_assignee_id` (Sam's admin ID). This means Sam gets credit for resolving the ticket instead of the human agent who actually handled it.
-
-### Fix
-Before closing the conversation, fetch the current conversation from Intercom to get the actual assignee. Use that admin's ID to close the conversation. Fall back to Sam's ID only if no assignee is found.
+## Add "Feature request" toggle and "Cloud/AI" product area option
 
 ### Changes
 
-**`supabase/functions/slack-interactions/index.ts`** — lines 1370-1386
-
-Replace the hardcoded `adminId` with a dynamic lookup:
-
-```ts
-// Fetch current conversation to find the actual assignee
-let adminId = cachedSettings.intercom_assignee_id || "8430778"; // fallback to Sam
-try {
-  const convoRes = await fetch(`https://api.intercom.io/conversations/${conversationId}`, {
-    headers: {
-      Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
-      Accept: "application/json",
-      "Intercom-Version": "2.11",
-    },
-  });
-  if (convoRes.ok) {
-    const convoData = await convoRes.json();
-    if (convoData.admin_assignee_id) {
-      adminId = String(convoData.admin_assignee_id);
-    }
-  }
-} catch (e) {
-  console.error("Failed to fetch conversation assignee, falling back to default:", e);
-}
+**Database migration** — Add `is_feature_request` boolean column to both tables:
+```sql
+ALTER TABLE conversation_mappings ADD COLUMN is_feature_request boolean NOT NULL DEFAULT false;
+ALTER TABLE gmail_conversations ADD COLUMN is_feature_request boolean NOT NULL DEFAULT false;
 ```
 
-This single API call before the close ensures the actual support agent gets credit. If the conversation is still assigned to Sam (no escalation happened), Sam closes it — same as before.
+**`src/pages/Conversations.tsx`**
+1. Add `is_feature_request: boolean` to both interfaces
+2. Add `"Cloud/AI"` to `PRODUCT_AREAS` array
+3. Add `toggleFeatureRequest` handler (same pattern as `toggleBug`)
+4. Add "Feature req." table header next to "Bug"
+5. Add Switch cell for both Slack and Gmail rows
 
-**`src/pages/FlowDiagram.tsx`** — document that thumbs-up resolution now closes as the current assignee.
+**`src/pages/FlowDiagram.tsx`** — Document the new column and product area option.
 
 ### Files to edit
-- `supabase/functions/slack-interactions/index.ts` — dynamic assignee lookup before close
-- `src/pages/FlowDiagram.tsx` — update flow documentation
+- Database migration (2 ALTER TABLE statements)
+- `src/pages/Conversations.tsx`
+- `src/pages/FlowDiagram.tsx`
 
