@@ -1020,6 +1020,9 @@ const Stats = () => {
               </div>
             )}
           </CardContent>
+        </Card>
+
+        {sourceFilter !== "gmail" && (
         /* Conversations by channel */
         <Card>
           <CardHeader>
