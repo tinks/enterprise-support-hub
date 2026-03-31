@@ -546,7 +546,7 @@ const Stats = () => {
     <AppLayout>
       <div className="mx-auto max-w-5xl space-y-6 p-6">
         {/* Hero banner */}
-        <div className="flex items-center justify-between rounded-xl border border-border bg-card p-6">
+        <div className="flex items-center justify-between rounded-xl border border-border bg-gradient-to-br from-card via-card to-accent p-6">
           <div className="flex items-center gap-4">
             <img src="/lovable-logo.png" alt="Lovable logo" className="h-12 w-12 rounded-lg" />
             <div>

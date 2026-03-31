@@ -300,9 +300,9 @@ const ProjectKnowledge = () => {
       <div className="h-[calc(100vh-4rem)] flex flex-col">
         {/* Pending change banner */}
         {pendingContent && mode !== "review" && (
-          <div className="flex items-center gap-3 bg-orange-500/10 border-b border-orange-500/20 px-6 py-2">
-            <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0" />
-            <span className="text-sm text-orange-600 dark:text-orange-400 font-medium">
+          <div className="flex items-center gap-3 bg-primary/10 border-b border-primary/20 px-6 py-2">
+            <AlertTriangle className="h-4 w-4 text-primary shrink-0" />
+            <span className="text-sm text-primary font-medium">
               Pending changes await your review
             </span>
             <Button
