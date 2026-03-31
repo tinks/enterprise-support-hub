@@ -137,6 +137,8 @@ const Conversations = () => {
     }
   };
 
+  const isHeatmapMode = paramDay !== null && paramHour !== null;
+
   const loadData = async (append = false) => {
     const currentOffset = append ? offset : 0;
     const currentGmailOffset = append ? gmailOffset : 0;
@@ -148,17 +150,19 @@ const Conversations = () => {
       setGmailOffset(0);
     }
 
+    const pageSize = isHeatmapMode ? 1000 : 50;
+
     const [slackRes, gmailRes] = await Promise.all([
       supabase
         .from("conversation_mappings")
         .select("*")
         .order("created_at", { ascending: false })
-        .range(currentOffset, currentOffset + 49),
+        .range(currentOffset, currentOffset + pageSize - 1),
       supabase
         .from("gmail_conversations")
         .select("*")
         .order("received_at", { ascending: false })
-        .range(currentGmailOffset, currentGmailOffset + 49),
+        .range(currentGmailOffset, currentGmailOffset + pageSize - 1),
     ]);
 
     const slackRows = (slackRes.data ?? []) as unknown as ConversationMapping[];
