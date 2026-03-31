@@ -144,7 +144,7 @@ const Conversations = () => {
     }
   };
 
-  const PRODUCT_AREAS = ["SSO", "SCIM", "Credits", "Account access", "Remix/transfer", "Cloud/AI"] as const;
+  const [productAreas, setProductAreas] = useState<string[]>(["SSO", "SCIM", "Credits", "Account access", "Remix/transfer", "Cloud/AI"]);
 
   const updateProductArea = async (id: string, value: string, source: "slack" | "gmail") => {
     const newValue = value === "clear" ? null : value;
@@ -267,6 +267,11 @@ const Conversations = () => {
 
   useEffect(() => {
     loadData().then((rows) => loadLookups(rows));
+    supabase.from("settings").select("product_areas").limit(1).single().then(({ data }) => {
+      if (data?.product_areas) {
+        setProductAreas(data.product_areas.split(",").map((s: string) => s.trim()).filter(Boolean));
+      }
+    });
   }, []);
 
   const unified = useMemo<UnifiedRow[]>(() => {
@@ -482,7 +487,7 @@ const Conversations = () => {
                                   <SelectValue placeholder="—" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {PRODUCT_AREAS.map((area) => (
+                                  {productAreas.map((area) => (
                                     <SelectItem key={area} value={area}>{area}</SelectItem>
                                   ))}
                                   {m.product_area && (
@@ -593,7 +598,7 @@ const Conversations = () => {
                                   <SelectValue placeholder="—" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {PRODUCT_AREAS.map((area) => (
+                                  {productAreas.map((area) => (
                                     <SelectItem key={area} value={area}>{area}</SelectItem>
                                   ))}
                                   {g.product_area && (

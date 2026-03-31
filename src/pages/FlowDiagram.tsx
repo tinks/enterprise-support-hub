@@ -46,6 +46,9 @@ const ROW_H = 380;
 /*  Gmail resolve & toggleTest: optimistic UI update with error        */
 /*  handling — reverts state and shows toast on failure. No `as any`.  */
 /* ------------------------------------------------------------------ */
+/*  Product areas are user-configurable via Settings page. The         */
+/*  Conversations page fetches the list from settings.product_areas.   */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */

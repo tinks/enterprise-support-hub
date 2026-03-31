@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { Settings, RefreshCw, Save, Link, Search, Hash, X, Plus, Mail, CheckCircle2, AlertCircle } from "lucide-react";
 import BotIdentityCard from "@/components/BotIdentityCard";
+import ProductAreasCard from "@/components/ProductAreasCard";
 import lovableLogo from "@/assets/lovable-logo.png";
 
 interface SettingsData {
@@ -23,6 +24,7 @@ interface SettingsData {
   testing_mode: boolean;
   test_intercom_inbox_id: string;
   auto_mark_employee_test: boolean;
+  product_areas: string;
 }
 
 
@@ -142,6 +144,7 @@ const Index = () => {
         testing_mode: settings.testing_mode,
         test_intercom_inbox_id: settings.test_intercom_inbox_id,
         auto_mark_employee_test: settings.auto_mark_employee_test,
+        product_areas: settings.product_areas,
       })
       .eq("id", settings.id);
 
@@ -379,6 +382,9 @@ const Index = () => {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Product Areas Card */}
+        <ProductAreasCard settings={settings} setSettings={setSettings} />
 
         {/* Bot Identity Card */}
         <BotIdentityCard />

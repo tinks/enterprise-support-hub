@@ -1,0 +1,1 @@
+ALTER TABLE settings ADD COLUMN product_areas text NOT NULL DEFAULT 'SSO,SCIM,Credits,Account access,Remix/transfer,Cloud/AI';
