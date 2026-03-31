@@ -182,6 +182,28 @@ const ConversationDetail = () => {
     setConv({ ...conv, is_test: newVal });
   };
 
+  const toggleBug = async () => {
+    if (!conv) return;
+    const newVal = !conv.is_bug;
+    await supabase.from("conversation_mappings").update({ is_bug: newVal }).eq("id", conv.id);
+    setConv({ ...conv, is_bug: newVal });
+  };
+
+  const toggleFeatureRequest = async () => {
+    if (!conv) return;
+    const newVal = !conv.is_feature_request;
+    await supabase.from("conversation_mappings").update({ is_feature_request: newVal }).eq("id", conv.id);
+    setConv({ ...conv, is_feature_request: newVal });
+  };
+
+  const updateProductArea = async (value: string) => {
+    if (!conv) return;
+    const newVal = value === "none" ? null : value;
+    await supabase.from("conversation_mappings").update({ product_area: newVal }).eq("id", conv.id);
+    setConv({ ...conv, product_area: newVal });
+    toast.success(`Product area updated`);
+  };
+
   if (loading) {
     return (
       <AppLayout>
