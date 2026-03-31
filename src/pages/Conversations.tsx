@@ -59,8 +59,21 @@ const statusColor = (status: string) => {
 const buildSlackLink = (channelId: string, threadTs: string) =>
   `https://lovable-dev.slack.com/archives/${channelId}/p${threadTs.replace(".", "")}`;
 
+const getCET = (dateStr: string) => {
+  const d = new Date(dateStr);
+  return {
+    day: d.toLocaleDateString("en-GB", { timeZone: "Europe/Berlin", weekday: "short" }),
+    hour: parseInt(d.toLocaleString("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false })),
+  };
+};
+
 const Conversations = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const paramDay = searchParams.get("day");
+  const paramHour = searchParams.get("hour") !== null ? parseInt(searchParams.get("hour")!) : null;
+  const paramSource = searchParams.get("source") as SourceFilter | null;
+
   const [mappings, setMappings] = useState<ConversationMapping[]>([]);
   const [gmailRows, setGmailRows] = useState<GmailConversation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +85,7 @@ const Conversations = () => {
   const [hasMore, setHasMore] = useState(true);
   const [hasMoreGmail, setHasMoreGmail] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>(paramSource || "all");
 
   const toggleMessage = (id: string) => {
     setExpandedMessages((prev) => {
