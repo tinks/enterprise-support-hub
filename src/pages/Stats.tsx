@@ -241,7 +241,7 @@ const Stats = () => {
         : 1;
     const avgPerDay = +(combinedTotal / daySpan).toFixed(1);
 
-    return { total, gmailTotal, resolved, escalated, active, awaiting, processing, cancelled, open, resolvedPct, avgPerDay };
+    return { total, gmailTotal, emailTotal: gmailUniqueEmails, resolved, escalated, active, awaiting, processing, cancelled, open, resolvedPct, avgPerDay };
   }, [filtered, filteredGmail, range, sourceFilter]);
 
   // Daily volume line chart
