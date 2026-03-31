@@ -1,35 +1,27 @@
 
 
-## Add manageable product area options via Settings page
+## Make conversations table scroll independently instead of the full page
 
-### Approach
-Store product areas in the `settings` table as a new text column (comma-separated list) and add a management section on the Settings page where you can add/remove options. The Conversations page will load these dynamically instead of using a hardcoded array.
+### Problem
+The entire page scrolls, so the table headers (even though they're `sticky`) scroll with the page body. The fix is to make the AppLayout fill the viewport and give the conversations content area a constrained height with its own scroll.
 
-### Database change
-Add a column to `settings`:
-```sql
-ALTER TABLE settings
-  ADD COLUMN product_areas text NOT NULL DEFAULT 'SSO,SCIM,Credits,Account access,Remix/transfer,Cloud/AI';
+### Changes
+
+**`src/components/AppLayout.tsx`** (line 9)
+Change the root div from `min-h-screen` to `h-screen flex flex-col overflow-hidden`, and wrap `{children}` in a `flex-1 min-h-0 overflow-auto` container:
+
+```tsx
+<div className="h-screen flex flex-col overflow-hidden bg-background">
+  <nav>…</nav>
+  <div className="h-0.5 …" />
+  <div className="flex-1 min-h-0 overflow-auto">
+    {children}
+  </div>
+</div>
 ```
 
-### Settings page (`src/pages/Index.tsx`)
-Add a "Product areas" card section:
-- Display current areas as removable badges (click X to remove)
-- Input + "Add" button to append a new area
-- Save alongside other settings, or auto-save on change
-- Load from `settings.product_areas` (split by comma)
-
-### Conversations page (`src/pages/Conversations.tsx`)
-- Remove hardcoded `PRODUCT_AREAS` constant
-- Fetch product areas from the `settings` row on mount (already fetched in some flows, or add a small query)
-- Pass the dynamic list to the Select dropdowns
-
-### Flow diagram (`src/pages/FlowDiagram.tsx`)
-Document that product areas are now configurable via Settings.
+This constrains the page to the viewport height. The nav stays fixed at the top, and only the content area (children) scrolls. The `sticky top-0` on `TableHeader` will then work correctly within the scrolling container.
 
 ### Files to edit
-- Database migration (1 ALTER TABLE)
-- `src/pages/Index.tsx` — add product areas management card
-- `src/pages/Conversations.tsx` — load areas from settings instead of hardcoded array
-- `src/pages/FlowDiagram.tsx` — document change
+- `src/components/AppLayout.tsx` — 3-line layout change
 
