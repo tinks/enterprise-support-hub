@@ -143,7 +143,7 @@ const Conversations = () => {
     }
   };
 
-  const PRODUCT_AREAS = ["SSO", "SCIM", "Credits", "Account access", "Remix/transfer"] as const;
+  const PRODUCT_AREAS = ["SSO", "SCIM", "Credits", "Account access", "Remix/transfer", "Cloud/AI"] as const;
 
   const updateProductArea = async (id: string, value: string, source: "slack" | "gmail") => {
     const newValue = value === "clear" ? null : value;
