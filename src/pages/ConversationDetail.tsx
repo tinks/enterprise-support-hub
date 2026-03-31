@@ -93,6 +93,7 @@ const ConversationDetail = () => {
   const [updating, setUpdating] = useState(false);
   const [threadMessages, setThreadMessages] = useState<ThreadMessage[]>([]);
   const [threadLoading, setThreadLoading] = useState(false);
+  const [productAreas, setProductAreas] = useState<string[]>([]);
 
   const fetchThread = async (channelId: string, threadTs: string) => {
     setThreadLoading(true);
