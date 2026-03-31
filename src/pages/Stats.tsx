@@ -493,6 +493,43 @@ const Stats = () => {
     return buckets;
   }, [filtered, filteredGmail]);
 
+  const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+  const heatmapData = useMemo(() => {
+    const grid: Record<string, Record<number, { slack: number; gmail: number; total: number }>> = {};
+    DAYS.forEach((d) => {
+      grid[d] = {};
+      for (let h = 0; h < 24; h++) grid[d][h] = { slack: 0, gmail: 0, total: 0 };
+    });
+
+    const getCET = (dateStr: string) => {
+      const d = new Date(dateStr);
+      const day = d.toLocaleDateString("en-GB", { timeZone: "Europe/Berlin", weekday: "short" });
+      const hour = parseInt(d.toLocaleString("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false }));
+      return { day, hour };
+    };
+
+    filtered.forEach((m) => {
+      const { day, hour } = getCET(m.created_at);
+      if (grid[day]) { grid[day][hour].slack++; grid[day][hour].total++; }
+    });
+    filteredGmail.forEach((g) => {
+      const { day, hour } = getCET(g.received_at || g.created_at);
+      if (grid[day]) { grid[day][hour].gmail++; grid[day][hour].total++; }
+    });
+
+    let max = 0;
+    DAYS.forEach((d) => {
+      for (let h = 0; h < 24; h++) {
+        const cell = grid[d][h];
+        const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : cell.total;
+        if (val > max) max = val;
+      }
+    });
+
+    return { grid, max };
+  }, [filtered, filteredGmail, sourceFilter]);
+
   if (loading) {
     return (
       <AppLayout>
@@ -927,6 +964,60 @@ const Stats = () => {
                   )}
                 </BarChart>
               </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Activity heatmap — day of week × hour of day */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Activity heatmap (CET)</CardTitle>
+            <CardDescription>Day of week × hour of day — darker cells indicate more activity</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {heatmapData.max === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <div className="min-w-[640px]">
+                  {/* Hour headers */}
+                  <div className="flex items-end gap-px mb-1">
+                    <div className="w-10 shrink-0" />
+                    {Array.from({ length: 24 }, (_, h) => (
+                      <div key={h} className="flex-1 text-center text-[10px] text-muted-foreground">
+                        {String(h).padStart(2, "0")}
+                      </div>
+                    ))}
+                  </div>
+                  {/* Rows */}
+                  {DAYS.map((day) => (
+                    <div key={day} className="flex items-center gap-px mb-px">
+                      <div className="w-10 shrink-0 text-xs text-muted-foreground font-medium">{day}</div>
+                      {Array.from({ length: 24 }, (_, h) => {
+                        const cell = heatmapData.grid[day][h];
+                        const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : cell.total;
+                        const opacity = heatmapData.max > 0 ? Math.max(0.08, val / heatmapData.max) : 0;
+                        return (
+                          <div
+                            key={h}
+                            className="flex-1 aspect-square rounded-sm bg-primary transition-opacity"
+                            style={{ opacity: val > 0 ? opacity : 0.04 }}
+                            title={`${day} ${String(h).padStart(2, "0")}:00 — Slack: ${cell.slack}, Gmail: ${cell.gmail}, Total: ${cell.total}`}
+                          />
+                        );
+                      })}
+                    </div>
+                  ))}
+                  {/* Legend */}
+                  <div className="flex items-center gap-2 mt-3 justify-end">
+                    <span className="text-[10px] text-muted-foreground">Less</span>
+                    {[0.08, 0.25, 0.5, 0.75, 1].map((o) => (
+                      <div key={o} className="h-3 w-3 rounded-sm bg-primary" style={{ opacity: o }} />
+                    ))}
+                    <span className="text-[10px] text-muted-foreground">More</span>
+                  </div>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
