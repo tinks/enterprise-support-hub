@@ -12,7 +12,9 @@ import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug, Filter, G
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { channelNameOverrides } from "@/lib/channelOverrides";
+import ImportTab from "@/components/ImportTab";
 
 interface ConversationMapping {
   id: string;
