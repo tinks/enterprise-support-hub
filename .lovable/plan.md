@@ -1,39 +1,44 @@
 
+Fix this locally in the Conversations page instead of changing the global app layout again.
 
-## Persist conversation filter settings across page refreshes
+What is happening now
+- The page-level content area is still the thing that scrolls.
+- The table also has its own wrapper with `overflow-auto`, but it is not height-constrained, so it does not become the real scrolling viewport.
+- Because of that, the headers are not behaving like a fixed row above a scrolling body.
 
-### Problem
-The source filter and status filter reset to defaults on every page refresh.
+Plan
 
-### Approach
-Use `localStorage` to persist `sourceFilter` and `hiddenStatuses`. Read saved values on mount, write on change.
+1. Make the Conversations page fill the available height
+- In `src/pages/Conversations.tsx`, change the page wrappers to `h-full min-h-0 flex flex-col`
+- Make the main `Card` a full-height flex column: `flex min-h-0 flex-1 flex-col`
+- Make `CardContent` the same: `flex min-h-0 flex-1 flex-col overflow-hidden`
 
-### Changes
+2. Create one dedicated scroll area only for the table body section
+- Wrap the table in a container like `div className="min-h-0 flex-1 overflow-auto"`
+- This becomes the scrollable region directly under the headers, so the rows scroll inside the card instead of the full page scrolling
 
-**`src/pages/Conversations.tsx`**
+3. Remove the competing table scroll wrapper
+- In `src/components/ui/table.tsx`, stop hardcoding `overflow-auto` on the internal wrapper, or make it configurable
+- Let `Conversations.tsx` own the scroll container so there is only one active scrolling layer
 
-1. **Source filter** (~line 97): Initialize from `localStorage` (falling back to URL param, then `"all"`):
-   ```tsx
-   const saved = localStorage.getItem("conv-source-filter") as SourceFilter | null;
-   const [sourceFilter, setSourceFilter] = useState<SourceFilter>(paramSource || saved || "all");
-   ```
-   Add a `useEffect` to persist on change:
-   ```tsx
-   useEffect(() => { localStorage.setItem("conv-source-filter", sourceFilter); }, [sourceFilter]);
-   ```
+4. Make the column headers sticky inside that scroll area
+- Keep the sticky behavior on the table header, but if needed move the sticky classes to each `TableHead` for more reliable behavior:
+  - `sticky top-0 z-20 bg-card`
+- Add a border/background so the header row stays visually solid while rows move underneath it
 
-2. **Hidden statuses** (~line 100): Initialize from `localStorage`:
-   ```tsx
-   const savedHidden = localStorage.getItem("conv-hidden-statuses");
-   const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(
-     savedHidden ? new Set(JSON.parse(savedHidden)) : new Set(["test", "cancelled", "resolved"])
-   );
-   ```
-   Add a `useEffect` to persist on change:
-   ```tsx
-   useEffect(() => { localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses]);
-   ```
+5. Keep the rest of the page static
+- Filters, title, and card header remain above the scroll area
+- Only the rows below `# / Source / Sent by / Message / Subject / Channel / Link / ...` should move
 
-### Files to edit
-- `src/pages/Conversations.tsx` — 2 init changes + 2 small useEffects
+6. Update the Flow page
+- In `src/pages/FlowDiagram.tsx`, add a brief note that the Conversations view now uses an internal scroll region with sticky column headers
 
+Files to edit
+- `src/pages/Conversations.tsx`
+- `src/components/ui/table.tsx`
+- `src/pages/FlowDiagram.tsx`
+
+Expected result
+- The page itself no longer feels like the thing scrolling on Conversations
+- The conversation rows scroll inside the card
+- The column headers stay visible while you scroll through the list
