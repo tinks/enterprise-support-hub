@@ -331,7 +331,7 @@ const ProjectKnowledge = () => {
             {pendingContent && (
               <Badge
                 variant="outline"
-                className="text-xs border-orange-500/50 text-orange-600 dark:text-orange-400"
+                className="text-xs border-primary/50 text-primary"
               >
                 pending review
               </Badge>
