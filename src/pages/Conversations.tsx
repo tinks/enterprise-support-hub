@@ -358,6 +358,9 @@ const Conversations = () => {
                       <TableHead>Date</TableHead>
                       <TableHead>Test</TableHead>
                       <TableHead>Resolved</TableHead>
+                      <TableHead>Product area</TableHead>
+                      <TableHead>Bug</TableHead>
+                    </TableRow>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
