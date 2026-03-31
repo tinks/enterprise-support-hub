@@ -763,7 +763,26 @@ const Stats = () => {
           </>
         )}
 
-        {/* Conversation volume line chart */}
+        {/* Gmail resolution time section */}
+        {sourceFilter !== "slack" && gmailResolutionStats && (
+          <div className="grid grid-cols-2 gap-4">
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center p-5">
+                <Timer className="mb-2 h-5 w-5 text-amber-500" />
+                <p className="text-3xl font-bold text-foreground">{formatDuration(gmailResolutionStats.median)}</p>
+                <p className="text-xs text-muted-foreground">Gmail median resolution</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center p-5">
+                <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
+                <p className="text-3xl font-bold text-foreground">{formatDuration(gmailResolutionStats.avg)}</p>
+                <p className="text-xs text-muted-foreground">Gmail avg resolution</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Conversation volume</CardTitle>
