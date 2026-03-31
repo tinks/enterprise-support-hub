@@ -179,6 +179,16 @@ const Stats = () => {
     });
   }, [gmailData, view, range, customFrom, customTo]);
 
+  const gmailUniqueEmails = useMemo(() => {
+    const subjects = new Set<string>();
+    let nullCount = 0;
+    filteredGmail.forEach((g) => {
+      if (g.subject) subjects.add(g.subject);
+      else nullCount++;
+    });
+    return subjects.size + nullCount;
+  }, [filteredGmail]);
+
   const gmailVolumeData = useMemo(() => {
     const byDay: Record<string, number> = {};
     filteredGmail.forEach((g) => {
