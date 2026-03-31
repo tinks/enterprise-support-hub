@@ -6,7 +6,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const activeClass = "bg-accent text-foreground";
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen flex flex-col overflow-hidden bg-background">
       <nav className="border-b border-border bg-card">
         <div className="mx-auto max-w-4xl flex items-center gap-1 px-6 py-2">
           <div className="flex items-center gap-2 mr-4">
@@ -36,7 +36,9 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         </div>
       </nav>
       <div className="h-0.5 bg-gradient-to-r from-[#FF6B6B] via-[#E66FD2] to-[#9B87F5]" />
-      {children}
+      <div className="flex-1 min-h-0 overflow-auto">
+        {children}
+      </div>
     </div>
   );
 };
