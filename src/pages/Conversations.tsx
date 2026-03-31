@@ -24,6 +24,7 @@ interface ConversationMapping {
   original_message_text: string;
   product_area: string | null;
   is_bug: boolean;
+  is_feature_request: boolean;
 }
 
 interface GmailConversation {
