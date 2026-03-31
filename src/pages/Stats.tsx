@@ -195,13 +195,16 @@ const Stats = () => {
   const gmailResolutionTimes = useMemo(() => {
     // Group by thread, compute resolution time per thread
     const threadMap: Record<string, { earliest: string; resolved_at: string | null }> = {};
+    let orphanIdx = 0;
     filteredGmail.forEach((g) => {
-      const key = g.gmail_thread_id || g.id;
+      const key = g.gmail_thread_id || `__orphan_${orphanIdx++}`;
       const dateStr = g.received_at || g.created_at;
-      if (!threadMap[key] || dateStr < threadMap[key].earliest) {
+      if (!threadMap[key]) {
         threadMap[key] = { earliest: dateStr, resolved_at: g.resolved_at };
+      } else {
+        if (dateStr < threadMap[key].earliest) threadMap[key].earliest = dateStr;
+        if (g.resolved_at) threadMap[key].resolved_at = g.resolved_at;
       }
-      if (g.resolved_at) threadMap[key].resolved_at = g.resolved_at;
     });
     return Object.values(threadMap)
       .filter((t) => t.resolved_at)
