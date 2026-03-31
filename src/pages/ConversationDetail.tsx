@@ -306,7 +306,36 @@ const ConversationDetail = () => {
             </CardContent>
           </Card>
 
-          {/* Thread timeline */}
+          {/* Classification */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Classification</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm text-muted-foreground">Bug</Label>
+                <Switch checked={conv.is_bug} onCheckedChange={toggleBug} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm text-muted-foreground">Feature request</Label>
+                <Switch checked={conv.is_feature_request} onCheckedChange={toggleFeatureRequest} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm text-muted-foreground">Product area</Label>
+                <Select value={conv.product_area || "none"} onValueChange={updateProductArea}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {productAreas.map((area) => (
+                      <SelectItem key={area} value={area}>{area}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-sm">Thread</CardTitle>
