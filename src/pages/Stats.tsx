@@ -478,6 +478,21 @@ const Stats = () => {
     return result;
   }, [filtered]);
 
+  const hourlyActivityData = useMemo(() => {
+    const buckets = Array.from({ length: 24 }, (_, i) => ({
+      hour: `${String(i).padStart(2, "0")}:00`,
+      slack: 0,
+      gmail: 0,
+    }));
+    const getCETHour = (dateStr: string) => {
+      const d = new Date(dateStr);
+      return parseInt(d.toLocaleString("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false }));
+    };
+    filtered.forEach((m) => { buckets[getCETHour(m.created_at)].slack++; });
+    filteredGmail.forEach((g) => { buckets[getCETHour(g.received_at || g.created_at)].gmail++; });
+    return buckets;
+  }, [filtered, filteredGmail]);
+
   if (loading) {
     return (
       <AppLayout>
@@ -883,6 +898,34 @@ const Stats = () => {
                     <Area type="monotone" dataKey="gmail" stroke="hsl(35 92% 50%)" fill="url(#gradGmail)" strokeWidth={2} />
                   )}
                 </AreaChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Activity by hour of day */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Activity by hour of day (CET)</CardTitle>
+            <CardDescription>When conversations and emails arrive, bucketed by hour in CET timezone</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {hourlyActivityData.every((b) => b.slack === 0 && b.gmail === 0) ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+            ) : (
+              <ChartContainer config={chartConfig} className="h-[280px] w-full">
+                <BarChart data={hourlyActivityData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="hour" className="text-xs" />
+                  <YAxis allowDecimals={false} className="text-xs" />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  {sourceFilter !== "gmail" && (
+                    <Bar dataKey="slack" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  )}
+                  {sourceFilter !== "slack" && (
+                    <Bar dataKey="gmail" fill="hsl(35 92% 50%)" radius={[4, 4, 0, 0]} />
+                  )}
+                </BarChart>
               </ChartContainer>
             )}
           </CardContent>
