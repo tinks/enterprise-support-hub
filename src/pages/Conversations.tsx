@@ -116,6 +116,28 @@ const Conversations = () => {
     }
   };
 
+  const toggleResolved = async (id: string, currentStatus: string, source: "slack" | "gmail") => {
+    const isResolved = currentStatus === "resolved";
+    const newStatus = isResolved ? (source === "slack" ? "active" : "open") : "resolved";
+    const resolvedAt = isResolved ? null : new Date().toISOString();
+
+    if (source === "slack") {
+      setMappings((prev) => prev.map((m) => m.id === id ? { ...m, status: newStatus, resolved_at: resolvedAt } as ConversationMapping : m));
+      const { error } = await supabase.from("conversation_mappings").update({ status: newStatus, resolved_at: resolvedAt }).eq("id", id);
+      if (error) {
+        setMappings((prev) => prev.map((m) => m.id === id ? { ...m, status: currentStatus } : m));
+        toast.error("Failed to update resolved status");
+      }
+    } else {
+      setGmailRows((prev) => prev.map((m) => m.id === id ? { ...m, status: newStatus, resolved_at: resolvedAt } : m));
+      const { error } = await supabase.from("gmail_conversations").update({ status: newStatus, resolved_at: resolvedAt }).eq("id", id);
+      if (error) {
+        setGmailRows((prev) => prev.map((m) => m.id === id ? { ...m, status: currentStatus } : m));
+        toast.error("Failed to update resolved status");
+      }
+    }
+  };
+
   const loadLookups = async (rows: ConversationMapping[]) => {
     const usersRes = await supabase.functions.invoke("list-slack-users");
     if (usersRes.data?.users) {
