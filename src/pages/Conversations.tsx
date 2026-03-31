@@ -170,7 +170,7 @@ const Conversations = () => {
     }
   };
 
-
+  const loadLookups = async (rows: ConversationMapping[]) => {
     const usersRes = await supabase.functions.invoke("list-slack-users");
     if (usersRes.data?.users) {
       const map: NameMap = {};
