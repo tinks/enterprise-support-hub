@@ -765,6 +765,11 @@ const Conversations = () => {
               )}
             </CardContent>
           </Card>
+            </TabsContent>
+            <TabsContent value="import" className="flex-1 min-h-0 mt-0">
+              <ImportTab />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </AppLayout>
