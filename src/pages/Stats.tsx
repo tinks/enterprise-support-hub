@@ -33,6 +33,9 @@ interface GmailRow {
   created_at: string;
   is_test: boolean;
   subject: string | null;
+  status: string;
+  resolved_at: string | null;
+  gmail_thread_id: string | null;
 }
 
 type SourceFilter = "all" | "slack" | "gmail";
@@ -100,7 +103,7 @@ const Stats = () => {
         .order("created_at", { ascending: true }),
       supabase
         .from("gmail_conversations")
-        .select("received_at, created_at, is_test, subject")
+        .select("received_at, created_at, is_test, subject, status, resolved_at, gmail_thread_id")
         .order("received_at", { ascending: true }),
     ]);
     const rows = (slackRes.data as Mapping[]) || [];
@@ -189,6 +192,34 @@ const Stats = () => {
     return subjects.size + nullCount;
   }, [filteredGmail]);
 
+  const gmailResolutionTimes = useMemo(() => {
+    // Group by thread, compute resolution time per thread
+    const threadMap: Record<string, { earliest: string; resolved_at: string | null }> = {};
+    let orphanIdx = 0;
+    filteredGmail.forEach((g) => {
+      const key = g.gmail_thread_id || `__orphan_${orphanIdx++}`;
+      const dateStr = g.received_at || g.created_at;
+      if (!threadMap[key]) {
+        threadMap[key] = { earliest: dateStr, resolved_at: g.resolved_at };
+      } else {
+        if (dateStr < threadMap[key].earliest) threadMap[key].earliest = dateStr;
+        if (g.resolved_at) threadMap[key].resolved_at = g.resolved_at;
+      }
+    });
+    return Object.values(threadMap)
+      .filter((t) => t.resolved_at)
+      .map((t) => differenceInMinutes(parseISO(t.resolved_at!), parseISO(t.earliest)))
+      .filter((m) => m >= 0)
+      .sort((a, b) => a - b);
+  }, [filteredGmail]);
+
+  const gmailResolutionStats = useMemo(() => {
+    if (gmailResolutionTimes.length === 0) return null;
+    const median = gmailResolutionTimes[Math.floor(gmailResolutionTimes.length / 2)];
+    const avg = gmailResolutionTimes.reduce((s, v) => s + v, 0) / gmailResolutionTimes.length;
+    return { median, avg, count: gmailResolutionTimes.length };
+  }, [gmailResolutionTimes]);
+
   const gmailVolumeData = useMemo(() => {
     const byDay: Record<string, number> = {};
     filteredGmail.forEach((g) => {
@@ -241,7 +272,10 @@ const Stats = () => {
         : 1;
     const avgPerDay = +(combinedTotal / daySpan).toFixed(1);
 
-    return { total, gmailTotal, emailTotal: gmailUniqueEmails, resolved, escalated, active, awaiting, processing, cancelled, open, resolvedPct, avgPerDay };
+    const gmailResolved = filteredGmail.filter((g) => g.status === "resolved").length;
+    const gmailOpen = filteredGmail.filter((g) => g.status === "open").length;
+
+    return { total, gmailTotal, emailTotal: gmailUniqueEmails, resolved, escalated, active, awaiting, processing, cancelled, open, resolvedPct, avgPerDay, gmailResolved, gmailOpen };
   }, [filtered, filteredGmail, range, sourceFilter, gmailUniqueEmails]);
 
   // Daily volume line chart
@@ -569,7 +603,7 @@ const Stats = () => {
         </div>
 
         {/* Summary cards */}
-        <div className={cn("grid grid-cols-2 gap-4 md:grid-cols-3", sourceFilter === "gmail" ? "lg:grid-cols-3" : "lg:grid-cols-8")}>
+        <div className={cn("grid grid-cols-2 gap-4 md:grid-cols-3", sourceFilter === "gmail" ? "lg:grid-cols-5" : "lg:grid-cols-8")}>
           {sourceFilter !== "gmail" && (
             <Card>
               <CardContent className="flex flex-col items-center justify-center p-5">
@@ -588,11 +622,25 @@ const Stats = () => {
                   <p className="text-xs text-muted-foreground">Email total</p>
                 </CardContent>
               </Card>
-              <Card>
+               <Card>
                 <CardContent className="flex flex-col items-center justify-center p-5">
                   <Mail className="mb-2 h-5 w-5 text-muted-foreground" />
                   <p className="text-3xl font-bold text-foreground">{stats.gmailTotal}</p>
                   <p className="text-xs text-muted-foreground">Gmail messages</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <ThumbsUp className="mb-2 h-5 w-5 text-green-600" />
+                  <p className="text-3xl font-bold text-foreground">{stats.gmailResolved}</p>
+                  <p className="text-xs text-muted-foreground">Gmail resolved</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <AlertCircle className="mb-2 h-5 w-5 text-orange-500" />
+                  <p className="text-3xl font-bold text-foreground">{stats.gmailOpen}</p>
+                  <p className="text-xs text-muted-foreground">Gmail open</p>
                 </CardContent>
               </Card>
             </>
@@ -645,7 +693,7 @@ const Stats = () => {
           </Card>
         </div>
 
-        {/* Resolution time section */}
+        {/* Slack resolution time section */}
         {sourceFilter !== "gmail" && resolutionStats && (
           <>
             <div className="grid grid-cols-2 gap-4">
@@ -715,7 +763,26 @@ const Stats = () => {
           </>
         )}
 
-        {/* Conversation volume line chart */}
+        {/* Gmail resolution time section */}
+        {sourceFilter !== "slack" && gmailResolutionStats && (
+          <div className="grid grid-cols-2 gap-4">
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center p-5">
+                <Timer className="mb-2 h-5 w-5 text-amber-500" />
+                <p className="text-3xl font-bold text-foreground">{formatDuration(gmailResolutionStats.median)}</p>
+                <p className="text-xs text-muted-foreground">Gmail median resolution</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center p-5">
+                <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
+                <p className="text-3xl font-bold text-foreground">{formatDuration(gmailResolutionStats.avg)}</p>
+                <p className="text-xs text-muted-foreground">Gmail avg resolution</p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Conversation volume</CardTitle>
