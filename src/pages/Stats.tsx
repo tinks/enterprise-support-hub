@@ -968,7 +968,58 @@ const Stats = () => {
           </CardContent>
         </Card>
 
-        {sourceFilter !== "gmail" && (
+        {/* Activity heatmap — day of week × hour of day */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Activity heatmap (CET)</CardTitle>
+            <CardDescription>Day of week × hour of day — darker cells indicate more activity</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {heatmapData.max === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <div className="min-w-[640px]">
+                  {/* Hour headers */}
+                  <div className="flex items-end gap-px mb-1">
+                    <div className="w-10 shrink-0" />
+                    {Array.from({ length: 24 }, (_, h) => (
+                      <div key={h} className="flex-1 text-center text-[10px] text-muted-foreground">
+                        {String(h).padStart(2, "0")}
+                      </div>
+                    ))}
+                  </div>
+                  {/* Rows */}
+                  {DAYS.map((day) => (
+                    <div key={day} className="flex items-center gap-px mb-px">
+                      <div className="w-10 shrink-0 text-xs text-muted-foreground font-medium">{day}</div>
+                      {Array.from({ length: 24 }, (_, h) => {
+                        const cell = heatmapData.grid[day][h];
+                        const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : cell.total;
+                        const opacity = heatmapData.max > 0 ? Math.max(0.08, val / heatmapData.max) : 0;
+                        return (
+                          <div
+                            key={h}
+                            className="flex-1 aspect-square rounded-sm bg-primary transition-opacity"
+                            style={{ opacity: val > 0 ? opacity : 0.04 }}
+                            title={`${day} ${String(h).padStart(2, "0")}:00 — Slack: ${cell.slack}, Gmail: ${cell.gmail}, Total: ${cell.total}`}
+                          />
+                        );
+                      })}
+                    </div>
+                  ))}
+                  {/* Legend */}
+                  <div className="flex items-center gap-2 mt-3 justify-end">
+                    <span className="text-[10px] text-muted-foreground">Less</span>
+                    {[0.08, 0.25, 0.5, 0.75, 1].map((o) => (
+                      <div key={o} className="h-3 w-3 rounded-sm bg-primary" style={{ opacity: o }} />
+                    ))}
+                    <span className="text-[10px] text-muted-foreground">More</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
         /* Conversations by channel */
         <Card>
           <CardHeader>
