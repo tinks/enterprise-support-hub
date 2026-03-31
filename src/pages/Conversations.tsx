@@ -396,7 +396,7 @@ const Conversations = () => {
     resolved: "Resolved",
     product_area: "Product area",
     bug: "Bug",
-    feature_req: "Feature req.",
+    feature_req: "FR",
   };
 
   const renderSlackCell = (col: ColKey, m: ConversationMapping): ReactNode => {
