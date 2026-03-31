@@ -1,36 +1,32 @@
 
 
-## Deduplicate Gmail resolved count by subject
+## Fix off-brand chart colours to match Lovable palette
 
 ### Problem
-Line 318 in `Stats.tsx` counts every `gmail_conversations` row with `status === 'resolved'` individually. When multiple rows share the same subject (same email thread), toggling them all resolved counts each one — inflating the resolved metric. It should count as 1 resolved thread per unique subject, matching the "Email total" dedup logic.
+Several charts use blue (`hsl(221 83% 53%)`), amber (`hsl(35 92% 50%)`), and green (`hsl(142 76% 36%)`) fills that don't match the Lovable coral/pink/purple palette. The brand colours are: coral `#FF6B6B`, pink `#E66FD2`, purple `#9B87F5`.
 
-### Change
+### Colour mapping
 
-**`src/pages/Stats.tsx`** — Replace the simple `.filter().length` with subject-based dedup:
+| Chart | Current colour | New colour |
+|-------|---------------|------------|
+| Conversations by channel bar | Green (resolved config) | Coral `#FF6B6B` |
+| Resolution time distribution bar | Blue `hsl(221 83% 53%)` | Purple `#9B87F5` |
+| Resolution time trend line | Blue `hsl(221 83% 53%)` | Purple `#9B87F5` |
+| Threads by customer bar | Amber `hsl(35 92% 50%)` | Pink `#E66FD2` |
+| Gmail area gradient (volume chart) | Amber `hsl(35 92% 50%)` | Pink `#E66FD2` |
+| Gmail hourly activity bar | Amber `hsl(35 92% 50%)` | Pink `#E66FD2` |
+| chartConfig.resolved | Green `hsl(142 76% 36%)` | Keep green (semantic — indicates success) |
 
-```tsx
-// Current (line 318):
-const gmailResolved = filteredGmail.filter((g) => g.status === "resolved").length;
+### Changes in `src/pages/Stats.tsx`
 
-// New:
-const gmailResolvedSubjects = new Set<string>();
-let gmailResolvedOrphans = 0;
-filteredGmail.forEach((g) => {
-  if (g.status !== "resolved") return;
-  if (g.subject) gmailResolvedSubjects.add(g.subject);
-  else gmailResolvedOrphans++;
-});
-const gmailResolved = gmailResolvedSubjects.size + gmailResolvedOrphans;
-```
+1. **Line 840** — Resolution time distribution bar: `fill="hsl(221 83% 53%)"` → `fill="#9B87F5"`
+2. **Line 864** — Resolution time trend line: `stroke="hsl(221 83% 53%)"` → `stroke="#9B87F5"`
+3. **Line 911** — Threads by customer bar: `fill="hsl(35 92% 50%)"` → `fill="#E66FD2"`
+4. **Lines 937-939** — Gmail volume gradient: `hsl(35 92% 50%)` → `#E66FD2` (both stops)
+5. **Line 950** — Gmail volume area stroke: `hsl(35 92% 50%)` → `#E66FD2`
+6. **Line 978** — Gmail hourly bar: `hsl(35 92% 50%)` → `#E66FD2`
+7. **Line 1063** — Conversations by channel bar: `fill={chartConfig.resolved.color}` → `fill="#FF6B6B"`
+8. **chartConfig (line 57)** — Gmail config colour: already `#E66FD2` ✓
 
-Same dedup approach as the existing `gmailUniqueEmails` memo — group by subject, count unique subjects. Rows without a subject each count individually.
-
-Apply the same pattern to `gmailOpen` for consistency.
-
-**`src/pages/FlowDiagram.tsx`** — Document the dedup logic for Gmail resolved counting.
-
-### Files to edit
-- `src/pages/Stats.tsx` — deduplicate gmailResolved and gmailOpen by subject
-- `src/pages/FlowDiagram.tsx` — document the change
+No other files affected — this is a styling-only change.
 
