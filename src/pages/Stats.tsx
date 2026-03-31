@@ -622,11 +622,25 @@ const Stats = () => {
                   <p className="text-xs text-muted-foreground">Email total</p>
                 </CardContent>
               </Card>
-              <Card>
+               <Card>
                 <CardContent className="flex flex-col items-center justify-center p-5">
                   <Mail className="mb-2 h-5 w-5 text-muted-foreground" />
                   <p className="text-3xl font-bold text-foreground">{stats.gmailTotal}</p>
                   <p className="text-xs text-muted-foreground">Gmail messages</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <ThumbsUp className="mb-2 h-5 w-5 text-green-600" />
+                  <p className="text-3xl font-bold text-foreground">{stats.gmailResolved}</p>
+                  <p className="text-xs text-muted-foreground">Gmail resolved</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <AlertCircle className="mb-2 h-5 w-5 text-orange-500" />
+                  <p className="text-3xl font-bold text-foreground">{stats.gmailOpen}</p>
+                  <p className="text-xs text-muted-foreground">Gmail open</p>
                 </CardContent>
               </Card>
             </>
