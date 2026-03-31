@@ -1,39 +1,69 @@
 
 
-## Deduplicate Gmail emails by subject and add "Email total" metric
+## Hybrid Gmail resolution tracking
 
-### Problem
-Currently, each Gmail message row is counted individually. Emails with the same subject (i.e. thread replies) should be grouped as 1 email thread. A new "Email total" metric should show this deduplicated count on the Stats page.
+### Overview
+Add manual status tracking for Gmail threads with an automated 24-hour inactivity auto-close. This enables resolution time metrics for Gmail on the Stats page.
 
-### Changes
+### Database changes (migration)
+
+1. **Add columns to `gmail_conversations`**:
+   - `status text NOT NULL DEFAULT 'open'` — values: `open`, `resolved`
+   - `resolved_at timestamptz` — set when resolved (manually or by auto-close)
+
+2. **Create a database function + pg_cron job** for auto-close:
+   - Function scans for `gmail_thread_id` groups where the latest `received_at` is older than 24 hours and `status = 'open'`
+   - Sets `status = 'resolved'` and `resolved_at = now()` on all open rows in those threads
+   - Cron runs every hour
+
+### UI changes
+
+**File: `src/pages/Conversations.tsx`**
+- Add a status badge for Gmail rows (currently shows hardcoded "email") — display actual `status` value
+- Add a manual "Resolve" button or status toggle for Gmail rows so users can close threads early
 
 **File: `src/pages/Stats.tsx`**
+- Update `GmailRow` interface to include `status` and `resolved_at`
+- Update Gmail query to fetch `status, resolved_at`
+- Add Gmail resolution metrics when source includes Gmail:
+  - Resolved count, Open count
+  - Median / average resolution time (difference between first message `received_at` per thread and `resolved_at`)
+- These appear in the Gmail section of the stats cards
 
-1. **Expand GmailRow interface** — add `subject: string | null` field.
-
-2. **Update the Gmail query** — change the select from `"received_at, created_at, is_test"` to `"received_at, created_at, is_test, subject"` so subject data is available for deduplication.
-
-3. **Add `gmailUniqueEmails` useMemo** — group `filteredGmail` by `subject` (treating null/empty subjects as individual items), count unique subjects. This is the "Email total" number.
-
-4. **Add to `stats` object** — add `emailTotal` (the unique subject count) alongside existing `gmailTotal`.
-
-5. **Add "Email total" summary card** — new card shown when source is not "slack", displaying `stats.emailTotal` with a `Mail` icon and label "Email total". Place it next to the existing "Gmail emails" card. The existing "Gmail emails" card becomes "Gmail messages" to distinguish raw count from deduplicated count.
-
-6. **Update volume chart (optional)** — the Gmail volume data already counts per-message; no change needed since the "Email total" card is the primary metric.
+**File: `src/pages/FlowDiagram.tsx`**
+- Update the Gmail polling node to document the hybrid resolution tracking: manual resolve + 24h auto-close
 
 ### Technical detail
-- Deduplication logic: `new Set(filteredGmail.map(g => g.subject || g.gmail_message_id)).size` — null/empty subjects fall back to message ID so they count individually.
-- Wait — `gmail_message_id` isn't on `GmailRow`. Simpler: null subjects each count as 1 unique email. Use a counter: group by subject, null subjects each get their own bucket.
 
-```ts
-const gmailUniqueEmails = useMemo(() => {
-  const subjects = new Set<string>();
-  let nullCount = 0;
-  filteredGmail.forEach(g => {
-    if (g.subject) subjects.add(g.subject);
-    else nullCount++;
-  });
-  return subjects.size + nullCount;
-}, [filteredGmail]);
+Resolution time calculation per thread:
+```text
+thread_start = MIN(received_at) WHERE gmail_thread_id = X
+thread_resolved = resolved_at of any row in thread (all share same value)
+resolution_minutes = resolved_at - thread_start
 ```
+
+Auto-close SQL (runs hourly):
+```sql
+UPDATE gmail_conversations
+SET status = 'resolved', resolved_at = now()
+WHERE status = 'open'
+  AND gmail_thread_id IN (
+    SELECT gmail_thread_id FROM gmail_conversations
+    WHERE status = 'open' AND gmail_thread_id IS NOT NULL
+    GROUP BY gmail_thread_id
+    HAVING MAX(received_at) < now() - interval '24 hours'
+  );
+-- Also close orphan rows (no thread_id) older than 24h
+UPDATE gmail_conversations
+SET status = 'resolved', resolved_at = now()
+WHERE status = 'open'
+  AND gmail_thread_id IS NULL
+  AND received_at < now() - interval '24 hours';
+```
+
+### Files to edit
+- Migration: add `status` + `resolved_at` columns, create auto-close function + cron
+- `src/pages/Conversations.tsx` — Gmail row status display + manual resolve
+- `src/pages/Stats.tsx` — Gmail resolution metrics
+- `src/pages/FlowDiagram.tsx` — document the change
 
