@@ -1,69 +1,65 @@
 
 
-## Hybrid Gmail resolution tracking
+## Track Gmail threads by customer domain on Stats tab
 
-### Overview
-Add manual status tracking for Gmail threads with an automated 24-hour inactivity auto-close. This enables resolution time metrics for Gmail on the Stats page.
+### Problem
+We want to show a breakdown of Gmail threads grouped by customer (identified by email domain), but the `gmail_conversations` table currently only stores the `from_email`. To determine the customer, we need the `to` and `cc` headers, then exclude `@lovable.dev` domains to find the customer domain.
 
 ### Database changes (migration)
 
-1. **Add columns to `gmail_conversations`**:
-   - `status text NOT NULL DEFAULT 'open'` — values: `open`, `resolved`
-   - `resolved_at timestamptz` — set when resolved (manually or by auto-close)
+Add two new columns to `gmail_conversations`:
+- `to_emails text` — comma-separated list of To recipients
+- `cc_emails text` — comma-separated list of CC recipients
 
-2. **Create a database function + pg_cron job** for auto-close:
-   - Function scans for `gmail_thread_id` groups where the latest `received_at` is older than 24 hours and `status = 'open'`
-   - Sets `status = 'resolved'` and `resolved_at = now()` on all open rows in those threads
-   - Cron runs every hour
+### Edge function changes
 
-### UI changes
+**File: `supabase/functions/poll-gmail/index.ts`**
+- Extract `To` and `Cc` headers alongside existing `From`, `Subject`, `Date`
+- Store raw header values in the new `to_emails` and `cc_emails` columns on insert
 
-**File: `src/pages/Conversations.tsx`**
-- Add a status badge for Gmail rows (currently shows hardcoded "email") — display actual `status` value
-- Add a manual "Resolve" button or status toggle for Gmail rows so users can close threads early
+### Stats page changes
 
 **File: `src/pages/Stats.tsx`**
-- Update `GmailRow` interface to include `status` and `resolved_at`
-- Update Gmail query to fetch `status, resolved_at`
-- Add Gmail resolution metrics when source includes Gmail:
-  - Resolved count, Open count
-  - Median / average resolution time (difference between first message `received_at` per thread and `resolved_at`)
-- These appear in the Gmail section of the stats cards
+
+1. Update `GmailRow` interface to include `from_email`, `to_emails`, `cc_emails`
+2. Update the Gmail query to fetch these new fields
+3. Add a `useMemo` that:
+   - For each Gmail thread (grouped by `gmail_thread_id` or subject), collects all email addresses from `from_email`, `to_emails`, and `cc_emails`
+   - Filters out `@lovable.dev` domains
+   - Extracts the domain (e.g., `sap.com` from `user@sap.com`)
+   - Groups deduplicated threads by customer domain
+4. Add a new card/chart section showing "Threads by customer" — a bar chart or ranked list of domains with thread counts
+
+### Flow diagram update
 
 **File: `src/pages/FlowDiagram.tsx`**
-- Update the Gmail polling node to document the hybrid resolution tracking: manual resolve + 24h auto-close
+- Update the Gmail polling node to mention that `To`/`CC` headers are now captured for customer domain analytics
 
 ### Technical detail
 
-Resolution time calculation per thread:
-```text
-thread_start = MIN(received_at) WHERE gmail_thread_id = X
-thread_resolved = resolved_at of any row in thread (all share same value)
-resolution_minutes = resolved_at - thread_start
+Customer domain extraction logic:
+```ts
+function extractCustomerDomain(row: GmailRow): string | null {
+  const allEmails = [row.from_email, row.to_emails, row.cc_emails]
+    .filter(Boolean)
+    .join(",")
+    .split(",")
+    .map(e => e.trim().toLowerCase())
+    .filter(e => e.includes("@") && !e.endsWith("@lovable.dev"));
+  
+  if (allEmails.length === 0) return null;
+  return allEmails[0].split("@")[1]; // first non-lovable domain
+}
 ```
 
-Auto-close SQL (runs hourly):
-```sql
-UPDATE gmail_conversations
-SET status = 'resolved', resolved_at = now()
-WHERE status = 'open'
-  AND gmail_thread_id IN (
-    SELECT gmail_thread_id FROM gmail_conversations
-    WHERE status = 'open' AND gmail_thread_id IS NOT NULL
-    GROUP BY gmail_thread_id
-    HAVING MAX(received_at) < now() - interval '24 hours'
-  );
--- Also close orphan rows (no thread_id) older than 24h
-UPDATE gmail_conversations
-SET status = 'resolved', resolved_at = now()
-WHERE status = 'open'
-  AND gmail_thread_id IS NULL
-  AND received_at < now() - interval '24 hours';
-```
+Thread grouping: same dedup-by-subject logic used for "Email total", but instead of counting totals, groups by extracted customer domain.
 
 ### Files to edit
-- Migration: add `status` + `resolved_at` columns, create auto-close function + cron
-- `src/pages/Conversations.tsx` — Gmail row status display + manual resolve
-- `src/pages/Stats.tsx` — Gmail resolution metrics
-- `src/pages/FlowDiagram.tsx` — document the change
+- Migration: add `to_emails`, `cc_emails` columns
+- `supabase/functions/poll-gmail/index.ts` — extract To/CC headers
+- `src/pages/Stats.tsx` — customer domain breakdown metric
+- `src/pages/FlowDiagram.tsx` — document change
+
+### Note
+Existing Gmail rows won't have `to_emails`/`cc_emails` populated. We can either backfill by re-polling, or accept that only new emails will have this data. The `from_email` alone can serve as a fallback for older rows (excluding `@lovable.dev` senders).
 
