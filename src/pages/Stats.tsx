@@ -493,6 +493,43 @@ const Stats = () => {
     return buckets;
   }, [filtered, filteredGmail]);
 
+  const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+  const heatmapData = useMemo(() => {
+    const grid: Record<string, Record<number, { slack: number; gmail: number; total: number }>> = {};
+    DAYS.forEach((d) => {
+      grid[d] = {};
+      for (let h = 0; h < 24; h++) grid[d][h] = { slack: 0, gmail: 0, total: 0 };
+    });
+
+    const getCET = (dateStr: string) => {
+      const d = new Date(dateStr);
+      const day = d.toLocaleDateString("en-GB", { timeZone: "Europe/Berlin", weekday: "short" });
+      const hour = parseInt(d.toLocaleString("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false }));
+      return { day, hour };
+    };
+
+    filtered.forEach((m) => {
+      const { day, hour } = getCET(m.created_at);
+      if (grid[day]) { grid[day][hour].slack++; grid[day][hour].total++; }
+    });
+    filteredGmail.forEach((g) => {
+      const { day, hour } = getCET(g.received_at || g.created_at);
+      if (grid[day]) { grid[day][hour].gmail++; grid[day][hour].total++; }
+    });
+
+    let max = 0;
+    DAYS.forEach((d) => {
+      for (let h = 0; h < 24; h++) {
+        const cell = grid[d][h];
+        const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : cell.total;
+        if (val > max) max = val;
+      }
+    });
+
+    return { grid, max };
+  }, [filtered, filteredGmail, sourceFilter]);
+
   if (loading) {
     return (
       <AppLayout>

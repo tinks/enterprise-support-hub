@@ -416,6 +416,7 @@ function buildNodes(
            "Stats page deduplicates by subject: emails with the same subject count as 1 thread ('Email total' metric), raw count shown as 'Gmail messages'",
            "Internal-only threads (all participants @lovable.dev) are excluded from all Gmail metrics — Email total, Gmail messages, Gmail open, resolution times, customer domains",
            "Activity by hour of day (CET): bar chart on Stats page shows Slack + Gmail activity bucketed by hour using Europe/Berlin timezone",
+           "Activity heatmap: 7×24 grid (Mon–Sun × 00–23 CET) with color intensity showing conversation density; respects source filter; tooltip shows Slack + Gmail breakdown",
           "Hybrid resolution tracking: emails have status (open/resolved) and resolved_at timestamp",
           "Manual resolve: users can mark Gmail threads as resolved from Conversations UI",
           "Auto-close: pg_cron runs hourly — threads with no new messages for 24h are auto-resolved",
