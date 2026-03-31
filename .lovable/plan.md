@@ -1,43 +1,39 @@
 
 
-## Add multi-select status filter to conversations
+## Persist conversation filter settings across page refreshes
+
+### Problem
+The source filter and status filter reset to defaults on every page refresh.
 
 ### Approach
-Replace the proposed simple "active/all" toggle with a multi-select dropdown that lets you independently hide/show each status. Use checkboxes inside a popover so multiple statuses can be toggled at once.
-
-### Statuses to filter
-Based on existing code: `active`, `resolved`, `escalated`, `cancelled`, `awaiting_context`, plus the `is_test` flag (treated as a virtual "test" filter).
+Use `localStorage` to persist `sourceFilter` and `hiddenStatuses`. Read saved values on mount, write on change.
 
 ### Changes
 
 **`src/pages/Conversations.tsx`**
 
-1. Add state for excluded statuses — default to hiding `test`, `cancelled`, and `resolved`:
+1. **Source filter** (~line 97): Initialize from `localStorage` (falling back to URL param, then `"all"`):
    ```tsx
+   const saved = localStorage.getItem("conv-source-filter") as SourceFilter | null;
+   const [sourceFilter, setSourceFilter] = useState<SourceFilter>(paramSource || saved || "all");
+   ```
+   Add a `useEffect` to persist on change:
+   ```tsx
+   useEffect(() => { localStorage.setItem("conv-source-filter", sourceFilter); }, [sourceFilter]);
+   ```
+
+2. **Hidden statuses** (~line 100): Initialize from `localStorage`:
+   ```tsx
+   const savedHidden = localStorage.getItem("conv-hidden-statuses");
    const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(
-     new Set(["test", "cancelled", "resolved"])
+     savedHidden ? new Set(JSON.parse(savedHidden)) : new Set(["test", "cancelled", "resolved"])
    );
    ```
-
-2. Add a filter popover next to the source `Select` (~line 344) using a `Popover` + checkboxes for each status option: `active`, `awaiting_context`, `escalated`, `resolved`, `cancelled`, `test`. Each checkbox toggles that value in/out of `hiddenStatuses`. Label shows count of active filters (e.g. "Status (3 hidden)").
-
-3. Update the `unified` useMemo (~line 277) to filter rows based on `hiddenStatuses`:
+   Add a `useEffect` to persist on change:
    ```tsx
-   let filtered = rows;
-   if (hiddenStatuses.size > 0) {
-     filtered = rows.filter(r => {
-       if (hiddenStatuses.has("test") && r.data.is_test) return false;
-       if (hiddenStatuses.has(r.data.status)) return false;
-       return true;
-     });
-   }
+   useEffect(() => { localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses]);
    ```
 
-4. Add `hiddenStatuses` to the useMemo dependency array.
-
-**`src/pages/FlowDiagram.tsx`** — Document the new multi-select status filter.
-
 ### Files to edit
-- `src/pages/Conversations.tsx` — state, filter popover UI, filtering logic
-- `src/pages/FlowDiagram.tsx` — document change
+- `src/pages/Conversations.tsx` — 2 init changes + 2 small useEffects
 
