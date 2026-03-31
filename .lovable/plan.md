@@ -1,27 +1,43 @@
 
 
-## Make conversations table scroll independently instead of the full page
+## Add multi-select status filter to conversations
 
-### Problem
-The entire page scrolls, so the table headers (even though they're `sticky`) scroll with the page body. The fix is to make the AppLayout fill the viewport and give the conversations content area a constrained height with its own scroll.
+### Approach
+Replace the proposed simple "active/all" toggle with a multi-select dropdown that lets you independently hide/show each status. Use checkboxes inside a popover so multiple statuses can be toggled at once.
+
+### Statuses to filter
+Based on existing code: `active`, `resolved`, `escalated`, `cancelled`, `awaiting_context`, plus the `is_test` flag (treated as a virtual "test" filter).
 
 ### Changes
 
-**`src/components/AppLayout.tsx`** (line 9)
-Change the root div from `min-h-screen` to `h-screen flex flex-col overflow-hidden`, and wrap `{children}` in a `flex-1 min-h-0 overflow-auto` container:
+**`src/pages/Conversations.tsx`**
 
-```tsx
-<div className="h-screen flex flex-col overflow-hidden bg-background">
-  <nav>…</nav>
-  <div className="h-0.5 …" />
-  <div className="flex-1 min-h-0 overflow-auto">
-    {children}
-  </div>
-</div>
-```
+1. Add state for excluded statuses — default to hiding `test`, `cancelled`, and `resolved`:
+   ```tsx
+   const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(
+     new Set(["test", "cancelled", "resolved"])
+   );
+   ```
 
-This constrains the page to the viewport height. The nav stays fixed at the top, and only the content area (children) scrolls. The `sticky top-0` on `TableHeader` will then work correctly within the scrolling container.
+2. Add a filter popover next to the source `Select` (~line 344) using a `Popover` + checkboxes for each status option: `active`, `awaiting_context`, `escalated`, `resolved`, `cancelled`, `test`. Each checkbox toggles that value in/out of `hiddenStatuses`. Label shows count of active filters (e.g. "Status (3 hidden)").
+
+3. Update the `unified` useMemo (~line 277) to filter rows based on `hiddenStatuses`:
+   ```tsx
+   let filtered = rows;
+   if (hiddenStatuses.size > 0) {
+     filtered = rows.filter(r => {
+       if (hiddenStatuses.has("test") && r.data.is_test) return false;
+       if (hiddenStatuses.has(r.data.status)) return false;
+       return true;
+     });
+   }
+   ```
+
+4. Add `hiddenStatuses` to the useMemo dependency array.
+
+**`src/pages/FlowDiagram.tsx`** — Document the new multi-select status filter.
 
 ### Files to edit
-- `src/components/AppLayout.tsx` — 3-line layout change
+- `src/pages/Conversations.tsx` — state, filter popover UI, filtering logic
+- `src/pages/FlowDiagram.tsx` — document change
 
