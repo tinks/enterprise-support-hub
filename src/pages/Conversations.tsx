@@ -231,7 +231,7 @@ const Conversations = () => {
                   variant="ghost"
                   size="sm"
                   className="h-7 px-2"
-                  onClick={() => navigate("/stats")}
+                  onClick={() => navigate("/")}
                 >
                   <ArrowLeft className="mr-1 h-3 w-3" /> Back to stats
                 </Button>
