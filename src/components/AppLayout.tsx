@@ -21,6 +21,10 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
             <MessageSquare className="h-4 w-4" />
             Conversations
           </NavLink>
+          <NavLink to="/import" className={linkClass} activeClassName={activeClass}>
+            <Import className="h-4 w-4" />
+            Import
+          </NavLink>
           <NavLink to="/settings" className={linkClass} activeClassName={activeClass}>
             <Settings className="h-4 w-4" />
             Settings

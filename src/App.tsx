@@ -9,6 +9,7 @@ import FlowDiagram from "./pages/FlowDiagram";
 import Conversations from "./pages/Conversations";
 import ConversationDetail from "./pages/ConversationDetail";
 import ProjectKnowledge from "./pages/ProjectKnowledge";
+import ImportPage from "./pages/ImportPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,6 +24,7 @@ const App = () => (
           <Route path="/" element={<Stats />} />
           <Route path="/conversations" element={<Conversations />} />
           <Route path="/conversations/:id" element={<ConversationDetail />} />
+          <Route path="/import" element={<ImportPage />} />
           <Route path="/settings" element={<Index />} />
           <Route path="/flow" element={<FlowDiagram />} />
           <Route path="/knowledge" element={<ProjectKnowledge />} />
