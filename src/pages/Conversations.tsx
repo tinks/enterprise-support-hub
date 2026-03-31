@@ -363,8 +363,8 @@ const Conversations = () => {
               </div>
             </div>
           )}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+          <Card className="min-h-0 flex-1 flex flex-col">
+            <CardHeader className="flex flex-row items-center justify-between flex-shrink-0">
               <div>
                 <CardTitle className="text-lg">Recent conversations</CardTitle>
                 <CardDescription>
