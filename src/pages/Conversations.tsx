@@ -466,8 +466,13 @@ const Conversations = () => {
                                     className="h-6 px-2 text-xs"
                                     onClick={async (e) => {
                                       e.stopPropagation();
+                                      const prevRows = [...gmailRows];
                                       setGmailRows((prev) => prev.map((r) => r.id === g.id ? { ...r, status: "resolved", resolved_at: new Date().toISOString() } : r));
-                                      await supabase.from("gmail_conversations").update({ status: "resolved", resolved_at: new Date().toISOString() } as any).eq("id", g.id);
+                                      const { error } = await supabase.from("gmail_conversations").update({ status: "resolved", resolved_at: new Date().toISOString() }).eq("id", g.id);
+                                      if (error) {
+                                        setGmailRows(prevRows);
+                                        toast.error("Failed to resolve conversation");
+                                      }
                                     }}
                                   >
                                     Resolve
