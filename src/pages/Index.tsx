@@ -23,6 +23,7 @@ interface SettingsData {
   testing_mode: boolean;
   test_intercom_inbox_id: string;
   auto_mark_employee_test: boolean;
+  product_areas: string;
 }
 
 
