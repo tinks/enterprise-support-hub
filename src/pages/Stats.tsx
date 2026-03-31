@@ -947,7 +947,7 @@ const Stats = () => {
                     <Area type="monotone" dataKey="slack" stroke="hsl(var(--primary))" fill="url(#gradSlack)" strokeWidth={2} />
                   )}
                   {sourceFilter !== "slack" && (
-                    <Area type="monotone" dataKey="gmail" stroke="hsl(35 92% 50%)" fill="url(#gradGmail)" strokeWidth={2} />
+                    <Area type="monotone" dataKey="gmail" stroke="#E66FD2" fill="url(#gradGmail)" strokeWidth={2} />
                   )}
                 </AreaChart>
               </ChartContainer>
