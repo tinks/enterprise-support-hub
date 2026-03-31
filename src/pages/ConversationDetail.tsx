@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { Label } from "@/components/ui/label";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +28,9 @@ interface ConversationMapping {
   resolved_at: string | null;
   status: string;
   is_test: boolean;
+  is_bug: boolean;
+  is_feature_request: boolean;
+  product_area: string | null;
   original_message_text: string;
   created_at: string;
   updated_at: string;
@@ -90,6 +94,7 @@ const ConversationDetail = () => {
   const [updating, setUpdating] = useState(false);
   const [threadMessages, setThreadMessages] = useState<ThreadMessage[]>([]);
   const [threadLoading, setThreadLoading] = useState(false);
+  const [productAreas, setProductAreas] = useState<string[]>([]);
 
   const fetchThread = async (channelId: string, threadTs: string) => {
     setThreadLoading(true);
@@ -109,6 +114,16 @@ const ConversationDetail = () => {
   };
 
   useEffect(() => {
+    const loadAreas = async () => {
+      const { data } = await supabase.from("settings").select("product_areas").limit(1).single();
+      if (data?.product_areas) {
+        setProductAreas(data.product_areas.split(",").map((a: string) => a.trim()).filter(Boolean));
+      }
+    };
+    loadAreas();
+  }, []);
+
+  useEffect(() => {
     if (!id) return;
     const load = async () => {
       setLoading(true);
@@ -122,17 +137,14 @@ const ConversationDetail = () => {
       setLoading(false);
 
       if (row) {
-        // Fetch thread messages
         fetchThread(row.slack_channel_id, row.slack_thread_ts);
 
-        // Resolve user name
         const usersRes = await supabase.functions.invoke("list-slack-users");
         if (usersRes.data?.users) {
           const u = usersRes.data.users.find((u: any) => u.id === row.slack_user_id);
           if (u) setUserName(u.display_name || u.real_name || u.name);
         }
 
-        // Resolve channel name
         const channelsRes = await supabase.functions.invoke("list-slack-channels", {
           body: { channelIds: [row.slack_channel_id] },
         });
@@ -168,6 +180,28 @@ const ConversationDetail = () => {
     const newVal = !conv.is_test;
     await supabase.from("conversation_mappings").update({ is_test: newVal }).eq("id", conv.id);
     setConv({ ...conv, is_test: newVal });
+  };
+
+  const toggleBug = async () => {
+    if (!conv) return;
+    const newVal = !conv.is_bug;
+    await supabase.from("conversation_mappings").update({ is_bug: newVal }).eq("id", conv.id);
+    setConv({ ...conv, is_bug: newVal });
+  };
+
+  const toggleFeatureRequest = async () => {
+    if (!conv) return;
+    const newVal = !conv.is_feature_request;
+    await supabase.from("conversation_mappings").update({ is_feature_request: newVal }).eq("id", conv.id);
+    setConv({ ...conv, is_feature_request: newVal });
+  };
+
+  const updateProductArea = async (value: string) => {
+    if (!conv) return;
+    const newVal = value === "none" ? null : value;
+    await supabase.from("conversation_mappings").update({ product_area: newVal }).eq("id", conv.id);
+    setConv({ ...conv, product_area: newVal });
+    toast.success(`Product area updated`);
   };
 
   if (loading) {
@@ -272,7 +306,36 @@ const ConversationDetail = () => {
             </CardContent>
           </Card>
 
-          {/* Thread timeline */}
+          {/* Classification */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Classification</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm text-muted-foreground">Bug</Label>
+                <Switch checked={conv.is_bug} onCheckedChange={toggleBug} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm text-muted-foreground">Feature request</Label>
+                <Switch checked={conv.is_feature_request} onCheckedChange={toggleFeatureRequest} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm text-muted-foreground">Product area</Label>
+                <Select value={conv.product_area || "none"} onValueChange={updateProductArea}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {productAreas.map((area) => (
+                      <SelectItem key={area} value={area}>{area}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-sm">Thread</CardTitle>
