@@ -361,7 +361,6 @@ const Conversations = () => {
                       <TableHead>Product area</TableHead>
                       <TableHead>Bug</TableHead>
                     </TableRow>
-                    </TableRow>
                   </TableHeader>
                   <TableBody>
                     {unified.map((row) => {
