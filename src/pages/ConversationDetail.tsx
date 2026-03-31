@@ -113,6 +113,16 @@ const ConversationDetail = () => {
   };
 
   useEffect(() => {
+    const loadAreas = async () => {
+      const { data } = await supabase.from("settings").select("product_areas").limit(1).single();
+      if (data?.product_areas) {
+        setProductAreas(data.product_areas.split(",").map((a: string) => a.trim()).filter(Boolean));
+      }
+    };
+    loadAreas();
+  }, []);
+
+  useEffect(() => {
     if (!id) return;
     const load = async () => {
       setLoading(true);
@@ -126,17 +136,14 @@ const ConversationDetail = () => {
       setLoading(false);
 
       if (row) {
-        // Fetch thread messages
         fetchThread(row.slack_channel_id, row.slack_thread_ts);
 
-        // Resolve user name
         const usersRes = await supabase.functions.invoke("list-slack-users");
         if (usersRes.data?.users) {
           const u = usersRes.data.users.find((u: any) => u.id === row.slack_user_id);
           if (u) setUserName(u.display_name || u.real_name || u.name);
         }
 
-        // Resolve channel name
         const channelsRes = await supabase.functions.invoke("list-slack-channels", {
           body: { channelIds: [row.slack_channel_id] },
         });
