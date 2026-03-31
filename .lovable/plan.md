@@ -1,72 +1,38 @@
 
 
-## Update look and feel to Lovable colour palette
+## Fix thread reply forwarding regression
 
-### Lovable brand colours
-Based on the Lovable website, the brand uses a warm gradient palette:
-- **Primary**: A warm coral/red-orange (`#FF6B6B` → HSL ~0 100% 71%`)
-- **Accent gradient**: Coral to pink to purple (`#FF6B6B` → `#E66FD2` → `#9B87F5`)
-- **Dark foreground**: Near-black (`#1A1A2E`)
-- **Neutral background**: Warm off-white
+### Root cause
+In `slack-events/index.ts`, the atomic dedup claim for thread replies uses `.is("last_processed_event_ts", null).or(...)` which are two separate PostgREST filters ANDed together. The intended logic is `IS NULL OR != eventTs`, but the actual filter is `IS NULL AND != eventTs` — always false when the column is NULL. This means the first thread reply in any conversation can never be claimed, so:
+1. The reply is never forwarded to Intercom
+2. The cosmetic work (status transition, notices) never runs
 
-### Changes
+### Fix
 
-**File: `src/index.css`** — Replace the CSS custom properties with Lovable-themed colours:
+**File: `supabase/functions/slack-events/index.ts`**
 
-Light mode:
-- `--primary`: Warm coral-red (matches Lovable heart logo)
-- `--primary-foreground`: White
-- `--accent`: Soft pink tint
-- `--destructive`: Keep red but align with palette
-- `--background`: Warm off-white (`0 0% 99%`)
-- `--muted`: Soft warm grey
-- `--border`: Light warm grey
-- `--ring`: Coral primary
+Replace the dedup claim (lines 563-569):
+```js
+// Before (broken):
+.eq("id", mapping.id)
+.is("last_processed_event_ts", null)
+.or(`last_processed_event_ts.neq.${eventTs}`)
 
-Dark mode:
-- Corresponding dark variants with the same coral primary
-
-**File: `src/components/AppLayout.tsx`** — Add the Lovable logo to the nav bar and apply a subtle bottom-border gradient accent:
-- Add `<img src="/lovable-logo.png" className="h-6 w-6" />` before the nav links
-- Add app name "Lovable Enterprise Support Hub" as compact text next to logo
-- Apply a gradient accent line under the nav (`bg-gradient-to-r from-[#FF6B6B] via-[#E66FD2] to-[#9B87F5]` with `h-0.5`)
-
-**File: `src/pages/Stats.tsx`** — Update chart colours to use the Lovable palette:
-- `chartConfig.resolved`: Green stays (success)
-- `chartConfig.slack`: Coral primary
-- `chartConfig.gmail`: Pink/purple accent
-- `chartConfig.resolution`: Purple
-- `chartConfig.cumulative`: Coral
-- Heatmap cells: Use coral-to-purple gradient intensity instead of current primary
-
-**File: `src/pages/Stats.tsx`** — Hero banner: Add a subtle gradient background using Lovable colours instead of plain `bg-card`
-
-**File: `src/App.css`** — Remove unused default Vite styles (cleanup)
-
-**File: `src/pages/ProjectKnowledge.tsx`** — Update the pending-change banner accent from orange to coral to match
-
-**File: `src/pages/FlowDiagram.tsx`** — Document the colour palette change
-
-### Summary of colour tokens
-
-```text
-Light mode:
-  --primary:      0 100% 71%        (#FF6B6B coral)
-  --primary-fg:   0 0% 100%         (white)
-  --accent:       330 80% 95%       (soft pink)
-  --accent-fg:    240 10% 20%
-  --background:   30 20% 99%        (warm white)
-  --card:         0 0% 100%
-  --muted:        30 10% 96%
-  --border:       30 10% 90%
-  --ring:         0 100% 71%
+// After (fixed):
+.eq("id", mapping.id)
+.or(`last_processed_event_ts.is.null,last_processed_event_ts.neq.${eventTs}`)
 ```
 
-### Files to edit
-- `src/index.css` — colour tokens
-- `src/components/AppLayout.tsx` — nav bar with logo + gradient accent
-- `src/pages/Stats.tsx` — chart colours + hero gradient
-- `src/App.css` — cleanup
-- `src/pages/ProjectKnowledge.tsx` — banner accent alignment
-- `src/pages/FlowDiagram.tsx` — document the change
+This puts both conditions inside a single `.or()` call, producing the correct PostgREST filter: `id = X AND (last_processed_event_ts IS NULL OR last_processed_event_ts != eventTs)`.
+
+### Fix stuck conversation
+Reset conversation a33cbcce from `escalated_pending` back to `escalated` so the next reply attempt works with the fixed code. This requires a one-line SQL migration:
+```sql
+UPDATE conversation_mappings SET status = 'escalated', last_processed_event_ts = NULL WHERE id = 'a33cbcce-5a35-417a-bafd-a2ab32734f07';
+```
+
+### Files to change
+- `supabase/functions/slack-events/index.ts` — fix the `.or()` filter
+- Database migration — reset stuck conversation
+- `src/pages/FlowDiagram.tsx` — document the dedup fix
 
