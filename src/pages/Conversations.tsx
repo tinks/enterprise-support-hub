@@ -24,6 +24,7 @@ interface ConversationMapping {
   original_message_text: string;
   product_area: string | null;
   is_bug: boolean;
+  is_feature_request: boolean;
 }
 
 interface GmailConversation {
@@ -41,6 +42,7 @@ interface GmailConversation {
   resolved_at: string | null;
   product_area: string | null;
   is_bug: boolean;
+  is_feature_request: boolean;
 }
 
 type SourceFilter = "all" | "slack" | "gmail";
@@ -142,7 +144,7 @@ const Conversations = () => {
     }
   };
 
-  const PRODUCT_AREAS = ["SSO", "SCIM", "Credits", "Account access", "Remix/transfer"] as const;
+  const PRODUCT_AREAS = ["SSO", "SCIM", "Credits", "Account access", "Remix/transfer", "Cloud/AI"] as const;
 
   const updateProductArea = async (id: string, value: string, source: "slack" | "gmail") => {
     const newValue = value === "clear" ? null : value;
@@ -167,6 +169,19 @@ const Conversations = () => {
     if (error) {
       setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, is_bug: currentValue } : m));
       toast.error("Failed to update bug flag");
+    }
+  };
+
+  const toggleFeatureRequest = async (id: string, currentValue: boolean, source: "slack" | "gmail") => {
+    const newValue = !currentValue;
+    const table = source === "slack" ? "conversation_mappings" : "gmail_conversations";
+    const setState = source === "slack" ? setMappings : setGmailRows;
+
+    setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, is_feature_request: newValue } : m));
+    const { error } = await supabase.from(table).update({ is_feature_request: newValue } as any).eq("id", id);
+    if (error) {
+      setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, is_feature_request: currentValue } : m));
+      toast.error("Failed to update feature request flag");
     }
   };
 
@@ -360,6 +375,7 @@ const Conversations = () => {
                       <TableHead>Resolved</TableHead>
                       <TableHead>Product area</TableHead>
                       <TableHead>Bug</TableHead>
+                      <TableHead>Feature req.</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -483,6 +499,14 @@ const Conversations = () => {
                                 onClick={(e) => e.stopPropagation()}
                               />
                             </TableCell>
+                            <TableCell>
+                              <Switch
+                                checked={m.is_feature_request}
+                                onCheckedChange={() => toggleFeatureRequest(m.id, m.is_feature_request, "slack")}
+                                aria-label="Toggle feature request"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </TableCell>
                           </TableRow>
                         );
                       } else {
@@ -583,6 +607,13 @@ const Conversations = () => {
                                 checked={g.is_bug}
                                 onCheckedChange={() => toggleBug(g.id, g.is_bug, "gmail")}
                                 aria-label="Toggle bug"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Switch
+                                checked={g.is_feature_request}
+                                onCheckedChange={() => toggleFeatureRequest(g.id, g.is_feature_request, "gmail")}
+                                aria-label="Toggle feature request"
                               />
                             </TableCell>
                           </TableRow>

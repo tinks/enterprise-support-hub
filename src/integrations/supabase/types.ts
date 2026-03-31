@@ -48,6 +48,7 @@ export type Database = {
           intercom_contact_id: string
           intercom_conversation_id: string | null
           is_bug: boolean
+          is_feature_request: boolean
           is_test: boolean
           last_intercom_part_id: string | null
           last_processed_event_ts: string | null
@@ -68,6 +69,7 @@ export type Database = {
           intercom_contact_id?: string
           intercom_conversation_id?: string | null
           is_bug?: boolean
+          is_feature_request?: boolean
           is_test?: boolean
           last_intercom_part_id?: string | null
           last_processed_event_ts?: string | null
@@ -88,6 +90,7 @@ export type Database = {
           intercom_contact_id?: string
           intercom_conversation_id?: string | null
           is_bug?: boolean
+          is_feature_request?: boolean
           is_test?: boolean
           last_intercom_part_id?: string | null
           last_processed_event_ts?: string | null
@@ -135,6 +138,7 @@ export type Database = {
           gmail_thread_id: string | null
           id: string
           is_bug: boolean
+          is_feature_request: boolean
           is_test: boolean
           product_area: string | null
           received_at: string | null
@@ -153,6 +157,7 @@ export type Database = {
           gmail_thread_id?: string | null
           id?: string
           is_bug?: boolean
+          is_feature_request?: boolean
           is_test?: boolean
           product_area?: string | null
           received_at?: string | null
@@ -171,6 +176,7 @@ export type Database = {
           gmail_thread_id?: string | null
           id?: string
           is_bug?: boolean
+          is_feature_request?: boolean
           is_test?: boolean
           product_area?: string | null
           received_at?: string | null
