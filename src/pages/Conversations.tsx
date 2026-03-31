@@ -377,6 +377,43 @@ const Conversations = () => {
                     <SelectItem value="gmail">Gmail only</SelectItem>
                   </SelectContent>
                 </Select>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-9 gap-1">
+                      <Filter className="h-3 w-3" />
+                      Status
+                      {hiddenStatuses.size > 0 && (
+                        <Badge variant="secondary" className="ml-1 h-5 px-1 text-xs">
+                          {hiddenStatuses.size} hidden
+                        </Badge>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-52 p-3" align="end">
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">Hide statuses</p>
+                    <div className="flex flex-col gap-2">
+                      {ALL_STATUSES.map((s) => (
+                        <label key={s} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={hiddenStatuses.has(s)}
+                            onCheckedChange={() => toggleHidden(s)}
+                          />
+                          <span className="capitalize">{s.replace("_", " ")}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {hiddenStatuses.size > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="mt-2 h-7 w-full text-xs"
+                        onClick={() => setHiddenStatuses(new Set())}
+                      >
+                        Show all
+                      </Button>
+                    )}
+                  </PopoverContent>
+                </Popover>
                 <Button variant="outline" size="sm" onClick={() => { loadData().then((rows) => loadLookups(rows)); }} disabled={loading}>
                   <RefreshCw className={`mr-1 h-3 w-3 ${loading ? "animate-spin" : ""}`} />
                   Refresh
