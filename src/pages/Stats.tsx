@@ -315,8 +315,21 @@ const Stats = () => {
         : 1;
     const avgPerDay = +(combinedTotal / daySpan).toFixed(1);
 
-    const gmailResolved = filteredGmail.filter((g) => g.status === "resolved").length;
-    const gmailOpen = filteredGmail.filter((g) => g.status === "open").length;
+    const gmailResolvedSubjects = new Set<string>();
+    let gmailResolvedOrphans = 0;
+    const gmailOpenSubjects = new Set<string>();
+    let gmailOpenOrphans = 0;
+    filteredGmail.forEach((g) => {
+      if (g.status === "resolved") {
+        if (g.subject) gmailResolvedSubjects.add(g.subject);
+        else gmailResolvedOrphans++;
+      } else if (g.status === "open") {
+        if (g.subject) gmailOpenSubjects.add(g.subject);
+        else gmailOpenOrphans++;
+      }
+    });
+    const gmailResolved = gmailResolvedSubjects.size + gmailResolvedOrphans;
+    const gmailOpen = gmailOpenSubjects.size + gmailOpenOrphans;
 
     return { total, gmailTotal, emailTotal: gmailUniqueEmails, resolved, escalated, active, awaiting, processing, cancelled, open, resolvedPct, avgPerDay, gmailResolved, gmailOpen };
   }, [filtered, filteredGmail, range, sourceFilter, gmailUniqueEmails]);
