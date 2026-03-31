@@ -411,6 +411,7 @@ function buildNodes(
           "Classifies failures as oauth_tokens, token_refresh, scope_permission, gmail_transport, or database",
           "Auto-refreshes expired access tokens using the stored refresh token",
           "Deduplicates by unique gmail_message_id (duplicate inserts are skipped)",
+          "Captures To and CC headers for customer domain analytics (stored as to_emails, cc_emails)",
           "Tracks gmail_last_polled_at high-water mark in settings table",
           "Stats page deduplicates by subject: emails with the same subject count as 1 thread ('Email total' metric), raw count shown as 'Gmail messages'",
           "Hybrid resolution tracking: emails have status (open/resolved) and resolved_at timestamp",

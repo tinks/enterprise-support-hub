@@ -234,6 +234,8 @@ Deno.serve(async (req) => {
         subject,
         received_at: receivedAt,
         snippet: msg.snippet || null,
+        to_emails: toEmails,
+        cc_emails: ccEmails,
       });
 
       if (error) {
