@@ -837,7 +837,7 @@ const Stats = () => {
                         <XAxis dataKey="label" className="text-xs" />
                         <YAxis allowDecimals={false} className="text-xs" />
                         <ChartTooltip content={<ChartTooltipContent />} />
-                        <Bar dataKey="count" fill="hsl(221 83% 53%)" radius={[4, 4, 0, 0]}>
+                        <Bar dataKey="count" fill="#9B87F5" radius={[4, 4, 0, 0]}>
                           <LabelList dataKey="count" position="top" className="text-xs fill-foreground" />
                         </Bar>
                       </BarChart>
