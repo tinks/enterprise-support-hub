@@ -1,53 +1,42 @@
 
 
-## Add day-of-week × hour-of-day heatmap to Stats page
+## Make heatmap cells clickable to filter conversations
 
-### Overview
-Add a heatmap grid below the existing "Activity by hour of day" bar chart showing activity intensity across 7 days (Mon–Sun) × 24 hours (00–23) in CET. Each cell is color-coded by combined Slack + Gmail count.
+### Approach
+When a user clicks a heatmap cell, navigate to `/conversations` with query params encoding the day and hour. The Conversations page reads these params and filters its unified list to only show rows matching that CET day+hour.
 
 ### Changes
 
-**File: `src/pages/Stats.tsx`**
+**`src/pages/Stats.tsx`**
+- Import `useNavigate`
+- Add `onClick` handler to each heatmap cell div: navigates to `/conversations?day=Mon&hour=14&source=slack` (or `all`/`gmail` based on current `sourceFilter`)
+- Add `cursor-pointer` class to cells with `val > 0`
 
-1. **New `useMemo` — `heatmapData`**: Reuse the same `getCETHour` helper. Build a 7×24 grid where each cell has `{ day, hour, slack, gmail, total }`. Day of week extracted via `toLocaleDateString("en-GB", { timeZone: "Europe/Berlin", weekday: "short" })`.
+**`src/pages/Conversations.tsx`**
+- Read `day`, `hour`, `source` from `useSearchParams`
+- When present, filter the unified rows to only those whose CET day-of-week and hour match
+- Show an active filter banner at the top with a clear button (resets search params)
+- Set sourceFilter from the `source` param if provided
+- Reuse the same `getCET` helper (extract day + hour in Europe/Berlin timezone)
 
-2. **New card** — placed directly after the hourly bar chart card (~line 932). Renders a CSS grid (7 rows × 24 columns) with:
-   - Column headers: 00–23
-   - Row headers: Mon–Sun
-   - Each cell colored using an opacity scale (e.g. `bg-primary` with opacity proportional to `cell.total / maxCount`)
-   - Tooltip on hover showing exact counts (Slack + Gmail breakdown)
-   - Respects `sourceFilter` — sums only relevant source
-
-3. **Styling**: Pure Tailwind — no extra dependency. Cells are small squares with rounded corners. Uses `title` attribute for simple hover info (no Recharts needed).
-
-**File: `src/pages/FlowDiagram.tsx`**
-- Add note documenting the heatmap under analytics.
+**`src/pages/FlowDiagram.tsx`**
+- Document the clickable heatmap → conversations filter interaction
 
 ### Technical detail
-
 ```ts
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+// Stats.tsx cell onClick
+onClick={() => {
+  if (val > 0) navigate(`/conversations?day=${day}&hour=${h}&source=${sourceFilter}`);
+}}
 
-const heatmapData = useMemo(() => {
-  const grid: Record<string, Record<number, { slack: number; gmail: number }>> = {};
-  DAYS.forEach(d => { grid[d] = {}; for (let h = 0; h < 24; h++) grid[d][h] = { slack: 0, gmail: 0 }; });
-  
-  const getCET = (dateStr: string) => {
-    const d = new Date(dateStr);
-    const day = d.toLocaleDateString("en-GB", { timeZone: "Europe/Berlin", weekday: "short" });
-    const hour = parseInt(d.toLocaleString("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false }));
-    return { day, hour };
+// Conversations.tsx filter
+const getCET = (dateStr: string) => {
+  const d = new Date(dateStr);
+  return {
+    day: d.toLocaleDateString("en-GB", { timeZone: "Europe/Berlin", weekday: "short" }),
+    hour: parseInt(d.toLocaleString("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false })),
   };
-  
-  filtered.forEach(m => { const { day, hour } = getCET(m.created_at); if (grid[day]) grid[day][hour].slack++; });
-  filteredGmail.forEach(g => { const { day, hour } = getCET(g.received_at || g.created_at); if (grid[day]) grid[day][hour].gmail++; });
-  return { grid, max: /* compute max total across all cells */ };
-}, [filtered, filteredGmail]);
+};
+// Filter unified rows where getCET(sortDate).day === paramDay && getCET(sortDate).hour === paramHour
 ```
-
-Rendering: simple nested `div` grid with inline `opacity` or `backgroundColor` based on intensity.
-
-### Files to edit
-- `src/pages/Stats.tsx` — heatmap memo + card
-- `src/pages/FlowDiagram.tsx` — document the heatmap
 
