@@ -374,6 +374,7 @@ const Conversations = () => {
                       <TableHead>Resolved</TableHead>
                       <TableHead>Product area</TableHead>
                       <TableHead>Bug</TableHead>
+                      <TableHead>Feature req.</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
