@@ -903,6 +903,34 @@ const Stats = () => {
           </CardContent>
         </Card>
 
+        {/* Activity by hour of day */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Activity by hour of day (CET)</CardTitle>
+            <CardDescription>When conversations and emails arrive, bucketed by hour in CET timezone</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {hourlyActivityData.every((b) => b.slack === 0 && b.gmail === 0) ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+            ) : (
+              <ChartContainer config={chartConfig} className="h-[280px] w-full">
+                <BarChart data={hourlyActivityData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="hour" className="text-xs" />
+                  <YAxis allowDecimals={false} className="text-xs" />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  {sourceFilter !== "gmail" && (
+                    <Bar dataKey="slack" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  )}
+                  {sourceFilter !== "slack" && (
+                    <Bar dataKey="gmail" fill="hsl(35 92% 50%)" radius={[4, 4, 0, 0]} />
+                  )}
+                </BarChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+
         {sourceFilter !== "gmail" && (
         /* Conversations by channel */
         <Card>
