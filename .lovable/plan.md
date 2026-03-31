@@ -1,39 +1,72 @@
 
 
-## Update project knowledge with heatmap drill-down features
+## Update look and feel to Lovable colour palette
 
-### What's missing
-The current knowledge document (§25 Stats & analytics) documents "Activity by hour of day (CET)" but does not mention:
-1. The **day-of-week × hour-of-day activity heatmap** grid
-2. **Clickable heatmap cells** that navigate to `/conversations?day=...&hour=...&source=...`
-3. The **Conversations page heatmap mode** — loads 1000 rows instead of 50, shows filter banner with "Back to stats" and "Clear filter" buttons, hides "Load more"
+### Lovable brand colours
+Based on the Lovable website, the brand uses a warm gradient palette:
+- **Primary**: A warm coral/red-orange (`#FF6B6B` → HSL ~0 100% 71%`)
+- **Accent gradient**: Coral to pink to purple (`#FF6B6B` → `#E66FD2` → `#9B87F5`)
+- **Dark foreground**: Near-black (`#1A1A2E`)
+- **Neutral background**: Warm off-white
 
 ### Changes
 
-**Database update only** — propose pending content to the `knowledge_documents` table.
+**File: `src/index.css`** — Replace the CSS custom properties with Lovable-themed colours:
 
-Add to §25 (Stats & analytics), after the "Activity by hour of day (CET)" section:
+Light mode:
+- `--primary`: Warm coral-red (matches Lovable heart logo)
+- `--primary-foreground`: White
+- `--accent`: Soft pink tint
+- `--destructive`: Keep red but align with palette
+- `--background`: Warm off-white (`0 0% 99%`)
+- `--muted`: Soft warm grey
+- `--border`: Light warm grey
+- `--ring`: Coral primary
 
-```markdown
-### Activity heatmap (day × hour)
-- 7×24 grid showing combined Slack + Gmail activity by day of week (Mon–Sun) and hour (00–23) in CET
-- Color intensity scales from transparent (0) to solid primary color (max cell value)
-- Each cell displays its count; cells with zero activity are dimmed
-- Respects the active source filter
+Dark mode:
+- Corresponding dark variants with the same coral primary
 
-### Heatmap drill-down
-- Clicking a heatmap cell navigates to `/conversations?day={day}&hour={hour}&source={sourceFilter}`
-- The Conversations page detects heatmap query params (`day` + `hour`) and enters **heatmap mode**:
-  - Loads up to 1000 rows per source (instead of the default 50) to cover the full historical window
-  - Filters the unified list client-side to only show rows matching the CET day and hour
-  - Displays a filter banner: "Showing activity for {Day} {Hour}:00 CET"
-  - Banner includes "Back to stats" (navigates to `/`) and "Clear filter" (removes query params) buttons
-  - "Load more" pagination is hidden in heatmap mode
+**File: `src/components/AppLayout.tsx`** — Add the Lovable logo to the nav bar and apply a subtle bottom-border gradient accent:
+- Add `<img src="/lovable-logo.png" className="h-6 w-6" />` before the nav links
+- Add app name "Lovable Enterprise Support Hub" as compact text next to logo
+- Apply a gradient accent line under the nav (`bg-gradient-to-r from-[#FF6B6B] via-[#E66FD2] to-[#9B87F5]` with `h-0.5`)
+
+**File: `src/pages/Stats.tsx`** — Update chart colours to use the Lovable palette:
+- `chartConfig.resolved`: Green stays (success)
+- `chartConfig.slack`: Coral primary
+- `chartConfig.gmail`: Pink/purple accent
+- `chartConfig.resolution`: Purple
+- `chartConfig.cumulative`: Coral
+- Heatmap cells: Use coral-to-purple gradient intensity instead of current primary
+
+**File: `src/pages/Stats.tsx`** — Hero banner: Add a subtle gradient background using Lovable colours instead of plain `bg-card`
+
+**File: `src/App.css`** — Remove unused default Vite styles (cleanup)
+
+**File: `src/pages/ProjectKnowledge.tsx`** — Update the pending-change banner accent from orange to coral to match
+
+**File: `src/pages/FlowDiagram.tsx`** — Document the colour palette change
+
+### Summary of colour tokens
+
+```text
+Light mode:
+  --primary:      0 100% 71%        (#FF6B6B coral)
+  --primary-fg:   0 0% 100%         (white)
+  --accent:       330 80% 95%       (soft pink)
+  --accent-fg:    240 10% 20%
+  --background:   30 20% 99%        (warm white)
+  --card:         0 0% 100%
+  --muted:        30 10% 96%
+  --border:       30 10% 90%
+  --ring:         0 100% 71%
 ```
 
-Also update the Flow Diagram to reflect the heatmap drill-down interaction.
-
-### Files affected
-- `knowledge_documents` table — pending content update with the new sections
-- `src/pages/FlowDiagram.tsx` — add heatmap drill-down node/annotation
+### Files to edit
+- `src/index.css` — colour tokens
+- `src/components/AppLayout.tsx` — nav bar with logo + gradient accent
+- `src/pages/Stats.tsx` — chart colours + hero gradient
+- `src/App.css` — cleanup
+- `src/pages/ProjectKnowledge.tsx` — banner accent alignment
+- `src/pages/FlowDiagram.tsx` — document the change
 
