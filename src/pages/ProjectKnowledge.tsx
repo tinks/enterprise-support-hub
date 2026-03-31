@@ -399,7 +399,7 @@ const ProjectKnowledge = () => {
                     variant="outline"
                     size="sm"
                     onClick={() => setMode("review")}
-                    className="text-xs border-orange-500/50 text-orange-600 dark:text-orange-400"
+                    className="text-xs border-primary/50 text-primary"
                   >
                     <AlertTriangle className="mr-1 h-3.5 w-3.5" />
                     Review
