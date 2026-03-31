@@ -314,8 +314,17 @@ const Conversations = () => {
       });
     }
 
-    return rows;
-  }, [mappings, gmailRows, sourceFilter, paramDay, paramHour]);
+    // Apply status filter
+    const filtered = hiddenStatuses.size > 0
+      ? rows.filter((r) => {
+          if (hiddenStatuses.has("test") && r.data.is_test) return false;
+          if (hiddenStatuses.has(r.data.status)) return false;
+          return true;
+        })
+      : rows;
+
+    return filtered;
+  }, [mappings, gmailRows, sourceFilter, paramDay, paramHour, hiddenStatuses]);
 
   const canLoadMore =
     !isHeatmapMode && ((sourceFilter !== "gmail" && hasMore) || (sourceFilter !== "slack" && hasMoreGmail));
