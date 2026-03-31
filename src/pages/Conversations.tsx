@@ -168,20 +168,20 @@ const Conversations = () => {
     const slackRows = (slackRes.data ?? []) as unknown as ConversationMapping[];
     const gmailData = (gmailRes.data ?? []) as unknown as GmailConversation[];
 
-    setHasMore(slackRows.length === 50);
-    setHasMoreGmail(gmailData.length === 50);
+    setHasMore(slackRows.length === pageSize);
+    setHasMoreGmail(gmailData.length === pageSize);
 
     if (append) {
       setMappings((prev) => [...prev, ...slackRows]);
       setGmailRows((prev) => [...prev, ...gmailData]);
-      setOffset(currentOffset + 50);
-      setGmailOffset(currentGmailOffset + 50);
+      setOffset(currentOffset + pageSize);
+      setGmailOffset(currentGmailOffset + pageSize);
       setLoadingMore(false);
     } else {
       setMappings(slackRows);
       setGmailRows(gmailData);
-      setOffset(50);
-      setGmailOffset(50);
+      setOffset(pageSize);
+      setGmailOffset(pageSize);
       setLoading(false);
     }
     return slackRows;
