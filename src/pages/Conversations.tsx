@@ -695,6 +695,7 @@ const Conversations = () => {
                     })}
                   </TableBody>
                 </Table>
+              </div>
               )}
               {canLoadMore && unified.length > 0 && (
                 <div className="flex justify-center pt-4">
