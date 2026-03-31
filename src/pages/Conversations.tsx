@@ -116,6 +116,28 @@ const Conversations = () => {
     }
   };
 
+  const toggleResolved = async (id: string, currentStatus: string, source: "slack" | "gmail") => {
+    const isResolved = currentStatus === "resolved";
+    const newStatus = isResolved ? (source === "slack" ? "active" : "open") : "resolved";
+    const resolvedAt = isResolved ? null : new Date().toISOString();
+
+    if (source === "slack") {
+      setMappings((prev) => prev.map((m) => m.id === id ? { ...m, status: newStatus, resolved_at: resolvedAt } as ConversationMapping : m));
+      const { error } = await supabase.from("conversation_mappings").update({ status: newStatus, resolved_at: resolvedAt }).eq("id", id);
+      if (error) {
+        setMappings((prev) => prev.map((m) => m.id === id ? { ...m, status: currentStatus } : m));
+        toast.error("Failed to update resolved status");
+      }
+    } else {
+      setGmailRows((prev) => prev.map((m) => m.id === id ? { ...m, status: newStatus, resolved_at: resolvedAt } : m));
+      const { error } = await supabase.from("gmail_conversations").update({ status: newStatus, resolved_at: resolvedAt }).eq("id", id);
+      if (error) {
+        setGmailRows((prev) => prev.map((m) => m.id === id ? { ...m, status: currentStatus } : m));
+        toast.error("Failed to update resolved status");
+      }
+    }
+  };
+
   const loadLookups = async (rows: ConversationMapping[]) => {
     const usersRes = await supabase.functions.invoke("list-slack-users");
     if (usersRes.data?.users) {
@@ -303,6 +325,7 @@ const Conversations = () => {
                       <TableHead>Status</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Test</TableHead>
+                      <TableHead>Resolved</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -389,6 +412,14 @@ const Conversations = () => {
                                 onClick={(e) => e.stopPropagation()}
                               />
                             </TableCell>
+                            <TableCell>
+                              <Switch
+                                checked={m.status === "resolved"}
+                                onCheckedChange={() => toggleResolved(m.id, m.status, "slack")}
+                                aria-label="Toggle resolved"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </TableCell>
                           </TableRow>
                         );
                       } else {
@@ -453,32 +484,18 @@ const Conversations = () => {
                               {g.received_at ? new Date(g.received_at).toLocaleString() : new Date(g.created_at).toLocaleString()}
                             </TableCell>
                             <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Switch
-                                  checked={g.is_test}
-                                  onCheckedChange={() => toggleTest(g.id, g.is_test, "gmail")}
-                                  aria-label="Toggle test"
-                                />
-                                {g.status !== "resolved" && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-6 px-2 text-xs"
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      const prevRows = [...gmailRows];
-                                      setGmailRows((prev) => prev.map((r) => r.id === g.id ? { ...r, status: "resolved", resolved_at: new Date().toISOString() } : r));
-                                      const { error } = await supabase.from("gmail_conversations").update({ status: "resolved", resolved_at: new Date().toISOString() }).eq("id", g.id);
-                                      if (error) {
-                                        setGmailRows(prevRows);
-                                        toast.error("Failed to resolve conversation");
-                                      }
-                                    }}
-                                  >
-                                    Resolve
-                                  </Button>
-                                )}
-                              </div>
+                              <Switch
+                                checked={g.is_test}
+                                onCheckedChange={() => toggleTest(g.id, g.is_test, "gmail")}
+                                aria-label="Toggle test"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Switch
+                                checked={g.status === "resolved"}
+                                onCheckedChange={() => toggleResolved(g.id, g.status, "gmail")}
+                                aria-label="Toggle resolved"
+                              />
                             </TableCell>
                           </TableRow>
                         );
