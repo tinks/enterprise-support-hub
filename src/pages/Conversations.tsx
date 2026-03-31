@@ -336,8 +336,8 @@ const Conversations = () => {
 
   return (
     <AppLayout>
-      <div className="bg-background p-6">
-        <div className="mx-auto max-w-7xl">
+      <div className="h-full min-h-0 flex flex-col bg-background p-6">
+        <div className="mx-auto max-w-7xl w-full min-h-0 flex flex-col flex-1">
           {paramDay !== null && paramHour !== null && (
             <div className="mb-4 flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-4 py-2 text-sm">
               <span className="text-foreground">
