@@ -598,7 +598,7 @@ const Conversations = () => {
                                   <SelectValue placeholder="—" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {PRODUCT_AREAS.map((area) => (
+                                  {productAreas.map((area) => (
                                     <SelectItem key={area} value={area}>{area}</SelectItem>
                                   ))}
                                   {g.product_area && (
