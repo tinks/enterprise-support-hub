@@ -1,26 +1,21 @@
 
 
-## Add "Feature request" toggle and "Cloud/AI" product area option
+## Make conversation table headers sticky on scroll
+
+### Problem
+When scrolling the conversations table, the column headers scroll out of view.
+
+### Fix
+Add `sticky top-0 z-10 bg-card` to the `TableHeader` element in `Conversations.tsx` so the header row stays pinned while the table body scrolls. The wrapping `div` in the `Table` component already has `overflow-auto`, so sticky positioning will work natively.
 
 ### Changes
 
-**Database migration** — Add `is_feature_request` boolean column to both tables:
-```sql
-ALTER TABLE conversation_mappings ADD COLUMN is_feature_request boolean NOT NULL DEFAULT false;
-ALTER TABLE gmail_conversations ADD COLUMN is_feature_request boolean NOT NULL DEFAULT false;
+**`src/pages/Conversations.tsx`** — line 363
+Add className to `<TableHeader>`:
+```tsx
+<TableHeader className="sticky top-0 z-10 bg-card">
 ```
 
-**`src/pages/Conversations.tsx`**
-1. Add `is_feature_request: boolean` to both interfaces
-2. Add `"Cloud/AI"` to `PRODUCT_AREAS` array
-3. Add `toggleFeatureRequest` handler (same pattern as `toggleBug`)
-4. Add "Feature req." table header next to "Bug"
-5. Add Switch cell for both Slack and Gmail rows
-
-**`src/pages/FlowDiagram.tsx`** — Document the new column and product area option.
-
 ### Files to edit
-- Database migration (2 ALTER TABLE statements)
-- `src/pages/Conversations.tsx`
-- `src/pages/FlowDiagram.tsx`
+- `src/pages/Conversations.tsx` — 1 line change
 
