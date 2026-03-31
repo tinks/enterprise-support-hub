@@ -216,6 +216,8 @@ Deno.serve(async (req) => {
       const fromEmail = fromMatch ? fromMatch[2] : fromRaw;
 
       const subject = getHeader("Subject") || "(no subject)";
+      const toEmails = getHeader("To") || null;
+      const ccEmails = getHeader("Cc") || null;
       const dateStr = getHeader("Date");
       const dateCandidate = dateStr
         ? new Date(dateStr)
