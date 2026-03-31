@@ -1,0 +1,1 @@
+UPDATE conversation_mappings SET status = 'escalated', last_processed_event_ts = NULL WHERE id = 'a33cbcce-5a35-417a-bafd-a2ab32734f07';

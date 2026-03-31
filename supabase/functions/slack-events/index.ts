@@ -564,8 +564,7 @@ Deno.serve(async (req) => {
           .from("conversation_mappings")
           .update({ last_processed_event_ts: eventTs })
           .eq("id", mapping.id)
-          .is("last_processed_event_ts", null)  // first time
-          .or(`last_processed_event_ts.neq.${eventTs}`)
+          .or(`last_processed_event_ts.is.null,last_processed_event_ts.neq.${eventTs}`)
           .select("id");
 
         // If no rows were claimed, another request already processed this event
