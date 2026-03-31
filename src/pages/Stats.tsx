@@ -192,6 +192,31 @@ const Stats = () => {
     return subjects.size + nullCount;
   }, [filteredGmail]);
 
+  const gmailResolutionTimes = useMemo(() => {
+    // Group by thread, compute resolution time per thread
+    const threadMap: Record<string, { earliest: string; resolved_at: string | null }> = {};
+    filteredGmail.forEach((g) => {
+      const key = g.gmail_thread_id || g.id;
+      const dateStr = g.received_at || g.created_at;
+      if (!threadMap[key] || dateStr < threadMap[key].earliest) {
+        threadMap[key] = { earliest: dateStr, resolved_at: g.resolved_at };
+      }
+      if (g.resolved_at) threadMap[key].resolved_at = g.resolved_at;
+    });
+    return Object.values(threadMap)
+      .filter((t) => t.resolved_at)
+      .map((t) => differenceInMinutes(parseISO(t.resolved_at!), parseISO(t.earliest)))
+      .filter((m) => m >= 0)
+      .sort((a, b) => a - b);
+  }, [filteredGmail]);
+
+  const gmailResolutionStats = useMemo(() => {
+    if (gmailResolutionTimes.length === 0) return null;
+    const median = gmailResolutionTimes[Math.floor(gmailResolutionTimes.length / 2)];
+    const avg = gmailResolutionTimes.reduce((s, v) => s + v, 0) / gmailResolutionTimes.length;
+    return { median, avg, count: gmailResolutionTimes.length };
+  }, [gmailResolutionTimes]);
+
   const gmailVolumeData = useMemo(() => {
     const byDay: Record<string, number> = {};
     filteredGmail.forEach((g) => {
