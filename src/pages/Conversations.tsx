@@ -1142,17 +1142,42 @@ const Conversations = () => {
                         );
                       } else if (row.source === "gmail") {
                         const g = row.data;
+                        const isGrouped = row.groupCount && row.groupCount > 1;
+                        const isExpanded = row.groupKey ? expandedGmailGroups.has(row.groupKey) : false;
+                        const subRows = isGrouped && isExpanded && row.groupedEmails ? row.groupedEmails.slice(1) : [];
                         return (
-                          <TableRow
-                            key={`gmail-${g.id}`}
-                            className={`hover:bg-muted/50 transition-colors ${g.is_test ? "opacity-50" : ""}`}
-                          >
-                            {columnOrder.map((col) => (
-                              <TableCell key={col} className={col === "message" ? "max-w-[300px]" : ""}>
-                                {renderGmailCell(col, g)}
-                              </TableCell>
+                          <>
+                            <TableRow
+                              key={`gmail-${g.id}`}
+                              className={`hover:bg-muted/50 transition-colors ${g.is_test ? "opacity-50" : ""} ${isGrouped ? "cursor-pointer" : ""}`}
+                              onClick={isGrouped && row.groupKey ? () => {
+                                setExpandedGmailGroups((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(row.groupKey!)) next.delete(row.groupKey!);
+                                  else next.add(row.groupKey!);
+                                  return next;
+                                });
+                              } : undefined}
+                            >
+                              {columnOrder.map((col) => (
+                                <TableCell key={col} className={col === "message" ? "max-w-[300px]" : ""}>
+                                  {renderGmailCell(col, g, row.groupCount, row.groupedEmails, row.groupKey)}
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                            {subRows.map((sub) => (
+                              <TableRow
+                                key={`gmail-sub-${sub.id}`}
+                                className={`hover:bg-muted/50 transition-colors bg-muted/20 ${sub.is_test ? "opacity-50" : ""}`}
+                              >
+                                {columnOrder.map((col) => (
+                                  <TableCell key={col} className={`${col === "message" ? "max-w-[300px]" : ""} ${col === "id" ? "pl-8" : ""}`}>
+                                    {renderGmailCell(col, sub)}
+                                  </TableCell>
+                                ))}
+                              </TableRow>
                             ))}
-                          </TableRow>
+                          </>
                         );
                       } else {
                         const mc = row.data;
