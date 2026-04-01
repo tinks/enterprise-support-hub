@@ -47,11 +47,26 @@ interface GmailConversation {
   is_feature_request: boolean;
 }
 
-type SourceFilter = "all" | "slack" | "gmail";
+interface ManualConversation {
+  id: string;
+  source: string;
+  contact_name: string;
+  subject: string;
+  link: string | null;
+  status: string;
+  is_bug: boolean;
+  is_feature_request: boolean;
+  is_test: boolean;
+  product_area: string | null;
+  created_at: string;
+}
+
+type SourceFilter = "all" | "slack" | "gmail" | "manual";
 
 type UnifiedRow =
   | { source: "slack"; data: ConversationMapping; sortDate: string }
-  | { source: "gmail"; data: GmailConversation; sortDate: string };
+  | { source: "gmail"; data: GmailConversation; sortDate: string }
+  | { source: "manual"; data: ManualConversation; sortDate: string };
 
 type NameMap = Record<string, string>;
 
