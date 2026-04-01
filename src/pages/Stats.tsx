@@ -94,6 +94,7 @@ const Stats = () => {
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [channelPopoverOpen, setChannelPopoverOpen] = useState(false);
   const [toPopoverOpen, setToPopoverOpen] = useState(false);
+  const statsContentRef = useRef<HTMLDivElement>(null);
 
   const activeRangeLabel = range === "custom" && customFrom && customTo
     ? `${format(customFrom, "MMM dd")} – ${format(customTo, "MMM dd")}`
