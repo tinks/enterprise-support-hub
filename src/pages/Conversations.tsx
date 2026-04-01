@@ -767,7 +767,7 @@ const Conversations = () => {
               <div>
                 <CardTitle className="text-lg">Recent conversations</CardTitle>
                 <CardDescription>
-                  Slack thread ↔ Intercom conversation mappings + Gmail emails
+                  Slack, Gmail, and manually logged conversations
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
