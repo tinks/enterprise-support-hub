@@ -390,6 +390,11 @@ const Conversations = () => {
     });
   }, []);
 
+  // Reload data when date filters change
+  useEffect(() => {
+    loadData().then((rows) => loadLookups(rows));
+  }, [dateFrom, dateTo]);
+
   // Debounce search query
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
