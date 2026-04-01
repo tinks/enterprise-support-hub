@@ -438,7 +438,10 @@ const Conversations = () => {
   }, [mappings, gmailRows, manualRows, sourceFilter, paramDay, paramHour, hiddenStatuses, searchQuery, userNames, channelNames]);
 
   const canLoadMore =
-    !isHeatmapMode && ((sourceFilter !== "gmail" && hasMore) || (sourceFilter !== "slack" && hasMoreGmail));
+    !isHeatmapMode && (
+      ((sourceFilter === "all" || sourceFilter === "slack" || sourceFilter === "slack_import") && hasMore) ||
+      ((sourceFilter === "all" || sourceFilter === "gmail") && hasMoreGmail)
+    );
 
   // Column definitions
   const columnHeaders: Record<ColKey, string> = {
