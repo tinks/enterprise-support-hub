@@ -371,12 +371,15 @@ const Conversations = () => {
   const unified = useMemo<UnifiedRow[]>(() => {
     const rows: UnifiedRow[] = [];
 
-    if (sourceFilter !== "gmail" && sourceFilter !== "manual") {
+    if (sourceFilter === "all" || sourceFilter === "slack" || sourceFilter === "slack_import") {
       for (const m of mappings) {
+        const isImported = !m.intercom_conversation_id;
+        if (sourceFilter === "slack_import" && !isImported) continue;
+        if (sourceFilter === "slack" && isImported) continue;
         rows.push({ source: "slack", data: m, sortDate: m.created_at });
       }
     }
-    if (sourceFilter !== "slack" && sourceFilter !== "manual") {
+    if (sourceFilter === "all" || sourceFilter === "gmail") {
       for (const g of gmailRows) {
         rows.push({ source: "gmail", data: g, sortDate: g.received_at || g.created_at });
       }
