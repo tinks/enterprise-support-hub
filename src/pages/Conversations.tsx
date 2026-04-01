@@ -62,7 +62,7 @@ interface ManualConversation {
   created_at: string;
 }
 
-type SourceFilter = "all" | "slack" | "gmail" | "manual";
+type SourceFilter = "all" | "slack" | "slack_import" | "gmail" | "manual";
 
 type UnifiedRow =
   | { source: "slack"; data: ConversationMapping; sortDate: string }
