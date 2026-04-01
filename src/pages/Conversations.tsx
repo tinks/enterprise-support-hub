@@ -498,7 +498,7 @@ const Conversations = () => {
   }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, hiddenStatuses]);
 
   const canLoadMore =
-    !isHeatmapMode && (
+    !isHeatmapMode && !searchResults && (
       ((sourceFilter === "all" || sourceFilter === "slack" || sourceFilter === "slack_import") && hasMore) ||
       ((sourceFilter === "all" || sourceFilter === "gmail") && hasMoreGmail)
     );
