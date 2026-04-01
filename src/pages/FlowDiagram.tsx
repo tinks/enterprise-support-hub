@@ -86,6 +86,10 @@ const ROW_H = 380;
 /*  "Create" button in the Intercom column that invokes                */
 /*  create-intercom-from-import to create a ticket inline.             */
 /* ------------------------------------------------------------------ */
+/*  Gmail grouping: emails with matching gmail_thread_id (or normalized */
+/*  subject after stripping Re:/Fwd:) are collapsed into a single row  */
+/*  showing count badge and unique senders. Click to expand sub-rows.  */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */
