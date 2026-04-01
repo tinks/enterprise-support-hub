@@ -23,6 +23,7 @@ interface ConversationMapping {
   slack_thread_ts: string;
   slack_user_id: string;
   intercom_conversation_id: string;
+  intercom_ticket_id: string | null;
   status: string;
   created_at: string;
   is_test: boolean;
