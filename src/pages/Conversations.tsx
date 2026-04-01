@@ -118,6 +118,7 @@ const Conversations = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const savedSource = localStorage.getItem("conv-source-filter") as SourceFilter | null;
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>(paramSource || savedSource || "all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const ALL_STATUSES = ["active", "awaiting_context", "escalated", "resolved", "cancelled", "test"] as const;
   const savedHidden = localStorage.getItem("conv-hidden-statuses");
