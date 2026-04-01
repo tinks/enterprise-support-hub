@@ -612,6 +612,124 @@ const Conversations = () => {
     }
   };
 
+  const renderManualCell = (col: ColKey, mc: ManualConversation): ReactNode => {
+    switch (col) {
+      case "id": return <span className="text-xs text-muted-foreground font-mono">{mc.id.slice(0, 8)}</span>;
+      case "source": return <Badge variant="outline" className="text-xs capitalize">{mc.source}</Badge>;
+      case "sent_by": return (
+        <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
+          <User className="h-3.5 w-3.5 text-muted-foreground" />
+          {mc.contact_name || "—"}
+        </span>
+      );
+      case "message": return mc.subject ? (
+        <span className="text-xs text-muted-foreground">{mc.subject.length > 60 ? mc.subject.slice(0, 60) + "…" : mc.subject}</span>
+      ) : <span className="text-xs text-muted-foreground">—</span>;
+      case "channel": return <span className="text-xs text-muted-foreground capitalize">{mc.source}</span>;
+      case "link": return mc.link ? (
+        <a
+          href={mc.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs font-mono text-primary underline hover:text-primary/80 transition-colors"
+          onClick={(e) => e.stopPropagation()}
+        >
+          Link <ExternalLink className="h-3 w-3" />
+        </a>
+      ) : <span className="text-xs text-muted-foreground">—</span>;
+      case "intercom": return <span className="text-xs text-muted-foreground">—</span>;
+      case "status": return <Badge variant={statusColor(mc.status)}>{mc.status}</Badge>;
+      case "date": return <span className="text-xs text-muted-foreground">{new Date(mc.created_at).toLocaleString()}</span>;
+      case "test": return (
+        <Switch
+          checked={mc.is_test}
+          onCheckedChange={async () => {
+            const newVal = !mc.is_test;
+            setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, is_test: newVal } : r));
+            const { error } = await supabase.from("manual_conversations").update({ is_test: newVal }).eq("id", mc.id);
+            if (error) {
+              setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, is_test: mc.is_test } : r));
+              toast.error("Failed to update test flag");
+            }
+          }}
+          aria-label="Toggle test"
+          onClick={(e) => e.stopPropagation()}
+        />
+      );
+      case "resolved": return (
+        <Switch
+          checked={mc.status === "resolved"}
+          onCheckedChange={async () => {
+            const newStatus = mc.status === "resolved" ? "active" : "resolved";
+            setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, status: newStatus } : r));
+            const { error } = await supabase.from("manual_conversations").update({ status: newStatus }).eq("id", mc.id);
+            if (error) {
+              setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, status: mc.status } : r));
+              toast.error("Failed to update status");
+            }
+          }}
+          aria-label="Toggle resolved"
+          onClick={(e) => e.stopPropagation()}
+        />
+      );
+      case "product_area": return (
+        <Select
+          value={mc.product_area || ""}
+          onValueChange={async (v) => {
+            const newVal = v === "clear" ? null : v;
+            setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, product_area: newVal } : r));
+            const { error } = await supabase.from("manual_conversations").update({ product_area: newVal }).eq("id", mc.id);
+            if (error) toast.error("Failed to update product area");
+          }}
+        >
+          <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent>
+            {productAreas.map((area) => (
+              <SelectItem key={area} value={area}>{area}</SelectItem>
+            ))}
+            {mc.product_area && (
+              <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+      );
+      case "bug": return (
+        <Switch
+          checked={mc.is_bug}
+          onCheckedChange={async () => {
+            const newVal = !mc.is_bug;
+            setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, is_bug: newVal } : r));
+            const { error } = await supabase.from("manual_conversations").update({ is_bug: newVal }).eq("id", mc.id);
+            if (error) {
+              setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, is_bug: mc.is_bug } : r));
+              toast.error("Failed to update bug flag");
+            }
+          }}
+          aria-label="Toggle bug"
+          onClick={(e) => e.stopPropagation()}
+        />
+      );
+      case "feature_req": return (
+        <Switch
+          checked={mc.is_feature_request}
+          onCheckedChange={async () => {
+            const newVal = !mc.is_feature_request;
+            setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, is_feature_request: newVal } : r));
+            const { error } = await supabase.from("manual_conversations").update({ is_feature_request: newVal }).eq("id", mc.id);
+            if (error) {
+              setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, is_feature_request: mc.is_feature_request } : r));
+              toast.error("Failed to update feature request flag");
+            }
+          }}
+          aria-label="Toggle feature request"
+          onClick={(e) => e.stopPropagation()}
+        />
+      );
+    }
+  };
+
   const isCustomOrder = JSON.stringify(columnOrder) !== JSON.stringify([...ALL_COLUMNS]);
 
   return (
