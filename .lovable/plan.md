@@ -1,43 +1,60 @@
 
 
-## Fix: Slack thread replies not forwarding to Intercom after ticket conversion
+## Add free-form conversation log
 
-### Root cause
-When a conversation is escalated, it gets converted to an Intercom ticket. But `slack-events` always forwards replies to `/conversations/{id}/reply` with `type: "user"`. Intercom rejects or silently drops these because the entity is now a ticket, not a conversation. This explains why even Julia's message (sent moments before escalation) failed — by the time it was processed, the conversion had already happened.
+### What it does
+A new "Log conversation" section on the Import page that lets you manually create a conversation with back-and-forth messages. Useful for Teams threads or any source that isn't Slack/Gmail.
 
-### Solution
+### Database changes
 
-**1. Database migration — add `intercom_ticket_id` column**
-```sql
-ALTER TABLE conversation_mappings ADD COLUMN intercom_ticket_id text;
-```
+**New table: `manual_conversations`**
+- `id` (uuid, PK)
+- `source` (text) — e.g. "teams", "phone", "other"
+- `contact_name` (text) — who the user/customer is
+- `subject` (text) — conversation topic
+- `link` (text, nullable) — optional external link (e.g. Teams thread URL)
+- `status` (text, default "active")
+- `is_bug`, `is_feature_request`, `is_test` (boolean, default false)
+- `product_area` (text, nullable)
+- `created_at`, `updated_at` (timestamptz)
 
-**2. `supabase/functions/slack-interactions/index.ts`**
-After the ticket conversion call (`POST /conversations/{id}/convert`), extract the returned ticket ID and store it:
-```ts
-const convertData = await convertRes.json();
-await supabase.from("conversation_mappings")
-  .update({ intercom_ticket_id: convertData.ticket_id || convertData.id })
-  .eq("id", mapping.id);
-```
-Apply this in both places where ticket conversion happens (~line 669 and ~line 1448).
+**New table: `manual_messages`**
+- `id` (uuid, PK)
+- `conversation_id` (uuid, FK → manual_conversations)
+- `role` (text) — "user" or "admin"
+- `sender_name` (text)
+- `message_text` (text)
+- `created_at` (timestamptz)
 
-**3. `supabase/functions/intercom-webhook/index.ts`**
-Same — store ticket ID after conversion (~line 857).
+RLS: public read + insert + update on both tables (matching existing pattern). Deny delete.
 
-**4. `supabase/functions/slack-events/index.ts`** (~line 684)
-Replace the single Intercom reply call with smart routing:
-- If `mapping.intercom_ticket_id` exists → use `/conversations/{ticket_id}/reply` with `type: "admin"` and `admin_id`
-- Otherwise → use existing `/conversations/{conversation_id}/reply` logic
-- If the first attempt fails, retry with the other endpoint
-- If both fail, post a warning to the Slack thread so the team knows
+### UI changes
 
-**5. `src/pages/FlowDiagram.tsx`** — document that replies now route to tickets after escalation
+**`src/components/ManualLogTab.tsx`** (new)
+A form-based component with two sections:
 
-### Files to edit
-- Database migration (1 ALTER TABLE)
-- `supabase/functions/slack-events/index.ts` — smart reply routing with fallback
-- `supabase/functions/slack-interactions/index.ts` — store ticket ID after conversion (2 locations)
-- `supabase/functions/intercom-webhook/index.ts` — store ticket ID after conversion (1 location)
+1. **Conversation header** — source dropdown (Teams, Phone, Other + free text), contact name, subject, optional link
+2. **Message builder** — a list of messages you build up before saving:
+   - Each message has: role toggle (User / Admin), sender name, message text
+   - "Add message" button appends a new empty row
+   - Messages are displayed in order with role indicators
+3. **Save button** — inserts the conversation + all messages in one go
+4. **Recently logged** — list of recent manual conversations (last 10), clickable to view
+
+**`src/pages/ImportPage.tsx`**
+- Add the `ManualLogTab` component below the existing `ImportTab`
+
+**`src/pages/Conversations.tsx`**
+- Add "manual" as a new source filter option alongside "all", "slack", "gmail"
+- Fetch manual_conversations and include them in the unified rows
+- Render them with source badge "Manual" and appropriate columns
+
+**`src/pages/FlowDiagram.tsx`** — document the new manual log feature
+
+### Files to create/edit
+- Database migration (2 new tables + RLS policies)
+- `src/components/ManualLogTab.tsx` (new)
+- `src/pages/ImportPage.tsx` — add ManualLogTab
+- `src/pages/Conversations.tsx` — add manual source filter + data fetch
 - `src/pages/FlowDiagram.tsx` — document change
 
