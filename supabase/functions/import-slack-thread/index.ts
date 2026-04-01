@@ -99,6 +99,55 @@ Deno.serve(async (req) => {
       const repliesData = await repliesRes.json();
 
       if (!repliesData.ok) {
+        if (repliesData.error === "not_in_channel" || repliesData.error === "channel_not_found") {
+          // Try to auto-join (works for public channels)
+          const joinRes = await fetch("https://slack.com/api/conversations.join", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${slackToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ channel: channelId }),
+          });
+          const joinData = await joinRes.json();
+
+          if (joinData.ok) {
+            // Retry fetching replies after joining
+            const retryParams = new URLSearchParams({
+              channel: channelId,
+              ts: threadTs,
+              limit: "200",
+              inclusive: "true",
+            });
+            const retryRes = await fetch(
+              `https://slack.com/api/conversations.replies?${retryParams}`,
+              { headers: { Authorization: `Bearer ${slackToken}` } }
+            );
+            const retryData = await retryRes.json();
+
+            if (!retryData.ok) {
+              return new Response(
+                JSON.stringify({ error: `Slack API error after joining channel: ${retryData.error}` }),
+                { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+              );
+            }
+
+            if (retryData.messages) {
+              allMessages.push(...retryData.messages);
+            }
+            cursor = retryData.response_metadata?.next_cursor || undefined;
+            continue;
+          } else {
+            // Can't join — likely a private channel
+            return new Response(
+              JSON.stringify({
+                error: "Bot is not in this channel. Invite the bot first by typing /invite @Ask Lovable in the channel.",
+              }),
+              { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+        }
+
         return new Response(
           JSON.stringify({ error: `Slack API error: ${repliesData.error}` }),
           { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
