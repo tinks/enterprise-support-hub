@@ -1177,7 +1177,7 @@ const Conversations = () => {
                                 ))}
                               </TableRow>
                             ))}
-                          </>
+                          </Fragment>
                         );
                       } else {
                         const mc = row.data;
