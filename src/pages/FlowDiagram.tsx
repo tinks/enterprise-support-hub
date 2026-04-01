@@ -82,6 +82,10 @@ const ROW_H = 380;
 /*  server-side via .gte/.lte on created_at/received_at. Client-side   */
 /*  filtering also applied. Reload triggers on date change.            */
 /* ------------------------------------------------------------------ */
+/*  Conversations table: Slack rows without an Intercom ticket show a  */
+/*  "Create" button in the Intercom column that invokes                */
+/*  create-intercom-from-import to create a ticket inline.             */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */
