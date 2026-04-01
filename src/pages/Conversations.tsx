@@ -709,11 +709,45 @@ const Conversations = () => {
     }
   };
 
-  const renderGmailCell = (col: ColKey, g: GmailConversation): ReactNode => {
+  const renderGmailCell = (col: ColKey, g: GmailConversation, groupCount?: number, groupedEmails?: GmailConversation[], groupKey?: string): ReactNode => {
     switch (col) {
-      case "id": return <span className="text-xs text-muted-foreground font-mono">{g.id.slice(0, 8)}</span>;
+      case "id": return (
+        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-mono">
+          {groupCount && groupCount > 1 && groupKey && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpandedGmailGroups((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(groupKey)) next.delete(groupKey);
+                  else next.add(groupKey);
+                  return next;
+                });
+              }}
+              className="hover:text-foreground transition-colors"
+            >
+              {expandedGmailGroups.has(groupKey) ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            </button>
+          )}
+          {g.id.slice(0, 8)}
+          {groupCount && groupCount > 1 && (
+            <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">{groupCount}</Badge>
+          )}
+        </span>
+      );
       case "source": return <Badge variant="secondary" className="text-xs"><Mail className="mr-1 h-3 w-3" />Gmail</Badge>;
-      case "sent_by": return (
+      case "sent_by": {
+        if (groupedEmails && groupedEmails.length > 1) {
+          const uniqueSenders = [...new Set(groupedEmails.map((e) => e.from_name || e.from_email || "—").filter(Boolean))];
+          const display = uniqueSenders[0] + (uniqueSenders.length > 1 ? ` + ${uniqueSenders.length - 1} other${uniqueSenders.length > 2 ? "s" : ""}` : "");
+          return (
+            <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
+              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+              {display}
+            </span>
+          );
+        }
+        return (
         <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
           <Mail className="h-3.5 w-3.5 text-muted-foreground" />
           {g.from_name || g.from_email || "—"}
