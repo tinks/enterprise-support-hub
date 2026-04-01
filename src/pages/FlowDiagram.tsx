@@ -73,6 +73,11 @@ const ROW_H = 380;
 /*  falls back to data.error for other structured messages (e.g. bot  */
 /*  not in channel).                                                   */
 /* ------------------------------------------------------------------ */
+/*  Conversation search is server-side: when a search query is active, */
+/*  all three tables are queried with ilike filters (+ exact id match  */
+/*  for UUIDs), bypassing client-side pagination. Results debounced    */
+/*  at 300ms, limited to 200 rows per source.                          */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */
