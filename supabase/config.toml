@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.import-slack-thread]
 verify_jwt = false
+
+[functions.create-intercom-from-import]
+verify_jwt = false

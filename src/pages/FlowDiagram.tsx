@@ -56,6 +56,12 @@ const ROW_H = 380;
 /*  Stats page: "Export PDF" button generates a PDF report with all    */
 /*  summary metrics and chart screenshots, respecting active filters. */
 /* ------------------------------------------------------------------ */
+/*  Imported Slack threads: import-slack-thread fetches ALL replies    */
+/*  and computes first-response-time + thread duration. A "Create     */
+/*  Intercom ticket" button on ConversationDetail calls               */
+/*  create-intercom-from-import to create a ticket with full          */
+/*  transcript, assign to Sam + inbox, and link back to mapping.      */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */

@@ -6,11 +6,12 @@ import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot } from "lucide-react";
+import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket } from "lucide-react";
 import { toast } from "sonner";
 import { channelNameOverrides } from "@/lib/channelOverrides";
 
@@ -95,6 +96,7 @@ const ConversationDetail = () => {
   const [threadMessages, setThreadMessages] = useState<ThreadMessage[]>([]);
   const [threadLoading, setThreadLoading] = useState(false);
   const [productAreas, setProductAreas] = useState<string[]>([]);
+  const [creatingIntercom, setCreatingIntercom] = useState(false);
 
   const fetchThread = async (channelId: string, threadTs: string) => {
     setThreadLoading(true);
@@ -409,7 +411,7 @@ const ConversationDetail = () => {
                   Slack thread <ExternalLink className="ml-1 h-3 w-3" />
                 </a>
               </Button>
-              {conv.intercom_conversation_id && (
+              {conv.intercom_conversation_id ? (
                 <Button variant="outline" size="sm" asChild>
                   <a
                     href={`https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${conv.intercom_conversation_id}?view=List`}
@@ -419,7 +421,44 @@ const ConversationDetail = () => {
                     Intercom conversation <ExternalLink className="ml-1 h-3 w-3" />
                   </a>
                 </Button>
-              )}
+              ) : conv.slack_channel_id && conv.slack_thread_ts ? (
+                <Button
+                  variant="default"
+                  size="sm"
+                  disabled={creatingIntercom}
+                  onClick={async () => {
+                    setCreatingIntercom(true);
+                    try {
+                      const { data, error } = await supabase.functions.invoke("create-intercom-from-import", {
+                        body: { mappingId: conv.id },
+                      });
+                      if (error || data?.error) {
+                        toast.error(data?.error || error?.message || "Failed to create Intercom ticket");
+                        return;
+                      }
+                      toast.success("Intercom ticket created");
+                      // Reload conversation
+                      const { data: updated } = await supabase
+                        .from("conversation_mappings")
+                        .select("*")
+                        .eq("id", conv.id)
+                        .single();
+                      if (updated) setConv(updated as unknown as ConversationMapping);
+                    } catch {
+                      toast.error("Failed to create Intercom ticket");
+                    } finally {
+                      setCreatingIntercom(false);
+                    }
+                  }}
+                >
+                  {creatingIntercom ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                  ) : (
+                    <Ticket className="h-3.5 w-3.5 mr-1" />
+                  )}
+                  Create Intercom ticket
+                </Button>
+              ) : null}
             </CardContent>
           </Card>
 
