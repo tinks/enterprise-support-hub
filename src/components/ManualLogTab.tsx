@@ -11,6 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Save, ExternalLink } from "lucide-react";
 
+const ADMIN_OPTIONS = [
+  { name: "Joel Samuelson", slackId: "U091GANMA2U" },
+  { name: "Kristina Bodurova", slackId: "U0AFU714807" },
+];
+
 interface ManualMessage {
   role: "user" | "admin";
   sender_name: string;
@@ -63,7 +68,14 @@ const ManualLogTab = () => {
 
   const updateMessage = (idx: number, field: keyof ManualMessage, value: string) => {
     setMessages((prev) =>
-      prev.map((m, i) => (i === idx ? { ...m, [field]: value } : m))
+      prev.map((m, i) => {
+        if (i !== idx) return m;
+        // Auto-clear sender_name when switching roles
+        if (field === "role") {
+          return { ...m, role: value as "user" | "admin", sender_name: "" };
+        }
+        return { ...m, [field]: value };
+      })
     );
   };
 
@@ -194,12 +206,30 @@ const ManualLogTab = () => {
                         <SelectItem value="admin">Admin</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Input
-                      value={msg.sender_name}
-                      onChange={(e) => updateMessage(idx, "sender_name", e.target.value)}
-                      placeholder="Sender name"
-                      className="h-8 text-sm flex-1"
-                    />
+                    {msg.role === "admin" ? (
+                      <Select
+                        value={msg.sender_name}
+                        onValueChange={(v) => updateMessage(idx, "sender_name", v)}
+                      >
+                        <SelectTrigger className="h-8 text-sm flex-1">
+                          <SelectValue placeholder="Select admin" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ADMIN_OPTIONS.map((a) => (
+                            <SelectItem key={a.slackId} value={a.name}>
+                              {a.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        value={msg.sender_name}
+                        onChange={(e) => updateMessage(idx, "sender_name", e.target.value)}
+                        placeholder="Sender name"
+                        className="h-8 text-sm flex-1"
+                      />
+                    )}
                   </div>
                   <Textarea
                     value={msg.message_text}
