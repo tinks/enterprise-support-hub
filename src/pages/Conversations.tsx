@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug, Filter, GripVertical, RotateCcw, Search, CalendarIcon } from "lucide-react";
+import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug, Filter, GripVertical, RotateCcw, Search, CalendarIcon, Ticket } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -23,6 +23,7 @@ interface ConversationMapping {
   slack_thread_ts: string;
   slack_user_id: string;
   intercom_conversation_id: string;
+  intercom_ticket_id: string | null;
   status: string;
   created_at: string;
   is_test: boolean;
@@ -127,6 +128,34 @@ const Conversations = () => {
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+  const [creatingTicket, setCreatingTicket] = useState<Set<string>>(new Set());
+
+  const createIntercomTicket = async (e: React.MouseEvent, mappingId: string) => {
+    e.stopPropagation();
+    setCreatingTicket((prev) => new Set(prev).add(mappingId));
+    try {
+      const { data, error } = await supabase.functions.invoke("create-intercom-from-import", {
+        body: { mappingId },
+      });
+      if (error) {
+        toast.error("Failed to create Intercom ticket");
+        return;
+      }
+      if (data?.intercomConversationId) {
+        toast.success("Intercom ticket created");
+        setMappings((prev) => prev.map((m) => m.id === mappingId ? { ...m, intercom_conversation_id: data.intercomConversationId, intercom_ticket_id: data.ticketId || null } : m));
+        if (searchResults) {
+          setSearchResults((prev) => prev ? { ...prev, slack: prev.slack.map((m) => m.id === mappingId ? { ...m, intercom_conversation_id: data.intercomConversationId, intercom_ticket_id: data.ticketId || null } : m) } : prev);
+        }
+      } else {
+        toast.error(data?.error || "Failed to create ticket");
+      }
+    } catch {
+      toast.error("Failed to create Intercom ticket");
+    } finally {
+      setCreatingTicket((prev) => { const next = new Set(prev); next.delete(mappingId); return next; });
+    }
+  };
 
   const ALL_STATUSES = ["active", "awaiting_context", "escalated", "resolved", "cancelled", "test"] as const;
   const savedHidden = localStorage.getItem("conv-hidden-statuses");
@@ -593,7 +622,18 @@ const Conversations = () => {
         >
           {m.intercom_conversation_id} <ExternalLink className="h-3 w-3" />
         </a>
-      ) : <span className="text-xs text-muted-foreground">—</span>;
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1 text-xs"
+          disabled={creatingTicket.has(m.id)}
+          onClick={(e) => createIntercomTicket(e, m.id)}
+        >
+          <Ticket className="h-3 w-3" />
+          {creatingTicket.has(m.id) ? "Creating…" : "Create"}
+        </Button>
+      );
       case "status": return <Badge variant={statusColor(m.status)}>{m.status}</Badge>;
       case "date": return <span className="text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString()}</span>;
       case "test": return (
