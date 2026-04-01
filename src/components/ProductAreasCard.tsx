@@ -106,7 +106,7 @@ const ProductAreasCard = ({ settings, setSettings, onSave }: ProductAreasCardPro
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Changes are saved when you click "Save settings" above
+          Changes are saved automatically
         </p>
       </CardContent>
     </Card>
