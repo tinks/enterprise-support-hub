@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug, Filter, GripVertical, RotateCcw } from "lucide-react";
+import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug, Filter, GripVertical, RotateCcw, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -117,6 +118,7 @@ const Conversations = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const savedSource = localStorage.getItem("conv-source-filter") as SourceFilter | null;
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>(paramSource || savedSource || "all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const ALL_STATUSES = ["active", "awaiting_context", "escalated", "resolved", "cancelled", "test"] as const;
   const savedHidden = localStorage.getItem("conv-hidden-statuses");
@@ -404,8 +406,33 @@ const Conversations = () => {
         })
       : rows;
 
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      return filtered.filter((r) => {
+        const d = r.data;
+        const common = [d.id, d.status, d.product_area || ""].join(" ").toLowerCase();
+        if (common.includes(q)) return true;
+        if (r.source === "slack") {
+          const s = d as ConversationMapping;
+          const userName = userNames[s.slack_user_id] || s.slack_user_id;
+          const chanName = channelNames[s.slack_channel_id] || s.slack_channel_id;
+          return [userName, s.original_message_text, chanName, s.intercom_conversation_id || ""].join(" ").toLowerCase().includes(q);
+        }
+        if (r.source === "gmail") {
+          const g = d as GmailConversation;
+          return [g.from_email || "", g.from_name || "", g.subject || "", g.snippet || ""].join(" ").toLowerCase().includes(q);
+        }
+        if (r.source === "manual") {
+          const m = d as ManualConversation;
+          return [m.contact_name, m.subject, m.source].join(" ").toLowerCase().includes(q);
+        }
+        return false;
+      });
+    }
+
     return filtered;
-  }, [mappings, gmailRows, manualRows, sourceFilter, paramDay, paramHour, hiddenStatuses]);
+  }, [mappings, gmailRows, manualRows, sourceFilter, paramDay, paramHour, hiddenStatuses, searchQuery, userNames, channelNames]);
 
   const canLoadMore =
     !isHeatmapMode && ((sourceFilter !== "gmail" && hasMore) || (sourceFilter !== "slack" && hasMoreGmail));
@@ -771,6 +798,15 @@ const Conversations = () => {
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Search…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-9 w-[180px] pl-8 text-sm"
+                  />
+                </div>
                 {isCustomOrder && (
                   <Button variant="ghost" size="sm" className="h-9 gap-1 text-xs" onClick={resetColumns}>
                     <RotateCcw className="h-3 w-3" /> Reset columns
