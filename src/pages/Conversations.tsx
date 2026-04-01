@@ -314,7 +314,7 @@ const Conversations = () => {
 
     const pageSize = isHeatmapMode ? 1000 : 50;
 
-    const [slackRes, gmailRes] = await Promise.all([
+    const [slackRes, gmailRes, manualRes] = await Promise.all([
       supabase
         .from("conversation_mappings")
         .select("*")
@@ -325,10 +325,16 @@ const Conversations = () => {
         .select("*")
         .order("received_at", { ascending: false })
         .range(currentGmailOffset, currentGmailOffset + pageSize - 1),
+      supabase
+        .from("manual_conversations")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(pageSize),
     ]);
 
     const slackRows = (slackRes.data ?? []) as unknown as ConversationMapping[];
     const gmailData = (gmailRes.data ?? []) as unknown as GmailConversation[];
+    const manualData = (manualRes.data ?? []) as unknown as ManualConversation[];
 
     setHasMore(slackRows.length === pageSize);
     setHasMoreGmail(gmailData.length === pageSize);
