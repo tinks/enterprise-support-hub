@@ -62,6 +62,11 @@ const ROW_H = 380;
 /*  create-intercom-from-import to create a ticket with full          */
 /*  transcript, assign to Sam + inbox, and link back to mapping.      */
 /* ------------------------------------------------------------------ */
+/*  Import auto-join: if the bot isn't in the target channel,         */
+/*  import-slack-thread attempts conversations.join (public channels) */
+/*  and retries. For private channels it returns a clear error asking */
+/*  the user to /invite @Ask Lovable.                                 */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */
