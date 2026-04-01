@@ -545,6 +545,54 @@ const Stats = () => {
     return { grid, max };
   }, [filtered, filteredGmail, sourceFilter]);
 
+  const exportCSV = () => {
+    const escapeCSV = (val: string) => {
+      if (val.includes(",") || val.includes('"') || val.includes("\n")) {
+        return `"${val.replace(/"/g, '""')}"`;
+      }
+      return val;
+    };
+
+    const headers = ["Source", "Date", "Status", "Channel/From", "Subject/Message", "Is test", "Is bug", "Is FR", "Product area", "Resolved at"];
+
+    const slackRows = filtered.map((r) => [
+      "Slack",
+      r.created_at ? format(parseISO(r.created_at), "yyyy-MM-dd HH:mm") : "",
+      r.status,
+      channelNames[r.slack_channel_id] || channelNameOverrides[r.slack_channel_id] || r.slack_channel_id,
+      "",
+      String(r.is_test),
+      "",
+      "",
+      "",
+      r.resolved_at ? format(parseISO(r.resolved_at), "yyyy-MM-dd HH:mm") : "",
+    ]);
+
+    const gmailRows = filteredGmail.map((g) => [
+      "Gmail",
+      g.received_at ? format(parseISO(g.received_at), "yyyy-MM-dd HH:mm") : g.created_at ? format(parseISO(g.created_at), "yyyy-MM-dd HH:mm") : "",
+      g.status,
+      g.from_email || "",
+      g.subject || "",
+      String(g.is_test),
+      "",
+      "",
+      "",
+      g.resolved_at ? format(parseISO(g.resolved_at), "yyyy-MM-dd HH:mm") : "",
+    ]);
+
+    const allRows = [...slackRows, ...gmailRows];
+    const csv = [headers.map(escapeCSV).join(","), ...allRows.map((row) => row.map(escapeCSV).join(","))].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `stats-export-${format(new Date(), "yyyy-MM-dd")}-${sourceFilter}-${range}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) {
     return (
       <AppLayout>
