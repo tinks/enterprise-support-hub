@@ -784,8 +784,9 @@ const Stats = () => {
               </Popover>
             </div>
           )}
-          <Button variant="outline" size="sm" className="h-9" onClick={exportCSV}>
-            <Download className="mr-1.5 h-3.5 w-3.5" /> Export CSV
+          <Button variant="outline" size="sm" className="h-9" onClick={exportPDF} disabled={exporting}>
+            {exporting ? <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <FileDown className="mr-1.5 h-3.5 w-3.5" />}
+            {exporting ? "Exporting…" : "Export PDF"}
           </Button>
         </div>
 
