@@ -68,7 +68,14 @@ const ManualLogTab = () => {
 
   const updateMessage = (idx: number, field: keyof ManualMessage, value: string) => {
     setMessages((prev) =>
-      prev.map((m, i) => (i === idx ? { ...m, [field]: value } : m))
+      prev.map((m, i) => {
+        if (i !== idx) return m;
+        // Auto-clear sender_name when switching roles
+        if (field === "role") {
+          return { ...m, role: value as "user" | "admin", sender_name: "" };
+        }
+        return { ...m, [field]: value };
+      })
     );
   };
 
