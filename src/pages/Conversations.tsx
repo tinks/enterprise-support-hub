@@ -622,7 +622,18 @@ const Conversations = () => {
         >
           {m.intercom_conversation_id} <ExternalLink className="h-3 w-3" />
         </a>
-      ) : <span className="text-xs text-muted-foreground">—</span>;
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1 text-xs"
+          disabled={creatingTicket.has(m.id)}
+          onClick={(e) => createIntercomTicket(e, m.id)}
+        >
+          <Ticket className="h-3 w-3" />
+          {creatingTicket.has(m.id) ? "Creating…" : "Create"}
+        </Button>
+      );
       case "status": return <Badge variant={statusColor(m.status)}>{m.status}</Badge>;
       case "date": return <span className="text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString()}</span>;
       case "test": return (
