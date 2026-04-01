@@ -708,6 +708,9 @@ const Stats = () => {
               </Popover>
             </div>
           )}
+          <Button variant="outline" size="sm" className="h-9" onClick={exportCSV}>
+            <Download className="mr-1.5 h-3.5 w-3.5" /> Export CSV
+          </Button>
         </div>
 
         {/* Summary cards */}
