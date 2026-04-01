@@ -119,6 +119,10 @@ const Conversations = () => {
   const savedSource = localStorage.getItem("conv-source-filter") as SourceFilter | null;
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>(paramSource || savedSource || "all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<{ slack: ConversationMapping[]; gmail: GmailConversation[]; manual: ManualConversation[] } | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const ALL_STATUSES = ["active", "awaiting_context", "escalated", "resolved", "cancelled", "test"] as const;
   const savedHidden = localStorage.getItem("conv-hidden-statuses");
@@ -368,11 +372,89 @@ const Conversations = () => {
     });
   }, []);
 
+  // Debounce search query
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (!searchQuery.trim()) {
+      setDebouncedSearch("");
+      setSearchResults(null);
+      return;
+    }
+    searchTimerRef.current = setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+    }, 300);
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+  }, [searchQuery]);
+
+  // Server-side search
+  useEffect(() => {
+    if (!debouncedSearch) { setSearchResults(null); return; }
+    const q = debouncedSearch;
+    const ilike = `%${q}%`;
+    setSearchLoading(true);
+
+    const doSearch = async () => {
+      const isUuid = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i.test(q);
+
+      const [slackRes, gmailRes, manualRes] = await Promise.all([
+        (sourceFilter === "all" || sourceFilter === "slack" || sourceFilter === "slack_import")
+          ? supabase
+              .from("conversation_mappings")
+              .select("*")
+              .or(
+                isUuid
+                  ? `id.eq.${q},original_message_text.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},slack_user_id.ilike.${ilike},slack_channel_id.ilike.${ilike},intercom_conversation_id.ilike.${ilike}`
+                  : `original_message_text.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},slack_user_id.ilike.${ilike},slack_channel_id.ilike.${ilike},intercom_conversation_id.ilike.${ilike}`
+              )
+              .order("created_at", { ascending: false })
+              .limit(200)
+          : Promise.resolve({ data: [] }),
+        (sourceFilter === "all" || sourceFilter === "gmail")
+          ? supabase
+              .from("gmail_conversations")
+              .select("*")
+              .or(
+                isUuid
+                  ? `id.eq.${q},from_email.ilike.${ilike},from_name.ilike.${ilike},subject.ilike.${ilike},snippet.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike}`
+                  : `from_email.ilike.${ilike},from_name.ilike.${ilike},subject.ilike.${ilike},snippet.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike}`
+              )
+              .order("received_at", { ascending: false })
+              .limit(200)
+          : Promise.resolve({ data: [] }),
+        (sourceFilter === "all" || sourceFilter === "manual")
+          ? supabase
+              .from("manual_conversations")
+              .select("*")
+              .or(
+                isUuid
+                  ? `id.eq.${q},contact_name.ilike.${ilike},subject.ilike.${ilike},source.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike}`
+                  : `contact_name.ilike.${ilike},subject.ilike.${ilike},source.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike}`
+              )
+              .order("created_at", { ascending: false })
+              .limit(200)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      setSearchResults({
+        slack: (slackRes.data ?? []) as unknown as ConversationMapping[],
+        gmail: (gmailRes.data ?? []) as unknown as GmailConversation[],
+        manual: (manualRes.data ?? []) as unknown as ManualConversation[],
+      });
+      setSearchLoading(false);
+    };
+    doSearch();
+  }, [debouncedSearch, sourceFilter]);
+
   const unified = useMemo<UnifiedRow[]>(() => {
     const rows: UnifiedRow[] = [];
 
+    // Use server-side search results when a search is active
+    const slackData = searchResults ? searchResults.slack : mappings;
+    const gmailData = searchResults ? searchResults.gmail : gmailRows;
+    const manualData = searchResults ? searchResults.manual : manualRows;
+
     if (sourceFilter === "all" || sourceFilter === "slack" || sourceFilter === "slack_import") {
-      for (const m of mappings) {
+      for (const m of slackData) {
         const isImported = !m.intercom_conversation_id;
         if (sourceFilter === "slack_import" && !isImported) continue;
         if (sourceFilter === "slack" && isImported) continue;
@@ -380,12 +462,12 @@ const Conversations = () => {
       }
     }
     if (sourceFilter === "all" || sourceFilter === "gmail") {
-      for (const g of gmailRows) {
+      for (const g of gmailData) {
         rows.push({ source: "gmail", data: g, sortDate: g.received_at || g.created_at });
       }
     }
     if (sourceFilter === "all" || sourceFilter === "manual") {
-      for (const mc of manualRows) {
+      for (const mc of manualData) {
         rows.push({ source: "manual", data: mc, sortDate: mc.created_at });
       }
     }
@@ -400,45 +482,23 @@ const Conversations = () => {
       });
     }
 
-    // Apply status filter
-    const filtered = hiddenStatuses.size > 0
-      ? rows.filter((r) => {
-          if (hiddenStatuses.has("test") && r.data.is_test) return false;
-          if (hiddenStatuses.has(r.data.status)) return false;
-          return true;
-        })
-      : rows;
-
-    // Apply search filter
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      return filtered.filter((r) => {
-        const d = r.data;
-        const common = [d.id, d.status, d.product_area || ""].join(" ").toLowerCase();
-        if (common.includes(q)) return true;
-        if (r.source === "slack") {
-          const s = d as ConversationMapping;
-          const userName = userNames[s.slack_user_id] || s.slack_user_id;
-          const chanName = channelNames[s.slack_channel_id] || s.slack_channel_id;
-          return [userName, s.original_message_text, chanName, s.intercom_conversation_id || ""].join(" ").toLowerCase().includes(q);
-        }
-        if (r.source === "gmail") {
-          const g = d as GmailConversation;
-          return [g.from_email || "", g.from_name || "", g.subject || "", g.snippet || ""].join(" ").toLowerCase().includes(q);
-        }
-        if (r.source === "manual") {
-          const m = d as ManualConversation;
-          return [m.contact_name, m.subject, m.source].join(" ").toLowerCase().includes(q);
-        }
-        return false;
-      });
+    // Apply status filter (skip when searching — show all matches)
+    if (!searchResults) {
+      const filtered = hiddenStatuses.size > 0
+        ? rows.filter((r) => {
+            if (hiddenStatuses.has("test") && r.data.is_test) return false;
+            if (hiddenStatuses.has(r.data.status)) return false;
+            return true;
+          })
+        : rows;
+      return filtered;
     }
 
-    return filtered;
-  }, [mappings, gmailRows, manualRows, sourceFilter, paramDay, paramHour, hiddenStatuses, searchQuery, userNames, channelNames]);
+    return rows;
+  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, hiddenStatuses]);
 
   const canLoadMore =
-    !isHeatmapMode && (
+    !isHeatmapMode && !searchResults && (
       ((sourceFilter === "all" || sourceFilter === "slack" || sourceFilter === "slack_import") && hasMore) ||
       ((sourceFilter === "all" || sourceFilter === "gmail") && hasMoreGmail)
     );
