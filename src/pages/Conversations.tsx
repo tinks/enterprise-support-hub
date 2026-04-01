@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback, type ReactNode } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, Fragment, type ReactNode } from "react";
 import { toast } from "sonner";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug, Filter, GripVertical, RotateCcw, Search, CalendarIcon, Ticket } from "lucide-react";
+import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug, Filter, GripVertical, RotateCcw, Search, CalendarIcon, Ticket, ChevronRight, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -68,9 +68,14 @@ interface ManualConversation {
 type SourceFilter = "all" | "slack" | "slack_import" | "gmail" | "manual";
 
 type UnifiedRow =
-  | { source: "slack"; data: ConversationMapping; sortDate: string }
-  | { source: "gmail"; data: GmailConversation; sortDate: string }
-  | { source: "manual"; data: ManualConversation; sortDate: string };
+  | { source: "slack"; data: ConversationMapping; sortDate: string; groupedEmails?: undefined; groupCount?: undefined }
+  | { source: "gmail"; data: GmailConversation; sortDate: string; groupedEmails?: GmailConversation[]; groupCount?: number; groupKey?: string }
+  | { source: "manual"; data: ManualConversation; sortDate: string; groupedEmails?: undefined; groupCount?: undefined };
+
+const normalizeSubject = (subject: string | null): string => {
+  if (!subject) return "";
+  return subject.replace(/^(re:|fwd?:)\s*/gi, "").trim().toLowerCase();
+};
 
 type NameMap = Record<string, string>;
 
@@ -129,6 +134,7 @@ const Conversations = () => {
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [creatingTicket, setCreatingTicket] = useState<Set<string>>(new Set());
+  const [expandedGmailGroups, setExpandedGmailGroups] = useState<Set<string>>(new Set());
 
   const createIntercomTicket = async (e: React.MouseEvent, mappingId: string) => {
     e.stopPropagation();
@@ -514,8 +520,25 @@ const Conversations = () => {
       }
     }
     if (sourceFilter === "all" || sourceFilter === "gmail") {
+      // Group Gmail rows by thread_id or normalized subject
+      const gmailGroups: Record<string, GmailConversation[]> = {};
       for (const g of gmailData) {
-        rows.push({ source: "gmail", data: g, sortDate: g.received_at || g.created_at });
+        const key = g.gmail_thread_id || normalizeSubject(g.subject) || g.id;
+        if (!gmailGroups[key]) gmailGroups[key] = [];
+        gmailGroups[key].push(g);
+      }
+      for (const [key, group] of Object.entries(gmailGroups)) {
+        // Sort group by date descending, use most recent as primary
+        group.sort((a, b) => new Date(b.received_at || b.created_at).getTime() - new Date(a.received_at || a.created_at).getTime());
+        const primary = group[0];
+        rows.push({
+          source: "gmail",
+          data: primary,
+          sortDate: primary.received_at || primary.created_at,
+          groupedEmails: group.length > 1 ? group : undefined,
+          groupCount: group.length > 1 ? group.length : undefined,
+          groupKey: key,
+        });
       }
     }
     if (sourceFilter === "all" || sourceFilter === "manual") {
@@ -686,16 +709,51 @@ const Conversations = () => {
     }
   };
 
-  const renderGmailCell = (col: ColKey, g: GmailConversation): ReactNode => {
+  const renderGmailCell = (col: ColKey, g: GmailConversation, groupCount?: number, groupedEmails?: GmailConversation[], groupKey?: string): ReactNode => {
     switch (col) {
-      case "id": return <span className="text-xs text-muted-foreground font-mono">{g.id.slice(0, 8)}</span>;
-      case "source": return <Badge variant="secondary" className="text-xs"><Mail className="mr-1 h-3 w-3" />Gmail</Badge>;
-      case "sent_by": return (
-        <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
-          <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-          {g.from_name || g.from_email || "—"}
+      case "id": return (
+        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-mono">
+          {groupCount && groupCount > 1 && groupKey && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpandedGmailGroups((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(groupKey)) next.delete(groupKey);
+                  else next.add(groupKey);
+                  return next;
+                });
+              }}
+              className="hover:text-foreground transition-colors"
+            >
+              {expandedGmailGroups.has(groupKey) ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            </button>
+          )}
+          {g.id.slice(0, 8)}
+          {groupCount && groupCount > 1 && (
+            <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">{groupCount}</Badge>
+          )}
         </span>
       );
+      case "source": return <Badge variant="secondary" className="text-xs"><Mail className="mr-1 h-3 w-3" />Gmail</Badge>;
+      case "sent_by": {
+        if (groupedEmails && groupedEmails.length > 1) {
+          const uniqueSenders = [...new Set(groupedEmails.map((e) => e.from_name || e.from_email || "—").filter(Boolean))];
+          const display = uniqueSenders[0] + (uniqueSenders.length > 1 ? ` + ${uniqueSenders.length - 1} other${uniqueSenders.length > 2 ? "s" : ""}` : "");
+          return (
+            <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
+              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+              {display}
+            </span>
+          );
+        }
+        return (
+          <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
+            <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+            {g.from_name || g.from_email || "—"}
+          </span>
+        );
+      }
       case "message": return g.subject ? (
         <button
           onClick={() => toggleMessage(g.id)}
@@ -1084,17 +1142,42 @@ const Conversations = () => {
                         );
                       } else if (row.source === "gmail") {
                         const g = row.data;
+                        const isGrouped = row.groupCount && row.groupCount > 1;
+                        const isExpanded = row.groupKey ? expandedGmailGroups.has(row.groupKey) : false;
+                        const subRows = isGrouped && isExpanded && row.groupedEmails ? row.groupedEmails.slice(1) : [];
                         return (
-                          <TableRow
-                            key={`gmail-${g.id}`}
-                            className={`hover:bg-muted/50 transition-colors ${g.is_test ? "opacity-50" : ""}`}
-                          >
-                            {columnOrder.map((col) => (
-                              <TableCell key={col} className={col === "message" ? "max-w-[300px]" : ""}>
-                                {renderGmailCell(col, g)}
-                              </TableCell>
+                          <Fragment key={`gmail-group-${g.id}`}>
+                            <TableRow
+                              key={`gmail-${g.id}`}
+                              className={`hover:bg-muted/50 transition-colors ${g.is_test ? "opacity-50" : ""} ${isGrouped ? "cursor-pointer" : ""}`}
+                              onClick={isGrouped && row.groupKey ? () => {
+                                setExpandedGmailGroups((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(row.groupKey!)) next.delete(row.groupKey!);
+                                  else next.add(row.groupKey!);
+                                  return next;
+                                });
+                              } : undefined}
+                            >
+                              {columnOrder.map((col) => (
+                                <TableCell key={col} className={col === "message" ? "max-w-[300px]" : ""}>
+                                  {renderGmailCell(col, g, row.groupCount, row.groupedEmails, row.groupKey)}
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                            {subRows.map((sub) => (
+                              <TableRow
+                                key={`gmail-sub-${sub.id}`}
+                                className={`hover:bg-muted/50 transition-colors bg-muted/20 ${sub.is_test ? "opacity-50" : ""}`}
+                              >
+                                {columnOrder.map((col) => (
+                                  <TableCell key={col} className={`${col === "message" ? "max-w-[300px]" : ""} ${col === "id" ? "pl-8" : ""}`}>
+                                    {renderGmailCell(col, sub)}
+                                  </TableCell>
+                                ))}
+                              </TableRow>
                             ))}
-                          </TableRow>
+                          </Fragment>
                         );
                       } else {
                         const mc = row.data;
