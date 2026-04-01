@@ -248,6 +248,86 @@ export type Database = {
         }
         Relationships: []
       }
+      manual_conversations: {
+        Row: {
+          contact_name: string
+          created_at: string
+          id: string
+          is_bug: boolean
+          is_feature_request: boolean
+          is_test: boolean
+          link: string | null
+          product_area: string | null
+          source: string
+          status: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          contact_name?: string
+          created_at?: string
+          id?: string
+          is_bug?: boolean
+          is_feature_request?: boolean
+          is_test?: boolean
+          link?: string | null
+          product_area?: string | null
+          source?: string
+          status?: string
+          subject?: string
+          updated_at?: string
+        }
+        Update: {
+          contact_name?: string
+          created_at?: string
+          id?: string
+          is_bug?: boolean
+          is_feature_request?: boolean
+          is_test?: boolean
+          link?: string | null
+          product_area?: string | null
+          source?: string
+          status?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      manual_messages: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          message_text: string
+          role: string
+          sender_name: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          message_text?: string
+          role?: string
+          sender_name?: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          message_text?: string
+          role?: string
+          sender_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manual_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "manual_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       settings: {
         Row: {
           auto_mark_employee_test: boolean

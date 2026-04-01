@@ -47,11 +47,26 @@ interface GmailConversation {
   is_feature_request: boolean;
 }
 
-type SourceFilter = "all" | "slack" | "gmail";
+interface ManualConversation {
+  id: string;
+  source: string;
+  contact_name: string;
+  subject: string;
+  link: string | null;
+  status: string;
+  is_bug: boolean;
+  is_feature_request: boolean;
+  is_test: boolean;
+  product_area: string | null;
+  created_at: string;
+}
+
+type SourceFilter = "all" | "slack" | "gmail" | "manual";
 
 type UnifiedRow =
   | { source: "slack"; data: ConversationMapping; sortDate: string }
-  | { source: "gmail"; data: GmailConversation; sortDate: string };
+  | { source: "gmail"; data: GmailConversation; sortDate: string }
+  | { source: "manual"; data: ManualConversation; sortDate: string };
 
 type NameMap = Record<string, string>;
 
@@ -90,6 +105,7 @@ const Conversations = () => {
 
   const [mappings, setMappings] = useState<ConversationMapping[]>([]);
   const [gmailRows, setGmailRows] = useState<GmailConversation[]>([]);
+  const [manualRows, setManualRows] = useState<ManualConversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [userNames, setUserNames] = useState<NameMap>({});
   const [channelNames, setChannelNames] = useState<NameMap>({});
@@ -298,7 +314,7 @@ const Conversations = () => {
 
     const pageSize = isHeatmapMode ? 1000 : 50;
 
-    const [slackRes, gmailRes] = await Promise.all([
+    const [slackRes, gmailRes, manualRes] = await Promise.all([
       supabase
         .from("conversation_mappings")
         .select("*")
@@ -309,10 +325,16 @@ const Conversations = () => {
         .select("*")
         .order("received_at", { ascending: false })
         .range(currentGmailOffset, currentGmailOffset + pageSize - 1),
+      supabase
+        .from("manual_conversations")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(pageSize),
     ]);
 
     const slackRows = (slackRes.data ?? []) as unknown as ConversationMapping[];
     const gmailData = (gmailRes.data ?? []) as unknown as GmailConversation[];
+    const manualData = (manualRes.data ?? []) as unknown as ManualConversation[];
 
     setHasMore(slackRows.length === pageSize);
     setHasMoreGmail(gmailData.length === pageSize);
@@ -320,12 +342,14 @@ const Conversations = () => {
     if (append) {
       setMappings((prev) => [...prev, ...slackRows]);
       setGmailRows((prev) => [...prev, ...gmailData]);
+      setManualRows(manualData);
       setOffset(currentOffset + pageSize);
       setGmailOffset(currentGmailOffset + pageSize);
       setLoadingMore(false);
     } else {
       setMappings(slackRows);
       setGmailRows(gmailData);
+      setManualRows(manualData);
       setOffset(pageSize);
       setGmailOffset(pageSize);
       setLoading(false);
@@ -345,14 +369,19 @@ const Conversations = () => {
   const unified = useMemo<UnifiedRow[]>(() => {
     const rows: UnifiedRow[] = [];
 
-    if (sourceFilter !== "gmail") {
+    if (sourceFilter !== "gmail" && sourceFilter !== "manual") {
       for (const m of mappings) {
         rows.push({ source: "slack", data: m, sortDate: m.created_at });
       }
     }
-    if (sourceFilter !== "slack") {
+    if (sourceFilter !== "slack" && sourceFilter !== "manual") {
       for (const g of gmailRows) {
         rows.push({ source: "gmail", data: g, sortDate: g.received_at || g.created_at });
+      }
+    }
+    if (sourceFilter === "all" || sourceFilter === "manual") {
+      for (const mc of manualRows) {
+        rows.push({ source: "manual", data: mc, sortDate: mc.created_at });
       }
     }
 
@@ -376,7 +405,7 @@ const Conversations = () => {
       : rows;
 
     return filtered;
-  }, [mappings, gmailRows, sourceFilter, paramDay, paramHour, hiddenStatuses]);
+  }, [mappings, gmailRows, manualRows, sourceFilter, paramDay, paramHour, hiddenStatuses]);
 
   const canLoadMore =
     !isHeatmapMode && ((sourceFilter !== "gmail" && hasMore) || (sourceFilter !== "slack" && hasMoreGmail));
@@ -583,6 +612,124 @@ const Conversations = () => {
     }
   };
 
+  const renderManualCell = (col: ColKey, mc: ManualConversation): ReactNode => {
+    switch (col) {
+      case "id": return <span className="text-xs text-muted-foreground font-mono">{mc.id.slice(0, 8)}</span>;
+      case "source": return <Badge variant="outline" className="text-xs capitalize">{mc.source}</Badge>;
+      case "sent_by": return (
+        <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
+          <User className="h-3.5 w-3.5 text-muted-foreground" />
+          {mc.contact_name || "—"}
+        </span>
+      );
+      case "message": return mc.subject ? (
+        <span className="text-xs text-muted-foreground">{mc.subject.length > 60 ? mc.subject.slice(0, 60) + "…" : mc.subject}</span>
+      ) : <span className="text-xs text-muted-foreground">—</span>;
+      case "channel": return <span className="text-xs text-muted-foreground capitalize">{mc.source}</span>;
+      case "link": return mc.link ? (
+        <a
+          href={mc.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs font-mono text-primary underline hover:text-primary/80 transition-colors"
+          onClick={(e) => e.stopPropagation()}
+        >
+          Link <ExternalLink className="h-3 w-3" />
+        </a>
+      ) : <span className="text-xs text-muted-foreground">—</span>;
+      case "intercom": return <span className="text-xs text-muted-foreground">—</span>;
+      case "status": return <Badge variant={statusColor(mc.status)}>{mc.status}</Badge>;
+      case "date": return <span className="text-xs text-muted-foreground">{new Date(mc.created_at).toLocaleString()}</span>;
+      case "test": return (
+        <Switch
+          checked={mc.is_test}
+          onCheckedChange={async () => {
+            const newVal = !mc.is_test;
+            setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, is_test: newVal } : r));
+            const { error } = await supabase.from("manual_conversations").update({ is_test: newVal }).eq("id", mc.id);
+            if (error) {
+              setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, is_test: mc.is_test } : r));
+              toast.error("Failed to update test flag");
+            }
+          }}
+          aria-label="Toggle test"
+          onClick={(e) => e.stopPropagation()}
+        />
+      );
+      case "resolved": return (
+        <Switch
+          checked={mc.status === "resolved"}
+          onCheckedChange={async () => {
+            const newStatus = mc.status === "resolved" ? "active" : "resolved";
+            setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, status: newStatus } : r));
+            const { error } = await supabase.from("manual_conversations").update({ status: newStatus }).eq("id", mc.id);
+            if (error) {
+              setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, status: mc.status } : r));
+              toast.error("Failed to update status");
+            }
+          }}
+          aria-label="Toggle resolved"
+          onClick={(e) => e.stopPropagation()}
+        />
+      );
+      case "product_area": return (
+        <Select
+          value={mc.product_area || ""}
+          onValueChange={async (v) => {
+            const newVal = v === "clear" ? null : v;
+            setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, product_area: newVal } : r));
+            const { error } = await supabase.from("manual_conversations").update({ product_area: newVal }).eq("id", mc.id);
+            if (error) toast.error("Failed to update product area");
+          }}
+        >
+          <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent>
+            {productAreas.map((area) => (
+              <SelectItem key={area} value={area}>{area}</SelectItem>
+            ))}
+            {mc.product_area && (
+              <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>
+            )}
+          </SelectContent>
+        </Select>
+      );
+      case "bug": return (
+        <Switch
+          checked={mc.is_bug}
+          onCheckedChange={async () => {
+            const newVal = !mc.is_bug;
+            setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, is_bug: newVal } : r));
+            const { error } = await supabase.from("manual_conversations").update({ is_bug: newVal }).eq("id", mc.id);
+            if (error) {
+              setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, is_bug: mc.is_bug } : r));
+              toast.error("Failed to update bug flag");
+            }
+          }}
+          aria-label="Toggle bug"
+          onClick={(e) => e.stopPropagation()}
+        />
+      );
+      case "feature_req": return (
+        <Switch
+          checked={mc.is_feature_request}
+          onCheckedChange={async () => {
+            const newVal = !mc.is_feature_request;
+            setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, is_feature_request: newVal } : r));
+            const { error } = await supabase.from("manual_conversations").update({ is_feature_request: newVal }).eq("id", mc.id);
+            if (error) {
+              setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, is_feature_request: mc.is_feature_request } : r));
+              toast.error("Failed to update feature request flag");
+            }
+          }}
+          aria-label="Toggle feature request"
+          onClick={(e) => e.stopPropagation()}
+        />
+      );
+    }
+  };
+
   const isCustomOrder = JSON.stringify(columnOrder) !== JSON.stringify([...ALL_COLUMNS]);
 
   return (
@@ -620,7 +767,7 @@ const Conversations = () => {
               <div>
                 <CardTitle className="text-lg">Recent conversations</CardTitle>
                 <CardDescription>
-                  Slack thread ↔ Intercom conversation mappings + Gmail emails
+                  Slack, Gmail, and manually logged conversations
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
@@ -637,6 +784,7 @@ const Conversations = () => {
                     <SelectItem value="all">All sources</SelectItem>
                     <SelectItem value="slack">Slack only</SelectItem>
                     <SelectItem value="gmail">Gmail only</SelectItem>
+                    <SelectItem value="manual">Manual only</SelectItem>
                   </SelectContent>
                 </Select>
                 <Popover>
@@ -729,7 +877,7 @@ const Conversations = () => {
                             ))}
                           </TableRow>
                         );
-                      } else {
+                      } else if (row.source === "gmail") {
                         const g = row.data;
                         return (
                           <TableRow
@@ -739,6 +887,20 @@ const Conversations = () => {
                             {columnOrder.map((col) => (
                               <TableCell key={col} className={col === "message" ? "max-w-[300px]" : ""}>
                                 {renderGmailCell(col, g)}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        );
+                      } else {
+                        const mc = row.data;
+                        return (
+                          <TableRow
+                            key={`manual-${mc.id}`}
+                            className={`hover:bg-muted/50 transition-colors ${mc.is_test ? "opacity-50" : ""}`}
+                          >
+                            {columnOrder.map((col) => (
+                              <TableCell key={col} className={col === "message" ? "max-w-[300px]" : ""}>
+                                {renderManualCell(col, mc as ManualConversation)}
                               </TableCell>
                             ))}
                           </TableRow>
