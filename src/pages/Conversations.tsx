@@ -68,9 +68,14 @@ interface ManualConversation {
 type SourceFilter = "all" | "slack" | "slack_import" | "gmail" | "manual";
 
 type UnifiedRow =
-  | { source: "slack"; data: ConversationMapping; sortDate: string }
-  | { source: "gmail"; data: GmailConversation; sortDate: string }
-  | { source: "manual"; data: ManualConversation; sortDate: string };
+  | { source: "slack"; data: ConversationMapping; sortDate: string; groupedEmails?: undefined; groupCount?: undefined }
+  | { source: "gmail"; data: GmailConversation; sortDate: string; groupedEmails?: GmailConversation[]; groupCount?: number; groupKey?: string }
+  | { source: "manual"; data: ManualConversation; sortDate: string; groupedEmails?: undefined; groupCount?: undefined };
+
+const normalizeSubject = (subject: string | null): string => {
+  if (!subject) return "";
+  return subject.replace(/^(re:|fwd?:)\s*/gi, "").trim().toLowerCase();
+};
 
 type NameMap = Record<string, string>;
 
