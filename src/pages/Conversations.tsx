@@ -405,7 +405,7 @@ const Conversations = () => {
       : rows;
 
     return filtered;
-  }, [mappings, gmailRows, sourceFilter, paramDay, paramHour, hiddenStatuses]);
+  }, [mappings, gmailRows, manualRows, sourceFilter, paramDay, paramHour, hiddenStatuses]);
 
   const canLoadMore =
     !isHeatmapMode && ((sourceFilter !== "gmail" && hasMore) || (sourceFilter !== "slack" && hasMoreGmail));
