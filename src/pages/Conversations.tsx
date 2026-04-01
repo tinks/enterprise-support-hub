@@ -372,6 +372,79 @@ const Conversations = () => {
     });
   }, []);
 
+  // Debounce search query
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (!searchQuery.trim()) {
+      setDebouncedSearch("");
+      setSearchResults(null);
+      return;
+    }
+    searchTimerRef.current = setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+    }, 300);
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+  }, [searchQuery]);
+
+  // Server-side search
+  useEffect(() => {
+    if (!debouncedSearch) { setSearchResults(null); return; }
+    const q = debouncedSearch;
+    const ilike = `%${q}%`;
+    setSearchLoading(true);
+
+    const doSearch = async () => {
+      const isUuid = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i.test(q);
+
+      const [slackRes, gmailRes, manualRes] = await Promise.all([
+        (sourceFilter === "all" || sourceFilter === "slack" || sourceFilter === "slack_import")
+          ? supabase
+              .from("conversation_mappings")
+              .select("*")
+              .or(
+                isUuid
+                  ? `id.eq.${q},original_message_text.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},slack_user_id.ilike.${ilike},slack_channel_id.ilike.${ilike},intercom_conversation_id.ilike.${ilike}`
+                  : `original_message_text.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},slack_user_id.ilike.${ilike},slack_channel_id.ilike.${ilike},intercom_conversation_id.ilike.${ilike}`
+              )
+              .order("created_at", { ascending: false })
+              .limit(200)
+          : Promise.resolve({ data: [] }),
+        (sourceFilter === "all" || sourceFilter === "gmail")
+          ? supabase
+              .from("gmail_conversations")
+              .select("*")
+              .or(
+                isUuid
+                  ? `id.eq.${q},from_email.ilike.${ilike},from_name.ilike.${ilike},subject.ilike.${ilike},snippet.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike}`
+                  : `from_email.ilike.${ilike},from_name.ilike.${ilike},subject.ilike.${ilike},snippet.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike}`
+              )
+              .order("received_at", { ascending: false })
+              .limit(200)
+          : Promise.resolve({ data: [] }),
+        (sourceFilter === "all" || sourceFilter === "manual")
+          ? supabase
+              .from("manual_conversations")
+              .select("*")
+              .or(
+                isUuid
+                  ? `id.eq.${q},contact_name.ilike.${ilike},subject.ilike.${ilike},source.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike}`
+                  : `contact_name.ilike.${ilike},subject.ilike.${ilike},source.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike}`
+              )
+              .order("created_at", { ascending: false })
+              .limit(200)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      setSearchResults({
+        slack: (slackRes.data ?? []) as unknown as ConversationMapping[],
+        gmail: (gmailRes.data ?? []) as unknown as GmailConversation[],
+        manual: (manualRes.data ?? []) as unknown as ManualConversation[],
+      });
+      setSearchLoading(false);
+    };
+    doSearch();
+  }, [debouncedSearch, sourceFilter]);
+
   const unified = useMemo<UnifiedRow[]>(() => {
     const rows: UnifiedRow[] = [];
 
