@@ -128,6 +128,34 @@ const Conversations = () => {
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+  const [creatingTicket, setCreatingTicket] = useState<Set<string>>(new Set());
+
+  const createIntercomTicket = async (e: React.MouseEvent, mappingId: string) => {
+    e.stopPropagation();
+    setCreatingTicket((prev) => new Set(prev).add(mappingId));
+    try {
+      const { data, error } = await supabase.functions.invoke("create-intercom-from-import", {
+        body: { mappingId },
+      });
+      if (error) {
+        toast.error("Failed to create Intercom ticket");
+        return;
+      }
+      if (data?.intercomConversationId) {
+        toast.success("Intercom ticket created");
+        setMappings((prev) => prev.map((m) => m.id === mappingId ? { ...m, intercom_conversation_id: data.intercomConversationId, intercom_ticket_id: data.ticketId || null } : m));
+        if (searchResults) {
+          setSearchResults((prev) => prev ? { ...prev, slack: prev.slack.map((m) => m.id === mappingId ? { ...m, intercom_conversation_id: data.intercomConversationId, intercom_ticket_id: data.ticketId || null } : m) } : prev);
+        }
+      } else {
+        toast.error(data?.error || "Failed to create ticket");
+      }
+    } catch {
+      toast.error("Failed to create Intercom ticket");
+    } finally {
+      setCreatingTicket((prev) => { const next = new Set(prev); next.delete(mappingId); return next; });
+    }
+  };
 
   const ALL_STATUSES = ["active", "awaiting_context", "escalated", "resolved", "cancelled", "test"] as const;
   const savedHidden = localStorage.getItem("conv-hidden-statuses");
