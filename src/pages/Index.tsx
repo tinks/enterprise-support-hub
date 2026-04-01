@@ -384,7 +384,7 @@ const Index = () => {
         </Card>
 
         {/* Product Areas Card */}
-        <ProductAreasCard settings={settings} setSettings={setSettings} />
+        <ProductAreasCard settings={settings} setSettings={setSettings} onSave={saveSettings} />
 
         {/* Bot Identity Card */}
         <BotIdentityCard />

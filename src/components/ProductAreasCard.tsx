@@ -20,9 +20,10 @@ interface SettingsData {
 interface ProductAreasCardProps {
   settings: SettingsData | null;
   setSettings: React.Dispatch<React.SetStateAction<SettingsData | null>>;
+  onSave?: () => void;
 }
 
-const ProductAreasCard = ({ settings, setSettings }: ProductAreasCardProps) => {
+const ProductAreasCard = ({ settings, setSettings, onSave }: ProductAreasCardProps) => {
   const [newArea, setNewArea] = useState("");
 
   const areas = (settings?.product_areas || "")
@@ -32,24 +33,28 @@ const ProductAreasCard = ({ settings, setSettings }: ProductAreasCardProps) => {
 
   const addArea = () => {
     const trimmed = newArea.trim();
-    if (!trimmed || areas.includes(trimmed)) {
+    if (!trimmed) {
       setNewArea("");
       return;
     }
     setSettings((s) => {
       if (!s) return s;
-      const updated = [...areas, trimmed].join(",");
-      return { ...s, product_areas: updated };
+      const current = (s.product_areas || "").split(",").map(x => x.trim()).filter(Boolean);
+      if (current.includes(trimmed)) return s;
+      return { ...s, product_areas: [...current, trimmed].join(",") };
     });
     setNewArea("");
+    setTimeout(() => onSave?.(), 0);
   };
 
   const removeArea = (area: string) => {
     setSettings((s) => {
       if (!s) return s;
-      const updated = areas.filter((a) => a !== area).join(",");
+      const current = (s.product_areas || "").split(",").map(x => x.trim()).filter(Boolean);
+      const updated = current.filter((a) => a !== area).join(",");
       return { ...s, product_areas: updated };
     });
+    setTimeout(() => onSave?.(), 0);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -101,7 +106,7 @@ const ProductAreasCard = ({ settings, setSettings }: ProductAreasCardProps) => {
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          Changes are saved when you click "Save settings" above
+          Changes are saved automatically
         </p>
       </CardContent>
     </Card>
