@@ -1,27 +1,40 @@
 
 
-## Add search to conversations table
+## Fix product areas not persisting
 
-### What it does
-A text search input above the conversations table that filters rows client-side across all visible fields: ID, source, sender name, message/subject, channel, status, product area, and link.
+### Root cause
+Two issues:
 
-### Changes
+1. **Stale closure bug** in `ProductAreasCard.tsx`: The `addArea` and `removeArea` functions use `areas` (derived at render time) inside the `setSettings` callback, instead of recomputing from the callback's `s` parameter. This means rapid additions can overwrite each other.
 
-**`src/pages/Conversations.tsx`**
+2. **No auto-save**: Product area changes only update local state. The user must manually click "Save settings" on the parent card. If they navigate away or refresh first, changes are lost.
 
-1. Add a `searchQuery` state (`useState("")`)
-2. Add a search `Input` with a search icon, placed next to the existing source/status filter controls
-3. In the `unified` useMemo, after the status filter step, apply a text search filter:
-   - Lowercase the query, then check each row's relevant fields:
-     - Slack: `id`, `slack_user_id`, user display name, `original_message_text`, channel name, `status`, `product_area`, `intercom_conversation_id`
-     - Gmail: `id`, `from_email`, `from_name`, `subject`, `snippet`, `status`, `product_area`
-     - Manual: `id`, `contact_name`, `subject`, `source`, `status`, `product_area`
-   - If any field contains the search string, keep the row
-4. Add `searchQuery` to the useMemo dependency array
+### Fix
 
-**`src/pages/FlowDiagram.tsx`** — Document that conversations table now has a text search filter
+**`src/components/ProductAreasCard.tsx`**
+
+1. Fix the stale closure in `addArea` — recompute `areas` from the `s` parameter inside the `setSettings` callback:
+   ```ts
+   setSettings((s) => {
+     if (!s) return s;
+     const current = (s.product_areas || "").split(",").map(x => x.trim()).filter(Boolean);
+     if (current.includes(trimmed)) return s;
+     return { ...s, product_areas: [...current, trimmed].join(",") };
+   });
+   ```
+
+2. Same fix for `removeArea` — recompute from `s` instead of outer `areas`.
+
+3. Add auto-save: accept an `onSave` callback prop from the parent, and call it after each add/remove so changes persist immediately without needing the global "Save settings" button.
+
+**`src/pages/Index.tsx`**
+
+4. Pass a `onSave` prop to `ProductAreasCard` that calls `saveSettings()` (or a lightweight version that just updates `product_areas`).
+
+**`src/pages/FlowDiagram.tsx`** — Document that product area edits now auto-save.
 
 ### Files to edit
-- `src/pages/Conversations.tsx` — state, input, filter logic
+- `src/components/ProductAreasCard.tsx` — fix closures + add auto-save callback
+- `src/pages/Index.tsx` — pass onSave prop
 - `src/pages/FlowDiagram.tsx` — document change
 
