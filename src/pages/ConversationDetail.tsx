@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot } from "lucide-react";
+import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket } from "lucide-react";
 import { toast } from "sonner";
 import { channelNameOverrides } from "@/lib/channelOverrides";
 
