@@ -206,12 +206,30 @@ const ManualLogTab = () => {
                         <SelectItem value="admin">Admin</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Input
-                      value={msg.sender_name}
-                      onChange={(e) => updateMessage(idx, "sender_name", e.target.value)}
-                      placeholder="Sender name"
-                      className="h-8 text-sm flex-1"
-                    />
+                    {msg.role === "admin" ? (
+                      <Select
+                        value={msg.sender_name}
+                        onValueChange={(v) => updateMessage(idx, "sender_name", v)}
+                      >
+                        <SelectTrigger className="h-8 text-sm flex-1">
+                          <SelectValue placeholder="Select admin" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ADMIN_OPTIONS.map((a) => (
+                            <SelectItem key={a.slackId} value={a.name}>
+                              {a.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        value={msg.sender_name}
+                        onChange={(e) => updateMessage(idx, "sender_name", e.target.value)}
+                        placeholder="Sender name"
+                        className="h-8 text-sm flex-1"
+                      />
+                    )}
                   </div>
                   <Textarea
                     value={msg.message_text}
