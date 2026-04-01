@@ -342,12 +342,14 @@ const Conversations = () => {
     if (append) {
       setMappings((prev) => [...prev, ...slackRows]);
       setGmailRows((prev) => [...prev, ...gmailData]);
+      setManualRows(manualData);
       setOffset(currentOffset + pageSize);
       setGmailOffset(currentGmailOffset + pageSize);
       setLoadingMore(false);
     } else {
       setMappings(slackRows);
       setGmailRows(gmailData);
+      setManualRows(manualData);
       setOffset(pageSize);
       setGmailOffset(pageSize);
       setLoading(false);
