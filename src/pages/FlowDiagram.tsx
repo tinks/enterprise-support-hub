@@ -67,6 +67,12 @@ const ROW_H = 380;
 /*  and retries. For private channels it returns a clear error asking */
 /*  the user to /invite @Ask Lovable.                                 */
 /* ------------------------------------------------------------------ */
+/*  Import error handling: supabase.functions.invoke returns data even */
+/*  on non-2xx responses. ImportTab now checks data.existingId on     */
+/*  error to show "Already imported" toast with a View link, and      */
+/*  falls back to data.error for other structured messages (e.g. bot  */
+/*  not in channel).                                                   */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */

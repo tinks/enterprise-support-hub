@@ -53,12 +53,8 @@ const ImportTab = () => {
       });
 
       if (error) {
-        toast.error(error.message || "Import failed");
-        return;
-      }
-
-      if (data?.error) {
-        if (data.existingId) {
+        // Even on error, data may contain structured response from edge function
+        if (data?.existingId) {
           toast.error("Already imported", {
             description: "This thread already exists in conversations.",
             action: {
@@ -67,8 +63,13 @@ const ImportTab = () => {
             },
           });
         } else {
-          toast.error(data.error);
+          toast.error(data?.error || error.message || "Import failed");
         }
+        return;
+      }
+
+      if (data?.error) {
+        toast.error(data.error);
         return;
       }
 
