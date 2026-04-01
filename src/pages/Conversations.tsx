@@ -819,6 +819,7 @@ const Conversations = () => {
                   <SelectContent>
                     <SelectItem value="all">All sources</SelectItem>
                     <SelectItem value="slack">Slack only</SelectItem>
+                    <SelectItem value="slack_import">Slack import</SelectItem>
                     <SelectItem value="gmail">Gmail only</SelectItem>
                     <SelectItem value="manual">Manual only</SelectItem>
                   </SelectContent>
