@@ -53,17 +53,32 @@ const ImportTab = () => {
       });
 
       if (error) {
-        // Even on error, data may contain structured response from edge function
-        if (data?.existingId) {
+        // supabase.functions.invoke wraps non-2xx as FunctionsHttpError
+        // Parse the response body from the error context to get structured data
+        let errorBody: any = data;
+        if (!errorBody && error?.context?.body) {
+          try {
+            const reader = error.context.body.getReader();
+            const { value } = await reader.read();
+            errorBody = JSON.parse(new TextDecoder().decode(value));
+          } catch {}
+        }
+        if (!errorBody) {
+          try {
+            errorBody = JSON.parse(error.message);
+          } catch {}
+        }
+
+        if (errorBody?.existingId) {
           toast.error("Already imported", {
             description: "This thread already exists in conversations.",
             action: {
               label: "View",
-              onClick: () => navigate(`/conversations/${data.existingId}`),
+              onClick: () => navigate(`/conversations/${errorBody.existingId}`),
             },
           });
         } else {
-          toast.error(data?.error || error.message || "Import failed");
+          toast.error(errorBody?.error || error.message || "Import failed");
         }
         return;
       }
