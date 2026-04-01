@@ -96,6 +96,7 @@ const ConversationDetail = () => {
   const [threadMessages, setThreadMessages] = useState<ThreadMessage[]>([]);
   const [threadLoading, setThreadLoading] = useState(false);
   const [productAreas, setProductAreas] = useState<string[]>([]);
+  const [creatingIntercom, setCreatingIntercom] = useState(false);
 
   const fetchThread = async (channelId: string, threadTs: string) => {
     setThreadLoading(true);
