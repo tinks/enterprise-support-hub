@@ -1146,7 +1146,7 @@ const Conversations = () => {
                         const isExpanded = row.groupKey ? expandedGmailGroups.has(row.groupKey) : false;
                         const subRows = isGrouped && isExpanded && row.groupedEmails ? row.groupedEmails.slice(1) : [];
                         return (
-                          <>
+                          <Fragment key={`gmail-group-${g.id}`}>
                             <TableRow
                               key={`gmail-${g.id}`}
                               className={`hover:bg-muted/50 transition-colors ${g.is_test ? "opacity-50" : ""} ${isGrouped ? "cursor-pointer" : ""}`}
