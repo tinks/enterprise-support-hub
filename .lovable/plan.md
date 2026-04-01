@@ -1,60 +1,27 @@
 
 
-## Add free-form conversation log
+## Add search to conversations table
 
 ### What it does
-A new "Log conversation" section on the Import page that lets you manually create a conversation with back-and-forth messages. Useful for Teams threads or any source that isn't Slack/Gmail.
+A text search input above the conversations table that filters rows client-side across all visible fields: ID, source, sender name, message/subject, channel, status, product area, and link.
 
-### Database changes
-
-**New table: `manual_conversations`**
-- `id` (uuid, PK)
-- `source` (text) — e.g. "teams", "phone", "other"
-- `contact_name` (text) — who the user/customer is
-- `subject` (text) — conversation topic
-- `link` (text, nullable) — optional external link (e.g. Teams thread URL)
-- `status` (text, default "active")
-- `is_bug`, `is_feature_request`, `is_test` (boolean, default false)
-- `product_area` (text, nullable)
-- `created_at`, `updated_at` (timestamptz)
-
-**New table: `manual_messages`**
-- `id` (uuid, PK)
-- `conversation_id` (uuid, FK → manual_conversations)
-- `role` (text) — "user" or "admin"
-- `sender_name` (text)
-- `message_text` (text)
-- `created_at` (timestamptz)
-
-RLS: public read + insert + update on both tables (matching existing pattern). Deny delete.
-
-### UI changes
-
-**`src/components/ManualLogTab.tsx`** (new)
-A form-based component with two sections:
-
-1. **Conversation header** — source dropdown (Teams, Phone, Other + free text), contact name, subject, optional link
-2. **Message builder** — a list of messages you build up before saving:
-   - Each message has: role toggle (User / Admin), sender name, message text
-   - "Add message" button appends a new empty row
-   - Messages are displayed in order with role indicators
-3. **Save button** — inserts the conversation + all messages in one go
-4. **Recently logged** — list of recent manual conversations (last 10), clickable to view
-
-**`src/pages/ImportPage.tsx`**
-- Add the `ManualLogTab` component below the existing `ImportTab`
+### Changes
 
 **`src/pages/Conversations.tsx`**
-- Add "manual" as a new source filter option alongside "all", "slack", "gmail"
-- Fetch manual_conversations and include them in the unified rows
-- Render them with source badge "Manual" and appropriate columns
 
-**`src/pages/FlowDiagram.tsx`** — document the new manual log feature
+1. Add a `searchQuery` state (`useState("")`)
+2. Add a search `Input` with a search icon, placed next to the existing source/status filter controls
+3. In the `unified` useMemo, after the status filter step, apply a text search filter:
+   - Lowercase the query, then check each row's relevant fields:
+     - Slack: `id`, `slack_user_id`, user display name, `original_message_text`, channel name, `status`, `product_area`, `intercom_conversation_id`
+     - Gmail: `id`, `from_email`, `from_name`, `subject`, `snippet`, `status`, `product_area`
+     - Manual: `id`, `contact_name`, `subject`, `source`, `status`, `product_area`
+   - If any field contains the search string, keep the row
+4. Add `searchQuery` to the useMemo dependency array
 
-### Files to create/edit
-- Database migration (2 new tables + RLS policies)
-- `src/components/ManualLogTab.tsx` (new)
-- `src/pages/ImportPage.tsx` — add ManualLogTab
-- `src/pages/Conversations.tsx` — add manual source filter + data fetch
+**`src/pages/FlowDiagram.tsx`** — Document that conversations table now has a text search filter
+
+### Files to edit
+- `src/pages/Conversations.tsx` — state, input, filter logic
 - `src/pages/FlowDiagram.tsx` — document change
 
