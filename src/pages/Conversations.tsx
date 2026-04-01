@@ -950,6 +950,45 @@ const Conversations = () => {
                     )}
                   </PopoverContent>
                 </Popover>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={`h-9 gap-1 ${dateFrom ? "border-primary" : ""}`}>
+                      <CalendarIcon className="h-3 w-3" />
+                      {dateFrom ? format(dateFrom, "dd MMM") : "From"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar
+                      mode="single"
+                      selected={dateFrom}
+                      onSelect={setDateFrom}
+                      initialFocus
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={`h-9 gap-1 ${dateTo ? "border-primary" : ""}`}>
+                      <CalendarIcon className="h-3 w-3" />
+                      {dateTo ? format(dateTo, "dd MMM") : "To"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar
+                      mode="single"
+                      selected={dateTo}
+                      onSelect={setDateTo}
+                      initialFocus
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                {(dateFrom || dateTo) && (
+                  <Button variant="ghost" size="sm" className="h-9 px-2" onClick={() => { setDateFrom(undefined); setDateTo(undefined); }}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
                 <Button variant="outline" size="sm" onClick={() => { loadData().then((rows) => loadLookups(rows)); }} disabled={loading}>
                   <RefreshCw className={`mr-1 h-3 w-3 ${loading ? "animate-spin" : ""}`} />
                   Refresh
