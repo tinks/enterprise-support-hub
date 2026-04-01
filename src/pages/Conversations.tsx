@@ -125,6 +125,8 @@ const Conversations = () => {
   const [searchResults, setSearchResults] = useState<{ slack: ConversationMapping[]; gmail: GmailConversation[]; manual: ManualConversation[] } | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
 
   const ALL_STATUSES = ["active", "awaiting_context", "escalated", "resolved", "cancelled", "test"] as const;
   const savedHidden = localStorage.getItem("conv-hidden-statuses");
