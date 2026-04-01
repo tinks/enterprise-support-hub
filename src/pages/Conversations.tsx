@@ -877,7 +877,7 @@ const Conversations = () => {
                             ))}
                           </TableRow>
                         );
-                      } else {
+                      } else if (row.source === "gmail") {
                         const g = row.data;
                         return (
                           <TableRow
@@ -887,6 +887,20 @@ const Conversations = () => {
                             {columnOrder.map((col) => (
                               <TableCell key={col} className={col === "message" ? "max-w-[300px]" : ""}>
                                 {renderGmailCell(col, g)}
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        );
+                      } else {
+                        const mc = row.data;
+                        return (
+                          <TableRow
+                            key={`manual-${mc.id}`}
+                            className={`hover:bg-muted/50 transition-colors ${mc.is_test ? "opacity-50" : ""}`}
+                          >
+                            {columnOrder.map((col) => (
+                              <TableCell key={col} className={col === "message" ? "max-w-[300px]" : ""}>
+                                {renderManualCell(col, mc as ManualConversation)}
                               </TableCell>
                             ))}
                           </TableRow>
