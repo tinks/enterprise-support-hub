@@ -324,22 +324,36 @@ const Conversations = () => {
 
     const pageSize = isHeatmapMode ? 1000 : 50;
 
+    let slackQuery = supabase
+      .from("conversation_mappings")
+      .select("*")
+      .order("created_at", { ascending: false });
+    let gmailQuery = supabase
+      .from("gmail_conversations")
+      .select("*")
+      .order("received_at", { ascending: false });
+    let manualQuery = supabase
+      .from("manual_conversations")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (dateFrom) {
+      const fromIso = startOfDay(dateFrom).toISOString();
+      slackQuery = slackQuery.gte("created_at", fromIso);
+      gmailQuery = gmailQuery.gte("received_at", fromIso);
+      manualQuery = manualQuery.gte("created_at", fromIso);
+    }
+    if (dateTo) {
+      const toIso = endOfDay(dateTo).toISOString();
+      slackQuery = slackQuery.lte("created_at", toIso);
+      gmailQuery = gmailQuery.lte("received_at", toIso);
+      manualQuery = manualQuery.lte("created_at", toIso);
+    }
+
     const [slackRes, gmailRes, manualRes] = await Promise.all([
-      supabase
-        .from("conversation_mappings")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .range(currentOffset, currentOffset + pageSize - 1),
-      supabase
-        .from("gmail_conversations")
-        .select("*")
-        .order("received_at", { ascending: false })
-        .range(currentGmailOffset, currentGmailOffset + pageSize - 1),
-      supabase
-        .from("manual_conversations")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(pageSize),
+      slackQuery.range(currentOffset, currentOffset + pageSize - 1),
+      gmailQuery.range(currentGmailOffset, currentGmailOffset + pageSize - 1),
+      manualQuery.limit(pageSize),
     ]);
 
     const slackRows = (slackRes.data ?? []) as unknown as ConversationMapping[];
