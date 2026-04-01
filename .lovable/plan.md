@@ -1,26 +1,31 @@
 
 
-## Add date filter to conversations tab
+## Group Gmail emails by matching subject in conversations table
 
 ### What it does
-Adds a date range picker (from/to) in the filter toolbar that filters conversations to only show rows within the selected date range. Works with both paginated and server-side search modes.
+Gmail emails that share the same `gmail_thread_id` (or matching `subject` when thread ID is null) will be visually grouped together in the conversations table. Instead of showing each email as a separate row, emails in the same thread collapse into a single expandable row showing the count and latest date.
 
 ### Changes
 
 **`src/pages/Conversations.tsx`**
 
-1. Import `Calendar`, `CalendarIcon`, `Popover`, `format` from date-fns
-2. Add two state variables: `dateFrom: Date | undefined` and `dateTo: Date | undefined`
-3. Add two date picker popovers (from/to) in the filter toolbar next to the source and status filters, using the shadcn Calendar component inside Popover with `pointer-events-auto`
-4. Add a clear button that appears when either date is set
-5. In the `unified` useMemo, filter rows by checking `sortDate` falls within the from/to range (inclusive — from = start of day, to = end of day)
-6. When server-side search is active (`searchResults`), apply the same date filter on the merged results
-7. For the paginated data fetch (`loadData`), add `.gte("created_at", dateFrom)` and `.lte("created_at", dateTo)` to the Supabase queries when dates are set, so we don't load irrelevant rows
-8. Add `dateFrom` and `dateTo` to the dependency arrays for `loadData` and `unified`
+1. In the `unified` useMemo, after collecting Gmail rows, group them by `gmail_thread_id` (when non-null) or normalized `subject` (lowercase, trimmed, stripped of "Re:"/"Fwd:" prefixes). Each group becomes a single `UnifiedRow` with `source: "gmail"` using the most recent email as the primary `data`, plus a new field for the grouped children and count.
 
-**`src/pages/FlowDiagram.tsx`** — Document that conversations tab now supports date range filtering
+2. Extend the `UnifiedRow` gmail variant to include optional `groupedEmails: GmailConversation[]` and `groupCount: number` fields.
+
+3. In `renderGmailCell`:
+   - For the `"id"` column: show count badge (e.g. "3 emails") when `groupCount > 1`
+   - For the `"message"` column: show the shared subject with the count
+   - For the `"date"` column: show the latest received date, with the range if multiple
+   - For the `"sent_by"` column: show the unique senders (e.g. "John + 2 others")
+
+4. Add expand/collapse state (`expandedGmailGroups: Set<string>`) — clicking a grouped Gmail row toggles showing the individual emails as sub-rows beneath it, slightly indented.
+
+5. In the table body rendering, when a Gmail row has `groupCount > 1` and is expanded, render the child rows immediately after the parent row with a subtle left-border indent styling.
+
+**`src/pages/FlowDiagram.tsx`** — Document that Gmail emails with matching thread ID or subject are grouped in the conversations table.
 
 ### Files to edit
-- `src/pages/Conversations.tsx` — date state, picker UI, query + client filters
+- `src/pages/Conversations.tsx` — grouping logic, expand/collapse UI
 - `src/pages/FlowDiagram.tsx` — document change
 
