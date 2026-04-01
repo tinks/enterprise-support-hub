@@ -784,6 +784,7 @@ const Conversations = () => {
                     <SelectItem value="all">All sources</SelectItem>
                     <SelectItem value="slack">Slack only</SelectItem>
                     <SelectItem value="gmail">Gmail only</SelectItem>
+                    <SelectItem value="manual">Manual only</SelectItem>
                   </SelectContent>
                 </Select>
                 <Popover>
