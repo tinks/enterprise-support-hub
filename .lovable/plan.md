@@ -1,39 +1,27 @@
 
 
-## Fix: import tab not showing "already imported" message for duplicate threads
+## Make search work across all data, not just loaded rows
 
 ### Problem
-When importing an already-imported thread, the edge function returns 409 with `{"error":"...","existingId":"..."}`. But `supabase.functions.invoke` treats any non-2xx as an error, putting a generic message in `error` and potentially nullifying `data`. The code checks `error` first (line 55) and shows the generic message, never reaching the `data?.error` branch (line 60) that has the nice "Already imported" toast with the "View" link.
+Search on the conversations page only filters the rows already loaded in memory (50 per page). If a conversation isn't in the current paginated set, searching by ID or any field won't find it.
 
-### Fix
+### Solution
+When a search query is active, bypass pagination and query all three tables server-side with text filters, then merge results client-side.
 
-**`src/components/ImportTab.tsx`**
+### Changes
 
-Change the error handling to parse the response body even on error. `supabase.functions.invoke` returns the parsed body in `data` even on non-2xx in newer versions, but the `error` check short-circuits. Fix by checking `data` first, or by combining:
+**`src/pages/Conversations.tsx`**
 
-```ts
-if (error) {
-  // Even on error, data may contain structured response
-  if (data?.existingId) {
-    toast.error("Already imported", {
-      description: "This thread already exists in conversations.",
-      action: {
-        label: "View",
-        onClick: () => navigate(`/conversations/${data.existingId}`),
-      },
-    });
-  } else {
-    toast.error(data?.error || error.message || "Import failed");
-  }
-  return;
-}
-```
+1. Add a debounced search effect: when `searchQuery` changes (and is non-empty), fire separate queries against `conversation_mappings`, `gmail_conversations`, and `manual_conversations` using Supabase `.or()` / `.ilike()` filters on relevant text columns (id, original_message_text, status, product_area, slack_user_id, slack_channel_id for slack; from_email, from_name, subject, snippet for gmail; contact_name, subject, source for manual)
+2. Store search results in a separate state (e.g. `searchResults`) distinct from the paginated `mappings`/`gmailRows`/`manualRows`
+3. In the `unified` useMemo, when `searchQuery` is active, use `searchResults` instead of the paginated data — skip the client-side search filter since results are already filtered server-side
+4. When search is cleared, revert to showing the normal paginated data
+5. Add a small debounce (300ms) to avoid hammering the database on every keystroke
+6. For UUID-style queries, also do an exact `.eq("id", query)` match to ensure ID searches always work
 
-This ensures the 409 duplicate case shows the friendly message with the "View" action button, while other errors still show their messages.
-
-**`src/pages/FlowDiagram.tsx`** — Document that import error handling now properly surfaces structured error responses.
+**`src/pages/FlowDiagram.tsx`** — Document that conversation search now queries the database server-side
 
 ### Files to edit
-- `src/components/ImportTab.tsx` — merge error + data handling
+- `src/pages/Conversations.tsx` — server-side search logic
 - `src/pages/FlowDiagram.tsx` — document change
 
