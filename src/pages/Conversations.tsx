@@ -406,8 +406,33 @@ const Conversations = () => {
         })
       : rows;
 
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      return filtered.filter((r) => {
+        const d = r.data;
+        const common = [d.id, d.status, d.product_area || ""].join(" ").toLowerCase();
+        if (common.includes(q)) return true;
+        if (r.source === "slack") {
+          const s = d as ConversationMapping;
+          const userName = userNames[s.slack_user_id] || s.slack_user_id;
+          const chanName = channelNames[s.slack_channel_id] || s.slack_channel_id;
+          return [userName, s.original_message_text, chanName, s.intercom_conversation_id || ""].join(" ").toLowerCase().includes(q);
+        }
+        if (r.source === "gmail") {
+          const g = d as GmailConversation;
+          return [g.from_email || "", g.from_name || "", g.subject || "", g.snippet || ""].join(" ").toLowerCase().includes(q);
+        }
+        if (r.source === "manual") {
+          const m = d as ManualConversation;
+          return [m.contact_name, m.subject, m.source].join(" ").toLowerCase().includes(q);
+        }
+        return false;
+      });
+    }
+
     return filtered;
-  }, [mappings, gmailRows, manualRows, sourceFilter, paramDay, paramHour, hiddenStatuses]);
+  }, [mappings, gmailRows, manualRows, sourceFilter, paramDay, paramHour, hiddenStatuses, searchQuery, userNames, channelNames]);
 
   const canLoadMore =
     !isHeatmapMode && ((sourceFilter !== "gmail" && hasMore) || (sourceFilter !== "slack" && hasMoreGmail));
