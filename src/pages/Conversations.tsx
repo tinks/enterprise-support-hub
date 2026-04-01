@@ -520,8 +520,25 @@ const Conversations = () => {
       }
     }
     if (sourceFilter === "all" || sourceFilter === "gmail") {
+      // Group Gmail rows by thread_id or normalized subject
+      const gmailGroups: Record<string, GmailConversation[]> = {};
       for (const g of gmailData) {
-        rows.push({ source: "gmail", data: g, sortDate: g.received_at || g.created_at });
+        const key = g.gmail_thread_id || normalizeSubject(g.subject) || g.id;
+        if (!gmailGroups[key]) gmailGroups[key] = [];
+        gmailGroups[key].push(g);
+      }
+      for (const [key, group] of Object.entries(gmailGroups)) {
+        // Sort group by date descending, use most recent as primary
+        group.sort((a, b) => new Date(b.received_at || b.created_at).getTime() - new Date(a.received_at || a.created_at).getTime());
+        const primary = group[0];
+        rows.push({
+          source: "gmail",
+          data: primary,
+          sortDate: primary.received_at || primary.created_at,
+          groupedEmails: group.length > 1 ? group : undefined,
+          groupCount: group.length > 1 ? group.length : undefined,
+          groupKey: key,
+        });
       }
     }
     if (sourceFilter === "all" || sourceFilter === "manual") {
