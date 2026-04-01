@@ -105,6 +105,7 @@ const Conversations = () => {
 
   const [mappings, setMappings] = useState<ConversationMapping[]>([]);
   const [gmailRows, setGmailRows] = useState<GmailConversation[]>([]);
+  const [manualRows, setManualRows] = useState<ManualConversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [userNames, setUserNames] = useState<NameMap>({});
   const [channelNames, setChannelNames] = useState<NameMap>({});
