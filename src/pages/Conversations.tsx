@@ -369,14 +369,19 @@ const Conversations = () => {
   const unified = useMemo<UnifiedRow[]>(() => {
     const rows: UnifiedRow[] = [];
 
-    if (sourceFilter !== "gmail") {
+    if (sourceFilter !== "gmail" && sourceFilter !== "manual") {
       for (const m of mappings) {
         rows.push({ source: "slack", data: m, sortDate: m.created_at });
       }
     }
-    if (sourceFilter !== "slack") {
+    if (sourceFilter !== "slack" && sourceFilter !== "manual") {
       for (const g of gmailRows) {
         rows.push({ source: "gmail", data: g, sortDate: g.received_at || g.created_at });
+      }
+    }
+    if (sourceFilter === "all" || sourceFilter === "manual") {
+      for (const mc of manualRows) {
+        rows.push({ source: "manual", data: mc, sortDate: mc.created_at });
       }
     }
 
