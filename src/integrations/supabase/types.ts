@@ -47,6 +47,7 @@ export type Database = {
           id: string
           intercom_contact_id: string
           intercom_conversation_id: string | null
+          intercom_ticket_id: string | null
           is_bug: boolean
           is_feature_request: boolean
           is_test: boolean
@@ -68,6 +69,7 @@ export type Database = {
           id?: string
           intercom_contact_id?: string
           intercom_conversation_id?: string | null
+          intercom_ticket_id?: string | null
           is_bug?: boolean
           is_feature_request?: boolean
           is_test?: boolean
@@ -89,6 +91,7 @@ export type Database = {
           id?: string
           intercom_contact_id?: string
           intercom_conversation_id?: string | null
+          intercom_ticket_id?: string | null
           is_bug?: boolean
           is_feature_request?: boolean
           is_test?: boolean

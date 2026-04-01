@@ -857,7 +857,14 @@ Deno.serve(async (req) => {
             body: JSON.stringify({ ticket_type_id: "1" }),
           });
           const convertData = await convertRes.json();
-          console.log(`Webhook: converted conversation ${conversationId} to ticket:`, convertData.ticket_id || convertData.id);
+          const ticketId = convertData.ticket_id || convertData.id;
+          console.log(`Webhook: converted conversation ${conversationId} to ticket:`, ticketId);
+          // Persist the ticket ID so future replies route correctly
+          if (ticketId) {
+            await supabase.from("conversation_mappings")
+              .update({ intercom_ticket_id: String(ticketId) })
+              .eq("id", mapping.id);
+          }
         } catch (e) {
           console.error(`Webhook: failed to convert conversation ${conversationId} to ticket:`, e);
         }

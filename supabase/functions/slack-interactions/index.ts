@@ -669,7 +669,14 @@ async function createIntercomTicket(opts: {
                 body: JSON.stringify({ ticket_type_id: "1" }),
               });
               const convertData = await convertRes.json();
-              console.log(`Poll: converted conversation ${conversationId} to ticket:`, convertData.ticket_id || convertData.id);
+              const ticketId = convertData.ticket_id || convertData.id;
+              console.log(`Poll: converted conversation ${conversationId} to ticket:`, ticketId);
+              // Persist the ticket ID so future replies route correctly
+              if (ticketId) {
+                await supabase.from("conversation_mappings")
+                  .update({ intercom_ticket_id: String(ticketId) })
+                  .eq("intercom_conversation_id", conversationId);
+              }
             } catch (e) {
               console.error(`Poll: failed to convert conversation ${conversationId} to ticket:`, e);
             }
@@ -1449,7 +1456,14 @@ Deno.serve(async (req) => {
               }),
             });
             const convertData = await convertRes.json();
-            console.log("Converted conversation to ticket:", convertData.ticket_id || convertData.id);
+            const ticketId = convertData.ticket_id || convertData.id;
+            console.log("Converted conversation to ticket:", ticketId);
+            // Persist the ticket ID so future replies route correctly
+            if (ticketId) {
+              await supabase.from("conversation_mappings")
+                .update({ intercom_ticket_id: String(ticketId) })
+                .eq("intercom_conversation_id", conversationId);
+            }
           } catch (e) {
             console.error("Failed to convert conversation to ticket:", e);
           }

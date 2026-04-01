@@ -681,23 +681,56 @@ Deno.serve(async (req) => {
                 replyPayload.attachment_urls = replyAttachmentUrls;
               }
 
-              const replyRes = await fetch(
-                `https://api.intercom.io/conversations/${mapping.intercom_conversation_id}/reply`,
-                {
-                  method: "POST",
-                  headers: {
-                    Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
-                    "Content-Type": "application/json",
-                    Accept: "application/json",
-                    "Intercom-Version": "2.11",
-                  },
-                  body: JSON.stringify(replyPayload),
-                }
+              // Smart routing: use ticket ID if conversation was converted to a ticket
+              const targetId = mapping.intercom_ticket_id || mapping.intercom_conversation_id;
+              const intercomHeaders = {
+                Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                "Content-Type": "application/json",
+                Accept: "application/json",
+                "Intercom-Version": "2.11",
+              };
+
+              let replyRes = await fetch(
+                `https://api.intercom.io/conversations/${targetId}/reply`,
+                { method: "POST", headers: intercomHeaders, body: JSON.stringify(replyPayload) }
               );
+
+              // If reply failed and we have a ticket ID, retry as admin
+              if (!replyRes.ok && mapping.intercom_ticket_id) {
+                const errText = await replyRes.text();
+                console.error(`Failed to forward reply to ticket ${targetId} (${replyRes.status}): ${errText}`);
+                // Retry as admin if the original was a user-type reply
+                if (replyPayload.type === "user" && adminId) {
+                  const adminPayload = {
+                    message_type: "comment",
+                    type: "admin",
+                    admin_id: adminId,
+                    body: `*[From: ${senderName || event.user} via Slack]*\n\n${replyBody}`,
+                    ...(replyAttachmentUrls.length ? { attachment_urls: replyAttachmentUrls } : {}),
+                  };
+                  replyRes = await fetch(
+                    `https://api.intercom.io/conversations/${targetId}/reply`,
+                    { method: "POST", headers: intercomHeaders, body: JSON.stringify(adminPayload) }
+                  );
+                }
+              }
+
               if (!replyRes.ok) {
-                console.error(`Failed to forward reply to Intercom: ${await replyRes.text()}`);
+                const errText2 = await replyRes.text();
+                console.error(`Final failure forwarding reply to Intercom ${targetId} (${replyRes.status}): ${errText2}`);
+                // Notify the Slack thread that forwarding failed
+                await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+                  method: "POST",
+                  headers: slackHeaders,
+                  body: JSON.stringify({
+                    channel: channelId,
+                    thread_ts: threadTs,
+                    text: "⚠️ Failed to forward this reply to the support ticket. Please reply directly in Intercom.",
+                    ...BOT_IDENTITY,
+                  }),
+                });
               } else {
-                console.log(`Forwarded Slack reply to Intercom conversation ${mapping.intercom_conversation_id} (type: ${replyPayload.type})`);
+                console.log(`Forwarded Slack reply to Intercom ${targetId} (type: ${replyPayload.type})`);
               }
             }
           }
