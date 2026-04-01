@@ -53,8 +53,8 @@ const ROW_H = 380;
 /*  reorderable. Order persists in localStorage (conv-column-order).   */
 /*  A "Reset columns" button restores the default order.               */
 /* ------------------------------------------------------------------ */
-/*  Stats page: "Export CSV" button exports filtered Slack + Gmail     */
-/*  data respecting all active filters (source, time, channels, env). */
+/*  Stats page: "Export PDF" button generates a PDF report with all    */
+/*  summary metrics and chart screenshots, respecting active filters. */
 /* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
