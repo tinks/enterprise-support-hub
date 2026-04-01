@@ -1,11 +1,13 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
-import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon, ChevronDown, Timer, AlertCircle, XCircle, ArrowUpRight, Mail, Download } from "lucide-react";
+import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon, ChevronDown, Timer, AlertCircle, XCircle, ArrowUpRight, Mail, FileDown } from "lucide-react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -92,6 +94,7 @@ const Stats = () => {
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [channelPopoverOpen, setChannelPopoverOpen] = useState(false);
   const [toPopoverOpen, setToPopoverOpen] = useState(false);
+  const statsContentRef = useRef<HTMLDivElement>(null);
 
   const activeRangeLabel = range === "custom" && customFrom && customTo
     ? `${format(customFrom, "MMM dd")} – ${format(customTo, "MMM dd")}`
@@ -545,52 +548,78 @@ const Stats = () => {
     return { grid, max };
   }, [filtered, filteredGmail, sourceFilter]);
 
-  const exportCSV = () => {
-    const escapeCSV = (val: string) => {
-      if (val.includes(",") || val.includes('"') || val.includes("\n")) {
-        return `"${val.replace(/"/g, '""')}"`;
+  const [exporting, setExporting] = useState(false);
+
+  const exportPDF = async () => {
+    const container = statsContentRef.current;
+    if (!container) return;
+    setExporting(true);
+
+    try {
+      // Capture the entire stats content area
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+      const usableWidth = pageWidth - margin * 2;
+
+      // Add header
+      pdf.setFontSize(16);
+      pdf.text("Lovable support analytics", margin, 15);
+      pdf.setFontSize(9);
+      pdf.setTextColor(100);
+      const filterText = `Environment: ${view} | Source: ${sourceFilter} | Timeframe: ${rangeLabel[range]} | Generated: ${format(new Date(), "yyyy-MM-dd HH:mm")}`;
+      pdf.text(filterText, margin, 22);
+      pdf.setTextColor(0);
+
+      // Calculate image dimensions to fit page width
+      const imgWidth = usableWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const startY = 28;
+      const availableHeight = pageHeight - startY - margin;
+
+      // Split into pages if needed
+      let remainingHeight = imgHeight;
+      let srcY = 0;
+
+      while (remainingHeight > 0) {
+        const sliceHeight = Math.min(availableHeight, remainingHeight);
+        const sliceCanvasHeight = (sliceHeight / imgHeight) * canvas.height;
+
+        // Create a slice canvas
+        const sliceCanvas = document.createElement("canvas");
+        sliceCanvas.width = canvas.width;
+        sliceCanvas.height = sliceCanvasHeight;
+        const ctx = sliceCanvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(canvas, 0, srcY, canvas.width, sliceCanvasHeight, 0, 0, canvas.width, sliceCanvasHeight);
+          const sliceData = sliceCanvas.toDataURL("image/png");
+          const yPos = srcY === 0 ? startY : margin;
+          pdf.addImage(sliceData, "PNG", margin, yPos, imgWidth, sliceHeight);
+        }
+
+        remainingHeight -= sliceHeight;
+        srcY += sliceCanvasHeight;
+
+        if (remainingHeight > 0) {
+          pdf.addPage();
+        }
       }
-      return val;
-    };
 
-    const headers = ["Source", "Date", "Status", "Channel/From", "Subject/Message", "Is test", "Is bug", "Is FR", "Product area", "Resolved at"];
-
-    const slackRows = filtered.map((r) => [
-      "Slack",
-      r.created_at ? format(parseISO(r.created_at), "yyyy-MM-dd HH:mm") : "",
-      r.status,
-      channelNames[r.slack_channel_id] || channelNameOverrides[r.slack_channel_id] || r.slack_channel_id,
-      "",
-      String(r.is_test),
-      "",
-      "",
-      "",
-      r.resolved_at ? format(parseISO(r.resolved_at), "yyyy-MM-dd HH:mm") : "",
-    ]);
-
-    const gmailRows = filteredGmail.map((g) => [
-      "Gmail",
-      g.received_at ? format(parseISO(g.received_at), "yyyy-MM-dd HH:mm") : g.created_at ? format(parseISO(g.created_at), "yyyy-MM-dd HH:mm") : "",
-      g.status,
-      g.from_email || "",
-      g.subject || "",
-      String(g.is_test),
-      "",
-      "",
-      "",
-      g.resolved_at ? format(parseISO(g.resolved_at), "yyyy-MM-dd HH:mm") : "",
-    ]);
-
-    const allRows = [...slackRows, ...gmailRows];
-    const csv = [headers.map(escapeCSV).join(","), ...allRows.map((row) => row.map(escapeCSV).join(","))].join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `stats-export-${format(new Date(), "yyyy-MM-dd")}-${sourceFilter}-${range}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+      pdf.save(`stats-report-${format(new Date(), "yyyy-MM-dd")}-${sourceFilter}-${range}.pdf`);
+    } catch (err) {
+      console.error("PDF export failed:", err);
+    } finally {
+      setExporting(false);
+    }
   };
 
   if (loading) {
@@ -605,7 +634,7 @@ const Stats = () => {
 
   return (
     <AppLayout>
-      <div className="mx-auto max-w-5xl space-y-6 p-6">
+      <div ref={statsContentRef} className="mx-auto max-w-5xl space-y-6 p-6">
         {/* Hero banner */}
         <div className="flex items-center justify-between rounded-xl border border-border bg-gradient-to-br from-card via-card to-accent p-6">
           <div className="flex items-center gap-4">
@@ -756,8 +785,9 @@ const Stats = () => {
               </Popover>
             </div>
           )}
-          <Button variant="outline" size="sm" className="h-9" onClick={exportCSV}>
-            <Download className="mr-1.5 h-3.5 w-3.5" /> Export CSV
+          <Button variant="outline" size="sm" className="h-9" onClick={exportPDF} disabled={exporting}>
+            {exporting ? <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <FileDown className="mr-1.5 h-3.5 w-3.5" />}
+            {exporting ? "Exporting…" : "Export PDF"}
           </Button>
         </div>
 
