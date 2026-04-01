@@ -78,6 +78,10 @@ const ROW_H = 380;
 /*  for UUIDs), bypassing client-side pagination. Results debounced    */
 /*  at 300ms, limited to 200 rows per source.                          */
 /* ------------------------------------------------------------------ */
+/*  Conversations date filter: from/to date pickers filter rows        */
+/*  server-side via .gte/.lte on created_at/received_at. Client-side   */
+/*  filtering also applied. Reload triggers on date change.            */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */
