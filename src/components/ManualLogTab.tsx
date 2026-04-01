@@ -11,6 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Trash2, Save, ExternalLink } from "lucide-react";
 
+const ADMIN_OPTIONS = [
+  { name: "Joel Samuelson", slackId: "U091GANMA2U" },
+  { name: "Kristina Bodurova", slackId: "U0AFU714807" },
+];
+
 interface ManualMessage {
   role: "user" | "admin";
   sender_name: string;
