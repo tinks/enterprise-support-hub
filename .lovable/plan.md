@@ -1,40 +1,31 @@
 
 
-## Fix product areas not persisting
+## Add admin identity selection to manual log
 
-### Root cause
-Two issues:
+### What changes
+In the manual log message builder, when the role is "admin", replace the free-text sender name with a dropdown that lets you pick either Joel Samuelson or Kristina Bodurova. Their Slack user IDs are stored alongside.
 
-1. **Stale closure bug** in `ProductAreasCard.tsx`: The `addArea` and `removeArea` functions use `areas` (derived at render time) inside the `setSettings` callback, instead of recomputing from the callback's `s` parameter. This means rapid additions can overwrite each other.
+### Details
 
-2. **No auto-save**: Product area changes only update local state. The user must manually click "Save settings" on the parent card. If they navigate away or refresh first, changes are lost.
+**`src/components/ManualLogTab.tsx`**
 
-### Fix
-
-**`src/components/ProductAreasCard.tsx`**
-
-1. Fix the stale closure in `addArea` — recompute `areas` from the `s` parameter inside the `setSettings` callback:
+1. Add a constant mapping the two admins:
    ```ts
-   setSettings((s) => {
-     if (!s) return s;
-     const current = (s.product_areas || "").split(",").map(x => x.trim()).filter(Boolean);
-     if (current.includes(trimmed)) return s;
-     return { ...s, product_areas: [...current, trimmed].join(",") };
-   });
+   const ADMIN_OPTIONS = [
+     { name: "Joel Samuelson", slackId: "U091GANMA2U" },
+     { name: "Kristina Bodurova", slackId: "U0AFU714807" },
+   ];
    ```
 
-2. Same fix for `removeArea` — recompute from `s` instead of outer `areas`.
+2. When a message's role is "admin", replace the free-text sender name `Input` with a `Select` dropdown showing "Joel Samuelson" and "Kristina Bodurova". The selected value sets `sender_name` to the admin's name.
 
-3. Add auto-save: accept an `onSave` callback prop from the parent, and call it after each add/remove so changes persist immediately without needing the global "Save settings" button.
+3. When switching role from "user" to "admin", auto-clear the sender name so the user picks from the dropdown. When switching from "admin" to "user", clear it back to free text.
 
-**`src/pages/Index.tsx`**
+4. No database changes needed — `sender_name` already stores the name as text.
 
-4. Pass a `onSave` prop to `ProductAreasCard` that calls `saveSettings()` (or a lightweight version that just updates `product_areas`).
-
-**`src/pages/FlowDiagram.tsx`** — Document that product area edits now auto-save.
+**`src/pages/FlowDiagram.tsx`** — Document that admin messages in manual log use a fixed dropdown for Joel/Kristina.
 
 ### Files to edit
-- `src/components/ProductAreasCard.tsx` — fix closures + add auto-save callback
-- `src/pages/Index.tsx` — pass onSave prop
-- `src/pages/FlowDiagram.tsx` — document change
+- `src/components/ManualLogTab.tsx`
+- `src/pages/FlowDiagram.tsx`
 
