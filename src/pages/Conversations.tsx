@@ -8,12 +8,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug, Filter, GripVertical, RotateCcw, Search } from "lucide-react";
+import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug, Filter, GripVertical, RotateCcw, Search, CalendarIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { channelNameOverrides } from "@/lib/channelOverrides";
+import { Calendar } from "@/components/ui/calendar";
+import { format, startOfDay, endOfDay } from "date-fns";
 
 interface ConversationMapping {
   id: string;
@@ -123,6 +125,8 @@ const Conversations = () => {
   const [searchResults, setSearchResults] = useState<{ slack: ConversationMapping[]; gmail: GmailConversation[]; manual: ManualConversation[] } | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
 
   const ALL_STATUSES = ["active", "awaiting_context", "escalated", "resolved", "cancelled", "test"] as const;
   const savedHidden = localStorage.getItem("conv-hidden-statuses");
@@ -320,22 +324,36 @@ const Conversations = () => {
 
     const pageSize = isHeatmapMode ? 1000 : 50;
 
+    let slackQuery = supabase
+      .from("conversation_mappings")
+      .select("*")
+      .order("created_at", { ascending: false });
+    let gmailQuery = supabase
+      .from("gmail_conversations")
+      .select("*")
+      .order("received_at", { ascending: false });
+    let manualQuery = supabase
+      .from("manual_conversations")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (dateFrom) {
+      const fromIso = startOfDay(dateFrom).toISOString();
+      slackQuery = slackQuery.gte("created_at", fromIso);
+      gmailQuery = gmailQuery.gte("received_at", fromIso);
+      manualQuery = manualQuery.gte("created_at", fromIso);
+    }
+    if (dateTo) {
+      const toIso = endOfDay(dateTo).toISOString();
+      slackQuery = slackQuery.lte("created_at", toIso);
+      gmailQuery = gmailQuery.lte("received_at", toIso);
+      manualQuery = manualQuery.lte("created_at", toIso);
+    }
+
     const [slackRes, gmailRes, manualRes] = await Promise.all([
-      supabase
-        .from("conversation_mappings")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .range(currentOffset, currentOffset + pageSize - 1),
-      supabase
-        .from("gmail_conversations")
-        .select("*")
-        .order("received_at", { ascending: false })
-        .range(currentGmailOffset, currentGmailOffset + pageSize - 1),
-      supabase
-        .from("manual_conversations")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(pageSize),
+      slackQuery.range(currentOffset, currentOffset + pageSize - 1),
+      gmailQuery.range(currentGmailOffset, currentGmailOffset + pageSize - 1),
+      manualQuery.limit(pageSize),
     ]);
 
     const slackRows = (slackRes.data ?? []) as unknown as ConversationMapping[];
@@ -371,6 +389,11 @@ const Conversations = () => {
       }
     });
   }, []);
+
+  // Reload data when date filters change
+  useEffect(() => {
+    loadData().then((rows) => loadLookups(rows));
+  }, [dateFrom, dateTo]);
 
   // Debounce search query
   useEffect(() => {
@@ -927,6 +950,45 @@ const Conversations = () => {
                     )}
                   </PopoverContent>
                 </Popover>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={`h-9 gap-1 ${dateFrom ? "border-primary" : ""}`}>
+                      <CalendarIcon className="h-3 w-3" />
+                      {dateFrom ? format(dateFrom, "dd MMM") : "From"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar
+                      mode="single"
+                      selected={dateFrom}
+                      onSelect={setDateFrom}
+                      initialFocus
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={`h-9 gap-1 ${dateTo ? "border-primary" : ""}`}>
+                      <CalendarIcon className="h-3 w-3" />
+                      {dateTo ? format(dateTo, "dd MMM") : "To"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="end">
+                    <Calendar
+                      mode="single"
+                      selected={dateTo}
+                      onSelect={setDateTo}
+                      initialFocus
+                      className="p-3 pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+                {(dateFrom || dateTo) && (
+                  <Button variant="ghost" size="sm" className="h-9 px-2" onClick={() => { setDateFrom(undefined); setDateTo(undefined); }}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
                 <Button variant="outline" size="sm" onClick={() => { loadData().then((rows) => loadLookups(rows)); }} disabled={loading}>
                   <RefreshCw className={`mr-1 h-3 w-3 ${loading ? "animate-spin" : ""}`} />
                   Refresh
