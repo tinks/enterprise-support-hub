@@ -748,11 +748,12 @@ const Conversations = () => {
           );
         }
         return (
-        <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
-          <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-          {g.from_name || g.from_email || "—"}
-        </span>
-      );
+          <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
+            <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+            {g.from_name || g.from_email || "—"}
+          </span>
+        );
+      }
       case "message": return g.subject ? (
         <button
           onClick={() => toggleMessage(g.id)}
