@@ -8,21 +8,16 @@ const corsHeaders = {
 
 function parseSlackUrl(url: string): { channelId: string; threadTs: string } | null {
   try {
-    // Format: https://*.slack.com/archives/CXXXXXXXX/pTTTTTTTTTTTTTTTT
     const archiveMatch = url.match(/archives\/([CGD][A-Z0-9]+)\/p(\d+)/);
     if (archiveMatch) {
       const channelId = archiveMatch[1];
       const raw = archiveMatch[2];
-      // Insert dot before last 6 digits
       const threadTs = raw.slice(0, raw.length - 6) + "." + raw.slice(raw.length - 6);
-
-      // Check for explicit thread_ts param
       const urlObj = new URL(url);
       const explicitTs = urlObj.searchParams.get("thread_ts");
       return { channelId, threadTs: explicitTs || threadTs };
     }
 
-    // Format: https://app.slack.com/client/TXXXX/CXXXX/thread/CXXXX-TTTTTT.TTTTTT
     const clientMatch = url.match(/thread\/([CGD][A-Z0-9]+)-(\d+\.\d+)/);
     if (clientMatch) {
       return { channelId: clientMatch[1], threadTs: clientMatch[2] };
@@ -66,11 +61,11 @@ Deno.serve(async (req) => {
 
     const { channelId, threadTs } = parsed;
 
-    // Check for duplicates
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Check for duplicates
     const { data: existing } = await supabase
       .from("conversation_mappings")
       .select("id")
@@ -85,21 +80,38 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch thread parent message
-    const repliesRes = await fetch(
-      `https://slack.com/api/conversations.replies?channel=${channelId}&ts=${threadTs}&limit=1&inclusive=true`,
-      { headers: { Authorization: `Bearer ${slackToken}` } }
-    );
-    const repliesData = await repliesRes.json();
+    // Fetch ALL thread replies (paginated)
+    const allMessages: any[] = [];
+    let cursor: string | undefined;
+    do {
+      const params = new URLSearchParams({
+        channel: channelId,
+        ts: threadTs,
+        limit: "200",
+        inclusive: "true",
+      });
+      if (cursor) params.set("cursor", cursor);
 
-    if (!repliesData.ok) {
-      return new Response(
-        JSON.stringify({ error: `Slack API error: ${repliesData.error}` }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      const repliesRes = await fetch(
+        `https://slack.com/api/conversations.replies?${params}`,
+        { headers: { Authorization: `Bearer ${slackToken}` } }
       );
-    }
+      const repliesData = await repliesRes.json();
 
-    const parentMsg = repliesData.messages?.[0];
+      if (!repliesData.ok) {
+        return new Response(
+          JSON.stringify({ error: `Slack API error: ${repliesData.error}` }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (repliesData.messages) {
+        allMessages.push(...repliesData.messages);
+      }
+      cursor = repliesData.response_metadata?.next_cursor || undefined;
+    } while (cursor);
+
+    const parentMsg = allMessages[0];
     if (!parentMsg) {
       return new Response(
         JSON.stringify({ error: "No message found at this thread timestamp" }),
@@ -109,6 +121,30 @@ Deno.serve(async (req) => {
 
     const slackUserId = parentMsg.user || "";
     const messageText = parentMsg.text || "";
+
+    // Fetch bot user ID from settings to identify admin vs user
+    const { data: settingsRow } = await supabase
+      .from("settings")
+      .select("slack_bot_user_id")
+      .limit(1)
+      .single();
+    const botUserId = settingsRow?.slack_bot_user_id || "";
+
+    // Compute response time: first reply NOT from the original poster and NOT the bot
+    const replies = allMessages.filter(
+      (m: any) => m.ts !== threadTs && m.user !== botUserId
+    );
+    const firstAdminReply = replies.find((m: any) => m.user !== slackUserId);
+    let firstResponseSec: number | null = null;
+    if (firstAdminReply) {
+      firstResponseSec = parseFloat(firstAdminReply.ts) - parseFloat(threadTs);
+    }
+
+    // Last message timestamp for potential resolution time
+    const lastMsg = allMessages[allMessages.length - 1];
+    const threadDurationSec = lastMsg
+      ? parseFloat(lastMsg.ts) - parseFloat(threadTs)
+      : null;
 
     // Fetch channel info
     const channelRes = await fetch(
@@ -145,6 +181,9 @@ Deno.serve(async (req) => {
         conversation: inserted,
         channelName,
         slackUserId,
+        replyCount: allMessages.length - 1,
+        firstResponseSec,
+        threadDurationSec,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
