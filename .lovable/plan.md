@@ -1,49 +1,55 @@
 
 
-## Replace CSV export with PDF report
+## Enhance imported Slack threads: resolution tracking + Intercom ticket creation
 
-### What it does
-Replaces the current "Export CSV" button with an "Export PDF" button that generates a professional PDF report containing all the summary metrics and chart data currently displayed on the Stats page. The PDF will include:
+### What's possible
 
-1. **Header** — "Lovable support analytics" with filter context (source, timeframe, environment)
-2. **Summary metrics table** — Slack total, email total, resolved, escalated, open, cancelled, success rate, avg/day, median/avg resolution times (both Slack and Gmail)
-3. **Chart data as tables** — Since we can't render Recharts into a PDF easily, we export the underlying data:
-   - Conversation volume (daily Slack + Gmail counts)
-   - Hourly activity distribution
-   - Channel breakdown
-   - Daily outcomes (resolved/open/escalated/cancelled per day)
-   - Resolution time distribution buckets
-   - Customer domain breakdown (Gmail)
-   - Escalation rate trend
-4. **Insights footer** — Peak day, currently active count
+**Resolution/response time tracking** — Yes. The `import-slack-thread` edge function already calls `conversations.replies` from Slack. We can fetch ALL replies (not just the first), extract timestamps, identify the first admin reply (response time) and the last message or a resolved status (resolution time), and store these on the `conversation_mappings` row.
 
-### Technical approach
+**Intercom ticket creation** — Yes. The existing `createIntercomTicket` helper in `slack-interactions` already handles the full flow (find/create contact, create conversation, assign to inbox/agent, poll for AI reply). We can reuse the same Intercom creation logic in the import function, or add a "Create Intercom ticket" button on the conversation detail page that triggers a new edge function.
 
-Use a backend function to generate the PDF with a library, keeping it simple and reliable. Actually, since this is a client-side app and the data is already computed in the browser, we'll generate the PDF client-side using `jspdf` + `jspdf-autotable` for clean tables, and `html2canvas` to capture the actual rendered charts as images.
+### Approach
 
-**Better approach**: Use `html2canvas` to screenshot each chart card, then compose them into a PDF with `jspdf`. This gives us the actual visual charts in the PDF, not just data tables.
+#### 1. Enrich import with full thread data
 
-### Changes
+**`supabase/functions/import-slack-thread/index.ts`**
 
-**`package.json`** — Add `jspdf`, `html2canvas` dependencies
+- Fetch ALL replies from the thread (paginated `conversations.replies` with `limit=200`)
+- Identify the first non-bot admin reply timestamp → compute response time from thread start
+- Store `resolved_at` if the thread has a resolution indicator (or leave null for manual marking)
+- Optionally store reply count for quick reference
 
-**`src/pages/Stats.tsx`**
+#### 2. Add "Create Intercom ticket" action
 
-1. Replace `exportCSV` with `exportPDF` function that:
-   - Uses `html2canvas` to capture the entire stats content area (or individual chart cards)
-   - Composes captured images into a multi-page PDF using `jspdf`
-   - Adds a title header with filter context on page 1
-   - Adds summary metrics as a formatted text section
-   - Appends each chart screenshot as an image on subsequent pages
-   - Triggers download with filename `stats-report-{date}-{source}-{range}.pdf`
+**`supabase/functions/create-intercom-from-import/index.ts`** (new edge function)
 
-2. Add `ref` to the main content container to enable screenshot capture
+- Accepts `mappingId` as input
+- Loads the conversation mapping from DB
+- Looks up Slack user email via `users.info`
+- Finds or creates Intercom contact
+- Creates Intercom conversation with the original message text + full thread transcript
+- Assigns to configured inbox and agent (Sam)
+- Updates `conversation_mappings` with `intercom_conversation_id` and `intercom_contact_id`
+- Returns success with Intercom conversation ID
 
-3. Change button label from "Export CSV" to "Export PDF" and update icon
+**`supabase/config.toml`** — Add `verify_jwt = false` for the new function
 
-**`src/pages/FlowDiagram.tsx`** — Update documentation to reflect PDF export instead of CSV
+#### 3. UI: add "Create Intercom ticket" button
 
-### Files to edit
-- `src/pages/Stats.tsx` — replace CSV export with PDF generation
-- `src/pages/FlowDiagram.tsx` — document change
+**`src/pages/ConversationDetail.tsx`**
+
+- For imported conversations (has `slack_channel_id`/`slack_thread_ts` but no `intercom_conversation_id`), show a "Create Intercom ticket" button
+- On click, call the new edge function
+- On success, reload the conversation to show the Intercom link
+
+#### 4. Documentation
+
+**`src/pages/FlowDiagram.tsx`** — Document that imported threads can now create Intercom tickets and track response/resolution times
+
+### Files to create/edit
+- `supabase/functions/import-slack-thread/index.ts` — fetch full thread, compute timing metrics
+- `supabase/functions/create-intercom-from-import/index.ts` (new)
+- `supabase/config.toml` — register new function
+- `src/pages/ConversationDetail.tsx` — add "Create Intercom ticket" button
+- `src/pages/FlowDiagram.tsx` — document changes
 
