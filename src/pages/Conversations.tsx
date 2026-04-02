@@ -51,6 +51,7 @@ interface GmailConversation {
   is_bug: boolean;
   is_feature_request: boolean;
   intercom_conversation_id: string | null;
+  owner: string | null;
 }
 
 interface ManualConversation {
