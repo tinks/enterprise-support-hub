@@ -766,7 +766,7 @@ const ConversationDetail = () => {
                 </Select>
               </div>
               <div className="flex items-center justify-between">
-                <Label className="text-sm text-muted-foreground">Bug</Label>
+                <Label className="text-sm text-muted-foreground">Incident</Label>
                 <Switch checked={current.is_bug} onCheckedChange={() => toggleField("is_bug")} />
               </div>
               <div className="flex items-center justify-between">

@@ -757,7 +757,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     test: "Test",
     resolved: "Resolved",
     product_area: "Product area",
-    bug: "Bug",
+    bug: "Incident",
     classification: "Classification",
   };
 
