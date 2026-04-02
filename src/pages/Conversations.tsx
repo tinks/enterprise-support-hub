@@ -454,18 +454,6 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     }
   };
 
-  const toggleFeatureRequest = async (id: string, currentValue: boolean, source: "slack" | "gmail") => {
-    const newValue = !currentValue;
-    const table = source === "slack" ? "conversation_mappings" : "gmail_conversations";
-    const setState = source === "slack" ? setMappings : setGmailRows;
-
-    setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, is_feature_request: newValue } : m));
-    const { error } = await supabase.from(table).update({ is_feature_request: newValue } as any).eq("id", id);
-    if (error) {
-      setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, is_feature_request: currentValue } : m));
-      toast.error("Failed to update feature request flag");
-    }
-  };
 
   const updateClassification = async (id: string, value: string, source: "slack" | "gmail" | "manual") => {
     const newValue = value === "clear" ? null : value;
