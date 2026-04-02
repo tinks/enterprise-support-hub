@@ -32,6 +32,7 @@ interface ConversationMapping {
   is_bug: boolean;
   is_feature_request: boolean;
   owner: string | null;
+  classification: string | null;
 }
 
 interface GmailConversation {
@@ -52,6 +53,7 @@ interface GmailConversation {
   is_feature_request: boolean;
   intercom_conversation_id: string | null;
   owner: string | null;
+  classification: string | null;
 }
 
 interface ManualConversation {
@@ -68,6 +70,7 @@ interface ManualConversation {
   created_at: string;
   intercom_conversation_id: string | null;
   owner: string | null;
+  classification: string | null;
 }
 
 type SourceFilter = "all" | "slack" | "slack_import" | "gmail" | "manual";
@@ -115,7 +118,9 @@ const getCET = (dateStr: string) => {
   };
 };
 
-const ALL_COLUMNS = ["id", "source", "sent_by", "message", "channel", "link", "intercom", "status", "owner", "date", "test", "resolved", "product_area", "bug", "feature_req"] as const;
+const CLASSIFICATION_OPTIONS = ["Issue", "Configuration", "Bug", "FR", "Question"] as const;
+
+const ALL_COLUMNS = ["id", "source", "sent_by", "message", "channel", "link", "intercom", "status", "owner", "date", "test", "resolved", "product_area", "bug", "feature_req", "classification"] as const;
 type ColKey = typeof ALL_COLUMNS[number];
 
 type OwnerFilter = "all" | "Joel" | "Kristina" | "unassigned";
@@ -462,6 +467,20 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     }
   };
 
+  const updateClassification = async (id: string, value: string, source: "slack" | "gmail" | "manual") => {
+    const newValue = value === "clear" ? null : value;
+    const table = source === "slack" ? "conversation_mappings" : source === "gmail" ? "gmail_conversations" : "manual_conversations";
+    if (source === "slack") {
+      setMappings((prev) => prev.map((m) => m.id === id ? { ...m, classification: newValue } : m));
+    } else if (source === "gmail") {
+      setGmailRows((prev) => prev.map((g) => g.id === id ? { ...g, classification: newValue } : g));
+    } else {
+      setManualRows((prev) => prev.map((mc) => mc.id === id ? { ...mc, classification: newValue } : mc));
+    }
+    const { error } = await supabase.from(table).update({ classification: newValue } as any).eq("id", id);
+    if (error) toast.error("Failed to update classification");
+  };
+
   const loadLookups = async (rows: ConversationMapping[]) => {
     const usersRes = await supabase.functions.invoke("list-slack-users");
     if (usersRes.data?.users) {
@@ -752,6 +771,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     product_area: "Product area",
     bug: "Bug",
     feature_req: "FR",
+    classification: "Classification",
   };
 
   const renderSlackCell = (col: ColKey, m: ConversationMapping): ReactNode => {
@@ -984,6 +1004,17 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
           aria-label="Toggle feature request"
         />
       );
+      case "classification": return (
+        <Select value={g.classification || ""} onValueChange={(v) => updateClassification(g.id, v, "gmail")}>
+          <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent>
+            {CLASSIFICATION_OPTIONS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {g.classification && <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>}
+          </SelectContent>
+        </Select>
+      );
     }
   };
 
@@ -1114,6 +1145,17 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
           aria-label="Toggle feature request"
           onClick={(e) => e.stopPropagation()}
         />
+      );
+      case "classification": return (
+        <Select value={mc.classification || ""} onValueChange={(v) => updateClassification(mc.id, v, "manual")}>
+          <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent>
+            {CLASSIFICATION_OPTIONS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {mc.classification && <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>}
+          </SelectContent>
+        </Select>
       );
     }
   };

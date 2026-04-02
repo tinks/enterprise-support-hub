@@ -127,6 +127,10 @@ const ROW_H = 380;
 /*  focused conversation table scoped to the owner. Accessible from   */
 /*  the top nav bar.                                                   */
 /* ------------------------------------------------------------------ */
+/*  Classification column: single-select dropdown (Issue, Configuration,*/
+/*  Bug, FR, Question) on all three tables. Separate from the Bug      */
+/*  toggle which remains as-is. Stored in `classification` text column.*/
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */

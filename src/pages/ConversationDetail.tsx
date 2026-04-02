@@ -36,6 +36,7 @@ interface ConversationMapping {
   created_at: string;
   updated_at: string;
   owner: string | null;
+  classification: string | null;
 }
 
 interface GmailConv {
@@ -58,6 +59,7 @@ interface GmailConv {
   to_emails: string | null;
   cc_emails: string | null;
   owner: string | null;
+  classification: string | null;
 }
 
 interface ManualConv {
@@ -75,9 +77,11 @@ interface ManualConv {
   created_at: string;
   updated_at: string;
   owner: string | null;
+  classification: string | null;
 }
 
 const OWNER_OPTIONS = ["Joel", "Kristina"] as const;
+const CLASSIFICATION_OPTIONS = ["Issue", "Configuration", "Bug", "FR", "Question"] as const;
 
 interface ManualMessage {
   id: string;
@@ -300,6 +304,17 @@ const ConversationDetail = () => {
     else if (source === "gmail") setGmailConv({ ...gmailConv!, owner: newVal });
     else setManualConv({ ...manualConv!, owner: newVal });
     toast.success(`Owner updated`);
+  };
+
+  const updateClassification = async (value: string) => {
+    const current = getCurrentData();
+    if (!current) return;
+    const newVal = value === "none" ? null : value;
+    await supabase.from(getTable()).update({ classification: newVal } as any).eq("id", current.id);
+    if (source === "slack") setConv({ ...conv!, classification: newVal });
+    else if (source === "gmail") setGmailConv({ ...gmailConv!, classification: newVal });
+    else setManualConv({ ...manualConv!, classification: newVal });
+    toast.success(`Classification updated`);
   };
 
   const createIntercom = async () => {
@@ -736,6 +751,20 @@ const ConversationDetail = () => {
               <CardTitle className="text-sm">Classification</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm text-muted-foreground">Classification</Label>
+                <Select value={current.classification || "none"} onValueChange={updateClassification}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {CLASSIFICATION_OPTIONS.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="flex items-center justify-between">
                 <Label className="text-sm text-muted-foreground">Bug</Label>
                 <Switch checked={current.is_bug} onCheckedChange={() => toggleField("is_bug")} />
