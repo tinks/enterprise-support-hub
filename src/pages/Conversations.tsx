@@ -976,13 +976,6 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
           aria-label="Toggle bug"
         />
       );
-      case "feature_req": return (
-        <Switch
-          checked={g.is_feature_request}
-          onCheckedChange={() => toggleFeatureRequest(g.id, g.is_feature_request, "gmail")}
-          aria-label="Toggle feature request"
-        />
-      );
       case "classification": return (
         <Select value={g.classification || ""} onValueChange={(v) => updateClassification(g.id, v, "gmail")}>
           <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
