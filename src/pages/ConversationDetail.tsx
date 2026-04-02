@@ -35,6 +35,7 @@ interface ConversationMapping {
   original_message_text: string;
   created_at: string;
   updated_at: string;
+  owner: string | null;
 }
 
 interface GmailConv {
@@ -56,6 +57,7 @@ interface GmailConv {
   resolved_at: string | null;
   to_emails: string | null;
   cc_emails: string | null;
+  owner: string | null;
 }
 
 interface ManualConv {
@@ -72,7 +74,10 @@ interface ManualConv {
   intercom_conversation_id: string | null;
   created_at: string;
   updated_at: string;
+  owner: string | null;
 }
+
+const OWNER_OPTIONS = ["Joel", "Kristina"] as const;
 
 interface ManualMessage {
   id: string;
@@ -274,6 +279,17 @@ const ConversationDetail = () => {
     else if (source === "gmail") setGmailConv({ ...gmailConv!, product_area: newVal });
     else setManualConv({ ...manualConv!, product_area: newVal });
     toast.success(`Product area updated`);
+  };
+
+  const updateOwner = async (value: string) => {
+    const current = getCurrentData();
+    if (!current) return;
+    const newVal = value === "none" ? null : value;
+    await supabase.from(getTable()).update({ owner: newVal } as any).eq("id", current.id);
+    if (source === "slack") setConv({ ...conv!, owner: newVal });
+    else if (source === "gmail") setGmailConv({ ...gmailConv!, owner: newVal });
+    else setManualConv({ ...manualConv!, owner: newVal });
+    toast.success(`Owner updated`);
   };
 
   const createIntercom = async () => {
@@ -728,6 +744,20 @@ const ConversationDetail = () => {
                     <SelectItem value="none">None</SelectItem>
                     {productAreas.map((area) => (
                       <SelectItem key={area} value={area}>{area}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm text-muted-foreground">Owner</Label>
+                <Select value={current.owner || "none"} onValueChange={updateOwner}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Unassigned</SelectItem>
+                    {OWNER_OPTIONS.map((o) => (
+                      <SelectItem key={o} value={o}>{o}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

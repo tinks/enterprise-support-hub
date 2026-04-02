@@ -117,6 +117,11 @@ const ROW_H = 380;
 /*  fetched from the Intercom API. Duplicates checked across all       */
 /*  three tables. Badge shows "Intercom import" in conversations list. */
 /* ------------------------------------------------------------------ */
+/*  Owner tracking: each conversation (Slack, Gmail, Manual) has an    */
+/*  owner column (Joel or Kristina). Assignable inline from the        */
+/*  Conversations table and the detail view Classification card.       */
+/*  Owner filter dropdown lets users filter by owner or unassigned.    */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */

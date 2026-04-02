@@ -54,6 +54,7 @@ export type Database = {
           last_intercom_part_id: string | null
           last_processed_event_ts: string | null
           original_message_text: string
+          owner: string | null
           product_area: string | null
           prompt_message_ts: string | null
           reminder_sent_at: string | null
@@ -76,6 +77,7 @@ export type Database = {
           last_intercom_part_id?: string | null
           last_processed_event_ts?: string | null
           original_message_text?: string
+          owner?: string | null
           product_area?: string | null
           prompt_message_ts?: string | null
           reminder_sent_at?: string | null
@@ -98,6 +100,7 @@ export type Database = {
           last_intercom_part_id?: string | null
           last_processed_event_ts?: string | null
           original_message_text?: string
+          owner?: string | null
           product_area?: string | null
           prompt_message_ts?: string | null
           reminder_sent_at?: string | null
@@ -144,6 +147,7 @@ export type Database = {
           is_bug: boolean
           is_feature_request: boolean
           is_test: boolean
+          owner: string | null
           product_area: string | null
           received_at: string | null
           resolved_at: string | null
@@ -164,6 +168,7 @@ export type Database = {
           is_bug?: boolean
           is_feature_request?: boolean
           is_test?: boolean
+          owner?: string | null
           product_area?: string | null
           received_at?: string | null
           resolved_at?: string | null
@@ -184,6 +189,7 @@ export type Database = {
           is_bug?: boolean
           is_feature_request?: boolean
           is_test?: boolean
+          owner?: string | null
           product_area?: string | null
           received_at?: string | null
           resolved_at?: string | null
@@ -261,6 +267,7 @@ export type Database = {
           is_feature_request: boolean
           is_test: boolean
           link: string | null
+          owner: string | null
           product_area: string | null
           source: string
           status: string
@@ -276,6 +283,7 @@ export type Database = {
           is_feature_request?: boolean
           is_test?: boolean
           link?: string | null
+          owner?: string | null
           product_area?: string | null
           source?: string
           status?: string
@@ -291,6 +299,7 @@ export type Database = {
           is_feature_request?: boolean
           is_test?: boolean
           link?: string | null
+          owner?: string | null
           product_area?: string | null
           source?: string
           status?: string

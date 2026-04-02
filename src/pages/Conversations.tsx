@@ -31,6 +31,7 @@ interface ConversationMapping {
   product_area: string | null;
   is_bug: boolean;
   is_feature_request: boolean;
+  owner: string | null;
 }
 
 interface GmailConversation {
@@ -50,6 +51,7 @@ interface GmailConversation {
   is_bug: boolean;
   is_feature_request: boolean;
   intercom_conversation_id: string | null;
+  owner: string | null;
 }
 
 interface ManualConversation {
@@ -65,6 +67,7 @@ interface ManualConversation {
   product_area: string | null;
   created_at: string;
   intercom_conversation_id: string | null;
+  owner: string | null;
 }
 
 type SourceFilter = "all" | "slack" | "slack_import" | "gmail" | "manual";
@@ -102,8 +105,11 @@ const getCET = (dateStr: string) => {
   };
 };
 
-const ALL_COLUMNS = ["id", "source", "sent_by", "message", "channel", "link", "intercom", "status", "date", "test", "resolved", "product_area", "bug", "feature_req"] as const;
+const ALL_COLUMNS = ["id", "source", "sent_by", "message", "channel", "link", "intercom", "status", "owner", "date", "test", "resolved", "product_area", "bug", "feature_req"] as const;
 type ColKey = typeof ALL_COLUMNS[number];
+
+type OwnerFilter = "all" | "Joel" | "Kristina" | "unassigned";
+const OWNER_OPTIONS = ["Joel", "Kristina"] as const;
 
 const COLUMN_STORAGE_KEY = "conv-column-order";
 
@@ -129,6 +135,8 @@ const Conversations = () => {
   const savedSource = localStorage.getItem("conv-source-filter") as SourceFilter | null;
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>(paramSource || savedSource || "all");
   const [searchQuery, setSearchQuery] = useState("");
+  const savedOwner = localStorage.getItem("conv-owner-filter") as OwnerFilter | null;
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(savedOwner || "all");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [searchResults, setSearchResults] = useState<{ slack: ConversationMapping[]; gmail: GmailConversation[]; manual: ManualConversation[] } | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -301,6 +309,7 @@ const Conversations = () => {
 
   useEffect(() => { localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(columnOrder)); }, [columnOrder]);
   useEffect(() => { localStorage.setItem("conv-source-filter", sourceFilter); }, [sourceFilter]);
+  useEffect(() => { localStorage.setItem("conv-owner-filter", ownerFilter); }, [ownerFilter]);
   useEffect(() => { localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses]);
 
   const handleDragStart = useCallback((col: ColKey) => { dragCol.current = col; }, []);
@@ -397,6 +406,20 @@ const Conversations = () => {
       setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, product_area: value === "clear" ? value : null } : m));
       toast.error("Failed to update product area");
     }
+  };
+
+  const updateOwner = async (id: string, value: string, source: "slack" | "gmail" | "manual") => {
+    const newValue = value === "clear" ? null : value;
+    const table = source === "slack" ? "conversation_mappings" : source === "gmail" ? "gmail_conversations" : "manual_conversations";
+    if (source === "slack") {
+      setMappings((prev) => prev.map((m) => m.id === id ? { ...m, owner: newValue } : m));
+    } else if (source === "gmail") {
+      setGmailRows((prev) => prev.map((g) => g.id === id ? { ...g, owner: newValue } : g));
+    } else {
+      setManualRows((prev) => prev.map((mc) => mc.id === id ? { ...mc, owner: newValue } : mc));
+    }
+    const { error } = await supabase.from(table).update({ owner: newValue } as any).eq("id", id);
+    if (error) toast.error("Failed to update owner");
   };
 
   const toggleBug = async (id: string, currentValue: boolean, source: "slack" | "gmail") => {
@@ -668,20 +691,29 @@ const Conversations = () => {
       });
     }
 
+    // Apply owner filter
+    const ownerFiltered = ownerFilter === "all"
+      ? rows
+      : rows.filter((r) => {
+          const o = (r.data as any).owner as string | null;
+          if (ownerFilter === "unassigned") return !o;
+          return o === ownerFilter;
+        });
+
     // Apply status filter (skip when searching — show all matches)
     if (!searchResults) {
       const filtered = hiddenStatuses.size > 0
-        ? rows.filter((r) => {
+        ? ownerFiltered.filter((r) => {
             if (hiddenStatuses.has("test") && r.data.is_test) return false;
             if (hiddenStatuses.has(r.data.status)) return false;
             return true;
           })
-        : rows;
+        : ownerFiltered;
       return filtered;
     }
 
-    return rows;
-  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, hiddenStatuses]);
+    return ownerFiltered;
+  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, hiddenStatuses, ownerFilter]);
 
   const canLoadMore =
     !isHeatmapMode && !searchResults && (
@@ -699,6 +731,7 @@ const Conversations = () => {
     link: "Link",
     intercom: "Intercom",
     status: "Status",
+    owner: "Owner",
     date: "Date",
     test: "Test",
     resolved: "Resolved",
@@ -779,6 +812,17 @@ const Conversations = () => {
             {m.product_area && (
               <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>
             )}
+          </SelectContent>
+        </Select>
+      );
+      case "owner": return (
+        <Select value={m.owner || ""} onValueChange={(v) => updateOwner(m.id, v, "slack")}>
+          <SelectTrigger className="h-8 w-[110px] text-xs" onClick={(e) => e.stopPropagation()}>
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent>
+            {OWNER_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+            {m.owner && <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>}
           </SelectContent>
         </Select>
       );
@@ -901,6 +945,17 @@ const Conversations = () => {
           </SelectContent>
         </Select>
       );
+      case "owner": return (
+        <Select value={g.owner || ""} onValueChange={(v) => updateOwner(g.id, v, "gmail")}>
+          <SelectTrigger className="h-8 w-[110px] text-xs" onClick={(e) => e.stopPropagation()}>
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent>
+            {OWNER_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+            {g.owner && <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>}
+          </SelectContent>
+        </Select>
+      );
       case "bug": return (
         <Switch
           checked={g.is_bug}
@@ -1019,6 +1074,17 @@ const Conversations = () => {
           onClick={(e) => e.stopPropagation()}
         />
       );
+      case "owner": return (
+        <Select value={mc.owner || ""} onValueChange={(v) => updateOwner(mc.id, v, "manual")}>
+          <SelectTrigger className="h-8 w-[110px] text-xs" onClick={(e) => e.stopPropagation()}>
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent>
+            {OWNER_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+            {mc.owner && <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>}
+          </SelectContent>
+        </Select>
+      );
       case "feature_req": return (
         <Switch
           checked={mc.is_feature_request}
@@ -1103,6 +1169,17 @@ const Conversations = () => {
                     <SelectItem value="slack_import">Slack import</SelectItem>
                     <SelectItem value="gmail">Gmail only</SelectItem>
                     <SelectItem value="manual">Manual only</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v as OwnerFilter)}>
+                  <SelectTrigger className="w-[120px] h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All owners</SelectItem>
+                    <SelectItem value="Joel">Joel</SelectItem>
+                    <SelectItem value="Kristina">Kristina</SelectItem>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
                   </SelectContent>
                 </Select>
                 <Popover>
