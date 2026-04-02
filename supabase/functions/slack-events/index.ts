@@ -569,11 +569,12 @@ Deno.serve(async (req) => {
 
         // If no rows were claimed, another request already processed this event
         if (!claimed || claimed.length === 0) {
-          console.log(`Dedup: event ${eventTs} already claimed for thread ${threadTs}`);
+          console.log(`[DEDUP] Event ${eventTs} already claimed for thread ${threadTs} in ${channelId}`);
           return new Response(JSON.stringify({ ok: true }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
+        console.log(`[DEDUP] Successfully claimed event ${eventTs} for thread ${threadTs} in ${channelId} (mapping=${mapping.id}, status=${mapping.status})`);
 
         // ---- Inline: forward reply to Intercom (must complete before response) ----
         console.log(`[INLINE] Processing thread reply ${eventTs} in ${channelId}/${threadTs} from ${event.user}`);
