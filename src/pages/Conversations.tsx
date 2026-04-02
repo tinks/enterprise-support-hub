@@ -1070,7 +1070,18 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         </a>
       ) : <span className="text-xs text-muted-foreground">—</span>;
       case "intercom": return renderIntercomCell(mc.id, mc.intercom_conversation_id, "manual", true, (e) => createIntercomTicket(e, mc.id, "manual"), creatingTicket.has(mc.id));
-      case "status": return <Badge variant={statusColor(mc.status)}>{statusLabel(mc.status)}</Badge>;
+      case "status": return (
+        <Select value={mc.status} onValueChange={(v) => updateStatus(mc.id, v, "manual")}>
+          <SelectTrigger className="h-8 w-[150px] text-xs" onClick={(e) => e.stopPropagation()}>
+            <SelectValue>{statusLabel(mc.status)}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_OPTIONS.map((s) => (
+              <SelectItem key={s} value={s}>{statusLabel(s)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
       case "date": return <span className="text-xs text-muted-foreground">{new Date(mc.created_at).toLocaleString()}</span>;
       case "test": return (
         <Switch
