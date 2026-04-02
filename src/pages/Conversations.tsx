@@ -466,6 +466,20 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     }
   };
 
+  const updateClassification = async (id: string, value: string, source: "slack" | "gmail" | "manual") => {
+    const newValue = value === "clear" ? null : value;
+    const table = source === "slack" ? "conversation_mappings" : source === "gmail" ? "gmail_conversations" : "manual_conversations";
+    if (source === "slack") {
+      setMappings((prev) => prev.map((m) => m.id === id ? { ...m, classification: newValue } : m));
+    } else if (source === "gmail") {
+      setGmailRows((prev) => prev.map((g) => g.id === id ? { ...g, classification: newValue } : g));
+    } else {
+      setManualRows((prev) => prev.map((mc) => mc.id === id ? { ...mc, classification: newValue } : mc));
+    }
+    const { error } = await supabase.from(table).update({ classification: newValue } as any).eq("id", id);
+    if (error) toast.error("Failed to update classification");
+  };
+
   const loadLookups = async (rows: ConversationMapping[]) => {
     const usersRes = await supabase.functions.invoke("list-slack-users");
     if (usersRes.data?.users) {
