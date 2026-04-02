@@ -711,7 +711,7 @@ const ConversationDetail = () => {
                 >
                   #{current.id.slice(0, 8)}
                 </CardTitle>
-                <Badge variant={statusColor(current.status)}>{current.status}</Badge>
+                <Badge variant={statusColor(current.status)}>{statusLabel(current.status)}</Badge>
                 {current.is_test && <Badge variant="outline">test</Badge>}
                 <Badge variant="secondary" className="text-xs capitalize">{source}</Badge>
               </div>
