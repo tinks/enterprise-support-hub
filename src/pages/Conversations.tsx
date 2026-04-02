@@ -70,6 +70,7 @@ interface ManualConversation {
   created_at: string;
   intercom_conversation_id: string | null;
   owner: string | null;
+  classification: string | null;
 }
 
 type SourceFilter = "all" | "slack" | "slack_import" | "gmail" | "manual";
