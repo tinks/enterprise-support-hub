@@ -928,7 +928,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         </a>
       ) : <span className="text-xs text-muted-foreground">—</span>;
       case "intercom": return renderIntercomCell(g.id, g.intercom_conversation_id, "gmail", true, (e) => createIntercomTicket(e, g.id, "gmail"), creatingTicket.has(g.id));
-      case "status": return <Badge variant={g.status === "resolved" ? "secondary" : "default"}>{g.status || "open"}</Badge>;
+      case "status": return <Badge variant={statusColor(g.status || "open")}>{statusLabel(g.status || "open")}</Badge>;
       case "date": return <span className="text-xs text-muted-foreground">{g.received_at ? new Date(g.received_at).toLocaleString() : new Date(g.created_at).toLocaleString()}</span>;
       case "test": return (
         <Switch
