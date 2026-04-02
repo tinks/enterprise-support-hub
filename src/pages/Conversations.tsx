@@ -921,7 +921,9 @@ const Conversations = () => {
   const renderManualCell = (col: ColKey, mc: ManualConversation): ReactNode => {
     switch (col) {
       case "id": return <span className="text-xs text-muted-foreground font-mono">{mc.id.slice(0, 8)}</span>;
-      case "source": return <Badge variant="outline" className="text-xs capitalize">{mc.source}</Badge>;
+      case "source": return mc.source === "intercom"
+        ? <Badge variant="default" className="text-xs">Intercom import</Badge>
+        : <Badge variant="outline" className="text-xs capitalize">{mc.source}</Badge>;
       case "sent_by": return (
         <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
           <User className="h-3.5 w-3.5 text-muted-foreground" />

@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.create-intercom-from-import]
 verify_jwt = false
+
+[functions.import-intercom-ticket]
+verify_jwt = false

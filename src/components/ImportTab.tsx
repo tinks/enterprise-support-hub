@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ExternalLink, Import, Loader2 } from "lucide-react";
+import { ExternalLink, Import, Loader2, Ticket } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface ImportedConversation {
@@ -21,6 +21,8 @@ interface ImportedConversation {
 const ImportTab = () => {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
+  const [intercomUrl, setIntercomUrl] = useState("");
+  const [intercomLoading, setIntercomLoading] = useState(false);
   const [recentImports, setRecentImports] = useState<ImportedConversation[]>([]);
   const navigate = useNavigate();
 
@@ -53,8 +55,6 @@ const ImportTab = () => {
       });
 
       if (error) {
-        // supabase.functions.invoke wraps non-2xx as FunctionsHttpError
-        // Parse the response body from the error context to get structured data
         let errorBody: any = data;
         if (!errorBody && error?.context?.body) {
           try {
@@ -100,6 +100,70 @@ const ImportTab = () => {
     }
   };
 
+  const handleIntercomImport = async () => {
+    const trimmed = intercomUrl.trim();
+    if (!trimmed) {
+      toast.error("Please paste an Intercom URL");
+      return;
+    }
+    if (!trimmed.includes("/conversation/")) {
+      toast.error("Invalid URL — expected a link containing /conversation/");
+      return;
+    }
+
+    setIntercomLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("import-intercom-ticket", {
+        body: { url: trimmed },
+      });
+
+      if (error) {
+        let errorBody: any = data;
+        if (!errorBody && error?.context?.body) {
+          try {
+            const reader = error.context.body.getReader();
+            const { value } = await reader.read();
+            errorBody = JSON.parse(new TextDecoder().decode(value));
+          } catch {}
+        }
+        if (!errorBody) {
+          try {
+            errorBody = JSON.parse(error.message);
+          } catch {}
+        }
+
+        if (errorBody?.existingId) {
+          const source = errorBody.existingSource || "manual";
+          toast.error("Already imported", {
+            description: "This Intercom conversation already exists.",
+            action: {
+              label: "View",
+              onClick: () => navigate(`/conversations/${errorBody.existingId}?source=${source}`),
+            },
+          });
+        } else {
+          toast.error(errorBody?.error || error.message || "Import failed");
+        }
+        return;
+      }
+
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      toast.success("Intercom ticket imported", {
+        description: data.subject || "Conversation saved",
+      });
+      setIntercomUrl("");
+      navigate(`/conversations/${data.id}?source=manual`);
+    } catch (err) {
+      toast.error("Failed to import Intercom ticket");
+    } finally {
+      setIntercomLoading(false);
+    }
+  };
+
   const buildSlackLink = (channelId: string, threadTs: string) => {
     const tsNoDecimal = threadTs.replace(".", "");
     return `https://slack.com/archives/${channelId}/p${tsNoDecimal}`;
@@ -128,6 +192,34 @@ const ImportTab = () => {
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Import className="h-4 w-4" />
+              )}
+              Import
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Import Intercom ticket</CardTitle>
+          <CardDescription>
+            Paste an Intercom conversation URL to import it
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2">
+            <Input
+              placeholder="https://app.intercom.com/.../conversation/215473724302724"
+              value={intercomUrl}
+              onChange={(e) => setIntercomUrl(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleIntercomImport()}
+              className="flex-1"
+            />
+            <Button onClick={handleIntercomImport} disabled={intercomLoading}>
+              {intercomLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Ticket className="h-4 w-4" />
               )}
               Import
             </Button>
