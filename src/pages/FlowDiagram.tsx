@@ -99,6 +99,18 @@ const ROW_H = 380;
 /*  Manual sources. Uses explicit edit button instead of double-click  */
 /*  to avoid conflicts with Gmail row expand/collapse behavior.        */
 /* ------------------------------------------------------------------ */
+/*  Multi-source detail view: /conversations/:id accepts ?source=      */
+/*  gmail or ?source=manual query param. Gmail detail shows email      */
+/*  metadata (from, to, cc, subject, snippet). Manual detail shows     */
+/*  contact info and full message transcript. All sources support      */
+/*  classification, status changes, and Intercom ticket creation.      */
+/* ------------------------------------------------------------------ */
+/*  Create Intercom ticket: the create-intercom-from-import edge       */
+/*  function accepts { mappingId, source } where source can be         */
+/*  "slack" (default), "gmail", or "manual". Gmail uses from_email     */
+/*  for contact lookup; manual uses contact_name. The "Create" button  */
+/*  appears in the Intercom column for all sources without an ID.      */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */
