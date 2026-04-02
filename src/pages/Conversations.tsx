@@ -113,7 +113,11 @@ const OWNER_OPTIONS = ["Joel", "Kristina"] as const;
 
 const COLUMN_STORAGE_KEY = "conv-column-order";
 
-const Conversations = () => {
+interface ConversationsProps {
+  forceOwner?: string;
+}
+
+const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const paramDay = searchParams.get("day");
