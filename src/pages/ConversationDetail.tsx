@@ -281,6 +281,17 @@ const ConversationDetail = () => {
     toast.success(`Product area updated`);
   };
 
+  const updateOwner = async (value: string) => {
+    const current = getCurrentData();
+    if (!current) return;
+    const newVal = value === "none" ? null : value;
+    await supabase.from(getTable()).update({ owner: newVal } as any).eq("id", current.id);
+    if (source === "slack") setConv({ ...conv!, owner: newVal });
+    else if (source === "gmail") setGmailConv({ ...gmailConv!, owner: newVal });
+    else setManualConv({ ...manualConv!, owner: newVal });
+    toast.success(`Owner updated`);
+  };
+
   const createIntercom = async () => {
     const current = getCurrentData();
     if (!current) return;
