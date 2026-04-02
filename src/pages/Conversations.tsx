@@ -838,7 +838,7 @@ const Conversations = () => {
           Email <ExternalLink className="h-3 w-3" />
         </a>
       ) : <span className="text-xs text-muted-foreground">—</span>;
-      case "intercom": return <span className="text-xs text-muted-foreground">—</span>;
+      case "intercom": return renderIntercomCell(g.id, g.intercom_conversation_id, "gmail");
       case "status": return <Badge variant={g.status === "resolved" ? "secondary" : "default"}>{g.status || "open"}</Badge>;
       case "date": return <span className="text-xs text-muted-foreground">{g.received_at ? new Date(g.received_at).toLocaleString() : new Date(g.created_at).toLocaleString()}</span>;
       case "test": return (
