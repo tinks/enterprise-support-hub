@@ -153,6 +153,7 @@ const ManualLogTab = () => {
                 <SelectContent>
                   <SelectItem value="teams">Teams</SelectItem>
                   <SelectItem value="phone">Phone</SelectItem>
+                  <SelectItem value="slack_dm">Slack DM/Private chat</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
