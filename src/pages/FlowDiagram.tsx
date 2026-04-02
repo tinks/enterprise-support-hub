@@ -90,6 +90,10 @@ const ROW_H = 380;
 /*  subject after stripping Re:/Fwd:) are collapsed into a single row  */
 /*  showing count badge and unique senders. Click to expand sub-rows.  */
 /* ------------------------------------------------------------------ */
+/*  Intercom column: double-click any Intercom cell to inline-edit the */
+/*  conversation ID. Works for Slack, Gmail, and Manual sources.       */
+/*  Gmail and Manual tables have intercom_conversation_id columns.     */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */
