@@ -140,12 +140,12 @@ const Conversations = () => {
   const [editingIntercomId, setEditingIntercomId] = useState<string | null>(null);
   const [editingIntercomValue, setEditingIntercomValue] = useState("");
 
-  const createIntercomTicket = async (e: React.MouseEvent, mappingId: string) => {
+  const createIntercomTicket = async (e: React.MouseEvent, rowId: string, source: "slack" | "gmail" | "manual" = "slack") => {
     e.stopPropagation();
-    setCreatingTicket((prev) => new Set(prev).add(mappingId));
+    setCreatingTicket((prev) => new Set(prev).add(rowId));
     try {
       const { data, error } = await supabase.functions.invoke("create-intercom-from-import", {
-        body: { mappingId },
+        body: { mappingId: rowId, source },
       });
       if (error) {
         toast.error("Failed to create Intercom ticket");
@@ -153,9 +153,19 @@ const Conversations = () => {
       }
       if (data?.intercomConversationId) {
         toast.success("Intercom ticket created");
-        setMappings((prev) => prev.map((m) => m.id === mappingId ? { ...m, intercom_conversation_id: data.intercomConversationId, intercom_ticket_id: data.ticketId || null } : m));
-        if (searchResults) {
-          setSearchResults((prev) => prev ? { ...prev, slack: prev.slack.map((m) => m.id === mappingId ? { ...m, intercom_conversation_id: data.intercomConversationId, intercom_ticket_id: data.ticketId || null } : m) } : prev);
+        if (source === "slack") {
+          setMappings((prev) => prev.map((m) => m.id === rowId ? { ...m, intercom_conversation_id: data.intercomConversationId, intercom_ticket_id: data.ticketId || null } : m));
+          if (searchResults) {
+            setSearchResults((prev) => prev ? { ...prev, slack: prev.slack.map((m) => m.id === rowId ? { ...m, intercom_conversation_id: data.intercomConversationId, intercom_ticket_id: data.ticketId || null } : m) } : prev);
+          }
+        } else if (source === "gmail") {
+          const updater = (g: GmailConversation) => g.id === rowId ? { ...g, intercom_conversation_id: data.intercomConversationId } : g;
+          setGmailRows((prev) => prev.map(updater));
+          if (searchResults) setSearchResults((prev) => prev ? { ...prev, gmail: prev.gmail.map(updater) } : prev);
+        } else {
+          const updater = (mc: ManualConversation) => mc.id === rowId ? { ...mc, intercom_conversation_id: data.intercomConversationId } : mc;
+          setManualRows((prev) => prev.map(updater));
+          if (searchResults) setSearchResults((prev) => prev ? { ...prev, manual: prev.manual.map(updater) } : prev);
         }
       } else {
         toast.error(data?.error || "Failed to create ticket");
@@ -163,7 +173,7 @@ const Conversations = () => {
     } catch {
       toast.error("Failed to create Intercom ticket");
     } finally {
-      setCreatingTicket((prev) => { const next = new Set(prev); next.delete(mappingId); return next; });
+      setCreatingTicket((prev) => { const next = new Set(prev); next.delete(rowId); return next; });
     }
   };
 
