@@ -245,7 +245,7 @@ const Conversations = () => {
       );
     }
     return (
-      <span className="group/intercom inline-flex items-center gap-1 text-xs text-muted-foreground cursor-pointer" onDoubleClick={handleDoubleClick}>
+      <span className="group/intercom inline-flex items-center gap-1 text-xs text-muted-foreground cursor-pointer" onDoubleClick={handleDoubleClick} onClick={(e) => e.stopPropagation()}>
         —
         <Pencil className="h-3 w-3 opacity-0 group-hover/intercom:opacity-100 transition-opacity" />
       </span>
