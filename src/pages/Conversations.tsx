@@ -1171,6 +1171,17 @@ const Conversations = () => {
                     <SelectItem value="manual">Manual only</SelectItem>
                   </SelectContent>
                 </Select>
+                <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v as OwnerFilter)}>
+                  <SelectTrigger className="w-[120px] h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All owners</SelectItem>
+                    <SelectItem value="Joel">Joel</SelectItem>
+                    <SelectItem value="Kristina">Kristina</SelectItem>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" size="sm" className="h-9 gap-1">
