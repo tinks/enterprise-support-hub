@@ -748,6 +748,20 @@ const ConversationDetail = () => {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-sm text-muted-foreground">Owner</Label>
+                <Select value={current.owner || "none"} onValueChange={updateOwner}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Unassigned</SelectItem>
+                    {OWNER_OPTIONS.map((o) => (
+                      <SelectItem key={o} value={o}>{o}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </CardContent>
           </Card>
 
