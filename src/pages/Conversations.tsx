@@ -229,7 +229,7 @@ const Conversations = () => {
     }
     if (showCreateButton && onCreateClick) {
       return (
-        <span className="group/intercom inline-flex items-center gap-1" onDoubleClick={handleDoubleClick}>
+         <span className="group/intercom inline-flex items-center gap-1" onDoubleClick={handleDoubleClick} onClick={(e) => e.stopPropagation()}>
           <Button
             variant="outline"
             size="sm"
