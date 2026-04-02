@@ -77,6 +77,7 @@ interface ManualConv {
   created_at: string;
   updated_at: string;
   owner: string | null;
+  classification: string | null;
 }
 
 const OWNER_OPTIONS = ["Joel", "Kristina"] as const;
