@@ -770,10 +770,6 @@ const ConversationDetail = () => {
                 <Switch checked={current.is_bug} onCheckedChange={() => toggleField("is_bug")} />
               </div>
               <div className="flex items-center justify-between">
-                <Label className="text-sm text-muted-foreground">Feature request</Label>
-                <Switch checked={current.is_feature_request} onCheckedChange={() => toggleField("is_feature_request")} />
-              </div>
-              <div className="flex items-center justify-between">
                 <Label className="text-sm text-muted-foreground">Product area</Label>
                 <Select value={current.product_area || "none"} onValueChange={updateProductArea}>
                   <SelectTrigger className="w-[180px]">
