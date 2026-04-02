@@ -945,6 +945,17 @@ const Conversations = () => {
           </SelectContent>
         </Select>
       );
+      case "owner": return (
+        <Select value={g.owner || ""} onValueChange={(v) => updateOwner(g.id, v, "gmail")}>
+          <SelectTrigger className="h-8 w-[110px] text-xs" onClick={(e) => e.stopPropagation()}>
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent>
+            {OWNER_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+            {g.owner && <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>}
+          </SelectContent>
+        </Select>
+      );
       case "bug": return (
         <Switch
           checked={g.is_bug}
