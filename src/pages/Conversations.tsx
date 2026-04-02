@@ -1074,6 +1074,17 @@ const Conversations = () => {
           onClick={(e) => e.stopPropagation()}
         />
       );
+      case "owner": return (
+        <Select value={mc.owner || ""} onValueChange={(v) => updateOwner(mc.id, v, "manual")}>
+          <SelectTrigger className="h-8 w-[110px] text-xs" onClick={(e) => e.stopPropagation()}>
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent>
+            {OWNER_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+            {mc.owner && <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>}
+          </SelectContent>
+        </Select>
+      );
       case "feature_req": return (
         <Switch
           checked={mc.is_feature_request}
