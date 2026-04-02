@@ -90,7 +90,17 @@ const statusColor = (status: string) => {
     case "resolved": return "secondary" as const;
     case "escalated": return "destructive" as const;
     case "cancelled": return "outline" as const;
+    case "awaiting_context": return "outline" as const;
+    case "awaiting_support": return "outline" as const;
     default: return "outline" as const;
+  }
+};
+
+const statusLabel = (status: string) => {
+  switch (status) {
+    case "awaiting_context": return "Awaiting customer";
+    case "awaiting_support": return "Awaiting support";
+    default: return status.replace(/_/g, " ");
   }
 };
 
