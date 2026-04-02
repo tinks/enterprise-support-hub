@@ -86,9 +86,9 @@ const ROW_H = 380;
 /*  server-side via .gte/.lte on created_at/received_at. Client-side   */
 /*  filtering also applied. Reload triggers on date change.            */
 /* ------------------------------------------------------------------ */
-/*  Conversations table: Slack rows without an Intercom ticket show a  */
-/*  "Create" button in the Intercom column that invokes                */
-/*  create-intercom-from-import to create a ticket inline.             */
+/*  Source labels: Slack rows with an intercom_conversation_id show     */
+/*  "Slack bot"; rows without show "Slack import". Filter dropdown     */
+/*  uses matching labels. "Create" button appears for rows without ID. */
 /* ------------------------------------------------------------------ */
 /*  Gmail grouping: emails with matching gmail_thread_id (or normalized */
 /*  subject after stripping Re:/Fwd:) are collapsed into a single row  */
