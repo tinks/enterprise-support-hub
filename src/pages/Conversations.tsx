@@ -1102,22 +1102,6 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
           </SelectContent>
         </Select>
       );
-      case "feature_req": return (
-        <Switch
-          checked={mc.is_feature_request}
-          onCheckedChange={async () => {
-            const newVal = !mc.is_feature_request;
-            setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, is_feature_request: newVal } : r));
-            const { error } = await supabase.from("manual_conversations").update({ is_feature_request: newVal }).eq("id", mc.id);
-            if (error) {
-              setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, is_feature_request: mc.is_feature_request } : r));
-              toast.error("Failed to update feature request flag");
-            }
-          }}
-          aria-label="Toggle feature request"
-          onClick={(e) => e.stopPropagation()}
-        />
-      );
       case "classification": return (
         <Select value={mc.classification || ""} onValueChange={(v) => updateClassification(mc.id, v, "manual")}>
           <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
