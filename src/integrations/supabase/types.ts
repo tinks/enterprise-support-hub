@@ -43,6 +43,7 @@ export type Database = {
       }
       conversation_mappings: {
         Row: {
+          classification: string | null
           created_at: string
           id: string
           intercom_contact_id: string
@@ -66,6 +67,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          classification?: string | null
           created_at?: string
           id?: string
           intercom_contact_id?: string
@@ -89,6 +91,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          classification?: string | null
           created_at?: string
           id?: string
           intercom_contact_id?: string
@@ -137,6 +140,7 @@ export type Database = {
       gmail_conversations: {
         Row: {
           cc_emails: string | null
+          classification: string | null
           created_at: string
           from_email: string | null
           from_name: string | null
@@ -158,6 +162,7 @@ export type Database = {
         }
         Insert: {
           cc_emails?: string | null
+          classification?: string | null
           created_at?: string
           from_email?: string | null
           from_name?: string | null
@@ -179,6 +184,7 @@ export type Database = {
         }
         Update: {
           cc_emails?: string | null
+          classification?: string | null
           created_at?: string
           from_email?: string | null
           from_name?: string | null
@@ -259,6 +265,7 @@ export type Database = {
       }
       manual_conversations: {
         Row: {
+          classification: string | null
           contact_name: string
           created_at: string
           id: string
@@ -275,6 +282,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          classification?: string | null
           contact_name?: string
           created_at?: string
           id?: string
@@ -291,6 +299,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          classification?: string | null
           contact_name?: string
           created_at?: string
           id?: string
