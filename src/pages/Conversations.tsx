@@ -770,7 +770,6 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     resolved: "Resolved",
     product_area: "Product area",
     bug: "Bug",
-    feature_req: "FR",
     classification: "Classification",
   };
 
