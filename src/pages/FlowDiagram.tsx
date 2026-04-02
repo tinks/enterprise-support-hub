@@ -130,6 +130,8 @@ const ROW_H = 380;
 /*  Classification column: single-select dropdown (Issue, Configuration,*/
 /*  Bug, FR, Question) on all three tables. Separate from the Bug      */
 /*  toggle which remains as-is. Stored in `classification` text column.*/
+/*  The FR toggle was removed; feature requests are now tracked via    */
+/*  the Classification dropdown with the "FR" option.                  */
 /* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
