@@ -213,7 +213,7 @@ const Conversations = () => {
     };
     if (intercomId) {
       return (
-        <span className="group/intercom inline-flex items-center gap-1" onDoubleClick={handleDoubleClick}>
+         <span className="group/intercom inline-flex items-center gap-1" onDoubleClick={handleDoubleClick} onClick={(e) => e.stopPropagation()}>
           <a
             href={`https://app.intercom.com/a/apps/esqnv6i1/conversations/${intercomId}`}
             target="_blank"
