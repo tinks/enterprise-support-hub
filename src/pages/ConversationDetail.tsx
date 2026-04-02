@@ -36,6 +36,7 @@ interface ConversationMapping {
   created_at: string;
   updated_at: string;
   owner: string | null;
+  classification: string | null;
 }
 
 interface GmailConv {
