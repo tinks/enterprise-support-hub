@@ -855,6 +855,19 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
           onClick={(e) => e.stopPropagation()}
         />
       );
+      case "classification": return (
+        <Select value={m.classification || ""} onValueChange={(v) => updateClassification(m.id, v, "slack")}>
+          <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent>
+            {CLASSIFICATION_OPTIONS.map((opt) => (
+              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+            ))}
+            {m.classification && <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>}
+          </SelectContent>
+        </Select>
+      );
     }
   };
 
