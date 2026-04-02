@@ -213,7 +213,7 @@ const Conversations = () => {
     };
     if (intercomId) {
       return (
-        <span className="group/intercom inline-flex items-center gap-1" onDoubleClick={handleDoubleClick}>
+         <span className="group/intercom inline-flex items-center gap-1" onDoubleClick={handleDoubleClick} onClick={(e) => e.stopPropagation()}>
           <a
             href={`https://app.intercom.com/a/apps/esqnv6i1/conversations/${intercomId}`}
             target="_blank"
@@ -229,7 +229,7 @@ const Conversations = () => {
     }
     if (showCreateButton && onCreateClick) {
       return (
-        <span className="group/intercom inline-flex items-center gap-1" onDoubleClick={handleDoubleClick}>
+         <span className="group/intercom inline-flex items-center gap-1" onDoubleClick={handleDoubleClick} onClick={(e) => e.stopPropagation()}>
           <Button
             variant="outline"
             size="sm"
@@ -245,7 +245,7 @@ const Conversations = () => {
       );
     }
     return (
-      <span className="group/intercom inline-flex items-center gap-1 text-xs text-muted-foreground cursor-pointer" onDoubleClick={handleDoubleClick}>
+      <span className="group/intercom inline-flex items-center gap-1 text-xs text-muted-foreground cursor-pointer" onDoubleClick={handleDoubleClick} onClick={(e) => e.stopPropagation()}>
         —
         <Pencil className="h-3 w-3 opacity-0 group-hover/intercom:opacity-100 transition-opacity" />
       </span>
