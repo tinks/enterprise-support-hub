@@ -710,7 +710,9 @@ const Conversations = () => {
   const renderSlackCell = (col: ColKey, m: ConversationMapping): ReactNode => {
     switch (col) {
       case "id": return <span className="text-xs text-muted-foreground font-mono">{m.id.slice(0, 8)}</span>;
-      case "source": return <Badge variant="outline" className="text-xs">Slack</Badge>;
+      case "source": return m.intercom_conversation_id
+        ? <Badge variant="outline" className="text-xs">Slack bot</Badge>
+        : <Badge variant="secondary" className="text-xs">Slack import</Badge>;
       case "sent_by": return (
         <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
           <User className="h-3.5 w-3.5 text-muted-foreground" />
@@ -1095,7 +1097,7 @@ const Conversations = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All sources</SelectItem>
-                    <SelectItem value="slack">Slack only</SelectItem>
+                    <SelectItem value="slack">Slack bot</SelectItem>
                     <SelectItem value="slack_import">Slack import</SelectItem>
                     <SelectItem value="gmail">Gmail only</SelectItem>
                     <SelectItem value="manual">Manual only</SelectItem>
