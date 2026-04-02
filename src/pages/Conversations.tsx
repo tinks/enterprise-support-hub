@@ -90,7 +90,17 @@ const statusColor = (status: string) => {
     case "resolved": return "secondary" as const;
     case "escalated": return "destructive" as const;
     case "cancelled": return "outline" as const;
+    case "awaiting_context": return "outline" as const;
+    case "awaiting_support": return "outline" as const;
     default: return "outline" as const;
+  }
+};
+
+const statusLabel = (status: string) => {
+  switch (status) {
+    case "awaiting_context": return "Awaiting customer";
+    case "awaiting_support": return "Awaiting support";
+    default: return status.replace(/_/g, " ");
   }
 };
 
@@ -286,7 +296,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   };
 
 
-  const ALL_STATUSES = ["active", "awaiting_context", "escalated", "resolved", "cancelled", "test"] as const;
+  const ALL_STATUSES = ["active", "awaiting_context", "awaiting_support", "escalated", "resolved", "cancelled", "test"] as const;
   const savedHidden = localStorage.getItem("conv-hidden-statuses");
   const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(
     savedHidden ? new Set(JSON.parse(savedHidden)) : new Set(["test", "cancelled", "resolved"])
@@ -786,7 +796,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         </a>
       );
       case "intercom": return renderIntercomCell(m.id, m.intercom_conversation_id, "slack", true, (e) => createIntercomTicket(e, m.id, "slack"), creatingTicket.has(m.id));
-      case "status": return <Badge variant={statusColor(m.status)}>{m.status}</Badge>;
+      case "status": return <Badge variant={statusColor(m.status)}>{statusLabel(m.status)}</Badge>;
       case "date": return <span className="text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString()}</span>;
       case "test": return (
         <Switch
@@ -918,7 +928,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         </a>
       ) : <span className="text-xs text-muted-foreground">—</span>;
       case "intercom": return renderIntercomCell(g.id, g.intercom_conversation_id, "gmail", true, (e) => createIntercomTicket(e, g.id, "gmail"), creatingTicket.has(g.id));
-      case "status": return <Badge variant={g.status === "resolved" ? "secondary" : "default"}>{g.status || "open"}</Badge>;
+      case "status": return <Badge variant={statusColor(g.status || "open")}>{statusLabel(g.status || "open")}</Badge>;
       case "date": return <span className="text-xs text-muted-foreground">{g.received_at ? new Date(g.received_at).toLocaleString() : new Date(g.created_at).toLocaleString()}</span>;
       case "test": return (
         <Switch
@@ -1005,7 +1015,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         </a>
       ) : <span className="text-xs text-muted-foreground">—</span>;
       case "intercom": return renderIntercomCell(mc.id, mc.intercom_conversation_id, "manual", true, (e) => createIntercomTicket(e, mc.id, "manual"), creatingTicket.has(mc.id));
-      case "status": return <Badge variant={statusColor(mc.status)}>{mc.status}</Badge>;
+      case "status": return <Badge variant={statusColor(mc.status)}>{statusLabel(mc.status)}</Badge>;
       case "date": return <span className="text-xs text-muted-foreground">{new Date(mc.created_at).toLocaleString()}</span>;
       case "test": return (
         <Switch
@@ -1209,7 +1219,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                             checked={hiddenStatuses.has(s)}
                             onCheckedChange={() => toggleHidden(s)}
                           />
-                          <span className="capitalize">{s.replace("_", " ")}</span>
+                          <span className="capitalize">{statusLabel(s)}</span>
                         </label>
                       ))}
                     </div>
