@@ -81,6 +81,7 @@ interface ManualConv {
 }
 
 const OWNER_OPTIONS = ["Joel", "Kristina"] as const;
+const CLASSIFICATION_OPTIONS = ["Issue", "Configuration", "Bug", "FR", "Question"] as const;
 
 interface ManualMessage {
   id: string;
