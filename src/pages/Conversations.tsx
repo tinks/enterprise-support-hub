@@ -1239,7 +1239,7 @@ const Conversations = () => {
                           <Fragment key={`gmail-group-${g.id}`}>
                             <TableRow
                               key={`gmail-${g.id}`}
-                              className={`hover:bg-muted/50 transition-colors ${g.is_test ? "opacity-50" : ""} ${isGrouped ? "cursor-pointer" : ""}`}
+                              className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "opacity-50" : ""}`}
                               onClick={isGrouped && row.groupKey ? () => {
                                 setExpandedGmailGroups((prev) => {
                                   const next = new Set(prev);
@@ -1247,7 +1247,7 @@ const Conversations = () => {
                                   else next.add(row.groupKey!);
                                   return next;
                                 });
-                              } : undefined}
+                              } : () => navigate(`/conversations/${g.id}?source=gmail`)}
                             >
                               {columnOrder.map((col) => (
                                 <TableCell key={col} className={col === "message" ? "max-w-[300px]" : ""}>
