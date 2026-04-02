@@ -1,37 +1,58 @@
 
+## Make Gmail Intercom editing reliable without double-click
 
-## Make Intercom column editable on double-click
+### Why the current Gmail behavior is failing
+The current Intercom edit interaction depends on double-clicking inside a Gmail table row. Gmail rows are also used for expand/collapse behavior when emails are grouped by thread/subject. That means the first click can already trigger row-level interaction and cause a re-render before the second click completes, so the double-click pattern is fragile specifically for Gmail.
 
-### What it does
-Double-clicking the Intercom cell on any conversation row opens an inline text input to manually set or edit the Intercom conversation ID. Pressing Enter or blurring saves it to the database; Escape cancels.
+### Better approach
+Replace double-click editing with an explicit inline edit action in the Intercom cell for all sources, or at minimum for Gmail:
+- show the current Intercom link/value as today
+- always show a small pencil button on hover
+- clicking the pencil enters edit mode immediately
+- Enter saves, Escape cancels, blur saves
+- keep the existing “Create” button for Slack imports
 
-### Changes
+This avoids conflicting with Gmail row grouping and is much more discoverable than double-click.
 
-**`src/pages/Conversations.tsx`**
+### Implementation plan
 
-1. Add state: `editingIntercomId: string | null` (row ID being edited), `editingIntercomValue: string` (current input value)
+1. Update `src/pages/Conversations.tsx`
+- Refactor `renderIntercomCell` so edit mode is opened by clicking a dedicated pencil button instead of `onDoubleClick`
+- keep `onClick={(e) => e.stopPropagation()}` on the cell wrapper and new edit button
+- for Gmail grouped rows and sub-rows, this should work consistently because a single explicit click is easier to isolate than a double-click gesture
+- preserve current save logic to:
+  - `conversation_mappings` for Slack
+  - `gmail_conversations` for Gmail
+  - `manual_conversations` for Manual
+- optionally keep double-click as a secondary shortcut, but do not depend on it
 
-2. Create an `IntercomEditCell` inline component that:
-   - Shows the current display (link, "Create" button, or "—") by default
-   - On `onDoubleClick`, sets `editingIntercomId` to the row ID and populates the input with the current value
-   - When editing, renders an `<Input>` (auto-focused, small) instead of the display
-   - On Enter or blur: saves the value to the appropriate Supabase table (`conversation_mappings` for slack, `gmail_conversations` or `manual_conversations` for others) and updates local state
-   - On Escape: cancels editing
+2. Improve Gmail row interaction boundaries
+- make sure all interactive Gmail cells stop propagation, especially the Intercom cell
+- keep expand/collapse only on the row body or chevron/id area, not on controls inside the row
 
-3. Update `renderSlackCell` case `"intercom"`: wrap existing content with double-click handler; when `editingIntercomId === m.id`, show the input instead
+3. Add clearer affordance
+- replace the hover-only passive pencil icon with an actual small edit button/icon button
+- add tooltip text like “Edit Intercom ID”
+- when empty, show “Edit” or “Add ID” rather than only “—” so the action is obvious
 
-4. Update `renderGmailCell` and `renderManualCell` case `"intercom"`: same pattern — double-click to edit, save to the corresponding table. For Gmail, save to `gmail_conversations` (would need a new column or use an existing field). For manual, save to `manual_conversations`.
+4. Update `src/pages/FlowDiagram.tsx`
+- replace the note about double-click editing with the new explicit edit action
+- mention that this change was made because Gmail rows can be grouped/expandable, so a dedicated edit control is more reliable
 
-   Since `gmail_conversations` and `manual_conversations` don't have an `intercom_conversation_id` column, a migration will add nullable `intercom_conversation_id text` columns to both tables.
+### Technical details
+```text
+Current issue:
+Gmail row click = expand/collapse group
+Intercom cell double-click = edit
+These interactions compete.
 
-5. Stop propagation on double-click to prevent row navigation.
-
-**Database migration** — Add `intercom_conversation_id` column to `gmail_conversations` and `manual_conversations` tables.
-
-**`src/pages/FlowDiagram.tsx`** — Document that Intercom IDs can be manually edited via double-click.
+Safer model:
+[Intercom value/link] [pencil button]
+click pencil -> enter input
+Enter/blur -> save
+Escape -> cancel
+```
 
 ### Files to edit
-- `src/pages/Conversations.tsx` — inline edit logic
-- `src/pages/FlowDiagram.tsx` — document change
-- Database migration for new columns
-
+- `src/pages/Conversations.tsx`
+- `src/pages/FlowDiagram.tsx`
