@@ -770,6 +770,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     product_area: "Product area",
     bug: "Bug",
     feature_req: "FR",
+    classification: "Classification",
   };
 
   const renderSlackCell = (col: ColKey, m: ConversationMapping): ReactNode => {
