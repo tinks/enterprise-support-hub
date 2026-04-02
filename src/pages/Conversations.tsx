@@ -372,6 +372,22 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     });
   };
 
+  const updateStatus = async (id: string, newStatus: string, source: "slack" | "gmail" | "manual") => {
+    const table = source === "slack" ? "conversation_mappings" : source === "gmail" ? "gmail_conversations" : "manual_conversations";
+    const setState = source === "slack" ? setMappings : source === "gmail" ? setGmailRows : setManualRows;
+    const resolvedAt = newStatus === "resolved" ? new Date().toISOString() : null;
+
+    setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, status: newStatus, ...(resolvedAt !== undefined ? { resolved_at: resolvedAt } : {}) } : m));
+    if (searchResults) {
+      setSearchResults((prev: any) => prev ? prev.map((m: any) => m.id === id ? { ...m, status: newStatus } : m) : prev);
+    }
+    const { error } = await supabase.from(table).update({ status: newStatus, resolved_at: resolvedAt } as any).eq("id", id);
+    if (error) {
+      toast.error("Failed to update status");
+      loadData();
+    }
+  };
+
   const toggleTest = async (id: string, currentValue: boolean, source: "slack" | "gmail") => {
     const newValue = !currentValue;
     if (source === "slack") {
