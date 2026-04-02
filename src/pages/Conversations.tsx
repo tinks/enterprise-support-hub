@@ -49,6 +49,7 @@ interface GmailConversation {
   product_area: string | null;
   is_bug: boolean;
   is_feature_request: boolean;
+  intercom_conversation_id: string | null;
 }
 
 interface ManualConversation {
@@ -63,6 +64,7 @@ interface ManualConversation {
   is_test: boolean;
   product_area: string | null;
   created_at: string;
+  intercom_conversation_id: string | null;
 }
 
 type SourceFilter = "all" | "slack" | "slack_import" | "gmail" | "manual";
