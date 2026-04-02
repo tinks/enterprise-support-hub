@@ -11,6 +11,7 @@ import ConversationDetail from "./pages/ConversationDetail";
 import ProjectKnowledge from "./pages/ProjectKnowledge";
 import ImportPage from "./pages/ImportPage";
 import NotFound from "./pages/NotFound";
+import OwnerDashboard from "./pages/OwnerDashboard";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/" element={<Stats />} />
           <Route path="/conversations" element={<Conversations />} />
           <Route path="/conversations/:id" element={<ConversationDetail />} />
+          <Route path="/my/:owner" element={<OwnerDashboard />} />
           <Route path="/import" element={<ImportPage />} />
           <Route path="/settings" element={<Index />} />
           <Route path="/flow" element={<FlowDiagram />} />
