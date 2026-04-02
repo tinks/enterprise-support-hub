@@ -1,36 +1,33 @@
 
 
-## Remove FR toggle, backfill classification from existing FR flags
+## Add missing classification dropdown to Slack rows
 
-### What it does
-Removes the "FR" toggle switch column from the conversations table and detail view. Where `is_feature_request` is currently `true` and `classification` is null, backfills `classification = 'FR'` in the database so no data is lost.
+### Problem
+The classification dropdown was added to Gmail and Manual row renderers but is missing from the Slack `renderSlackCell` function. That's why the two Slack rows in the screenshot show an empty classification cell.
 
-### Database migration
-Backfill classification from existing FR flags (only where classification is not already set):
-```sql
-UPDATE conversation_mappings SET classification = 'FR' WHERE is_feature_request = true AND classification IS NULL;
-UPDATE gmail_conversations SET classification = 'FR' WHERE is_feature_request = true AND classification IS NULL;
-UPDATE manual_conversations SET classification = 'FR' WHERE is_feature_request = true AND classification IS NULL;
-```
-
-### Code changes
+### Fix
 
 **`src/pages/Conversations.tsx`**
-- Remove `"feature_req"` from `ALL_COLUMNS`
-- Remove the `toggleFeatureRequest` function
-- Remove all three `case "feature_req"` render blocks (Slack ~line 871, Gmail ~line 1000, Manual ~line 1133)
-- Remove the `feature_req` label from the column header map
+- Add a `case "classification"` block to `renderSlackCell` (after the `case "bug"` block, before the closing `}`) with the same `<Select>` dropdown pattern used in the Gmail and Manual renderers
 
-**`src/pages/ConversationDetail.tsx`**
-- Remove the "Feature request" toggle switch row (~line 773-774)
-- Remove `"is_feature_request"` from the `toggleField` function's type union (keep `"is_test"` and `"is_bug"`)
+The code to add (after line 857, before line 858's closing `}`):
 
-**`src/pages/FlowDiagram.tsx`**
-- Document that FR toggle was removed; FR is now tracked via the Classification dropdown
+```typescript
+case "classification": return (
+  <Select value={m.classification || ""} onValueChange={(v) => updateClassification(m.id, v, "slack")}>
+    <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
+      <SelectValue placeholder="—" />
+    </SelectTrigger>
+    <SelectContent>
+      {CLASSIFICATION_OPTIONS.map((opt) => (
+        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+      ))}
+      {m.classification && <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>}
+    </SelectContent>
+  </Select>
+);
+```
 
 ### Files to edit
-- Database migration (backfill)
-- `src/pages/Conversations.tsx`
-- `src/pages/ConversationDetail.tsx`
-- `src/pages/FlowDiagram.tsx`
+- `src/pages/Conversations.tsx` (1 addition)
 
