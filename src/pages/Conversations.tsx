@@ -213,21 +213,23 @@ const Conversations = () => {
     };
     if (intercomId) {
       return (
-        <a
-          href={`https://app.intercom.com/a/apps/esqnv6i1/conversations/${intercomId}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-xs font-mono text-primary underline hover:text-primary/80 transition-colors"
-          onClick={(e) => e.stopPropagation()}
-          onDoubleClick={handleDoubleClick}
-        >
-          {intercomId} <ExternalLink className="h-3 w-3" />
-        </a>
+        <span className="group/intercom inline-flex items-center gap-1" onDoubleClick={handleDoubleClick}>
+          <a
+            href={`https://app.intercom.com/a/apps/esqnv6i1/conversations/${intercomId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-mono text-primary underline hover:text-primary/80 transition-colors"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {intercomId} <ExternalLink className="h-3 w-3" />
+          </a>
+          <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover/intercom:opacity-100 transition-opacity" />
+        </span>
       );
     }
     if (showCreateButton && onCreateClick) {
       return (
-        <span onDoubleClick={handleDoubleClick}>
+        <span className="group/intercom inline-flex items-center gap-1" onDoubleClick={handleDoubleClick}>
           <Button
             variant="outline"
             size="sm"
@@ -238,10 +240,16 @@ const Conversations = () => {
             <Ticket className="h-3 w-3" />
             {isCreating ? "Creating…" : "Create"}
           </Button>
+          <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover/intercom:opacity-100 transition-opacity" />
         </span>
       );
     }
-    return <span className="text-xs text-muted-foreground cursor-pointer" onDoubleClick={handleDoubleClick}>—</span>;
+    return (
+      <span className="group/intercom inline-flex items-center gap-1 text-xs text-muted-foreground cursor-pointer" onDoubleClick={handleDoubleClick}>
+        —
+        <Pencil className="h-3 w-3 opacity-0 group-hover/intercom:opacity-100 transition-opacity" />
+      </span>
+    );
   };
 
 
