@@ -752,6 +752,20 @@ const ConversationDetail = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
+                <Label className="text-sm text-muted-foreground">Classification</Label>
+                <Select value={current.classification || "none"} onValueChange={updateClassification}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {CLASSIFICATION_OPTIONS.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center justify-between">
                 <Label className="text-sm text-muted-foreground">Bug</Label>
                 <Switch checked={current.is_bug} onCheckedChange={() => toggleField("is_bug")} />
               </div>
