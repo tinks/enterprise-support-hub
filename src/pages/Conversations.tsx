@@ -135,6 +135,8 @@ const Conversations = () => {
   const savedSource = localStorage.getItem("conv-source-filter") as SourceFilter | null;
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>(paramSource || savedSource || "all");
   const [searchQuery, setSearchQuery] = useState("");
+  const savedOwner = localStorage.getItem("conv-owner-filter") as OwnerFilter | null;
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(savedOwner || "all");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [searchResults, setSearchResults] = useState<{ slack: ConversationMapping[]; gmail: GmailConversation[]; manual: ManualConversation[] } | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
