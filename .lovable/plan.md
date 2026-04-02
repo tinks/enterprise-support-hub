@@ -1,33 +1,28 @@
 
 
-## Add missing classification dropdown to Slack rows
+## Make status editable inline on conversations list
 
-### Problem
-The classification dropdown was added to Gmail and Manual row renderers but is missing from the Slack `renderSlackCell` function. That's why the two Slack rows in the screenshot show an empty classification cell.
+### What it does
+Replaces the static status badge in each conversation row with a clickable `<Select>` dropdown, so you can change the status directly from the list without opening the detail view.
 
-### Fix
+### Changes
 
 **`src/pages/Conversations.tsx`**
-- Add a `case "classification"` block to `renderSlackCell` (after the `case "bug"` block, before the closing `}`) with the same `<Select>` dropdown pattern used in the Gmail and Manual renderers
 
-The code to add (after line 857, before line 858's closing `}`):
+1. Add a `STATUS_OPTIONS` constant (same as in ConversationDetail): `["active", "resolved", "cancelled", "escalated", "awaiting_context", "awaiting_support"]`
 
-```typescript
-case "classification": return (
-  <Select value={m.classification || ""} onValueChange={(v) => updateClassification(m.id, v, "slack")}>
-    <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
-      <SelectValue placeholder="—" />
-    </SelectTrigger>
-    <SelectContent>
-      {CLASSIFICATION_OPTIONS.map((opt) => (
-        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-      ))}
-      {m.classification && <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>}
-    </SelectContent>
-  </Select>
-);
-```
+2. Add an `updateStatus` function that:
+   - Determines the correct table (`conversation_mappings`, `gmail_conversations`, or `manual_conversations`) based on source
+   - Calls `supabase.from(table).update({ status: newStatus }).eq("id", rowId)`
+   - Updates local state (`setMappings`, `setGmailRows`, `setManualRows` and `searchResults`)
+   - Shows toast on error
+
+3. Replace the three `case "status"` blocks (Slack ~line 806, Gmail ~line 943, Manual ~line 1034) from a static `<Badge>` to a `<Select>` dropdown styled compactly (similar to the classification dropdown), showing the current status label and allowing selection of any status option. Click events will be stopped from propagating to avoid triggering row navigation.
+
+**`src/pages/FlowDiagram.tsx`**
+- Document that status can now be edited inline from the conversations list
 
 ### Files to edit
-- `src/pages/Conversations.tsx` (1 addition)
+- `src/pages/Conversations.tsx`
+- `src/pages/FlowDiagram.tsx`
 
