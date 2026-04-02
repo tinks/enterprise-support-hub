@@ -820,7 +820,18 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         </a>
       );
       case "intercom": return renderIntercomCell(m.id, m.intercom_conversation_id, "slack", true, (e) => createIntercomTicket(e, m.id, "slack"), creatingTicket.has(m.id));
-      case "status": return <Badge variant={statusColor(m.status)}>{statusLabel(m.status)}</Badge>;
+      case "status": return (
+        <Select value={m.status} onValueChange={(v) => updateStatus(m.id, v, "slack")}>
+          <SelectTrigger className="h-8 w-[150px] text-xs" onClick={(e) => e.stopPropagation()}>
+            <SelectValue>{statusLabel(m.status)}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_OPTIONS.map((s) => (
+              <SelectItem key={s} value={s}>{statusLabel(s)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
       case "date": return <span className="text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString()}</span>;
       case "test": return (
         <Switch
