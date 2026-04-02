@@ -49,6 +49,7 @@ interface GmailConversation {
   product_area: string | null;
   is_bug: boolean;
   is_feature_request: boolean;
+  intercom_conversation_id: string | null;
 }
 
 interface ManualConversation {
@@ -63,6 +64,7 @@ interface ManualConversation {
   is_test: boolean;
   product_area: string | null;
   created_at: string;
+  intercom_conversation_id: string | null;
 }
 
 type SourceFilter = "all" | "slack" | "slack_import" | "gmail" | "manual";
@@ -135,6 +137,8 @@ const Conversations = () => {
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [creatingTicket, setCreatingTicket] = useState<Set<string>>(new Set());
   const [expandedGmailGroups, setExpandedGmailGroups] = useState<Set<string>>(new Set());
+  const [editingIntercomId, setEditingIntercomId] = useState<string | null>(null);
+  const [editingIntercomValue, setEditingIntercomValue] = useState("");
 
   const createIntercomTicket = async (e: React.MouseEvent, mappingId: string) => {
     e.stopPropagation();
@@ -162,6 +166,84 @@ const Conversations = () => {
       setCreatingTicket((prev) => { const next = new Set(prev); next.delete(mappingId); return next; });
     }
   };
+
+  const saveIntercomId = async (rowId: string, value: string, source: "slack" | "gmail" | "manual") => {
+    const trimmed = value.trim() || null;
+    const table = source === "slack" ? "conversation_mappings" : source === "gmail" ? "gmail_conversations" : "manual_conversations";
+    const { error } = await supabase.from(table).update({ intercom_conversation_id: trimmed } as any).eq("id", rowId);
+    if (error) { toast.error("Failed to save Intercom ID"); return; }
+    toast.success("Intercom ID updated");
+    if (source === "slack") {
+      const updater = (m: ConversationMapping) => m.id === rowId ? { ...m, intercom_conversation_id: trimmed || "" } : m;
+      setMappings((prev) => prev.map(updater));
+      if (searchResults) setSearchResults((prev) => prev ? { ...prev, slack: prev.slack.map(updater) } : prev);
+    } else if (source === "gmail") {
+      const updater = (g: GmailConversation) => g.id === rowId ? { ...g, intercom_conversation_id: trimmed } : g;
+      setGmailRows((prev) => prev.map(updater));
+      if (searchResults) setSearchResults((prev) => prev ? { ...prev, gmail: prev.gmail.map(updater) } : prev);
+    } else {
+      const updater = (mc: ManualConversation) => mc.id === rowId ? { ...mc, intercom_conversation_id: trimmed } : mc;
+      setManualRows((prev) => prev.map(updater));
+      if (searchResults) setSearchResults((prev) => prev ? { ...prev, manual: prev.manual.map(updater) } : prev);
+    }
+    setEditingIntercomId(null);
+  };
+
+  const renderIntercomCell = (id: string, intercomId: string | null, source: "slack" | "gmail" | "manual", showCreateButton?: boolean, onCreateClick?: (e: React.MouseEvent) => void, isCreating?: boolean) => {
+    if (editingIntercomId === id) {
+      return (
+        <Input
+          autoFocus
+          className="h-7 w-[140px] text-xs font-mono"
+          value={editingIntercomValue}
+          onChange={(e) => setEditingIntercomValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") saveIntercomId(id, editingIntercomValue, source);
+            if (e.key === "Escape") setEditingIntercomId(null);
+          }}
+          onBlur={() => saveIntercomId(id, editingIntercomValue, source)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      );
+    }
+    const handleDoubleClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setEditingIntercomId(id);
+      setEditingIntercomValue(intercomId || "");
+    };
+    if (intercomId) {
+      return (
+        <a
+          href={`https://app.intercom.com/a/apps/esqnv6i1/conversations/${intercomId}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs font-mono text-primary underline hover:text-primary/80 transition-colors"
+          onClick={(e) => e.stopPropagation()}
+          onDoubleClick={handleDoubleClick}
+        >
+          {intercomId} <ExternalLink className="h-3 w-3" />
+        </a>
+      );
+    }
+    if (showCreateButton && onCreateClick) {
+      return (
+        <span onDoubleClick={handleDoubleClick}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 gap-1 text-xs"
+            disabled={isCreating}
+            onClick={onCreateClick}
+          >
+            <Ticket className="h-3 w-3" />
+            {isCreating ? "Creating…" : "Create"}
+          </Button>
+        </span>
+      );
+    }
+    return <span className="text-xs text-muted-foreground cursor-pointer" onDoubleClick={handleDoubleClick}>—</span>;
+  };
+
 
   const ALL_STATUSES = ["active", "awaiting_context", "escalated", "resolved", "cancelled", "test"] as const;
   const savedHidden = localStorage.getItem("conv-hidden-statuses");
@@ -635,28 +717,7 @@ const Conversations = () => {
           Thread <ExternalLink className="h-3 w-3" />
         </a>
       );
-      case "intercom": return m.intercom_conversation_id ? (
-        <a
-          href={`https://app.intercom.com/a/apps/esqnv6i1/conversations/${m.intercom_conversation_id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-xs font-mono text-primary underline hover:text-primary/80 transition-colors"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {m.intercom_conversation_id} <ExternalLink className="h-3 w-3" />
-        </a>
-      ) : (
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 gap-1 text-xs"
-          disabled={creatingTicket.has(m.id)}
-          onClick={(e) => createIntercomTicket(e, m.id)}
-        >
-          <Ticket className="h-3 w-3" />
-          {creatingTicket.has(m.id) ? "Creating…" : "Create"}
-        </Button>
-      );
+      case "intercom": return renderIntercomCell(m.id, m.intercom_conversation_id, "slack", true, (e) => createIntercomTicket(e, m.id), creatingTicket.has(m.id));
       case "status": return <Badge variant={statusColor(m.status)}>{m.status}</Badge>;
       case "date": return <span className="text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString()}</span>;
       case "test": return (
@@ -777,7 +838,7 @@ const Conversations = () => {
           Email <ExternalLink className="h-3 w-3" />
         </a>
       ) : <span className="text-xs text-muted-foreground">—</span>;
-      case "intercom": return <span className="text-xs text-muted-foreground">—</span>;
+      case "intercom": return renderIntercomCell(g.id, g.intercom_conversation_id, "gmail");
       case "status": return <Badge variant={g.status === "resolved" ? "secondary" : "default"}>{g.status || "open"}</Badge>;
       case "date": return <span className="text-xs text-muted-foreground">{g.received_at ? new Date(g.received_at).toLocaleString() : new Date(g.created_at).toLocaleString()}</span>;
       case "test": return (
@@ -851,7 +912,7 @@ const Conversations = () => {
           Link <ExternalLink className="h-3 w-3" />
         </a>
       ) : <span className="text-xs text-muted-foreground">—</span>;
-      case "intercom": return <span className="text-xs text-muted-foreground">—</span>;
+      case "intercom": return renderIntercomCell(mc.id, mc.intercom_conversation_id, "manual");
       case "status": return <Badge variant={statusColor(mc.status)}>{mc.status}</Badge>;
       case "date": return <span className="text-xs text-muted-foreground">{new Date(mc.created_at).toLocaleString()}</span>;
       case "test": return (
