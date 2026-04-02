@@ -245,7 +245,7 @@ const Conversations = () => {
   };
 
 
-  const savedHidden = localStorage.getItem("conv-hidden-statuses");
+  const ALL_STATUSES = ["active", "awaiting_context", "escalated", "resolved", "cancelled", "test"] as const;
   const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(
     savedHidden ? new Set(JSON.parse(savedHidden)) : new Set(["test", "cancelled", "resolved"])
   );
