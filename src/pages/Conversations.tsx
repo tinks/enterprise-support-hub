@@ -31,6 +31,7 @@ interface ConversationMapping {
   product_area: string | null;
   is_bug: boolean;
   is_feature_request: boolean;
+  owner: string | null;
 }
 
 interface GmailConversation {
