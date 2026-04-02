@@ -274,7 +274,7 @@ const ConversationDetail = () => {
     setUpdating(false);
   };
 
-  const toggleField = async (field: "is_test" | "is_bug" | "is_feature_request") => {
+  const toggleField = async (field: "is_test" | "is_bug") => {
     const current = getCurrentData();
     if (!current) return;
     const newVal = !current[field];
