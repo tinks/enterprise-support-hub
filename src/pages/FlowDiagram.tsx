@@ -122,6 +122,11 @@ const ROW_H = 380;
 /*  Conversations table and the detail view Classification card.       */
 /*  Owner filter dropdown lets users filter by owner or unassigned.    */
 /* ------------------------------------------------------------------ */
+/*  Owner dashboards: /my/joel and /my/kristina show personal views    */
+/*  with KPI cards (open, resolved, bugs, feature requests) and a     */
+/*  focused conversation table scoped to the owner. Accessible from   */
+/*  the top nav bar.                                                   */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */
