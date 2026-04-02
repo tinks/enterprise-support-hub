@@ -708,6 +708,7 @@ const Conversations = () => {
     link: "Link",
     intercom: "Intercom",
     status: "Status",
+    owner: "Owner",
     date: "Date",
     test: "Test",
     resolved: "Resolved",
