@@ -941,7 +941,7 @@ const Conversations = () => {
           Link <ExternalLink className="h-3 w-3" />
         </a>
       ) : <span className="text-xs text-muted-foreground">—</span>;
-      case "intercom": return renderIntercomCell(mc.id, mc.intercom_conversation_id, "manual");
+      case "intercom": return renderIntercomCell(mc.id, mc.intercom_conversation_id, "manual", true, (e) => createIntercomTicket(e, mc.id, "manual"), creatingTicket.has(mc.id));
       case "status": return <Badge variant={statusColor(mc.status)}>{mc.status}</Badge>;
       case "date": return <span className="text-xs text-muted-foreground">{new Date(mc.created_at).toLocaleString()}</span>;
       case "test": return (
