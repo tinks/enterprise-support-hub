@@ -113,7 +113,11 @@ const OWNER_OPTIONS = ["Joel", "Kristina"] as const;
 
 const COLUMN_STORAGE_KEY = "conv-column-order";
 
-const Conversations = () => {
+interface ConversationsProps {
+  forceOwner?: string;
+}
+
+const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const paramDay = searchParams.get("day");
@@ -136,7 +140,7 @@ const Conversations = () => {
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>(paramSource || savedSource || "all");
   const [searchQuery, setSearchQuery] = useState("");
   const savedOwner = localStorage.getItem("conv-owner-filter") as OwnerFilter | null;
-  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(savedOwner || "all");
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(forceOwner as OwnerFilter || savedOwner || "all");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [searchResults, setSearchResults] = useState<{ slack: ConversationMapping[]; gmail: GmailConversation[]; manual: ManualConversation[] } | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -309,7 +313,7 @@ const Conversations = () => {
 
   useEffect(() => { localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(columnOrder)); }, [columnOrder]);
   useEffect(() => { localStorage.setItem("conv-source-filter", sourceFilter); }, [sourceFilter]);
-  useEffect(() => { localStorage.setItem("conv-owner-filter", ownerFilter); }, [ownerFilter]);
+  useEffect(() => { if (!forceOwner) localStorage.setItem("conv-owner-filter", ownerFilter); }, [ownerFilter, forceOwner]);
   useEffect(() => { localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses]);
 
   const handleDragStart = useCallback((col: ColKey) => { dragCol.current = col; }, []);
@@ -1139,9 +1143,9 @@ const Conversations = () => {
           <Card className="min-h-0 flex-1 flex flex-col">
             <CardHeader className="flex flex-row items-center justify-between flex-shrink-0">
               <div>
-                <CardTitle className="text-lg">Recent conversations</CardTitle>
+                <CardTitle className="text-lg">{forceOwner ? `${forceOwner}'s conversations` : "Recent conversations"}</CardTitle>
                 <CardDescription>
-                  Slack, Gmail, and manually logged conversations
+                  {forceOwner ? `Conversations assigned to ${forceOwner}` : "Slack, Gmail, and manually logged conversations"}
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
@@ -1171,6 +1175,7 @@ const Conversations = () => {
                     <SelectItem value="manual">Manual only</SelectItem>
                   </SelectContent>
                 </Select>
+                {!forceOwner && (
                 <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v as OwnerFilter)}>
                   <SelectTrigger className="w-[120px] h-9">
                     <SelectValue />
@@ -1182,6 +1187,7 @@ const Conversations = () => {
                     <SelectItem value="unassigned">Unassigned</SelectItem>
                   </SelectContent>
                 </Select>
+                )}
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" size="sm" className="h-9 gap-1">
