@@ -1187,6 +1187,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                     <SelectItem value="unassigned">Unassigned</SelectItem>
                   </SelectContent>
                 </Select>
+                )}
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" size="sm" className="h-9 gap-1">
