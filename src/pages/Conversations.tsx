@@ -677,20 +677,29 @@ const Conversations = () => {
       });
     }
 
+    // Apply owner filter
+    const ownerFiltered = ownerFilter === "all"
+      ? rows
+      : rows.filter((r) => {
+          const o = (r.data as any).owner as string | null;
+          if (ownerFilter === "unassigned") return !o;
+          return o === ownerFilter;
+        });
+
     // Apply status filter (skip when searching — show all matches)
     if (!searchResults) {
       const filtered = hiddenStatuses.size > 0
-        ? rows.filter((r) => {
+        ? ownerFiltered.filter((r) => {
             if (hiddenStatuses.has("test") && r.data.is_test) return false;
             if (hiddenStatuses.has(r.data.status)) return false;
             return true;
           })
-        : rows;
+        : ownerFiltered;
       return filtered;
     }
 
-    return rows;
-  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, hiddenStatuses]);
+    return ownerFiltered;
+  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, hiddenStatuses, ownerFilter]);
 
   const canLoadMore =
     !isHeatmapMode && !searchResults && (
