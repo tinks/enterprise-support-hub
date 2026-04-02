@@ -722,7 +722,7 @@ const ConversationDetail = () => {
                 <SelectContent>
                   {STATUS_OPTIONS.map((s) => (
                     <SelectItem key={s} value={s}>
-                      {s.replace("_", " ")}
+                      {statusLabel(s)}
                     </SelectItem>
                   ))}
                 </SelectContent>

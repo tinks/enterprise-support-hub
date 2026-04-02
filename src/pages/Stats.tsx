@@ -303,7 +303,7 @@ const Stats = () => {
     const resolved = filtered.filter((m) => m.status === "resolved").length;
     const escalated = filtered.filter((m) => m.status === "escalated" || m.status === "escalated_pending").length;
     const active = filtered.filter((m) => m.status === "active" || m.status === "active_pending").length;
-    const awaiting = filtered.filter((m) => m.status === "awaiting_context").length;
+    const awaiting = filtered.filter((m) => m.status === "awaiting_context" || m.status === "awaiting_support").length;
     const processing = filtered.filter((m) => m.status === "processing").length;
     const cancelled = filtered.filter((m) => m.status === "cancelled").length;
     const open = total - resolved - cancelled;

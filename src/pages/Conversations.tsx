@@ -1219,7 +1219,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                             checked={hiddenStatuses.has(s)}
                             onCheckedChange={() => toggleHidden(s)}
                           />
-                          <span className="capitalize">{s.replace("_", " ")}</span>
+                          <span className="capitalize">{statusLabel(s)}</span>
                         </label>
                       ))}
                     </div>
