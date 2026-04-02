@@ -137,6 +137,8 @@ const Conversations = () => {
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [creatingTicket, setCreatingTicket] = useState<Set<string>>(new Set());
   const [expandedGmailGroups, setExpandedGmailGroups] = useState<Set<string>>(new Set());
+  const [editingIntercomId, setEditingIntercomId] = useState<string | null>(null);
+  const [editingIntercomValue, setEditingIntercomValue] = useState("");
 
   const createIntercomTicket = async (e: React.MouseEvent, mappingId: string) => {
     e.stopPropagation();
