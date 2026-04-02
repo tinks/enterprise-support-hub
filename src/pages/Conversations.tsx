@@ -206,14 +206,25 @@ const Conversations = () => {
         />
       );
     }
-    const handleDoubleClick = (e: React.MouseEvent) => {
+    const handleEditClick = (e: React.MouseEvent) => {
       e.stopPropagation();
       setEditingIntercomId(id);
       setEditingIntercomValue(intercomId || "");
     };
+    const editButton = (
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-5 w-5 opacity-0 group-hover/intercom:opacity-100 transition-opacity"
+        onClick={handleEditClick}
+        title="Edit Intercom ID"
+      >
+        <Pencil className="h-3 w-3 text-muted-foreground" />
+      </Button>
+    );
     if (intercomId) {
       return (
-         <span className="group/intercom inline-flex items-center gap-1" onDoubleClick={handleDoubleClick} onClick={(e) => e.stopPropagation()}>
+         <span className="group/intercom inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
           <a
             href={`https://app.intercom.com/a/apps/esqnv6i1/conversations/${intercomId}`}
             target="_blank"
@@ -223,13 +234,13 @@ const Conversations = () => {
           >
             {intercomId} <ExternalLink className="h-3 w-3" />
           </a>
-          <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover/intercom:opacity-100 transition-opacity" />
+          {editButton}
         </span>
       );
     }
     if (showCreateButton && onCreateClick) {
       return (
-         <span className="group/intercom inline-flex items-center gap-1" onDoubleClick={handleDoubleClick} onClick={(e) => e.stopPropagation()}>
+         <span className="group/intercom inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
           <Button
             variant="outline"
             size="sm"
@@ -240,14 +251,14 @@ const Conversations = () => {
             <Ticket className="h-3 w-3" />
             {isCreating ? "Creating…" : "Create"}
           </Button>
-          <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover/intercom:opacity-100 transition-opacity" />
+          {editButton}
         </span>
       );
     }
     return (
-      <span className="group/intercom inline-flex items-center gap-1 text-xs text-muted-foreground cursor-pointer" onDoubleClick={handleDoubleClick} onClick={(e) => e.stopPropagation()}>
+      <span className="group/intercom inline-flex items-center gap-1 text-xs text-muted-foreground" onClick={(e) => e.stopPropagation()}>
         —
-        <Pencil className="h-3 w-3 opacity-0 group-hover/intercom:opacity-100 transition-opacity" />
+        {editButton}
       </span>
     );
   };
