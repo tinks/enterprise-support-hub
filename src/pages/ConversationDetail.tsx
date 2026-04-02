@@ -59,6 +59,7 @@ interface GmailConv {
   to_emails: string | null;
   cc_emails: string | null;
   owner: string | null;
+  classification: string | null;
 }
 
 interface ManualConv {
