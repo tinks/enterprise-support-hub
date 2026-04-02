@@ -1,44 +1,37 @@
 
 
-## Owner dashboard pages for Joel and Kristina
+## Rename "awaiting_context" display label and add "awaiting_support" status
 
 ### What it does
-Creates two personal dashboard pages (`/my/joel` and `/my/kristina`) accessible from the top nav. Each page shows a summary of the owner's assigned conversations across all sources (Slack, Gmail, Manual) with KPI cards and a focused conversation list.
+1. Renames the display label for `awaiting_context` status from "awaiting_context" to "Awaiting customer" everywhere in the UI (the database value stays `awaiting_context`)
+2. Adds a new status `awaiting_support` to all status lists and filters
 
-### Layout per dashboard
-- **Header**: "{Name}'s conversations" with a refresh button
-- **KPI cards row**: Open count, Resolved count, Bugs, Feature requests
-- **Conversation table**: All conversations assigned to that owner, sorted by date (newest first), with source badge, subject/message, status, and a clickable link to the detail view. Reuses the same table styling as the main Conversations page but without filters (already scoped to owner).
+**Note:** This is a UI-only label change for `awaiting_context` — no database migration needed. The new `awaiting_support` status is just a string value that can be set on the existing `status` text columns.
 
 ### Changes
 
-**`src/pages/OwnerDashboard.tsx`** (new)
-- Single reusable page component that takes the owner name from the URL param
-- Fetches from all three tables (`conversation_mappings`, `gmail_conversations`, `manual_conversations`) filtered by `owner = :name`
-- Renders 4 summary cards (open, resolved, bugs, feature requests)
-- Renders a simplified conversation table (source, subject/message, status, date) with row clicks navigating to `/conversations/:id?source=...`
-- Uses AppLayout wrapper
+**`src/pages/Conversations.tsx`**
+- Add a `statusLabel()` helper that maps internal status values to display labels (e.g., `awaiting_context` → "Awaiting customer", `awaiting_support` → "Awaiting support", others → capitalize as-is)
+- Add `"awaiting_support"` to `ALL_STATUSES` array
+- Use `statusLabel()` in the three status Badge renders (lines ~789, ~921, ~1008) and in the status filter checkboxes
 
-**`src/App.tsx`**
-- Add route: `/my/:owner` → `<OwnerDashboard />`
+**`src/pages/ConversationDetail.tsx`**
+- Add `"awaiting_support"` to `STATUS_OPTIONS`
+- Add same `statusLabel()` helper
+- Use it in status Badge and status Select dropdown items
+- Add color mapping for `awaiting_support` in `statusColor()`
 
-**`src/components/AppLayout.tsx`**
-- Add two nav links after Conversations:
-  - "Joel" → `/my/joel`
-  - "Kristina" → `/my/kristina`
-- Use `User` icon from lucide-react
+**`src/pages/Stats.tsx`**
+- Rename `awaiting_context` label from "Awaiting context" to "Awaiting customer"
+- Add `awaiting_support` entry to chart config and stats counting
 
-**`src/pages/FlowDiagram.tsx`** — Document the owner dashboard feature
+**`src/pages/FlowDiagram.tsx`**
+- Update status filter documentation to include `awaiting_support`
+- Document the label rename
 
-### Technical details
-- The component uses a single `owner` URL param and capitalizes it for the query (`joel` → `Joel`)
-- Each table query: `.select("*").eq("owner", ownerName)`
-- Unified rows are built the same way as in Conversations.tsx but simpler (no search, no status filter)
-- KPI counts are derived from the fetched data via `useMemo`
-
-### Files to create/edit
-- `src/pages/OwnerDashboard.tsx` (new)
-- `src/App.tsx`
-- `src/components/AppLayout.tsx`
+### Files to edit
+- `src/pages/Conversations.tsx`
+- `src/pages/ConversationDetail.tsx`
+- `src/pages/Stats.tsx`
 - `src/pages/FlowDiagram.tsx`
 
