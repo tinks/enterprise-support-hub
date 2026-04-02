@@ -274,7 +274,7 @@ const ConversationDetail = () => {
     setUpdating(false);
   };
 
-  const toggleField = async (field: "is_test" | "is_bug" | "is_feature_request") => {
+  const toggleField = async (field: "is_test" | "is_bug") => {
     const current = getCurrentData();
     if (!current) return;
     const newVal = !current[field];
@@ -768,10 +768,6 @@ const ConversationDetail = () => {
               <div className="flex items-center justify-between">
                 <Label className="text-sm text-muted-foreground">Bug</Label>
                 <Switch checked={current.is_bug} onCheckedChange={() => toggleField("is_bug")} />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label className="text-sm text-muted-foreground">Feature request</Label>
-                <Switch checked={current.is_feature_request} onCheckedChange={() => toggleField("is_feature_request")} />
               </div>
               <div className="flex items-center justify-between">
                 <Label className="text-sm text-muted-foreground">Product area</Label>

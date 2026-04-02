@@ -120,7 +120,7 @@ const getCET = (dateStr: string) => {
 
 const CLASSIFICATION_OPTIONS = ["Issue", "Configuration", "Bug", "FR", "Question"] as const;
 
-const ALL_COLUMNS = ["id", "source", "sent_by", "message", "channel", "link", "intercom", "status", "owner", "date", "test", "resolved", "product_area", "bug", "feature_req", "classification"] as const;
+const ALL_COLUMNS = ["id", "source", "sent_by", "message", "channel", "link", "intercom", "status", "owner", "date", "test", "resolved", "product_area", "bug", "classification"] as const;
 type ColKey = typeof ALL_COLUMNS[number];
 
 type OwnerFilter = "all" | "Joel" | "Kristina" | "unassigned";
@@ -454,18 +454,6 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     }
   };
 
-  const toggleFeatureRequest = async (id: string, currentValue: boolean, source: "slack" | "gmail") => {
-    const newValue = !currentValue;
-    const table = source === "slack" ? "conversation_mappings" : "gmail_conversations";
-    const setState = source === "slack" ? setMappings : setGmailRows;
-
-    setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, is_feature_request: newValue } : m));
-    const { error } = await supabase.from(table).update({ is_feature_request: newValue } as any).eq("id", id);
-    if (error) {
-      setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, is_feature_request: currentValue } : m));
-      toast.error("Failed to update feature request flag");
-    }
-  };
 
   const updateClassification = async (id: string, value: string, source: "slack" | "gmail" | "manual") => {
     const newValue = value === "clear" ? null : value;
@@ -770,7 +758,6 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     resolved: "Resolved",
     product_area: "Product area",
     bug: "Bug",
-    feature_req: "FR",
     classification: "Classification",
   };
 
@@ -865,14 +852,6 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
           checked={m.is_bug}
           onCheckedChange={() => toggleBug(m.id, m.is_bug, "slack")}
           aria-label="Toggle bug"
-          onClick={(e) => e.stopPropagation()}
-        />
-      );
-      case "feature_req": return (
-        <Switch
-          checked={m.is_feature_request}
-          onCheckedChange={() => toggleFeatureRequest(m.id, m.is_feature_request, "slack")}
-          aria-label="Toggle feature request"
           onClick={(e) => e.stopPropagation()}
         />
       );
@@ -995,13 +974,6 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
           checked={g.is_bug}
           onCheckedChange={() => toggleBug(g.id, g.is_bug, "gmail")}
           aria-label="Toggle bug"
-        />
-      );
-      case "feature_req": return (
-        <Switch
-          checked={g.is_feature_request}
-          onCheckedChange={() => toggleFeatureRequest(g.id, g.is_feature_request, "gmail")}
-          aria-label="Toggle feature request"
         />
       );
       case "classification": return (
@@ -1129,22 +1101,6 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
             {mc.owner && <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>}
           </SelectContent>
         </Select>
-      );
-      case "feature_req": return (
-        <Switch
-          checked={mc.is_feature_request}
-          onCheckedChange={async () => {
-            const newVal = !mc.is_feature_request;
-            setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, is_feature_request: newVal } : r));
-            const { error } = await supabase.from("manual_conversations").update({ is_feature_request: newVal }).eq("id", mc.id);
-            if (error) {
-              setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, is_feature_request: mc.is_feature_request } : r));
-              toast.error("Failed to update feature request flag");
-            }
-          }}
-          aria-label="Toggle feature request"
-          onClick={(e) => e.stopPropagation()}
-        />
       );
       case "classification": return (
         <Select value={mc.classification || ""} onValueChange={(v) => updateClassification(mc.id, v, "manual")}>
