@@ -119,6 +119,7 @@ const getCET = (dateStr: string) => {
 };
 
 const CLASSIFICATION_OPTIONS = ["Issue", "Configuration", "Bug", "FR", "Question"] as const;
+const STATUS_OPTIONS = ["active", "resolved", "cancelled", "escalated", "awaiting_context", "awaiting_support"] as const;
 
 const ALL_COLUMNS = ["id", "source", "sent_by", "message", "channel", "link", "intercom", "status", "owner", "date", "test", "resolved", "product_area", "bug", "classification"] as const;
 type ColKey = typeof ALL_COLUMNS[number];
@@ -369,6 +370,22 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       else next.add(id);
       return next;
     });
+  };
+
+  const updateStatus = async (id: string, newStatus: string, source: "slack" | "gmail" | "manual") => {
+    const table = source === "slack" ? "conversation_mappings" : source === "gmail" ? "gmail_conversations" : "manual_conversations";
+    const setState = source === "slack" ? setMappings : source === "gmail" ? setGmailRows : setManualRows;
+    const resolvedAt = newStatus === "resolved" ? new Date().toISOString() : null;
+
+    setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, status: newStatus, ...(resolvedAt !== undefined ? { resolved_at: resolvedAt } : {}) } : m));
+    if (searchResults) {
+      setSearchResults((prev: any) => prev ? prev.map((m: any) => m.id === id ? { ...m, status: newStatus } : m) : prev);
+    }
+    const { error } = await supabase.from(table).update({ status: newStatus, resolved_at: resolvedAt } as any).eq("id", id);
+    if (error) {
+      toast.error("Failed to update status");
+      loadData();
+    }
   };
 
   const toggleTest = async (id: string, currentValue: boolean, source: "slack" | "gmail") => {
@@ -803,7 +820,18 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         </a>
       );
       case "intercom": return renderIntercomCell(m.id, m.intercom_conversation_id, "slack", true, (e) => createIntercomTicket(e, m.id, "slack"), creatingTicket.has(m.id));
-      case "status": return <Badge variant={statusColor(m.status)}>{statusLabel(m.status)}</Badge>;
+      case "status": return (
+        <Select value={m.status} onValueChange={(v) => updateStatus(m.id, v, "slack")}>
+          <SelectTrigger className="h-8 w-[150px] text-xs" onClick={(e) => e.stopPropagation()}>
+            <SelectValue>{statusLabel(m.status)}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_OPTIONS.map((s) => (
+              <SelectItem key={s} value={s}>{statusLabel(s)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
       case "date": return <span className="text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString()}</span>;
       case "test": return (
         <Switch
@@ -940,7 +968,18 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         </a>
       ) : <span className="text-xs text-muted-foreground">—</span>;
       case "intercom": return renderIntercomCell(g.id, g.intercom_conversation_id, "gmail", true, (e) => createIntercomTicket(e, g.id, "gmail"), creatingTicket.has(g.id));
-      case "status": return <Badge variant={statusColor(g.status || "open")}>{statusLabel(g.status || "open")}</Badge>;
+      case "status": return (
+        <Select value={g.status || "open"} onValueChange={(v) => updateStatus(g.id, v, "gmail")}>
+          <SelectTrigger className="h-8 w-[150px] text-xs" onClick={(e) => e.stopPropagation()}>
+            <SelectValue>{statusLabel(g.status || "open")}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_OPTIONS.map((s) => (
+              <SelectItem key={s} value={s}>{statusLabel(s)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
       case "date": return <span className="text-xs text-muted-foreground">{g.received_at ? new Date(g.received_at).toLocaleString() : new Date(g.created_at).toLocaleString()}</span>;
       case "test": return (
         <Switch
@@ -1031,7 +1070,18 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         </a>
       ) : <span className="text-xs text-muted-foreground">—</span>;
       case "intercom": return renderIntercomCell(mc.id, mc.intercom_conversation_id, "manual", true, (e) => createIntercomTicket(e, mc.id, "manual"), creatingTicket.has(mc.id));
-      case "status": return <Badge variant={statusColor(mc.status)}>{statusLabel(mc.status)}</Badge>;
+      case "status": return (
+        <Select value={mc.status} onValueChange={(v) => updateStatus(mc.id, v, "manual")}>
+          <SelectTrigger className="h-8 w-[150px] text-xs" onClick={(e) => e.stopPropagation()}>
+            <SelectValue>{statusLabel(mc.status)}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_OPTIONS.map((s) => (
+              <SelectItem key={s} value={s}>{statusLabel(s)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
       case "date": return <span className="text-xs text-muted-foreground">{new Date(mc.created_at).toLocaleString()}</span>;
       case "test": return (
         <Switch

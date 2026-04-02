@@ -192,6 +192,7 @@ function buildNodes(
            "Conversations tab has 'Product area' dropdown (SSO, SCIM, Credits, Account access, Remix/transfer, Cloud/AI), 'Bug' toggle, and 'Feature request' toggle per row, persisted to DB",
            "Conversations tab has multi-select status filter (popover with checkboxes) to hide/show: active, awaiting_context (labelled 'Awaiting customer'), awaiting_support, escalated, resolved, cancelled, test — defaults to hiding test, cancelled, resolved",
            "Status display labels: awaiting_context → 'Awaiting customer', awaiting_support → 'Awaiting support' (DB values unchanged)",
+           "Status is editable inline from the conversations list via a dropdown (active, resolved, cancelled, escalated, awaiting_context, awaiting_support)",
            "Import page has free-form 'Log conversation' for Teams/phone/Slack DM/Private chat/other threads — saves to manual_conversations + manual_messages tables, shown in Conversations with source filter 'Manual'",
         ],
         message: "@SupportBot I'm having trouble deploying my project...",
