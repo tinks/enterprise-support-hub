@@ -1134,6 +1134,17 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
           onClick={(e) => e.stopPropagation()}
         />
       );
+      case "classification": return (
+        <Select value={mc.classification || ""} onValueChange={(v) => updateClassification(mc.id, v, "manual")}>
+          <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent>
+            {CLASSIFICATION_OPTIONS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {mc.classification && <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>}
+          </SelectContent>
+        </Select>
+      );
     }
   };
 
