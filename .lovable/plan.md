@@ -1,31 +1,37 @@
 
 
-## Group Gmail emails by matching subject in conversations table
+## Make Intercom column editable on double-click
 
 ### What it does
-Gmail emails that share the same `gmail_thread_id` (or matching `subject` when thread ID is null) will be visually grouped together in the conversations table. Instead of showing each email as a separate row, emails in the same thread collapse into a single expandable row showing the count and latest date.
+Double-clicking the Intercom cell on any conversation row opens an inline text input to manually set or edit the Intercom conversation ID. Pressing Enter or blurring saves it to the database; Escape cancels.
 
 ### Changes
 
 **`src/pages/Conversations.tsx`**
 
-1. In the `unified` useMemo, after collecting Gmail rows, group them by `gmail_thread_id` (when non-null) or normalized `subject` (lowercase, trimmed, stripped of "Re:"/"Fwd:" prefixes). Each group becomes a single `UnifiedRow` with `source: "gmail"` using the most recent email as the primary `data`, plus a new field for the grouped children and count.
+1. Add state: `editingIntercomId: string | null` (row ID being edited), `editingIntercomValue: string` (current input value)
 
-2. Extend the `UnifiedRow` gmail variant to include optional `groupedEmails: GmailConversation[]` and `groupCount: number` fields.
+2. Create an `IntercomEditCell` inline component that:
+   - Shows the current display (link, "Create" button, or "—") by default
+   - On `onDoubleClick`, sets `editingIntercomId` to the row ID and populates the input with the current value
+   - When editing, renders an `<Input>` (auto-focused, small) instead of the display
+   - On Enter or blur: saves the value to the appropriate Supabase table (`conversation_mappings` for slack, `gmail_conversations` or `manual_conversations` for others) and updates local state
+   - On Escape: cancels editing
 
-3. In `renderGmailCell`:
-   - For the `"id"` column: show count badge (e.g. "3 emails") when `groupCount > 1`
-   - For the `"message"` column: show the shared subject with the count
-   - For the `"date"` column: show the latest received date, with the range if multiple
-   - For the `"sent_by"` column: show the unique senders (e.g. "John + 2 others")
+3. Update `renderSlackCell` case `"intercom"`: wrap existing content with double-click handler; when `editingIntercomId === m.id`, show the input instead
 
-4. Add expand/collapse state (`expandedGmailGroups: Set<string>`) — clicking a grouped Gmail row toggles showing the individual emails as sub-rows beneath it, slightly indented.
+4. Update `renderGmailCell` and `renderManualCell` case `"intercom"`: same pattern — double-click to edit, save to the corresponding table. For Gmail, save to `gmail_conversations` (would need a new column or use an existing field). For manual, save to `manual_conversations`.
 
-5. In the table body rendering, when a Gmail row has `groupCount > 1` and is expanded, render the child rows immediately after the parent row with a subtle left-border indent styling.
+   Since `gmail_conversations` and `manual_conversations` don't have an `intercom_conversation_id` column, a migration will add nullable `intercom_conversation_id text` columns to both tables.
 
-**`src/pages/FlowDiagram.tsx`** — Document that Gmail emails with matching thread ID or subject are grouped in the conversations table.
+5. Stop propagation on double-click to prevent row navigation.
+
+**Database migration** — Add `intercom_conversation_id` column to `gmail_conversations` and `manual_conversations` tables.
+
+**`src/pages/FlowDiagram.tsx`** — Document that Intercom IDs can be manually edited via double-click.
 
 ### Files to edit
-- `src/pages/Conversations.tsx` — grouping logic, expand/collapse UI
+- `src/pages/Conversations.tsx` — inline edit logic
 - `src/pages/FlowDiagram.tsx` — document change
+- Database migration for new columns
 
