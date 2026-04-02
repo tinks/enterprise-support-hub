@@ -140,12 +140,12 @@ const Conversations = () => {
   const [editingIntercomId, setEditingIntercomId] = useState<string | null>(null);
   const [editingIntercomValue, setEditingIntercomValue] = useState("");
 
-  const createIntercomTicket = async (e: React.MouseEvent, mappingId: string) => {
+  const createIntercomTicket = async (e: React.MouseEvent, rowId: string, source: "slack" | "gmail" | "manual" = "slack") => {
     e.stopPropagation();
-    setCreatingTicket((prev) => new Set(prev).add(mappingId));
+    setCreatingTicket((prev) => new Set(prev).add(rowId));
     try {
       const { data, error } = await supabase.functions.invoke("create-intercom-from-import", {
-        body: { mappingId },
+        body: { mappingId: rowId, source },
       });
       if (error) {
         toast.error("Failed to create Intercom ticket");
@@ -153,9 +153,19 @@ const Conversations = () => {
       }
       if (data?.intercomConversationId) {
         toast.success("Intercom ticket created");
-        setMappings((prev) => prev.map((m) => m.id === mappingId ? { ...m, intercom_conversation_id: data.intercomConversationId, intercom_ticket_id: data.ticketId || null } : m));
-        if (searchResults) {
-          setSearchResults((prev) => prev ? { ...prev, slack: prev.slack.map((m) => m.id === mappingId ? { ...m, intercom_conversation_id: data.intercomConversationId, intercom_ticket_id: data.ticketId || null } : m) } : prev);
+        if (source === "slack") {
+          setMappings((prev) => prev.map((m) => m.id === rowId ? { ...m, intercom_conversation_id: data.intercomConversationId, intercom_ticket_id: data.ticketId || null } : m));
+          if (searchResults) {
+            setSearchResults((prev) => prev ? { ...prev, slack: prev.slack.map((m) => m.id === rowId ? { ...m, intercom_conversation_id: data.intercomConversationId, intercom_ticket_id: data.ticketId || null } : m) } : prev);
+          }
+        } else if (source === "gmail") {
+          const updater = (g: GmailConversation) => g.id === rowId ? { ...g, intercom_conversation_id: data.intercomConversationId } : g;
+          setGmailRows((prev) => prev.map(updater));
+          if (searchResults) setSearchResults((prev) => prev ? { ...prev, gmail: prev.gmail.map(updater) } : prev);
+        } else {
+          const updater = (mc: ManualConversation) => mc.id === rowId ? { ...mc, intercom_conversation_id: data.intercomConversationId } : mc;
+          setManualRows((prev) => prev.map(updater));
+          if (searchResults) setSearchResults((prev) => prev ? { ...prev, manual: prev.manual.map(updater) } : prev);
         }
       } else {
         toast.error(data?.error || "Failed to create ticket");
@@ -163,7 +173,7 @@ const Conversations = () => {
     } catch {
       toast.error("Failed to create Intercom ticket");
     } finally {
-      setCreatingTicket((prev) => { const next = new Set(prev); next.delete(mappingId); return next; });
+      setCreatingTicket((prev) => { const next = new Set(prev); next.delete(rowId); return next; });
     }
   };
 
@@ -736,7 +746,7 @@ const Conversations = () => {
           Thread <ExternalLink className="h-3 w-3" />
         </a>
       );
-      case "intercom": return renderIntercomCell(m.id, m.intercom_conversation_id, "slack", true, (e) => createIntercomTicket(e, m.id), creatingTicket.has(m.id));
+      case "intercom": return renderIntercomCell(m.id, m.intercom_conversation_id, "slack", true, (e) => createIntercomTicket(e, m.id, "slack"), creatingTicket.has(m.id));
       case "status": return <Badge variant={statusColor(m.status)}>{m.status}</Badge>;
       case "date": return <span className="text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString()}</span>;
       case "test": return (
@@ -857,7 +867,7 @@ const Conversations = () => {
           Email <ExternalLink className="h-3 w-3" />
         </a>
       ) : <span className="text-xs text-muted-foreground">—</span>;
-      case "intercom": return renderIntercomCell(g.id, g.intercom_conversation_id, "gmail");
+      case "intercom": return renderIntercomCell(g.id, g.intercom_conversation_id, "gmail", true, (e) => createIntercomTicket(e, g.id, "gmail"), creatingTicket.has(g.id));
       case "status": return <Badge variant={g.status === "resolved" ? "secondary" : "default"}>{g.status || "open"}</Badge>;
       case "date": return <span className="text-xs text-muted-foreground">{g.received_at ? new Date(g.received_at).toLocaleString() : new Date(g.created_at).toLocaleString()}</span>;
       case "test": return (
@@ -931,7 +941,7 @@ const Conversations = () => {
           Link <ExternalLink className="h-3 w-3" />
         </a>
       ) : <span className="text-xs text-muted-foreground">—</span>;
-      case "intercom": return renderIntercomCell(mc.id, mc.intercom_conversation_id, "manual");
+      case "intercom": return renderIntercomCell(mc.id, mc.intercom_conversation_id, "manual", true, (e) => createIntercomTicket(e, mc.id, "manual"), creatingTicket.has(mc.id));
       case "status": return <Badge variant={statusColor(mc.status)}>{mc.status}</Badge>;
       case "date": return <span className="text-xs text-muted-foreground">{new Date(mc.created_at).toLocaleString()}</span>;
       case "test": return (
@@ -1229,7 +1239,7 @@ const Conversations = () => {
                           <Fragment key={`gmail-group-${g.id}`}>
                             <TableRow
                               key={`gmail-${g.id}`}
-                              className={`hover:bg-muted/50 transition-colors ${g.is_test ? "opacity-50" : ""} ${isGrouped ? "cursor-pointer" : ""}`}
+                              className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "opacity-50" : ""}`}
                               onClick={isGrouped && row.groupKey ? () => {
                                 setExpandedGmailGroups((prev) => {
                                   const next = new Set(prev);
@@ -1237,7 +1247,7 @@ const Conversations = () => {
                                   else next.add(row.groupKey!);
                                   return next;
                                 });
-                              } : undefined}
+                              } : () => navigate(`/conversations/${g.id}?source=gmail`)}
                             >
                               {columnOrder.map((col) => (
                                 <TableCell key={col} className={col === "message" ? "max-w-[300px]" : ""}>
@@ -1248,7 +1258,8 @@ const Conversations = () => {
                             {subRows.map((sub) => (
                               <TableRow
                                 key={`gmail-sub-${sub.id}`}
-                                className={`hover:bg-muted/50 transition-colors bg-muted/20 ${sub.is_test ? "opacity-50" : ""}`}
+                                className={`cursor-pointer hover:bg-muted/50 transition-colors bg-muted/20 ${sub.is_test ? "opacity-50" : ""}`}
+                                onClick={() => navigate(`/conversations/${sub.id}?source=gmail`)}
                               >
                                 {columnOrder.map((col) => (
                                   <TableCell key={col} className={`${col === "message" ? "max-w-[300px]" : ""} ${col === "id" ? "pl-8" : ""}`}>
@@ -1264,7 +1275,8 @@ const Conversations = () => {
                         return (
                           <TableRow
                             key={`manual-${mc.id}`}
-                            className={`hover:bg-muted/50 transition-colors ${mc.is_test ? "opacity-50" : ""}`}
+                            className={`cursor-pointer hover:bg-muted/50 transition-colors ${mc.is_test ? "opacity-50" : ""}`}
+                            onClick={() => navigate(`/conversations/${mc.id}?source=manual`)}
                           >
                             {columnOrder.map((col) => (
                               <TableCell key={col} className={col === "message" ? "max-w-[300px]" : ""}>

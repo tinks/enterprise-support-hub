@@ -19,15 +19,15 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    if (!slackToken || !intercomToken) {
+    if (!intercomToken) {
       return new Response(
-        JSON.stringify({ error: "Missing required secrets" }),
+        JSON.stringify({ error: "Missing Intercom API token" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const { mappingId } = await req.json();
+    const { mappingId, source = "slack" } = await req.json();
 
     if (!mappingId) {
       return new Response(
@@ -36,74 +36,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Load the conversation mapping
-    const { data: mapping, error: mapErr } = await supabase
-      .from("conversation_mappings")
-      .select("*")
-      .eq("id", mappingId)
-      .single();
-
-    if (mapErr || !mapping) {
-      return new Response(
-        JSON.stringify({ error: "Conversation not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (mapping.intercom_conversation_id) {
-      return new Response(
-        JSON.stringify({ error: "Already has an Intercom conversation", intercomId: mapping.intercom_conversation_id }),
-        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Lookup Slack user email
-    let email: string | null = null;
-    if (mapping.slack_user_id) {
-      try {
-        const userRes = await fetch(`${SLACK_API_URL}/users.info?user=${mapping.slack_user_id}`, {
-          headers: { Authorization: `Bearer ${slackToken}` },
-        });
-        const userData = await userRes.json();
-        if (userData.ok && userData.user?.profile?.email) {
-          email = userData.user.profile.email;
-        }
-      } catch (e) {
-        console.error("Failed to lookup Slack user email:", e);
-      }
-    }
-
-    // Fetch full thread transcript
-    const allMessages: any[] = [];
-    let cursor: string | undefined;
-    do {
-      const params = new URLSearchParams({
-        channel: mapping.slack_channel_id,
-        ts: mapping.slack_thread_ts,
-        limit: "200",
-        inclusive: "true",
-      });
-      if (cursor) params.set("cursor", cursor);
-
-      const repliesRes = await fetch(
-        `${SLACK_API_URL}/conversations.replies?${params}`,
-        { headers: { Authorization: `Bearer ${slackToken}` } }
-      );
-      const repliesData = await repliesRes.json();
-      if (repliesData.ok && repliesData.messages) {
-        allMessages.push(...repliesData.messages);
-      }
-      cursor = repliesData.response_metadata?.next_cursor || undefined;
-    } while (cursor);
-
-    // Build transcript
-    const transcript = allMessages
-      .map((m: any) => {
-        const ts = new Date(parseFloat(m.ts) * 1000).toISOString();
-        return `[${ts}] ${m.user || "bot"}: ${m.text || ""}`;
-      })
-      .join("\n\n");
-
     const intercomHeaders = {
       Authorization: `Bearer ${intercomToken}`,
       "Content-Type": "application/json",
@@ -111,10 +43,163 @@ Deno.serve(async (req) => {
       "Intercom-Version": "2.11",
     };
 
+    let email: string | null = null;
+    let contactName: string | null = null;
+    let body = "";
+    let tableName = "conversation_mappings";
+    let existingIntercomId: string | null = null;
+
+    if (source === "gmail") {
+      tableName = "gmail_conversations";
+      const { data: gmail, error: gmailErr } = await supabase
+        .from("gmail_conversations")
+        .select("*")
+        .eq("id", mappingId)
+        .single();
+
+      if (gmailErr || !gmail) {
+        return new Response(
+          JSON.stringify({ error: "Gmail conversation not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (gmail.intercom_conversation_id) {
+        return new Response(
+          JSON.stringify({ error: "Already has an Intercom conversation", intercomId: gmail.intercom_conversation_id }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      email = gmail.from_email || null;
+      contactName = gmail.from_name || gmail.from_email || "Gmail contact";
+      const internalNote = "Internal note: This is a Gmail email imported into Intercom. Handle this request as you normally would.";
+      body = `${internalNote}\n\nSubject: ${gmail.subject || "(no subject)"}\nFrom: ${gmail.from_name || ""} <${gmail.from_email || "unknown"}>\n\n${gmail.snippet || ""}`;
+
+    } else if (source === "manual") {
+      tableName = "manual_conversations";
+      const { data: manual, error: manualErr } = await supabase
+        .from("manual_conversations")
+        .select("*")
+        .eq("id", mappingId)
+        .single();
+
+      if (manualErr || !manual) {
+        return new Response(
+          JSON.stringify({ error: "Manual conversation not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (manual.intercom_conversation_id) {
+        return new Response(
+          JSON.stringify({ error: "Already has an Intercom conversation", intercomId: manual.intercom_conversation_id }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      contactName = manual.contact_name || "Manual contact";
+
+      // Fetch messages for transcript
+      const { data: msgs } = await supabase
+        .from("manual_messages")
+        .select("*")
+        .eq("conversation_id", mappingId)
+        .order("created_at", { ascending: true });
+
+      const transcript = (msgs || [])
+        .map((m: any) => `[${new Date(m.created_at).toISOString()}] ${m.sender_name || m.role}: ${m.message_text || ""}`)
+        .join("\n\n");
+
+      const internalNote = `Internal note: This is a manually logged ${manual.source} conversation. Handle this request as you normally would.`;
+      body = `${internalNote}\n\nSubject: ${manual.subject || "(no subject)"}\nContact: ${contactName}\nSource: ${manual.source}\n\n--- Transcript ---\n${transcript}`;
+
+    } else {
+      // Default: slack
+      if (!slackToken) {
+        return new Response(
+          JSON.stringify({ error: "Missing Slack bot token" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: mapping, error: mapErr } = await supabase
+        .from("conversation_mappings")
+        .select("*")
+        .eq("id", mappingId)
+        .single();
+
+      if (mapErr || !mapping) {
+        return new Response(
+          JSON.stringify({ error: "Conversation not found" }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (mapping.intercom_conversation_id) {
+        return new Response(
+          JSON.stringify({ error: "Already has an Intercom conversation", intercomId: mapping.intercom_conversation_id }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Lookup Slack user email
+      if (mapping.slack_user_id) {
+        try {
+          const userRes = await fetch(`${SLACK_API_URL}/users.info?user=${mapping.slack_user_id}`, {
+            headers: { Authorization: `Bearer ${slackToken}` },
+          });
+          const userData = await userRes.json();
+          if (userData.ok && userData.user?.profile?.email) {
+            email = userData.user.profile.email;
+          }
+        } catch (e) {
+          console.error("Failed to lookup Slack user email:", e);
+        }
+      }
+
+      // Fetch full thread transcript
+      const allMessages: any[] = [];
+      let cursor: string | undefined;
+      do {
+        const params = new URLSearchParams({
+          channel: mapping.slack_channel_id,
+          ts: mapping.slack_thread_ts,
+          limit: "200",
+          inclusive: "true",
+        });
+        if (cursor) params.set("cursor", cursor);
+
+        const repliesRes = await fetch(
+          `${SLACK_API_URL}/conversations.replies?${params}`,
+          { headers: { Authorization: `Bearer ${slackToken}` } }
+        );
+        const repliesData = await repliesRes.json();
+        if (repliesData.ok && repliesData.messages) {
+          allMessages.push(...repliesData.messages);
+        }
+        cursor = repliesData.response_metadata?.next_cursor || undefined;
+      } while (cursor);
+
+      const transcript = allMessages
+        .map((m: any) => {
+          const ts = new Date(parseFloat(m.ts) * 1000).toISOString();
+          return `[${ts}] ${m.user || "bot"}: ${m.text || ""}`;
+        })
+        .join("\n\n");
+
+      const internalNote = "Internal note: This is a manually imported Slack thread. The full thread transcript is included below. Handle this request as you normally would.";
+      body = `${internalNote}\n\nOriginal message: ${mapping.original_message_text}\n\n--- Thread transcript ---\n${transcript}`;
+
+      if (!email) {
+        contactName = `Slack User ${mapping.slack_user_id}`;
+      }
+    }
+
     // Find or create Intercom contact
     let contactId: string;
     const searchField = email ? "email" : "external_id";
-    const searchValue = email || mapping.slack_user_id;
+    const searchValue = email || `${source}-${mappingId}`;
 
     const contactRes = await fetch("https://api.intercom.io/contacts/search", {
       method: "POST",
@@ -131,10 +216,10 @@ Deno.serve(async (req) => {
       const createBody: Record<string, string> = { role: "user" };
       if (email) {
         createBody.email = email;
-        createBody.name = email;
+        createBody.name = contactName || email;
       } else {
-        createBody.external_id = mapping.slack_user_id;
-        createBody.name = `Slack User ${mapping.slack_user_id}`;
+        createBody.external_id = `${source}-${mappingId}`;
+        createBody.name = contactName || `${source} contact`;
       }
 
       const createRes = await fetch("https://api.intercom.io/contacts", {
@@ -164,10 +249,6 @@ Deno.serve(async (req) => {
         contactId = JSON.parse(createResText).id;
       }
     }
-
-    // Build body with transcript
-    const internalNote = "Internal note: This is a manually imported Slack thread. The full thread transcript is included below. Handle this request as you normally would.";
-    const body = `${internalNote}\n\nOriginal message: ${mapping.original_message_text}\n\n--- Thread transcript ---\n${transcript}`;
 
     // Create Intercom conversation
     const convRes = await fetch("https://api.intercom.io/conversations", {
@@ -211,7 +292,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    const isTest = mapping.is_test === true;
+    // Determine if test — check the source row
+    let isTest = false;
+    if (source === "slack") {
+      const { data: m } = await supabase.from("conversation_mappings").select("is_test").eq("id", mappingId).single();
+      isTest = m?.is_test === true;
+    } else if (source === "gmail") {
+      const { data: g } = await supabase.from("gmail_conversations").select("is_test").eq("id", mappingId).single();
+      isTest = g?.is_test === true;
+    } else {
+      const { data: mc } = await supabase.from("manual_conversations").select("is_test").eq("id", mappingId).single();
+      isTest = mc?.is_test === true;
+    }
+
     const inboxId = isTest && settings?.test_intercom_inbox_id
       ? settings.test_intercom_inbox_id
       : settings?.intercom_inbox_id;
@@ -230,16 +323,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Update mapping
-    await supabase
-      .from("conversation_mappings")
-      .update({
-        intercom_conversation_id: conversationId,
-        intercom_contact_id: contactId,
-      })
-      .eq("id", mappingId);
+    // Update the source table with intercom IDs
+    const updateData: Record<string, string> = { intercom_conversation_id: conversationId };
+    if (source === "slack") {
+      (updateData as any).intercom_contact_id = contactId;
+    }
+    await supabase.from(tableName).update(updateData).eq("id", mappingId);
 
-    console.log(`Created Intercom conversation ${conversationId} for imported mapping ${mappingId}`);
+    console.log(`Created Intercom conversation ${conversationId} for ${source} ${mappingId}`);
 
     return new Response(
       JSON.stringify({
