@@ -569,11 +569,12 @@ Deno.serve(async (req) => {
 
         // If no rows were claimed, another request already processed this event
         if (!claimed || claimed.length === 0) {
-          console.log(`Dedup: event ${eventTs} already claimed for thread ${threadTs}`);
+          console.log(`[DEDUP] Event ${eventTs} already claimed for thread ${threadTs} in ${channelId}`);
           return new Response(JSON.stringify({ ok: true }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
+        console.log(`[DEDUP] Successfully claimed event ${eventTs} for thread ${threadTs} in ${channelId} (mapping=${mapping.id}, status=${mapping.status})`);
 
         // ---- Inline: forward reply to Intercom (must complete before response) ----
         console.log(`[INLINE] Processing thread reply ${eventTs} in ${channelId}/${threadTs} from ${event.user}`);
@@ -681,8 +682,9 @@ Deno.serve(async (req) => {
                 replyPayload.attachment_urls = replyAttachmentUrls;
               }
 
-              // Smart routing: use ticket ID if conversation was converted to a ticket
-              const targetId = mapping.intercom_ticket_id || mapping.intercom_conversation_id;
+              // Always use conversation_id for replies — ticket IDs are not valid for the /reply endpoint
+              const targetId = mapping.intercom_conversation_id;
+              console.log(`[ROUTING] Using intercom_conversation_id=${targetId} for reply (ticket_id=${mapping.intercom_ticket_id || "none"}, status=${mapping.status})`);
               const intercomHeaders = {
                 Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
                 "Content-Type": "application/json",
@@ -695,12 +697,12 @@ Deno.serve(async (req) => {
                 { method: "POST", headers: intercomHeaders, body: JSON.stringify(replyPayload) }
               );
 
-              // If reply failed and we have a ticket ID, retry as admin
-              if (!replyRes.ok && mapping.intercom_ticket_id) {
+              // If reply failed with user type, retry as admin (tickets may reject user-type replies)
+              if (!replyRes.ok) {
                 const errText = await replyRes.text();
-                console.error(`Failed to forward reply to ticket ${targetId} (${replyRes.status}): ${errText}`);
-                // Retry as admin if the original was a user-type reply
+                console.error(`[ROUTING] Failed to forward reply to ${targetId} (${replyRes.status}): ${errText}`);
                 if (replyPayload.type === "user" && adminId) {
+                  console.log(`[ROUTING] Retrying as admin for ${targetId}`);
                   const adminPayload = {
                     message_type: "comment",
                     type: "admin",

@@ -46,6 +46,10 @@ const ROW_H = 380;
 /*  Gmail resolve & toggleTest: optimistic UI update with error        */
 /*  handling — reverts state and shows toast on failure. No `as any`.  */
 /* ------------------------------------------------------------------ */
+/*  Intercom reply routing: slack-events always uses                    */
+/*  intercom_conversation_id (never ticket_id) for /reply endpoint.    */
+/*  Ticket IDs are invalid for replies. Retry-as-admin uses same ID.   */
+/* ------------------------------------------------------------------ */
 /*  Product areas are user-configurable via Settings page. The         */
 /*  Conversations page fetches the list from settings.product_areas.   */
 /* ------------------------------------------------------------------ */
