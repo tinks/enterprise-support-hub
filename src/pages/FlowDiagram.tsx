@@ -169,7 +169,7 @@ function buildNodes(
           "Conversations tab resolves channel IDs to names via list-slack-channels (bot token first, connector fallback)",
            "Conversations tab has 'Product area' dropdown (SSO, SCIM, Credits, Account access, Remix/transfer, Cloud/AI), 'Bug' toggle, and 'Feature request' toggle per row, persisted to DB",
            "Conversations tab has multi-select status filter (popover with checkboxes) to hide/show: active, awaiting_context, escalated, resolved, cancelled, test — defaults to hiding test, cancelled, resolved",
-           "Import page has free-form 'Log conversation' for Teams/phone/other threads — saves to manual_conversations + manual_messages tables, shown in Conversations with source filter 'Manual'",
+           "Import page has free-form 'Log conversation' for Teams/phone/Slack DM/Private chat/other threads — saves to manual_conversations + manual_messages tables, shown in Conversations with source filter 'Manual'",
         ],
         message: "@SupportBot I'm having trouble deploying my project...",
         accent: "blue",
