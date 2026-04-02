@@ -1004,6 +1004,17 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
           aria-label="Toggle feature request"
         />
       );
+      case "classification": return (
+        <Select value={g.classification || ""} onValueChange={(v) => updateClassification(g.id, v, "gmail")}>
+          <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent>
+            {CLASSIFICATION_OPTIONS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {g.classification && <SelectItem value="clear" className="text-muted-foreground">Clear</SelectItem>}
+          </SelectContent>
+        </Select>
+      );
     }
   };
 
