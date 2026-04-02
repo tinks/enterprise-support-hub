@@ -111,6 +111,12 @@ const ROW_H = 380;
 /*  for contact lookup; manual uses contact_name. The "Create" button  */
 /*  appears in the Intercom column for all sources without an ID.      */
 /* ------------------------------------------------------------------ */
+/*  Intercom import: users can paste an Intercom conversation URL on   */
+/*  the Import page to create a manual_conversation with source =      */
+/*  "intercom", pre-linked intercom_conversation_id, and metadata      */
+/*  fetched from the Intercom API. Duplicates checked across all       */
+/*  three tables. Badge shows "Intercom import" in conversations list. */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */
