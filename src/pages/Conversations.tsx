@@ -117,7 +117,9 @@ const getCET = (dateStr: string) => {
   };
 };
 
-const ALL_COLUMNS = ["id", "source", "sent_by", "message", "channel", "link", "intercom", "status", "owner", "date", "test", "resolved", "product_area", "bug", "feature_req"] as const;
+const CLASSIFICATION_OPTIONS = ["Issue", "Configuration", "Bug", "FR", "Question"] as const;
+
+const ALL_COLUMNS = ["id", "source", "sent_by", "message", "channel", "link", "intercom", "status", "owner", "date", "test", "resolved", "product_area", "bug", "feature_req", "classification"] as const;
 type ColKey = typeof ALL_COLUMNS[number];
 
 type OwnerFilter = "all" | "Joel" | "Kristina" | "unassigned";
