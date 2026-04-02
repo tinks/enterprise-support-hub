@@ -119,6 +119,7 @@ const getCET = (dateStr: string) => {
 };
 
 const CLASSIFICATION_OPTIONS = ["Issue", "Configuration", "Bug", "FR", "Question"] as const;
+const STATUS_OPTIONS = ["active", "resolved", "cancelled", "escalated", "awaiting_context", "awaiting_support"] as const;
 
 const ALL_COLUMNS = ["id", "source", "sent_by", "message", "channel", "link", "intercom", "status", "owner", "date", "test", "resolved", "product_area", "bug", "classification"] as const;
 type ColKey = typeof ALL_COLUMNS[number];
