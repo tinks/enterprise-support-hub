@@ -306,6 +306,17 @@ const ConversationDetail = () => {
     toast.success(`Owner updated`);
   };
 
+  const updateClassification = async (value: string) => {
+    const current = getCurrentData();
+    if (!current) return;
+    const newVal = value === "none" ? null : value;
+    await supabase.from(getTable()).update({ classification: newVal } as any).eq("id", current.id);
+    if (source === "slack") setConv({ ...conv!, classification: newVal });
+    else if (source === "gmail") setGmailConv({ ...gmailConv!, classification: newVal });
+    else setManualConv({ ...manualConv!, classification: newVal });
+    toast.success(`Classification updated`);
+  };
+
   const createIntercom = async () => {
     const current = getCurrentData();
     if (!current) return;
