@@ -968,7 +968,18 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         </a>
       ) : <span className="text-xs text-muted-foreground">—</span>;
       case "intercom": return renderIntercomCell(g.id, g.intercom_conversation_id, "gmail", true, (e) => createIntercomTicket(e, g.id, "gmail"), creatingTicket.has(g.id));
-      case "status": return <Badge variant={statusColor(g.status || "open")}>{statusLabel(g.status || "open")}</Badge>;
+      case "status": return (
+        <Select value={g.status || "open"} onValueChange={(v) => updateStatus(g.id, v, "gmail")}>
+          <SelectTrigger className="h-8 w-[150px] text-xs" onClick={(e) => e.stopPropagation()}>
+            <SelectValue>{statusLabel(g.status || "open")}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_OPTIONS.map((s) => (
+              <SelectItem key={s} value={s}>{statusLabel(s)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
       case "date": return <span className="text-xs text-muted-foreground">{g.received_at ? new Date(g.received_at).toLocaleString() : new Date(g.created_at).toLocaleString()}</span>;
       case "test": return (
         <Switch
