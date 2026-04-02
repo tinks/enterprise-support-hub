@@ -746,7 +746,7 @@ const Conversations = () => {
           Thread <ExternalLink className="h-3 w-3" />
         </a>
       );
-      case "intercom": return renderIntercomCell(m.id, m.intercom_conversation_id, "slack", true, (e) => createIntercomTicket(e, m.id), creatingTicket.has(m.id));
+      case "intercom": return renderIntercomCell(m.id, m.intercom_conversation_id, "slack", true, (e) => createIntercomTicket(e, m.id, "slack"), creatingTicket.has(m.id));
       case "status": return <Badge variant={statusColor(m.status)}>{m.status}</Badge>;
       case "date": return <span className="text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString()}</span>;
       case "test": return (
