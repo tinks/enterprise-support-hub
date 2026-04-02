@@ -309,6 +309,7 @@ const Conversations = () => {
 
   useEffect(() => { localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(columnOrder)); }, [columnOrder]);
   useEffect(() => { localStorage.setItem("conv-source-filter", sourceFilter); }, [sourceFilter]);
+  useEffect(() => { localStorage.setItem("conv-owner-filter", ownerFilter); }, [ownerFilter]);
   useEffect(() => { localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses]);
 
   const handleDragStart = useCallback((col: ColKey) => { dragCol.current = col; }, []);
