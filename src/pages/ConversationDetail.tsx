@@ -74,7 +74,10 @@ interface ManualConv {
   intercom_conversation_id: string | null;
   created_at: string;
   updated_at: string;
+  owner: string | null;
 }
+
+const OWNER_OPTIONS = ["Joel", "Kristina"] as const;
 
 interface ManualMessage {
   id: string;
