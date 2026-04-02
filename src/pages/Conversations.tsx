@@ -717,28 +717,7 @@ const Conversations = () => {
           Thread <ExternalLink className="h-3 w-3" />
         </a>
       );
-      case "intercom": return m.intercom_conversation_id ? (
-        <a
-          href={`https://app.intercom.com/a/apps/esqnv6i1/conversations/${m.intercom_conversation_id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-xs font-mono text-primary underline hover:text-primary/80 transition-colors"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {m.intercom_conversation_id} <ExternalLink className="h-3 w-3" />
-        </a>
-      ) : (
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 gap-1 text-xs"
-          disabled={creatingTicket.has(m.id)}
-          onClick={(e) => createIntercomTicket(e, m.id)}
-        >
-          <Ticket className="h-3 w-3" />
-          {creatingTicket.has(m.id) ? "Creating…" : "Create"}
-        </Button>
-      );
+      case "intercom": return renderIntercomCell(m.id, m.intercom_conversation_id, "slack", true, (e) => createIntercomTicket(e, m.id), creatingTicket.has(m.id));
       case "status": return <Badge variant={statusColor(m.status)}>{m.status}</Badge>;
       case "date": return <span className="text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString()}</span>;
       case "test": return (
