@@ -1,58 +1,49 @@
 
-## Make Gmail Intercom editing reliable without double-click
 
-### Why the current Gmail behavior is failing
-The current Intercom edit interaction depends on double-clicking inside a Gmail table row. Gmail rows are also used for expand/collapse behavior when emails are grouped by thread/subject. That means the first click can already trigger row-level interaction and cause a re-render before the second click completes, so the double-click pattern is fragile specifically for Gmail.
+## Fix thread reply forwarding to Intercom after escalation
 
-### Better approach
-Replace double-click editing with an explicit inline edit action in the Intercom cell for all sources, or at minimum for Gmail:
-- show the current Intercom link/value as today
-- always show a small pencil button on hover
-- clicking the pencil enters edit mode immediately
-- Enter saves, Escape cancels, blur saves
-- keep the existing “Create” button for Slack imports
+### Problems found
 
-This avoids conflicting with Gmail row grouping and is much more discoverable than double-click.
+1. **Smart routing uses wrong ID**: After escalation, conversations are converted to tickets and `intercom_ticket_id` is stored. The forwarding code in `slack-events` then tries to reply via `/conversations/{ticket_id}/reply`, but ticket IDs are not valid conversation IDs. The retry logic also sends to the same wrong endpoint.
 
-### Implementation plan
+2. **No diagnostic visibility**: When forwarding fails, there's no way to see what happened since logs rotate quickly and the error handling is minimal.
 
-1. Update `src/pages/Conversations.tsx`
-- Refactor `renderIntercomCell` so edit mode is opened by clicking a dedicated pencil button instead of `onDoubleClick`
-- keep `onClick={(e) => e.stopPropagation()}` on the cell wrapper and new edit button
-- for Gmail grouped rows and sub-rows, this should work consistently because a single explicit click is easier to isolate than a double-click gesture
-- preserve current save logic to:
-  - `conversation_mappings` for Slack
-  - `gmail_conversations` for Gmail
-  - `manual_conversations` for Manual
-- optionally keep double-click as a secondary shortcut, but do not depend on it
+3. **Some channels don't deliver events**: Channel `C0AGQ4YKTPX` sends zero `message` events to the webhook — this is a Slack app configuration issue (likely needs `message.channels` / `message.groups` event subscriptions verified) and cannot be fixed in code.
 
-2. Improve Gmail row interaction boundaries
-- make sure all interactive Gmail cells stop propagation, especially the Intercom cell
-- keep expand/collapse only on the row body or chevron/id area, not on controls inside the row
+### Changes
 
-3. Add clearer affordance
-- replace the hover-only passive pencil icon with an actual small edit button/icon button
-- add tooltip text like “Edit Intercom ID”
-- when empty, show “Edit” or “Add ID” rather than only “—” so the action is obvious
+**`supabase/functions/slack-events/index.ts`**
 
-4. Update `src/pages/FlowDiagram.tsx`
-- replace the note about double-click editing with the new explicit edit action
-- mention that this change was made because Gmail rows can be grouped/expandable, so a dedicated edit control is more reliable
+1. Fix smart routing: always use `intercom_conversation_id` for the `/conversations/{id}/reply` endpoint, never `intercom_ticket_id`. The original conversation ID remains valid after ticket conversion (proven by the escalation code in `slack-interactions` which successfully replies using it).
 
-### Technical details
+2. Add enhanced logging around the forwarding path:
+   - Log when the dedup claim succeeds/fails with the event timestamp
+   - Log the target ID being used for Intercom reply
+   - Log success/failure of the Intercom API response
+
+3. Keep the retry-as-admin logic (for cases where `type: "user"` is rejected on tickets) but use the correct conversation ID.
+
+**`src/pages/FlowDiagram.tsx`** — Document the routing fix.
+
+### What this won't fix
+
+- Channel `C0AGQ4YKTPX` not receiving events — this requires checking the Slack app's event subscription settings to ensure `message.channels` and `message.groups` are both enabled. This is a Slack app admin action, not a code change.
+
+### Technical detail
+
 ```text
-Current issue:
-Gmail row click = expand/collapse group
-Intercom cell double-click = edit
-These interactions compete.
+Before (broken):
+  targetId = mapping.intercom_ticket_id || mapping.intercom_conversation_id
+  POST /conversations/{ticket_id}/reply  →  fails (invalid ID)
+  retry /conversations/{ticket_id}/reply →  fails again
 
-Safer model:
-[Intercom value/link] [pencil button]
-click pencil -> enter input
-Enter/blur -> save
-Escape -> cancel
+After (fixed):
+  targetId = mapping.intercom_conversation_id  (always)
+  POST /conversations/{conversation_id}/reply  →  succeeds
+  retry as admin if needed                     →  same correct ID
 ```
 
 ### Files to edit
-- `src/pages/Conversations.tsx`
-- `src/pages/FlowDiagram.tsx`
+- `supabase/functions/slack-events/index.ts` — fix routing + add logging
+- `src/pages/FlowDiagram.tsx` — document change
+
