@@ -1175,6 +1175,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                     <SelectItem value="manual">Manual only</SelectItem>
                   </SelectContent>
                 </Select>
+                {!forceOwner && (
                 <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v as OwnerFilter)}>
                   <SelectTrigger className="w-[120px] h-9">
                     <SelectValue />
