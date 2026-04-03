@@ -1,39 +1,36 @@
 
-## Fix the Dashboards hover menu so Joel and Kristina stay visible
 
-### What is actually broken
-The Dashboards submenu is now portalled outside the sidebar, which solved clipping, but the sidebar still closes itself on the sidebar’s `onMouseLeave`. As soon as the mouse moves from the sidebar into the portalled menu, the app treats that as “left the navbar”, so the sidebar collapses and the Joel/Kristina menu disappears.
+## Fix Dashboards flyout staying visible during hover
 
-### Plan
+### Problem
+When the mouse moves from the sidebar's "Dashboards" row to the flyout menu, the sidebar's `onMouseLeave` fires and immediately sets `dashboardHovered = false`. Since `menuHovered` hasn't become `true` yet (the mouse is crossing the gap), `dashboardOpen` becomes `false`, the flyout unmounts, and you can never reach Joel/Kristina.
+
+### Fix
 
 **`src/components/AppLayout.tsx`**
-- Replace the current “close everything on sidebar mouse leave” behavior with coordinated hover state.
-- Track hover separately for:
-  - the sidebar rail
-  - the Dashboards trigger row
-  - the portalled Dashboards menu content
-- Derive visibility from those states:
-  - sidebar stays expanded while hovering the sidebar or the Dashboards menu
-  - Dashboards menu stays open while hovering the trigger or the menu itself
-- Remove the current immediate `handleMouseLeave` collapse logic that closes the menu too early.
-- Keep nav labels clipped when fully collapsed so no floating text remains once the pointer leaves both the sidebar and the menu.
-- Tighten the flyout positioning by removing the hover gap (`sideOffset={0}` or equivalent), so moving from “Dashboards” to Joel/Kristina is seamless.
-- Keep tooltip behavior only for the collapsed icon-only state.
+
+1. Stop clearing `dashboardHovered` in the sidebar's `onMouseLeave` — only clear `sidebarHovered` there. The Dashboards trigger's own `onMouseLeave` already handles `dashboardHovered`.
+
+2. Add a small debounce (~100ms) to closing the flyout: instead of deriving `dashboardOpen` directly, use a `useEffect` with a timeout so the menu stays mounted long enough for the mouse to reach the flyout and set `menuHovered = true`.
+
+3. Bridge the gap: set `sideOffset={0}` (or `left: sidebarWidth` without the `+2`) on the flyout so there's no dead zone between the sidebar edge and the menu.
+
+Concretely:
+- Remove `setDashboardHovered(false)` from the sidebar's `onMouseLeave` (line 53)
+- Add a `useEffect` that watches `dashboardHovered || menuHovered` and only sets a `dashboardVisible` state to `false` after a 150ms delay (cancelled if re-entered)
+- Use `dashboardVisible` for rendering the flyout
+- Change flyout `left` from `sidebarWidth + 2` to `sidebarWidth` to eliminate the gap
+
+**`src/pages/FlowDiagram.tsx`**
+- Update navigation notes to reflect debounced flyout behavior
 
 ### Result
-- Hovering the sidebar expands it.
-- Hovering Dashboards shows Joel and Kristina.
-- Moving the mouse from the sidebar into the Joel/Kristina menu does not make it disappear.
-- When the mouse leaves both the sidebar and the submenu, everything collapses and all text hides again.
-
-### Flow page update
-**`src/pages/FlowDiagram.tsx`**
-- Update the navigation note so it reflects the real behavior:
-  - left sidebar expands on hover
-  - Dashboards submenu is hover-driven
-  - submenu remains open while moving into Joel/Kristina
-  - everything hides once the pointer leaves both areas
+- Hovering "Dashboards" shows Joel and Kristina
+- Moving to the flyout keeps it visible
+- Moving away from both sidebar and flyout closes everything
+- Clicking Joel or Kristina navigates and closes the menu
 
 ### Files to edit
 - `src/components/AppLayout.tsx`
 - `src/pages/FlowDiagram.tsx`
+
