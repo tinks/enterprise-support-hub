@@ -43,6 +43,10 @@ const ROW_H = 380;
 /*  Design: Lovable brand palette — coral #FF6B6B, pink #E66FD2,       */
 /*  purple #9B87F5. Charts use these for Slack/Gmail/resolution.       */
 /* ------------------------------------------------------------------ */
+/*  Navigation: Left sidebar (AppLayout) — collapsed to 56px icons,    */
+/*  auto-expands to 200px on hover, collapses on mouse leave.          */
+/*  Vertical gradient accent bar on the left edge.                     */
+/* ------------------------------------------------------------------ */
 /*  Gmail resolve & toggleTest: optimistic UI update with error        */
 /*  handling — reverts state and shows toast on failure. No `as any`.  */
 /* ------------------------------------------------------------------ */
