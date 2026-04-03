@@ -1397,7 +1397,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                           <Fragment key={`gmail-group-${g.id}`}>
                             <TableRow
                               key={`gmail-${g.id}`}
-                              className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "opacity-50" : ""}`}
+                              className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "opacity-50" : ""} ${!g.owner ? "border-l-[3px] border-primary/70 bg-primary/5" : ""}`}
                               onClick={isGrouped && row.groupKey ? () => {
                                 setExpandedGmailGroups((prev) => {
                                   const next = new Set(prev);
