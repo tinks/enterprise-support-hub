@@ -1,49 +1,46 @@
 
-## Fix the collapsed sidebar labels/tooltips so only the intended item is visible
 
-### What is actually happening
-The current fix did not fully solve the issue because `src/components/AppLayout.tsx` still has two weak points:
+## Update project knowledge file to reflect current state
 
-1. Only the Dashboards row has `overflow-hidden`, so other nav rows can still visually leak text when collapsed.
-2. The collapsed-label tooltips still rely on Radix’s automatic hover behavior. Even with separate providers, that can still leave multiple tooltip labels visible during hover/collapse transitions.
+### What's missing or outdated
 
-### Plan
+1. **UI Pages table (lines 34-40)** is stale:
+   - `/` is Stats, not Settings
+   - `/settings` is Settings (was `/`)
+   - Missing routes: `/import` (Import), `/knowledge` (Knowledge), `/my/:owner` (Owner Dashboard)
 
-**`src/components/AppLayout.tsx`**
+2. **Database tables (lines 27-32)** missing `knowledge_documents`
 
-1. Make label clipping consistent for every nav row:
-   - Move `overflow-hidden` into the shared `linkBase` (or otherwise apply it to all `NavLink` rows, not just Dashboards).
-   - Optionally tighten the label animation by using a bounded width transition (`max-w-*`) instead of `w-auto`, so collapsed text cannot bleed or flicker.
+3. **No section on navigation layout** — the sidebar, Dashboards flyout, controlled tooltips, and portal-based submenu are all undocumented
 
-2. Replace the current “uncontrolled tooltip per item” behavior with one controlled sidebar tooltip state:
-   - Add a single `activeTooltip` state for the collapsed rail.
-   - On hover of a nav item, set `activeTooltip` to that item’s key.
-   - On leave, clear it.
-   - Render each tooltip with controlled `open` logic so only one can ever be visible at a time.
+### Changes
 
-3. Make tooltips and flyout cooperate cleanly:
-   - Clear `activeTooltip` whenever the sidebar expands.
-   - Clear it when the Dashboards flyout opens, when navigating to Joel/Kristina, and on sidebar mouse leave.
-   - Keep the existing Dashboards flyout hover behavior intact.
+**`.lovable/project-knowledge.md`**
 
-4. Keep the Dashboards submenu behavior as-is:
-   - Joel and Kristina stay visible while hovering Dashboards/flyout.
-   - All text disappears once the pointer leaves both the sidebar and the flyout.
+1. Update the **UI Pages** table to match current routes:
 
-**`src/pages/FlowDiagram.tsx`**
-- Update the navigation note so it reflects the real behavior:
-  - left sidebar expands on hover
-  - labels are clipped cleanly when collapsed
-  - collapsed sidebar shows only one tooltip at a time
-  - Dashboards flyout remains visible only while hovering Dashboards or its submenu
+| Route | Page | Purpose |
+|---|---|---|
+| `/` | Stats | System statistics |
+| `/conversations` | Conversations | View and monitor active/resolved conversations |
+| `/conversations/:id` | Conversation detail | Individual conversation thread view |
+| `/my/:owner` | Owner dashboard | Per-person dashboard (Joel, Kristina) |
+| `/import` | Import | Import conversations from external sources |
+| `/settings` | Settings | Configure channels, Intercom IDs, testing mode, view webhook URLs |
+| `/flow` | Flow diagram | Interactive visual diagram of the full support workflow |
+| `/knowledge` | Knowledge | View and edit project knowledge document |
 
-### Why this approach
-The earlier tooltip-provider change targeted the wrong layer. The more reliable fix is:
-- clip all row contents at the row level, and
-- explicitly control which collapsed tooltip is open.
+2. Add `knowledge_documents` to the **Database Tables** section.
 
-That addresses both possible symptoms: leaked text and multiple visible labels.
+3. Add a new **Section 19: Navigation layout** documenting:
+   - Collapsible left sidebar (56px collapsed → 200px expanded on hover)
+   - 2px vertical gradient accent on left edge
+   - Controlled tooltip state: only one tooltip visible at a time when collapsed, using `activeTooltip` state
+   - Dashboards flyout group: Joel and Kristina appear in a hover-driven portal-rendered flyout menu
+   - Flyout uses 150ms debounce so the menu stays mounted while the mouse crosses from trigger to submenu
+   - `overflow-hidden` on all nav rows to prevent label text leaking when collapsed
+   - Label visibility uses `max-w-0`/`max-w-[150px]` + opacity transition
 
 ### Files to edit
-- `src/components/AppLayout.tsx`
-- `src/pages/FlowDiagram.tsx`
+- `.lovable/project-knowledge.md`
+
