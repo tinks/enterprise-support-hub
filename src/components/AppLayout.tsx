@@ -74,46 +74,50 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         {/* Nav links */}
         <nav className="flex-1 flex flex-col">
           <div className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto overflow-x-hidden">
-            <TooltipProvider delayDuration={0}>
               {navItems.slice(0, 2).map((item) => (
-                <Tooltip key={item.to}>
-                  <TooltipTrigger asChild>
-                    <NavLink to={item.to} className={linkBase} activeClassName={activeClass} end={item.end}>
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      <span className={labelClass}>{item.label}</span>
-                    </NavLink>
-                  </TooltipTrigger>
-                  {!expanded && <TooltipContent side="right">{item.label}</TooltipContent>}
-                </Tooltip>
+                <TooltipProvider key={item.to} delayDuration={0}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <NavLink to={item.to} className={linkBase} activeClassName={activeClass} end={item.end}>
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        <span className={labelClass}>{item.label}</span>
+                      </NavLink>
+                    </TooltipTrigger>
+                    {!expanded && <TooltipContent side="right">{item.label}</TooltipContent>}
+                  </Tooltip>
+                </TooltipProvider>
               ))}
 
               {/* Dashboards — hover-driven with separate menu tracking */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div
-                    className={`${linkBase} cursor-pointer relative overflow-hidden ${isDashboardActive ? activeClass : ""}`}
-                    onMouseEnter={() => setDashboardHovered(true)}
-                    onMouseLeave={() => setDashboardHovered(false)}
-                  >
-                    <Users className="h-4 w-4 shrink-0" />
-                    <span className={labelClass}>Dashboards</span>
-                  </div>
-                </TooltipTrigger>
-                {!expanded && !dashboardVisible && <TooltipContent side="right">Dashboards</TooltipContent>}
-              </Tooltip>
+              <TooltipProvider delayDuration={0}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className={`${linkBase} cursor-pointer relative overflow-hidden ${isDashboardActive ? activeClass : ""}`}
+                      onMouseEnter={() => setDashboardHovered(true)}
+                      onMouseLeave={() => setDashboardHovered(false)}
+                    >
+                      <Users className="h-4 w-4 shrink-0" />
+                      <span className={labelClass}>Dashboards</span>
+                    </div>
+                  </TooltipTrigger>
+                  {!expanded && !dashboardVisible && <TooltipContent side="right">Dashboards</TooltipContent>}
+                </Tooltip>
+              </TooltipProvider>
 
               {navItems.slice(2).map((item) => (
-                <Tooltip key={item.to}>
-                  <TooltipTrigger asChild>
-                    <NavLink to={item.to} className={linkBase} activeClassName={activeClass} end={item.end}>
-                      <item.icon className="h-4 w-4 shrink-0" />
-                      <span className={labelClass}>{item.label}</span>
-                    </NavLink>
-                  </TooltipTrigger>
-                  {!expanded && <TooltipContent side="right">{item.label}</TooltipContent>}
-                </Tooltip>
+                <TooltipProvider key={item.to} delayDuration={0}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <NavLink to={item.to} className={linkBase} activeClassName={activeClass} end={item.end}>
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        <span className={labelClass}>{item.label}</span>
+                      </NavLink>
+                    </TooltipTrigger>
+                    {!expanded && <TooltipContent side="right">{item.label}</TooltipContent>}
+                  </Tooltip>
+                </TooltipProvider>
               ))}
-            </TooltipProvider>
           </div>
         </nav>
       </aside>
