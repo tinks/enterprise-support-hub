@@ -1,54 +1,75 @@
+import { useState } from "react";
 import { NavLink } from "@/components/NavLink";
 import { Settings, BarChart3, GitBranch, MessageSquare, BookOpen, Import, User } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+const navItems = [
+  { to: "/", icon: BarChart3, label: "Stats", end: true },
+  { to: "/conversations", icon: MessageSquare, label: "Conversations" },
+  { to: "/my/joel", icon: User, label: "Joel" },
+  { to: "/my/kristina", icon: User, label: "Kristina" },
+  { to: "/import", icon: Import, label: "Import" },
+  { to: "/settings", icon: Settings, label: "Settings" },
+  { to: "/flow", icon: GitBranch, label: "Flow" },
+  { to: "/knowledge", icon: BookOpen, label: "Knowledge" },
+];
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
-  const linkClass = "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-accent";
+  const [expanded, setExpanded] = useState(false);
+
+  const linkBase =
+    "flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-accent whitespace-nowrap";
   const activeClass = "bg-accent text-foreground";
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-background">
-      <nav className="border-b border-border bg-card">
-        <div className="mx-auto max-w-4xl flex items-center gap-1 px-6 py-2">
-          <div className="flex items-center gap-2 mr-4">
-            <img src="/lovable-logo.png" alt="Lovable" className="h-6 w-6" />
-            <span className="text-sm font-semibold text-foreground hidden sm:inline">Lovable Enterprise Support Hub</span>
-          </div>
-          <NavLink to="/" className={linkClass} activeClassName={activeClass} end>
-            <BarChart3 className="h-4 w-4" />
-            Stats
-          </NavLink>
-          <NavLink to="/conversations" className={linkClass} activeClassName={activeClass}>
-            <MessageSquare className="h-4 w-4" />
-            Conversations
-          </NavLink>
-          <NavLink to="/my/joel" className={linkClass} activeClassName={activeClass}>
-            <User className="h-4 w-4" />
-            Joel
-          </NavLink>
-          <NavLink to="/my/kristina" className={linkClass} activeClassName={activeClass}>
-            <User className="h-4 w-4" />
-            Kristina
-          </NavLink>
-          <NavLink to="/import" className={linkClass} activeClassName={activeClass}>
-            <Import className="h-4 w-4" />
-            Import
-          </NavLink>
-          <NavLink to="/settings" className={linkClass} activeClassName={activeClass}>
-            <Settings className="h-4 w-4" />
-            Settings
-          </NavLink>
-          <NavLink to="/flow" className={linkClass} activeClassName={activeClass}>
-            <GitBranch className="h-4 w-4" />
-            Flow
-          </NavLink>
-          <NavLink to="/knowledge" className={linkClass} activeClassName={activeClass}>
-            <BookOpen className="h-4 w-4" />
-            Knowledge
-          </NavLink>
+    <div className="h-screen flex flex-row overflow-hidden bg-background">
+      {/* Vertical gradient accent */}
+      <div className="w-0.5 bg-gradient-to-b from-[#FF6B6B] via-[#E66FD2] to-[#9B87F5] shrink-0" />
+
+      {/* Sidebar */}
+      <aside
+        className="shrink-0 border-r border-border bg-card flex flex-col transition-all duration-200 ease-in-out overflow-hidden"
+        style={{ width: expanded ? 200 : 56 }}
+        onMouseEnter={() => setExpanded(true)}
+        onMouseLeave={() => setExpanded(false)}
+      >
+        {/* Logo */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border min-h-[48px]">
+          <img src="/lovable-logo.png" alt="Lovable" className="h-6 w-6 shrink-0" />
+          {expanded && (
+            <span className="text-sm font-semibold text-foreground truncate">Support hub</span>
+          )}
         </div>
-      </nav>
-      <div className="h-0.5 bg-gradient-to-r from-[#FF6B6B] via-[#E66FD2] to-[#9B87F5]" />
-      <div className="flex-1 min-h-0 overflow-auto">
+
+        {/* Nav links */}
+        <nav className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto">
+          <TooltipProvider delayDuration={0}>
+            {navItems.map((item) => (
+              <Tooltip key={item.to}>
+                <TooltipTrigger asChild>
+                  <NavLink
+                    to={item.to}
+                    className={linkBase}
+                    activeClassName={activeClass}
+                    end={item.end}
+                  >
+                    <item.icon className="h-4 w-4 shrink-0" />
+                    {expanded && <span>{item.label}</span>}
+                  </NavLink>
+                </TooltipTrigger>
+                {!expanded && (
+                  <TooltipContent side="right">
+                    {item.label}
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            ))}
+          </TooltipProvider>
+        </nav>
+      </aside>
+
+      {/* Main content */}
+      <div className="flex-1 min-w-0 overflow-auto">
         {children}
       </div>
     </div>
