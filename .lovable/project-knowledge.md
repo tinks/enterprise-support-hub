@@ -30,14 +30,23 @@ A Slack-to-Intercom support bridge for enterprise customers. When a user @mentio
 | `conversation_mappings` | Maps Slack threads ↔ Intercom conversations with status tracking |
 | `bot_messages` | Editable bot message templates (keyed by `message_key`) |
 | `flow_node_positions` | Persisted drag positions for the flow diagram UI |
+| `knowledge_documents` | Project knowledge document with pending-change review workflow |
+| `gmail_conversations` | Gmail-sourced conversations with thread tracking |
+| `gmail_oauth_tokens` | OAuth tokens for Gmail integration |
+| `manual_conversations` | Manually logged conversations from any source |
+| `manual_messages` | Individual messages within manual conversations |
 
 ### UI Pages
 | Route | Page | Purpose |
 |---|---|---|
-| `/` | Settings (Index) | Configure channels, Intercom IDs, testing mode, view webhook URLs |
+| `/` | Stats | System statistics |
 | `/conversations` | Conversations | View and monitor active/resolved conversations |
-| `/flow` | Flow Diagram | Interactive visual diagram of the full support workflow |
-| `/stats` | Stats | System statistics |
+| `/conversations/:id` | Conversation detail | Individual conversation thread view |
+| `/my/:owner` | Owner dashboard | Per-person dashboard (Joel, Kristina) |
+| `/import` | Import | Import conversations from external sources |
+| `/settings` | Settings | Configure channels, Intercom IDs, testing mode, view webhook URLs |
+| `/flow` | Flow diagram | Interactive visual diagram of the full support workflow |
+| `/knowledge` | Knowledge | View and edit project knowledge document |
 
 ---
 
@@ -400,3 +409,28 @@ All Intercom API calls use `Intercom-Version: 2.11`.
 2. Write proposed changes: `UPDATE knowledge_documents SET pending_content = '...', pending_summary = '...', pending_at = now() WHERE id = 'project-knowledge'`
 3. Inform the user that changes are pending review in the Knowledge tab
 4. **DO NOT** update the `content` column directly
+
+---
+
+## 19. Navigation Layout
+
+### Collapsible sidebar
+- Left sidebar collapses to **56px** (icon rail) and expands to **200px** on hover
+- 2px vertical gradient accent on the left edge (primary → accent colors)
+- Width transition uses `transition-all duration-300`
+
+### Label visibility
+- All nav rows use `overflow-hidden` (via shared `linkBase` class) to prevent text leaking when collapsed
+- Labels animate between `max-w-0 opacity-0` (collapsed) and `max-w-[150px] opacity-100` (expanded)
+
+### Controlled tooltips
+- A single `activeTooltip` state ensures only one tooltip is visible at a time when the sidebar is collapsed
+- Each `Tooltip` uses a controlled `open` prop: `open={!expanded && activeTooltip === item.label}`
+- `activeTooltip` is cleared on sidebar expand and on mouse leave
+
+### Dashboards flyout
+- Joel and Kristina are grouped under a "Dashboards" parent item
+- Hovering "Dashboards" reveals a flyout submenu rendered via `DropdownMenuPortal` so it is not clipped by the sidebar's scroll container
+- The flyout uses a **150ms debounce** (`closeTimerRef`) so the menu stays mounted while the mouse crosses from the trigger to the submenu
+- Clicking Joel or Kristina navigates to `/my/joel` or `/my/kristina` and closes the flyout
+- When the mouse leaves both the sidebar and the flyout, everything collapses
