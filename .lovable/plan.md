@@ -1,50 +1,30 @@
 
-## Fix the dashboards flyout so it renders above the page
+Fix the Dashboards submenu by moving it out of the sidebar scroll container.
 
-### Likely root cause
-The previous fix removed clipping from the sidebar itself, but the flyout is still rendered inside the sidebar’s scroll container (`nav`), which uses `overflow-y-auto`. That can still clip or bury horizontal overflow. There is also a small hover gap (`ml-1`) that can make the submenu hard to reach.
+What is actually broken:
+- The current submenu is still rendered inside `src/components/AppLayout.tsx` under the `overflow-y-auto` nav list.
+- A scroll container with `overflow-y-auto` can still clip absolutely positioned children horizontally, so `z-index` alone will not solve this.
+- Do I know what the issue is? Yes. The flyout is trapped inside the scrolling sidebar content, so it cannot reliably render above the conversations page.
 
-### What to change
+Plan:
 
-**`src/components/AppLayout.tsx`**
-- Keep the sidebar/flyout layer above the page by giving the sidebar a stacking context, e.g. `relative z-20`
-- Stop using the same element for both:
-  1. vertical scrolling, and
-  2. flyout rendering
-- Change the sidebar structure so:
-  - the outer sidebar/nav wrapper is `overflow-visible`
-  - an inner wrapper handles `overflow-y-auto` for the regular links
-- Keep the Dashboards flyout rendered from a `relative` parent, but ensure the submenu itself is:
-  - `absolute left-full top-0`
-  - high z-index
-  - not clipped by any parent
-- Remove the hover dead-zone by eliminating the submenu gap (`ml-1`) or replacing it with a hover-safe approach so the cursor can move directly from “Dashboards” into Joel/Kristina
+1. Update `src/components/AppLayout.tsx`
+- Replace the custom inline flyout (`absolute left-full top-0`) with a portal-based menu using the existing dropdown primitives from `src/components/ui/dropdown-menu.tsx`.
+- Keep the Dashboards item as the visible trigger in the sidebar.
+- Open the submenu on hover when the sidebar is expanded, and render the menu to the right with `side="right"` / `align="start"` so it sits above the page content instead of inside the scroll area.
+- Keep Joel and Kristina as direct clickable items in that submenu.
+- Preserve the collapsed tooltip behavior for Dashboards.
+- Remove the old manual flyout block and any hover-gap logic tied to it.
+- Optionally raise the sidebar layer slightly (`z-30`) as a safety cleanup, but the real fix is the portal.
 
-### Suggested structure
-```text
-aside (relative, z-20, overflow-visible)
-  nav (relative, overflow-visible)
-    inner scroll list (overflow-y-auto)
-      Stats
-      Conversations
-      Dashboards trigger
-      Import
-      Settings
-      Flow
-      Knowledge
-    Dashboards flyout (absolute, outside scroll clipping)
-```
+2. Update `src/pages/FlowDiagram.tsx`
+- Change the navigation note to document that the Dashboards submenu is now rendered via a portal above the content layer, so it is no longer clipped by the sidebar scroll area.
 
-### Expected result
-- The flyout appears on top of the main page content
-- Joel and Kristina are fully visible
-- The submenu stays open while moving the mouse from “Dashboards” to the submenu
-- Clicking Joel or Kristina works reliably
+Expected result:
+- Hovering Dashboards shows Joel and Kristina fully visible.
+- The submenu is clickable and no longer hidden under the conversations page.
+- The hover behavior still feels like a quick flyout, not an extra-click menu.
 
-### Documentation
-**`src/pages/FlowDiagram.tsx`**
-- Update the navigation notes to reflect that the Dashboards flyout now renders above the content layer and is no longer clipped by the sidebar scroll area
-
-### Files to edit
+Files to edit:
 - `src/components/AppLayout.tsx`
 - `src/pages/FlowDiagram.tsx`
