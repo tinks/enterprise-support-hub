@@ -1,29 +1,42 @@
 
-Fix the Dashboards submenu by moving it out of the sidebar scroll container.
+Update the sidebar so labels only appear while the pointer is actually over the sidebar, and the Dashboards submenu only appears while hovering the Dashboards trigger or its menu.
 
-What is actually broken:
-- The current submenu is still rendered inside `src/components/AppLayout.tsx` under the `overflow-y-auto` nav list.
-- A scroll container with `overflow-y-auto` can still clip absolutely positioned children horizontally, so `z-index` alone will not solve this.
-- Do I know what the issue is? Yes. The flyout is trapped inside the scrolling sidebar content, so it cannot reliably render above the conversations page.
+What is happening now:
+- The sidebar width is collapsing on mouse leave, but the text elements are rendered conditionally in a way that still lets the portalled menu/hover state keep visible text buttons around.
+- The screenshot suggests the nav items are visually floating over the page instead of disappearing with the collapsed sidebar.
 
 Plan:
 
 1. Update `src/components/AppLayout.tsx`
-- Replace the custom inline flyout (`absolute left-full top-0`) with a portal-based menu using the existing dropdown primitives from `src/components/ui/dropdown-menu.tsx`.
-- Keep the Dashboards item as the visible trigger in the sidebar.
-- Open the submenu on hover when the sidebar is expanded, and render the menu to the right with `side="right"` / `align="start"` so it sits above the page content instead of inside the scroll area.
-- Keep Joel and Kristina as direct clickable items in that submenu.
-- Preserve the collapsed tooltip behavior for Dashboards.
-- Remove the old manual flyout block and any hover-gap logic tied to it.
-- Optionally raise the sidebar layer slightly (`z-30`) as a safety cleanup, but the real fix is the portal.
+- Make the expanded/collapsed behavior depend strictly on sidebar hover.
+- Keep text labels inside a wrapper that is clipped when collapsed, instead of relying only on conditional rendering.
+- Add `overflow-hidden` and width/opacity transitions to each label container so text cannot remain visible outside the 56px rail.
+- Ensure the Dashboards dropdown only opens when `expanded === true` and the user is hovering that item.
+- Close the dropdown immediately on sidebar mouse leave.
 
-2. Update `src/pages/FlowDiagram.tsx`
-- Change the navigation note to document that the Dashboards submenu is now rendered via a portal above the content layer, so it is no longer clipped by the sidebar scroll area.
+2. Tighten the Dashboards trigger behavior
+- Prevent the portalled menu from opening while the sidebar is collapsed.
+- Keep Joel/Kristina accessible only during active hover on the expanded sidebar.
+- Make the trigger area behave like the other nav rows so there is no lingering text panel.
+
+3. Update `src/pages/FlowDiagram.tsx`
+- Replace the current navigation note with one that reflects the real behavior:
+  - left sidebar expands on hover
+  - labels hide again on mouse leave
+  - Dashboards submenu is hover-only and closes when leaving the sidebar
 
 Expected result:
-- Hovering Dashboards shows Joel and Kristina fully visible.
-- The submenu is clickable and no longer hidden under the conversations page.
-- The hover behavior still feels like a quick flyout, not an extra-click menu.
+- When the mouse leaves the navbar, all text buttons disappear.
+- Only the icon rail remains visible.
+- Dashboards does not leave behind a floating text panel.
+- Joel and Kristina remain available during hover on the expanded sidebar.
+
+Technical details:
+```text
+collapsed: 56px rail, icons only
+hovered sidebar: expands to 200px, labels fade/slide in
+mouse leaves sidebar: width collapses, labels clip to zero, dropdown closes
+```
 
 Files to edit:
 - `src/components/AppLayout.tsx`
