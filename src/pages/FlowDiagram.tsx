@@ -46,6 +46,8 @@ const ROW_H = 380;
 /*  Navigation: Left sidebar (AppLayout) — collapsed to 56px icons,    */
 /*  auto-expands to 200px on hover, collapses on mouse leave.          */
 /*  Vertical gradient accent bar on the left edge.                     */
+/*  "Dashboards" flyout group: Joel & Kristina are under a single      */
+/*  Dashboards nav item with a hover flyout submenu (no extra clicks). */
 /* ------------------------------------------------------------------ */
 /*  Gmail resolve & toggleTest: optimistic UI update with error        */
 /*  handling — reverts state and shows toast on failure. No `as any`.  */
