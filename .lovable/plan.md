@@ -1,26 +1,36 @@
 
 
-## Highlight unactioned conversations (no owner assigned)
-
-### Approach
-A conversation is "new / unactioned" when its `owner` field is `null` — meaning neither Joel nor Kristina has claimed it yet. This is already tracked in all three conversation tables, so no database changes are needed.
+## Create a "Filters" section on the Inbox page
 
 ### What changes
+The filter controls (search, source, owner, status, date from/to, refresh, reset columns) currently sit inline in the `CardHeader` row. They will be moved into a dedicated collapsible "Filters" section with a title, placed between the card header and the table content.
+
+### Layout
+
+```text
+┌─────────────────────────────────────────────┐
+│  CardHeader (empty title area only)         │
+├─────────────────────────────────────────────┤
+│  Filters                          [▾ toggle]│
+│  ┌─────────────────────────────────────────┐│
+│  │ Search | Source | Owner | Status |      ││
+│  │ From date | To date | Refresh | Reset   ││
+│  └─────────────────────────────────────────┘│
+├─────────────────────────────────────────────┤
+│  Table rows...                              │
+└─────────────────────────────────────────────┘
+```
+
+### Implementation detail
 
 **`src/pages/Conversations.tsx`**
 
-Add a subtle left-border highlight and light background tint to every `TableRow` where `owner` is null:
-
-- Slack rows (line ~1381): add a colored left border and faint background when `m.owner` is null
-- Gmail rows (line ~1400): same check on `g.owner`
-- Manual rows (line ~1436): same check on `mc.owner`
-
-The styling will be a 3px left border in the primary/coral color plus a very faint coral background tint, e.g.:
-```
-border-l-3 border-primary/70 bg-primary/5
-```
-
-This makes unactioned rows clearly stand out without being overwhelming. When someone sets an owner, the highlight disappears automatically.
+1. Strip the filter controls out of the `CardHeader` (lines ~1219-1338), leaving only the empty title div.
+2. Add a new section between `CardHeader` and `CardContent` using a `Collapsible` component (already available in `src/components/ui/collapsible.tsx`):
+   - Title: "Filters" (sentence case) with a chevron toggle
+   - Default state: open
+   - Contains a `flex flex-wrap items-center gap-2 px-6 pb-4` div with all the moved filter controls (search input, source select, owner select, status popover, date from/to popovers, clear dates button, refresh button, reset columns button)
+3. The filters section gets a subtle top border or separator for visual clarity.
 
 ### Files to edit
 - `src/pages/Conversations.tsx`
