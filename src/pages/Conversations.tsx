@@ -1433,7 +1433,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                         return (
                           <TableRow
                             key={`manual-${mc.id}`}
-                            className={`cursor-pointer hover:bg-muted/50 transition-colors ${mc.is_test ? "opacity-50" : ""}`}
+                            className={`cursor-pointer hover:bg-muted/50 transition-colors ${mc.is_test ? "opacity-50" : ""} ${!mc.owner ? "border-l-[3px] border-primary/70 bg-primary/5" : ""}`}
                             onClick={() => navigate(`/conversations/${mc.id}?source=manual`)}
                           >
                             {columnOrder.map((col) => (
