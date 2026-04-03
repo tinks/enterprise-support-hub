@@ -91,7 +91,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <div
-                    className={`${linkBase} cursor-pointer relative ${isDashboardActive ? activeClass : ""}`}
+                    className={`${linkBase} cursor-pointer relative overflow-hidden ${isDashboardActive ? activeClass : ""}`}
                     onMouseEnter={() => setDashboardHovered(true)}
                     onMouseLeave={() => setDashboardHovered(false)}
                   >
