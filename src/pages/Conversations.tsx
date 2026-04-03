@@ -1213,132 +1213,138 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
             </div>
           )}
           <Card className="min-h-0 flex-1 flex flex-col">
-            <CardHeader className="flex flex-row items-center justify-between flex-shrink-0">
-              <div>
-                <CardTitle className="text-lg">{forceOwner ? `${forceOwner}'s conversations` : "\n"}</CardTitle>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="Search…"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-9 w-[180px] pl-8 text-sm"
-                  />
-                </div>
-                {isCustomOrder && (
-                  <Button variant="ghost" size="sm" className="h-9 gap-1 text-xs" onClick={resetColumns}>
-                    <RotateCcw className="h-3 w-3" /> Reset columns
-                  </Button>
-                )}
-                <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as SourceFilter)}>
-                  <SelectTrigger className="w-[130px] h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All sources</SelectItem>
-                    <SelectItem value="slack">Slack bot</SelectItem>
-                    <SelectItem value="slack_import">Slack import</SelectItem>
-                    <SelectItem value="gmail">Gmail only</SelectItem>
-                    <SelectItem value="manual">Manual only</SelectItem>
-                  </SelectContent>
-                </Select>
-                {!forceOwner && (
-                <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v as OwnerFilter)}>
-                  <SelectTrigger className="w-[120px] h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All owners</SelectItem>
-                    <SelectItem value="Joel">Joel</SelectItem>
-                    <SelectItem value="Kristina">Kristina</SelectItem>
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                  </SelectContent>
-                </Select>
-                )}
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-9 gap-1">
-                      <Filter className="h-3 w-3" />
-                      Status
-                      {hiddenStatuses.size > 0 && (
-                        <Badge variant="secondary" className="ml-1 h-5 px-1 text-xs">
-                          {hiddenStatuses.size} hidden
-                        </Badge>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-52 p-3" align="end">
-                    <p className="mb-2 text-xs font-medium text-muted-foreground">Hide statuses</p>
-                    <div className="flex flex-col gap-2">
-                      {ALL_STATUSES.map((s) => (
-                        <label key={s} className="flex items-center gap-2 text-sm cursor-pointer">
-                          <Checkbox
-                            checked={hiddenStatuses.has(s)}
-                            onCheckedChange={() => toggleHidden(s)}
-                          />
-                          <span className="capitalize">{statusLabel(s)}</span>
-                        </label>
-                      ))}
-                    </div>
-                    {hiddenStatuses.size > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="mt-2 h-7 w-full text-xs"
-                        onClick={() => setHiddenStatuses(new Set())}
-                      >
-                        Show all
-                      </Button>
-                    )}
-                  </PopoverContent>
-                </Popover>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className={`h-9 gap-1 ${dateFrom ? "border-primary" : ""}`}>
-                      <CalendarIcon className="h-3 w-3" />
-                      {dateFrom ? format(dateFrom, "dd MMM") : "From"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="end">
-                    <Calendar
-                      mode="single"
-                      selected={dateFrom}
-                      onSelect={setDateFrom}
-                      initialFocus
-                      className="p-3 pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className={`h-9 gap-1 ${dateTo ? "border-primary" : ""}`}>
-                      <CalendarIcon className="h-3 w-3" />
-                      {dateTo ? format(dateTo, "dd MMM") : "To"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="end">
-                    <Calendar
-                      mode="single"
-                      selected={dateTo}
-                      onSelect={setDateTo}
-                      initialFocus
-                      className="p-3 pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
-                {(dateFrom || dateTo) && (
-                  <Button variant="ghost" size="sm" className="h-9 px-2" onClick={() => { setDateFrom(undefined); setDateTo(undefined); }}>
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
-                <Button variant="outline" size="sm" onClick={() => { loadData().then((rows) => loadLookups(rows)); }} disabled={loading}>
-                  <RefreshCw className={`mr-1 h-3 w-3 ${loading ? "animate-spin" : ""}`} />
-                  Refresh
-                </Button>
-              </div>
+            <CardHeader className="flex-shrink-0 pb-2">
+              <CardTitle className="text-lg">{forceOwner ? `${forceOwner}'s conversations` : "\n"}</CardTitle>
             </CardHeader>
+            <Collapsible defaultOpen className="border-t border-border">
+              <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-3 text-sm font-medium hover:bg-muted/50 transition-colors">
+                Filters
+                <ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="flex flex-wrap items-center gap-2 px-6 pb-4">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Search…"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="h-9 w-[180px] pl-8 text-sm"
+                    />
+                  </div>
+                  {isCustomOrder && (
+                    <Button variant="ghost" size="sm" className="h-9 gap-1 text-xs" onClick={resetColumns}>
+                      <RotateCcw className="h-3 w-3" /> Reset columns
+                    </Button>
+                  )}
+                  <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as SourceFilter)}>
+                    <SelectTrigger className="w-[130px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All sources</SelectItem>
+                      <SelectItem value="slack">Slack bot</SelectItem>
+                      <SelectItem value="slack_import">Slack import</SelectItem>
+                      <SelectItem value="gmail">Gmail only</SelectItem>
+                      <SelectItem value="manual">Manual only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {!forceOwner && (
+                  <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v as OwnerFilter)}>
+                    <SelectTrigger className="w-[120px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All owners</SelectItem>
+                      <SelectItem value="Joel">Joel</SelectItem>
+                      <SelectItem value="Kristina">Kristina</SelectItem>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  )}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-9 gap-1">
+                        <Filter className="h-3 w-3" />
+                        Status
+                        {hiddenStatuses.size > 0 && (
+                          <Badge variant="secondary" className="ml-1 h-5 px-1 text-xs">
+                            {hiddenStatuses.size} hidden
+                          </Badge>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-52 p-3" align="end">
+                      <p className="mb-2 text-xs font-medium text-muted-foreground">Hide statuses</p>
+                      <div className="flex flex-col gap-2">
+                        {ALL_STATUSES.map((s) => (
+                          <label key={s} className="flex items-center gap-2 text-sm cursor-pointer">
+                            <Checkbox
+                              checked={hiddenStatuses.has(s)}
+                              onCheckedChange={() => toggleHidden(s)}
+                            />
+                            <span className="capitalize">{statusLabel(s)}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {hiddenStatuses.size > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="mt-2 h-7 w-full text-xs"
+                          onClick={() => setHiddenStatuses(new Set())}
+                        >
+                          Show all
+                        </Button>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className={`h-9 gap-1 ${dateFrom ? "border-primary" : ""}`}>
+                        <CalendarIcon className="h-3 w-3" />
+                        {dateFrom ? format(dateFrom, "dd MMM") : "From"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="end">
+                      <Calendar
+                        mode="single"
+                        selected={dateFrom}
+                        onSelect={setDateFrom}
+                        initialFocus
+                        className="p-3 pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="sm" className={`h-9 gap-1 ${dateTo ? "border-primary" : ""}`}>
+                        <CalendarIcon className="h-3 w-3" />
+                        {dateTo ? format(dateTo, "dd MMM") : "To"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="end">
+                      <Calendar
+                        mode="single"
+                        selected={dateTo}
+                        onSelect={setDateTo}
+                        initialFocus
+                        className="p-3 pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  {(dateFrom || dateTo) && (
+                    <Button variant="ghost" size="sm" className="h-9 px-2" onClick={() => { setDateFrom(undefined); setDateTo(undefined); }}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" onClick={() => { loadData().then((rows) => loadLookups(rows)); }} disabled={loading}>
+                    <RefreshCw className={`mr-1 h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+                    Refresh
+                  </Button>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
             <CardContent className="min-h-0 flex-1 flex flex-col overflow-hidden p-0 px-6 pb-6">
               {unified.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
