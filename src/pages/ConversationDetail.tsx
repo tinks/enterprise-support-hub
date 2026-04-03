@@ -798,6 +798,7 @@ const ConversationDetail = () => {
       </div>
     </AppLayout>
   );
+};
 
 const DetailRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="flex items-start justify-between gap-4">
