@@ -409,3 +409,28 @@ All Intercom API calls use `Intercom-Version: 2.11`.
 2. Write proposed changes: `UPDATE knowledge_documents SET pending_content = '...', pending_summary = '...', pending_at = now() WHERE id = 'project-knowledge'`
 3. Inform the user that changes are pending review in the Knowledge tab
 4. **DO NOT** update the `content` column directly
+
+---
+
+## 19. Navigation Layout
+
+### Collapsible sidebar
+- Left sidebar collapses to **56px** (icon rail) and expands to **200px** on hover
+- 2px vertical gradient accent on the left edge (primary → accent colors)
+- Width transition uses `transition-all duration-300`
+
+### Label visibility
+- All nav rows use `overflow-hidden` (via shared `linkBase` class) to prevent text leaking when collapsed
+- Labels animate between `max-w-0 opacity-0` (collapsed) and `max-w-[150px] opacity-100` (expanded)
+
+### Controlled tooltips
+- A single `activeTooltip` state ensures only one tooltip is visible at a time when the sidebar is collapsed
+- Each `Tooltip` uses a controlled `open` prop: `open={!expanded && activeTooltip === item.label}`
+- `activeTooltip` is cleared on sidebar expand and on mouse leave
+
+### Dashboards flyout
+- Joel and Kristina are grouped under a "Dashboards" parent item
+- Hovering "Dashboards" reveals a flyout submenu rendered via `DropdownMenuPortal` so it is not clipped by the sidebar's scroll container
+- The flyout uses a **150ms debounce** (`closeTimerRef`) so the menu stays mounted while the mouse crosses from the trigger to the submenu
+- Clicking Joel or Kristina navigates to `/my/joel` or `/my/kristina` and closes the flyout
+- When the mouse leaves both the sidebar and the flyout, everything collapses
