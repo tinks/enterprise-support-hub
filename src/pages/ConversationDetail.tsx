@@ -379,8 +379,9 @@ const ConversationDetail = () => {
 
   const intercomId = current.intercom_conversation_id;
 
-  // Source-specific rendering
-  const renderSlackDetail = () => {
+  // ── Left panel: conversation content ──
+
+  const renderSlackContent = () => {
     if (!conv) return null;
     const resolvedChannelName =
       channelName ||
@@ -389,33 +390,23 @@ const ConversationDetail = () => {
 
     return (
       <>
-        {/* Details card */}
         <Card>
           <CardContent className="pt-6 space-y-4">
-            <DetailRow label="Sent by">
-              <span className="inline-flex items-center gap-1.5">
-                <User className="h-3.5 w-3.5 text-muted-foreground" />
-                {userName || conv.slack_user_id}
-              </span>
-            </DetailRow>
             <DetailRow label="Channel">
               <span className="inline-flex items-center gap-1.5">
                 <Hash className="h-3.5 w-3.5 text-muted-foreground" />
                 {resolvedChannelName}
               </span>
             </DetailRow>
-            <DetailRow label="Created">{new Date(conv.created_at).toLocaleString()}</DetailRow>
-            <DetailRow label="Updated">{new Date(conv.updated_at).toLocaleString()}</DetailRow>
-            {conv.resolved_at && (
-              <DetailRow label="Resolved">{new Date(conv.resolved_at).toLocaleString()}</DetailRow>
-            )}
-            {conv.reminder_sent_at && (
-              <DetailRow label="Reminder sent">{new Date(conv.reminder_sent_at).toLocaleString()}</DetailRow>
-            )}
+            <DetailRow label="Sent by">
+              <span className="inline-flex items-center gap-1.5">
+                <User className="h-3.5 w-3.5 text-muted-foreground" />
+                {userName || conv.slack_user_id}
+              </span>
+            </DetailRow>
           </CardContent>
         </Card>
 
-        {/* Thread */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-sm">Thread</CardTitle>
@@ -473,78 +464,11 @@ const ConversationDetail = () => {
             )}
           </CardContent>
         </Card>
-
-        {/* Links */}
-        <Card>
-          <CardContent className="pt-6 flex flex-wrap gap-3">
-            <Button variant="outline" size="sm" asChild>
-              <a
-                href={buildSlackLink(conv.slack_channel_id, conv.slack_thread_ts)}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Slack thread <ExternalLink className="ml-1 h-3 w-3" />
-              </a>
-            </Button>
-            {intercomId ? (
-              <Button variant="outline" size="sm" asChild>
-                <a
-                  href={`https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${intercomId}?view=List`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Intercom conversation <ExternalLink className="ml-1 h-3 w-3" />
-                </a>
-              </Button>
-            ) : (
-              <Button
-                variant="default"
-                size="sm"
-                disabled={creatingIntercom}
-                onClick={createIntercom}
-              >
-                {creatingIntercom ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                ) : (
-                  <Ticket className="h-3.5 w-3.5 mr-1" />
-                )}
-                Create Intercom ticket
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Raw IDs */}
-        <Collapsible open={idsOpen} onOpenChange={setIdsOpen}>
-          <Card>
-            <CollapsibleTrigger asChild>
-              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">Raw IDs</CardTitle>
-                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${idsOpen ? "rotate-180" : ""}`} />
-                </div>
-              </CardHeader>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <CardContent className="space-y-2">
-                <IdRow label="Conversation ID" value={conv.id} />
-                <IdRow label="Slack channel ID" value={conv.slack_channel_id} />
-                <IdRow label="Slack thread TS" value={conv.slack_thread_ts} />
-                <IdRow label="Slack user ID" value={conv.slack_user_id} />
-                <IdRow label="Intercom conversation ID" value={conv.intercom_conversation_id || "—"} />
-                <IdRow label="Intercom contact ID" value={conv.intercom_contact_id} />
-                <IdRow label="Last Intercom part ID" value={conv.last_intercom_part_id || "—"} />
-                <IdRow label="Last processed event TS" value={conv.last_processed_event_ts || "—"} />
-                <IdRow label="Prompt message TS" value={conv.prompt_message_ts || "—"} />
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
       </>
     );
   };
 
-  const renderGmailDetail = () => {
+  const renderGmailContent = () => {
     if (!gmailConv) return null;
     return (
       <>
@@ -562,11 +486,6 @@ const ConversationDetail = () => {
             <DetailRow label="Subject">{gmailConv.subject || "—"}</DetailRow>
             {gmailConv.to_emails && <DetailRow label="To">{gmailConv.to_emails}</DetailRow>}
             {gmailConv.cc_emails && <DetailRow label="Cc">{gmailConv.cc_emails}</DetailRow>}
-            <DetailRow label="Received">{gmailConv.received_at ? new Date(gmailConv.received_at).toLocaleString() : "—"}</DetailRow>
-            <DetailRow label="Created">{new Date(gmailConv.created_at).toLocaleString()}</DetailRow>
-            {gmailConv.resolved_at && (
-              <DetailRow label="Resolved">{new Date(gmailConv.resolved_at).toLocaleString()}</DetailRow>
-            )}
           </CardContent>
         </Card>
 
@@ -580,43 +499,11 @@ const ConversationDetail = () => {
             </CardContent>
           </Card>
         )}
-
-        <Card>
-          <CardContent className="pt-6 flex flex-wrap gap-3">
-            {gmailConv.gmail_thread_id && (
-              <Button variant="outline" size="sm" asChild>
-                <a
-                  href={`https://mail.google.com/mail/u/0/#inbox/${gmailConv.gmail_thread_id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  View in Gmail <ExternalLink className="ml-1 h-3 w-3" />
-                </a>
-              </Button>
-            )}
-            {intercomId ? (
-              <Button variant="outline" size="sm" asChild>
-                <a
-                  href={`https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${intercomId}?view=List`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Intercom conversation <ExternalLink className="ml-1 h-3 w-3" />
-                </a>
-              </Button>
-            ) : (
-              <Button variant="default" size="sm" disabled={creatingIntercom} onClick={createIntercom}>
-                {creatingIntercom ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Ticket className="h-3.5 w-3.5 mr-1" />}
-                Create Intercom ticket
-              </Button>
-            )}
-          </CardContent>
-        </Card>
       </>
     );
   };
 
-  const renderManualDetail = () => {
+  const renderManualContent = () => {
     if (!manualConv) return null;
     return (
       <>
@@ -625,12 +512,9 @@ const ConversationDetail = () => {
             <DetailRow label="Contact">{manualConv.contact_name || "—"}</DetailRow>
             <DetailRow label="Subject">{manualConv.subject || "—"}</DetailRow>
             <DetailRow label="Source"><span className="capitalize">{manualConv.source}</span></DetailRow>
-            <DetailRow label="Created">{new Date(manualConv.created_at).toLocaleString()}</DetailRow>
-            <DetailRow label="Updated">{new Date(manualConv.updated_at).toLocaleString()}</DetailRow>
           </CardContent>
         </Card>
 
-        {/* Messages */}
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Messages</CardTitle>
@@ -668,147 +552,252 @@ const ConversationDetail = () => {
             )}
           </CardContent>
         </Card>
-
-        <Card>
-          <CardContent className="pt-6 flex flex-wrap gap-3">
-            {manualConv.link && (
-              <Button variant="outline" size="sm" asChild>
-                <a href={manualConv.link} target="_blank" rel="noopener noreferrer">
-                  External link <ExternalLink className="ml-1 h-3 w-3" />
-                </a>
-              </Button>
-            )}
-            {intercomId ? (
-              <Button variant="outline" size="sm" asChild>
-                <a
-                  href={`https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${intercomId}?view=List`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Intercom conversation <ExternalLink className="ml-1 h-3 w-3" />
-                </a>
-              </Button>
-            ) : (
-              <Button variant="default" size="sm" disabled={creatingIntercom} onClick={createIntercom}>
-                {creatingIntercom ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Ticket className="h-3.5 w-3.5 mr-1" />}
-                Create Intercom ticket
-              </Button>
-            )}
-          </CardContent>
-        </Card>
       </>
     );
+  };
+
+  // ── Right panel: metadata sidebar ──
+
+  const renderLinks = () => {
+    const links: React.ReactNode[] = [];
+
+    if (source === "slack" && conv) {
+      links.push(
+        <Button key="slack" variant="outline" size="sm" className="w-full justify-start" asChild>
+          <a href={buildSlackLink(conv.slack_channel_id, conv.slack_thread_ts)} target="_blank" rel="noopener noreferrer">
+            Slack thread <ExternalLink className="ml-auto h-3 w-3" />
+          </a>
+        </Button>
+      );
+    }
+
+    if (source === "gmail" && gmailConv?.gmail_thread_id) {
+      links.push(
+        <Button key="gmail" variant="outline" size="sm" className="w-full justify-start" asChild>
+          <a href={`https://mail.google.com/mail/u/0/#inbox/${gmailConv.gmail_thread_id}`} target="_blank" rel="noopener noreferrer">
+            View in Gmail <ExternalLink className="ml-auto h-3 w-3" />
+          </a>
+        </Button>
+      );
+    }
+
+    if (source === "manual" && manualConv?.link) {
+      links.push(
+        <Button key="ext" variant="outline" size="sm" className="w-full justify-start" asChild>
+          <a href={manualConv.link} target="_blank" rel="noopener noreferrer">
+            External link <ExternalLink className="ml-auto h-3 w-3" />
+          </a>
+        </Button>
+      );
+    }
+
+    if (intercomId) {
+      links.push(
+        <Button key="intercom" variant="outline" size="sm" className="w-full justify-start" asChild>
+          <a href={`https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${intercomId}?view=List`} target="_blank" rel="noopener noreferrer">
+            Intercom <ExternalLink className="ml-auto h-3 w-3" />
+          </a>
+        </Button>
+      );
+    } else {
+      links.push(
+        <Button key="create-intercom" variant="default" size="sm" className="w-full" disabled={creatingIntercom} onClick={createIntercom}>
+          {creatingIntercom ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Ticket className="h-3.5 w-3.5 mr-1" />}
+          Create Intercom ticket
+        </Button>
+      );
+    }
+
+    return links;
+  };
+
+  const renderDates = () => {
+    const dates: { label: string; value: string }[] = [];
+    if (source === "gmail" && gmailConv) {
+      if (gmailConv.received_at) dates.push({ label: "Received", value: new Date(gmailConv.received_at).toLocaleString() });
+      dates.push({ label: "Created", value: new Date(gmailConv.created_at).toLocaleString() });
+      if (gmailConv.resolved_at) dates.push({ label: "Resolved", value: new Date(gmailConv.resolved_at).toLocaleString() });
+    } else if (source === "manual" && manualConv) {
+      dates.push({ label: "Created", value: new Date(manualConv.created_at).toLocaleString() });
+      dates.push({ label: "Updated", value: new Date(manualConv.updated_at).toLocaleString() });
+    } else if (conv) {
+      dates.push({ label: "Created", value: new Date(conv.created_at).toLocaleString() });
+      dates.push({ label: "Updated", value: new Date(conv.updated_at).toLocaleString() });
+      if (conv.resolved_at) dates.push({ label: "Resolved", value: new Date(conv.resolved_at).toLocaleString() });
+      if (conv.reminder_sent_at) dates.push({ label: "Reminder", value: new Date(conv.reminder_sent_at).toLocaleString() });
+    }
+    return dates;
   };
 
   return (
     <AppLayout>
       <div className="bg-background p-6">
-        <div className="mx-auto max-w-3xl space-y-4">
-          {/* Top bar */}
-          <div className="flex items-center justify-between">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/conversations")}>
-              <ArrowLeft className="mr-1 h-4 w-4" /> Back
-            </Button>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground">Test</span>
-              <Switch checked={current.is_test} onCheckedChange={() => toggleField("is_test")} />
-            </div>
+        {/* Back button */}
+        <div className="mb-4">
+          <Button variant="ghost" size="sm" onClick={() => navigate("/conversations")}>
+            <ArrowLeft className="mr-1 h-4 w-4" /> Back
+          </Button>
+        </div>
+
+        {/* 70/30 split */}
+        <div className="flex flex-col lg:flex-row gap-6">
+          {/* Left: 70% — conversation content */}
+          <div className="w-full lg:w-[70%] space-y-4">
+            {source === "slack" && renderSlackContent()}
+            {source === "gmail" && renderGmailContent()}
+            {source === "manual" && renderManualContent()}
           </div>
 
-          {/* Header card */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <CardTitle
-                  className="font-mono text-base cursor-pointer hover:text-primary transition-colors"
-                  onClick={() => copyToClipboard(current.id, "ID")}
-                  title="Click to copy full ID"
-                >
-                  #{current.id.slice(0, 8)}
-                </CardTitle>
-                <Badge variant={statusColor(current.status)}>{statusLabel(current.status)}</Badge>
-                {current.is_test && <Badge variant="outline">test</Badge>}
-                <Badge variant="secondary" className="text-xs capitalize">{source}</Badge>
-              </div>
-              <Select value={current.status} onValueChange={updateStatus} disabled={updating}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUS_OPTIONS.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {statusLabel(s)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </CardHeader>
-          </Card>
+          {/* Right: 30% — metadata sidebar */}
+          <div className="w-full lg:w-[30%] space-y-4 lg:sticky lg:top-6 lg:self-start">
+            {/* Status */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Status</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CardTitle
+                    className="font-mono text-xs cursor-pointer hover:text-primary transition-colors"
+                    onClick={() => copyToClipboard(current.id, "ID")}
+                    title="Click to copy full ID"
+                  >
+                    #{current.id.slice(0, 8)}
+                  </CardTitle>
+                  <Badge variant={statusColor(current.status)}>{statusLabel(current.status)}</Badge>
+                  {current.is_test && <Badge variant="outline">test</Badge>}
+                  <Badge variant="secondary" className="text-xs capitalize">{source}</Badge>
+                </div>
+                <Select value={current.status} onValueChange={updateStatus} disabled={updating}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS.map((s) => (
+                      <SelectItem key={s} value={s}>{statusLabel(s)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Test</span>
+                  <Switch checked={current.is_test} onCheckedChange={() => toggleField("is_test")} />
+                </div>
+              </CardContent>
+            </Card>
 
-          {/* Classification */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Classification</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm text-muted-foreground">Classification</Label>
-                <Select value={current.classification || "none"} onValueChange={updateClassification}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {CLASSIFICATION_OPTIONS.map((c) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center justify-between">
-                <Label className="text-sm text-muted-foreground">Incident</Label>
-                <Switch checked={current.is_bug} onCheckedChange={() => toggleField("is_bug")} />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label className="text-sm text-muted-foreground">Product area</Label>
-                <Select value={current.product_area || "none"} onValueChange={updateProductArea}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {productAreas.map((area) => (
-                      <SelectItem key={area} value={area}>{area}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center justify-between">
-                <Label className="text-sm text-muted-foreground">Owner</Label>
-                <Select value={current.owner || "none"} onValueChange={updateOwner}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Unassigned</SelectItem>
-                    {OWNER_OPTIONS.map((o) => (
-                      <SelectItem key={o} value={o}>{o}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
+            {/* Classification */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Classification</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Category</Label>
+                  <Select value={current.classification || "none"} onValueChange={updateClassification}>
+                    <SelectTrigger className="w-full mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {CLASSIFICATION_OPTIONS.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground">Incident</Label>
+                  <Switch checked={current.is_bug} onCheckedChange={() => toggleField("is_bug")} />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Product area</Label>
+                  <Select value={current.product_area || "none"} onValueChange={updateProductArea}>
+                    <SelectTrigger className="w-full mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {productAreas.map((area) => (
+                        <SelectItem key={area} value={area}>{area}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Owner</Label>
+                  <Select value={current.owner || "none"} onValueChange={updateOwner}>
+                    <SelectTrigger className="w-full mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Unassigned</SelectItem>
+                      {OWNER_OPTIONS.map((o) => (
+                        <SelectItem key={o} value={o}>{o}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardContent>
+            </Card>
 
-          {/* Source-specific content */}
-          {source === "slack" && renderSlackDetail()}
-          {source === "gmail" && renderGmailDetail()}
-          {source === "manual" && renderManualDetail()}
+            {/* Links */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Links</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {renderLinks()}
+              </CardContent>
+            </Card>
+
+            {/* Dates */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Timeline</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {renderDates().map((d) => (
+                  <div key={d.label} className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">{d.label}</span>
+                    <span className="text-xs text-foreground">{d.value}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Raw IDs (Slack only) */}
+            {source === "slack" && conv && (
+              <Collapsible open={idsOpen} onOpenChange={setIdsOpen}>
+                <Card>
+                  <CollapsibleTrigger asChild>
+                    <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-sm">Raw IDs</CardTitle>
+                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${idsOpen ? "rotate-180" : ""}`} />
+                      </div>
+                    </CardHeader>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <CardContent className="space-y-2">
+                      <IdRow label="Conversation ID" value={conv.id} />
+                      <IdRow label="Slack channel ID" value={conv.slack_channel_id} />
+                      <IdRow label="Slack thread TS" value={conv.slack_thread_ts} />
+                      <IdRow label="Slack user ID" value={conv.slack_user_id} />
+                      <IdRow label="Intercom conversation ID" value={conv.intercom_conversation_id || "—"} />
+                      <IdRow label="Intercom contact ID" value={conv.intercom_contact_id} />
+                      <IdRow label="Last Intercom part ID" value={conv.last_intercom_part_id || "—"} />
+                      <IdRow label="Last processed event TS" value={conv.last_processed_event_ts || "—"} />
+                      <IdRow label="Prompt message TS" value={conv.prompt_message_ts || "—"} />
+                    </CardContent>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
+            )}
+          </div>
         </div>
       </div>
     </AppLayout>
   );
-};
 
 const DetailRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="flex items-start justify-between gap-4">
