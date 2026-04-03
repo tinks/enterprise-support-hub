@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import { Settings, BarChart3, GitBranch, MessageSquare, BookOpen, Import, Users } from "lucide-react";
@@ -22,13 +22,23 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [dashboardHovered, setDashboardHovered] = useState(false);
   const [menuHovered, setMenuHovered] = useState(false);
+  const [dashboardVisible, setDashboardVisible] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
   // Sidebar stays expanded if hovering sidebar OR the portalled menu
   const expanded = sidebarHovered || menuHovered;
-  // Dashboard menu visible if hovering the trigger OR the menu itself
-  const dashboardOpen = dashboardHovered || menuHovered;
+
+  // Debounce the dashboard flyout visibility so it stays mounted
+  // long enough for the mouse to cross from trigger to menu
+  useEffect(() => {
+    if (dashboardHovered || menuHovered) {
+      setDashboardVisible(true);
+    } else {
+      const timer = setTimeout(() => setDashboardVisible(false), 150);
+      return () => clearTimeout(timer);
+    }
+  }, [dashboardHovered, menuHovered]);
 
   const isDashboardActive = dashboardItems.some((d) => location.pathname.startsWith(d.to));
 
@@ -50,7 +60,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         onMouseEnter={() => setSidebarHovered(true)}
         onMouseLeave={() => {
           setSidebarHovered(false);
-          setDashboardHovered(false);
+          // Don't clear dashboardHovered here — the trigger's own onMouseLeave handles it
         }}
       >
         {/* Logo */}
@@ -89,7 +99,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                     <span className={labelClass}>Dashboards</span>
                   </div>
                 </TooltipTrigger>
-                {!expanded && !dashboardOpen && <TooltipContent side="right">Dashboards</TooltipContent>}
+                {!expanded && !dashboardVisible && <TooltipContent side="right">Dashboards</TooltipContent>}
               </Tooltip>
 
               {navItems.slice(2).map((item) => (
@@ -109,7 +119,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       </aside>
 
       {/* Dashboards flyout — rendered outside the sidebar entirely */}
-      {dashboardOpen && (
+      {dashboardVisible && (
         <DashboardFlyout
           items={dashboardItems}
           onMouseEnter={() => setMenuHovered(true)}
@@ -145,16 +155,13 @@ function DashboardFlyout({
   onNavigate: (to: string) => void;
   sidebarWidth: number;
 }) {
-  // Position the flyout next to the Dashboards trigger.
-  // The trigger is the 3rd item (index 2) in the nav list.
-  // Logo height ~48px + border 1px + padding top 8px + (item height ~40px * 2 items above) + gap = ~137px approx
-  // We'll use a fixed top offset that aligns with the Dashboards row.
-  const topOffset = 49 + 8 + 40 * 2 + 4 * 2; // logo+border + padding + 2 items + gaps
+  // Position flush against the sidebar edge (no gap) so the mouse can cross seamlessly
+  const topOffset = 49 + 8 + 40 * 2 + 4 * 2;
 
   return (
     <div
       className="fixed z-50"
-      style={{ left: sidebarWidth + 2, top: topOffset }}
+      style={{ left: sidebarWidth, top: topOffset }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
