@@ -1,20 +1,23 @@
 
 
-## Create a "Filters" section on the Inbox page
+## Separate Search/Refresh from Filters section
 
 ### What changes
-The filter controls (search, source, owner, status, date from/to, refresh, reset columns) currently sit inline in the `CardHeader` row. They will be moved into a dedicated collapsible "Filters" section with a title, placed between the card header and the table content.
+Currently all controls (search, source, owner, status, dates, refresh, reset) live together inside a single Collapsible. The user wants:
+1. **Search + Refresh + Reset columns** to be a persistent top bar (always visible, not collapsible)
+2. **Filters** (source, owner, status, date from/to, clear dates) in a visually distinct collapsible section below, toggled by click
 
 ### Layout
 
 ```text
 ┌─────────────────────────────────────────────┐
-│  CardHeader (empty title area only)         │
+│  CardHeader                                 │
 ├─────────────────────────────────────────────┤
-│  Filters                          [▾ toggle]│
+│  [🔍 Search...]          [Reset cols] [⟳]  │  ← always visible row
+├─────────────────────────────────────────────┤
+│  ▸ Filters (2 active)              [toggle] │  ← click to expand/collapse
 │  ┌─────────────────────────────────────────┐│
-│  │ Search | Source | Owner | Status |      ││
-│  │ From date | To date | Refresh | Reset   ││
+│  │ Source | Owner | Status | From | To | ✕ ││
 │  └─────────────────────────────────────────┘│
 ├─────────────────────────────────────────────┤
 │  Table rows...                              │
@@ -23,14 +26,14 @@ The filter controls (search, source, owner, status, date from/to, refresh, reset
 
 ### Implementation detail
 
-**`src/pages/Conversations.tsx`**
+**`src/pages/Conversations.tsx`** (lines ~1219-1347)
 
-1. Strip the filter controls out of the `CardHeader` (lines ~1219-1338), leaving only the empty title div.
-2. Add a new section between `CardHeader` and `CardContent` using a `Collapsible` component (already available in `src/components/ui/collapsible.tsx`):
-   - Title: "Filters" (sentence case) with a chevron toggle
-   - Default state: open
-   - Contains a `flex flex-wrap items-center gap-2 px-6 pb-4` div with all the moved filter controls (search input, source select, owner select, status popover, date from/to popovers, clear dates button, refresh button, reset columns button)
-3. The filters section gets a subtle top border or separator for visual clarity.
+1. Replace the single `Collapsible` block with two sections:
+   - **Top bar** (`div` with `border-t border-border px-6 py-3 flex items-center gap-2`): Search input, Reset columns button (if custom order), Refresh button
+   - **Filters section** (`Collapsible` with `border-t border-border`): Source select, Owner select, Status popover, Date from/to popovers, Clear dates button
+2. The Filters `Collapsible` defaults to open, toggle via click on the trigger row
+3. Trigger row shows "Filters" label with a chevron icon; includes a small badge showing count of active filters (source ≠ all, owner ≠ all, hiddenStatuses > 0, dateFrom set, dateTo set)
+4. Add `transition-all` on `CollapsibleContent` for smooth expand/collapse animation
 
 ### Files to edit
 - `src/pages/Conversations.tsx`
