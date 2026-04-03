@@ -75,7 +75,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border min-h-[48px] overflow-hidden">
           <img src="/lovable-logo.png" alt="Lovable" className="h-6 w-6 shrink-0" />
           <span className={`text-sm font-semibold text-foreground truncate ${labelClass}`}>
-            Support hub
+            Enterprise support hub
           </span>
         </div>
 
