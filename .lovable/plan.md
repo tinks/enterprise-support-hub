@@ -1,28 +1,46 @@
 
 
-## Make status editable inline on conversations list
+## Replace top navbar with a left sidebar (auto-expand on hover)
 
 ### What it does
-Replaces the static status badge in each conversation row with a clickable `<Select>` dropdown, so you can change the status directly from the list without opening the detail view.
+Replaces the current horizontal top navigation bar with a vertical sidebar on the left side of the page. The sidebar shows only icons when collapsed (narrow ~56px strip) and smoothly expands to show full labels when you hover over it. When the mouse leaves, it collapses back to icons-only. This frees up vertical space for the conversations table and feels more modern for a dashboard app.
+
+### Layout change
+
+```text
+BEFORE:                          AFTER:
+┌──────────────────────┐         ┌───┬──────────────────┐
+│  Stats │ Conv │ Joel │         │ 📊│                  │
+├──────────────────────┤         │ 💬│   Main content    │
+│                      │         │ 👤│                  │
+│   Main content       │         │ 👤│                  │
+│                      │         │ 📥│                  │
+│                      │         │ ⚙️│                  │
+└──────────────────────┘         └───┴──────────────────┘
+                                  ↑ expands on hover
+```
+
+### Behaviour
+- **Collapsed (default)**: ~56px wide, shows icons only, with a tooltip on hover per item
+- **Expanded (on mouse enter)**: ~200px wide, shows icon + label, smooth CSS transition (~200ms)
+- **Collapses on mouse leave**: returns to icon-only state
+- The gradient accent line moves from horizontal (top) to vertical (left edge of sidebar)
+- Logo icon always visible; app title only shown when expanded
 
 ### Changes
 
-**`src/pages/Conversations.tsx`**
-
-1. Add a `STATUS_OPTIONS` constant (same as in ConversationDetail): `["active", "resolved", "cancelled", "escalated", "awaiting_context", "awaiting_support"]`
-
-2. Add an `updateStatus` function that:
-   - Determines the correct table (`conversation_mappings`, `gmail_conversations`, or `manual_conversations`) based on source
-   - Calls `supabase.from(table).update({ status: newStatus }).eq("id", rowId)`
-   - Updates local state (`setMappings`, `setGmailRows`, `setManualRows` and `searchResults`)
-   - Shows toast on error
-
-3. Replace the three `case "status"` blocks (Slack ~line 806, Gmail ~line 943, Manual ~line 1034) from a static `<Badge>` to a `<Select>` dropdown styled compactly (similar to the classification dropdown), showing the current status label and allowing selection of any status option. Click events will be stopped from propagating to avoid triggering row navigation.
+**`src/components/AppLayout.tsx`**
+- Replace the horizontal `<nav>` with a vertical sidebar `<aside>` on the left
+- Add `useState` for `expanded` state, toggled by `onMouseEnter`/`onMouseLeave`
+- Layout becomes `flex flex-row` instead of `flex flex-col`
+- Each nav link stacks vertically; label text hidden when collapsed via `overflow-hidden` + width transition
+- Active route highlighted with left border accent or background
+- Gradient accent bar becomes a thin vertical strip on the left edge of the sidebar
 
 **`src/pages/FlowDiagram.tsx`**
-- Document that status can now be edited inline from the conversations list
+- Document the navigation layout change from top bar to collapsible left sidebar
 
 ### Files to edit
-- `src/pages/Conversations.tsx`
+- `src/components/AppLayout.tsx`
 - `src/pages/FlowDiagram.tsx`
 
