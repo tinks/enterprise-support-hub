@@ -36,7 +36,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
       {/* Sidebar */}
       <aside
-        className="shrink-0 border-r border-border bg-card flex flex-col transition-all duration-200 ease-in-out overflow-hidden"
+        className="shrink-0 border-r border-border bg-card flex flex-col transition-all duration-200 ease-in-out"
         style={{ width: expanded ? 200 : 56 }}
         onMouseEnter={() => setExpanded(true)}
         onMouseLeave={() => { setExpanded(false); setFlyoutOpen(false); }}
