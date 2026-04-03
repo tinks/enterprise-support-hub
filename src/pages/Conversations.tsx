@@ -1216,30 +1216,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
             <CardHeader className="flex-shrink-0 pb-2">
               <CardTitle className="text-lg">{forceOwner ? `${forceOwner}'s conversations` : "\n"}</CardTitle>
             </CardHeader>
-            {/* Search & Refresh bar — always visible */}
-            <div className="border-t border-border px-6 py-3 flex items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input
-                  placeholder="Search…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-9 w-[180px] pl-8 text-sm"
-                />
-              </div>
-              <div className="flex-1" />
-              {isCustomOrder && (
-                <Button variant="ghost" size="sm" className="h-9 gap-1 text-xs" onClick={resetColumns}>
-                  <RotateCcw className="h-3 w-3" /> Reset columns
-                </Button>
-              )}
-              <Button variant="outline" size="sm" onClick={() => { loadData().then((rows) => loadLookups(rows)); }} disabled={loading}>
-                <RefreshCw className={`mr-1 h-3 w-3 ${loading ? "animate-spin" : ""}`} />
-                Refresh
-              </Button>
-            </div>
-
-            {/* Filters section — collapsible */}
+            {/* Filters section — collapsible, on top */}
             <Collapsible defaultOpen className="border-t border-border">
               <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-2.5 text-sm font-medium hover:bg-muted/50 transition-colors cursor-pointer">
                 <span className="flex items-center gap-2">
@@ -1361,9 +1338,32 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                       <X className="h-3 w-3" />
                     </Button>
                   )}
+                  {isCustomOrder && (
+                    <Button variant="ghost" size="sm" className="h-9 gap-1 text-xs" onClick={resetColumns}>
+                      <RotateCcw className="h-3 w-3" /> Reset
+                    </Button>
+                  )}
                 </div>
               </CollapsibleContent>
             </Collapsible>
+
+            {/* Search & Refresh bar — always visible */}
+            <div className="border-t border-border px-6 py-3 flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-9 w-[180px] pl-8 text-sm"
+                />
+              </div>
+              <div className="flex-1" />
+              <Button variant="outline" size="sm" onClick={() => { loadData().then((rows) => loadLookups(rows)); }} disabled={loading}>
+                <RefreshCw className={`mr-1 h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            </div>
             <CardContent className="min-h-0 flex-1 flex flex-col overflow-hidden p-0 px-6 pb-6">
               {unified.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
