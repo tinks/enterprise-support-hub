@@ -66,6 +66,11 @@ const ROW_H = 380;
 /*  Stats page: "Export PDF" button generates a PDF report with all    */
 /*  summary metrics and chart screenshots, respecting active filters. */
 /* ------------------------------------------------------------------ */
+/*  Conversation detail page: 70/30 split layout. Left 70% shows      */
+/*  channel/sender info + threaded messages. Right 30% sticky sidebar  */
+/*  has status, classification, links, timeline, and raw IDs cards.    */
+/*  Responsive: stacks vertically on small screens.                    */
+/* ------------------------------------------------------------------ */
 /*  Imported Slack threads: import-slack-thread fetches ALL replies    */
 /*  and computes first-response-time + thread duration. A "Create     */
 /*  Intercom ticket" button on ConversationDetail calls               */
