@@ -1,8 +1,14 @@
 import { useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
 import { Settings, BarChart3, GitBranch, MessageSquare, BookOpen, Import, Users } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const navItems = [
   { to: "/", icon: BarChart3, label: "Stats", end: true },
@@ -20,8 +26,9 @@ const dashboardItems = [
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const [expanded, setExpanded] = useState(false);
-  const [flyoutOpen, setFlyoutOpen] = useState(false);
+  const [dashboardOpen, setDashboardOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   const isDashboardActive = dashboardItems.some((d) => location.pathname.startsWith(d.to));
 
@@ -39,7 +46,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         className="shrink-0 border-r border-border bg-card flex flex-col transition-all duration-200 ease-in-out relative z-20 overflow-visible"
         style={{ width: expanded ? 200 : 56 }}
         onMouseEnter={() => setExpanded(true)}
-        onMouseLeave={() => { setExpanded(false); setFlyoutOpen(false); }}
+        onMouseLeave={() => { setExpanded(false); setDashboardOpen(false); }}
       >
         {/* Logo */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border min-h-[48px]">
@@ -65,39 +72,40 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                 </Tooltip>
               ))}
 
-              {/* Dashboards flyout group */}
-              <div
-                className="relative"
-                onMouseEnter={() => setFlyoutOpen(true)}
-                onMouseLeave={() => setFlyoutOpen(false)}
-              >
+              {/* Dashboards — portal-based dropdown */}
+              <DropdownMenu open={dashboardOpen} onOpenChange={setDashboardOpen}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div
-                      className={`${linkBase} cursor-default ${isDashboardActive ? activeClass : ""}`}
-                    >
-                      <Users className="h-4 w-4 shrink-0" />
-                      {expanded && <span>Dashboards</span>}
-                    </div>
-                  </TooltipTrigger>
-                  {!expanded && <TooltipContent side="right">Dashboards</TooltipContent>}
-                </Tooltip>
-
-                {flyoutOpen && (
-                  <div className="absolute left-full top-0 py-1 px-1 bg-popover border border-border rounded-md shadow-md min-w-[140px] z-50">
-                    {dashboardItems.map((d) => (
-                      <NavLink
-                        key={d.to}
-                        to={d.to}
-                        className="flex items-center px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent whitespace-nowrap"
-                        activeClassName={activeClass}
+                    <DropdownMenuTrigger asChild>
+                      <div
+                        className={`${linkBase} cursor-pointer ${isDashboardActive ? activeClass : ""}`}
+                        onMouseEnter={() => setDashboardOpen(true)}
                       >
-                        {d.label}
-                      </NavLink>
-                    ))}
-                  </div>
-                )}
-              </div>
+                        <Users className="h-4 w-4 shrink-0" />
+                        {expanded && <span>Dashboards</span>}
+                      </div>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  {!expanded && !dashboardOpen && <TooltipContent side="right">Dashboards</TooltipContent>}
+                </Tooltip>
+                <DropdownMenuContent
+                  side="right"
+                  align="start"
+                  sideOffset={4}
+                  className="min-w-[140px]"
+                  onMouseLeave={() => setDashboardOpen(false)}
+                >
+                  {dashboardItems.map((d) => (
+                    <DropdownMenuItem
+                      key={d.to}
+                      className="cursor-pointer"
+                      onClick={() => { navigate(d.to); setDashboardOpen(false); }}
+                    >
+                      {d.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {navItems.slice(2).map((item) => (
                 <Tooltip key={item.to}>
