@@ -1,34 +1,27 @@
 
 
-## Redesign conversation detail page with 70/30 split layout
+## Highlight unactioned conversations (no owner assigned)
+
+### Approach
+A conversation is "new / unactioned" when its `owner` field is `null` — meaning neither Joel nor Kristina has claimed it yet. This is already tracked in all three conversation tables, so no database changes are needed.
 
 ### What changes
-The current single-column layout (max-w-3xl centered) becomes a two-panel layout: 70% left for the conversation content (channel info, sender, thread messages) and 30% right sidebar for metadata and actions.
 
-### Left panel (70%) — conversation content
-- **Header row**: Channel name, sent by, and basic info (subject for Gmail/Manual)
-- **Thread/messages card**: The full threaded conversation (Slack thread, Gmail snippet, or manual messages) — this is the primary focus area and takes up most vertical space
+**`src/pages/Conversations.tsx`**
 
-### Right panel (30%) — metadata sidebar
-- **Status section**: ID badge, status dropdown, source badge, test toggle
-- **Classification section**: Classification dropdown, incident toggle, product area, owner
-- **Links section**: Slack thread / Gmail / Intercom buttons, create Intercom ticket
-- **Dates section**: Created, updated, resolved, reminder sent
-- **Raw IDs**: Collapsible section (Slack only)
+Add a subtle left-border highlight and light background tint to every `TableRow` where `owner` is null:
 
-### Technical approach
+- Slack rows (line ~1381): add a colored left border and faint background when `m.owner` is null
+- Gmail rows (line ~1400): same check on `g.owner`
+- Manual rows (line ~1436): same check on `mc.owner`
 
-**`src/pages/ConversationDetail.tsx`**
-- Replace `max-w-3xl` centered container with a flex row: `flex gap-6`
-- Left div: `w-[70%]` containing the details card (channel/sender) and thread card
-- Right div: `w-[30%]` containing status card, classification card, links card, dates card, raw IDs
-- Right panel uses `sticky top-6` so it stays visible while scrolling the thread
-- Responsive: on small screens, stack vertically (flex-col)
+The styling will be a 3px left border in the primary/coral color plus a very faint coral background tint, e.g.:
+```
+border-l-3 border-primary/70 bg-primary/5
+```
 
-**`src/pages/FlowDiagram.tsx`**
-- Update navigation notes for the layout change
+This makes unactioned rows clearly stand out without being overwhelming. When someone sets an owner, the highlight disappears automatically.
 
 ### Files to edit
-- `src/pages/ConversationDetail.tsx`
-- `src/pages/FlowDiagram.tsx`
+- `src/pages/Conversations.tsx`
 
