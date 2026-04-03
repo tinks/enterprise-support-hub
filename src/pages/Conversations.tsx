@@ -1347,7 +1347,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                   {loading ? "Loading…" : "No conversations found."}
                 </p>
               ) : (
-              <div className="min-h-0 flex-1 overflow-auto">
+              <div className="min-h-0 flex-1 overflow-auto pl-1">
                 <Table>
                   <TableHeader className="sticky top-0 z-20 bg-card [&_tr]:border-b">
                     <TableRow>
