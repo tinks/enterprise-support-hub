@@ -1216,27 +1216,50 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
             <CardHeader className="flex-shrink-0 pb-2">
               <CardTitle className="text-lg">{forceOwner ? `${forceOwner}'s conversations` : "\n"}</CardTitle>
             </CardHeader>
+            {/* Search & Refresh bar — always visible */}
+            <div className="border-t border-border px-6 py-3 flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-9 w-[180px] pl-8 text-sm"
+                />
+              </div>
+              <div className="flex-1" />
+              {isCustomOrder && (
+                <Button variant="ghost" size="sm" className="h-9 gap-1 text-xs" onClick={resetColumns}>
+                  <RotateCcw className="h-3 w-3" /> Reset columns
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => { loadData().then((rows) => loadLookups(rows)); }} disabled={loading}>
+                <RefreshCw className={`mr-1 h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            </div>
+
+            {/* Filters section — collapsible */}
             <Collapsible defaultOpen className="border-t border-border">
-              <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-3 text-sm font-medium hover:bg-muted/50 transition-colors">
-                Filters
+              <CollapsibleTrigger className="flex w-full items-center justify-between px-6 py-2.5 text-sm font-medium hover:bg-muted/50 transition-colors cursor-pointer">
+                <span className="flex items-center gap-2">
+                  Filters
+                  {(() => {
+                    let count = 0;
+                    if (sourceFilter !== "all") count++;
+                    if (ownerFilter !== "all") count++;
+                    if (hiddenStatuses.size > 0) count++;
+                    if (dateFrom) count++;
+                    if (dateTo) count++;
+                    return count > 0 ? (
+                      <Badge variant="secondary" className="h-5 px-1.5 text-xs">{count} active</Badge>
+                    ) : null;
+                  })()}
+                </span>
                 <ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
               </CollapsibleTrigger>
-              <CollapsibleContent>
+              <CollapsibleContent className="transition-all data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
                 <div className="flex flex-wrap items-center gap-2 px-6 pb-4">
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                      placeholder="Search…"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="h-9 w-[180px] pl-8 text-sm"
-                    />
-                  </div>
-                  {isCustomOrder && (
-                    <Button variant="ghost" size="sm" className="h-9 gap-1 text-xs" onClick={resetColumns}>
-                      <RotateCcw className="h-3 w-3" /> Reset columns
-                    </Button>
-                  )}
                   <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as SourceFilter)}>
                     <SelectTrigger className="w-[130px] h-9">
                       <SelectValue />
@@ -1338,10 +1361,6 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                       <X className="h-3 w-3" />
                     </Button>
                   )}
-                  <Button variant="outline" size="sm" onClick={() => { loadData().then((rows) => loadLookups(rows)); }} disabled={loading}>
-                    <RefreshCw className={`mr-1 h-3 w-3 ${loading ? "animate-spin" : ""}`} />
-                    Refresh
-                  </Button>
                 </div>
               </CollapsibleContent>
             </Collapsible>
