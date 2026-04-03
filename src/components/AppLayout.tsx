@@ -32,6 +32,11 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
   const isDashboardActive = dashboardItems.some((d) => location.pathname.startsWith(d.to));
 
+  const handleMouseLeave = () => {
+    setExpanded(false);
+    setDashboardOpen(false);
+  };
+
   const linkBase =
     "flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-accent whitespace-nowrap";
   const activeClass = "bg-accent text-foreground";
@@ -43,29 +48,35 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
       {/* Sidebar */}
       <aside
-        className="shrink-0 border-r border-border bg-card flex flex-col transition-all duration-200 ease-in-out relative z-20 overflow-visible"
+        className="shrink-0 border-r border-border bg-card flex flex-col transition-all duration-200 ease-in-out relative z-20"
         style={{ width: expanded ? 200 : 56 }}
         onMouseEnter={() => setExpanded(true)}
-        onMouseLeave={() => { setExpanded(false); setDashboardOpen(false); }}
+        onMouseLeave={handleMouseLeave}
       >
         {/* Logo */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-border min-h-[48px]">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-border min-h-[48px] overflow-hidden">
           <img src="/lovable-logo.png" alt="Lovable" className="h-6 w-6 shrink-0" />
-          {expanded && (
-            <span className="text-sm font-semibold text-foreground truncate">Support hub</span>
-          )}
+          <span
+            className={`text-sm font-semibold text-foreground truncate transition-all duration-200 ${
+              expanded ? "opacity-100 w-auto" : "opacity-0 w-0"
+            }`}
+          >
+            Support hub
+          </span>
         </div>
 
         {/* Nav links */}
-        <nav className="flex-1 flex flex-col relative overflow-visible">
-          <div className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto">
+        <nav className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto overflow-x-hidden">
             <TooltipProvider delayDuration={0}>
               {navItems.slice(0, 2).map((item) => (
                 <Tooltip key={item.to}>
                   <TooltipTrigger asChild>
                     <NavLink to={item.to} className={linkBase} activeClassName={activeClass} end={item.end}>
                       <item.icon className="h-4 w-4 shrink-0" />
-                      {expanded && <span>{item.label}</span>}
+                      <span className={`transition-all duration-200 overflow-hidden ${expanded ? "opacity-100 w-auto" : "opacity-0 w-0"}`}>
+                        {item.label}
+                      </span>
                     </NavLink>
                   </TooltipTrigger>
                   {!expanded && <TooltipContent side="right">{item.label}</TooltipContent>}
@@ -79,10 +90,12 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                     <DropdownMenuTrigger asChild>
                       <div
                         className={`${linkBase} cursor-pointer ${isDashboardActive ? activeClass : ""}`}
-                        onMouseEnter={() => setDashboardOpen(true)}
+                        onMouseEnter={() => { if (expanded) setDashboardOpen(true); }}
                       >
                         <Users className="h-4 w-4 shrink-0" />
-                        {expanded && <span>Dashboards</span>}
+                        <span className={`transition-all duration-200 overflow-hidden ${expanded ? "opacity-100 w-auto" : "opacity-0 w-0"}`}>
+                          Dashboards
+                        </span>
                       </div>
                     </DropdownMenuTrigger>
                   </TooltipTrigger>
@@ -112,7 +125,9 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                   <TooltipTrigger asChild>
                     <NavLink to={item.to} className={linkBase} activeClassName={activeClass} end={item.end}>
                       <item.icon className="h-4 w-4 shrink-0" />
-                      {expanded && <span>{item.label}</span>}
+                      <span className={`transition-all duration-200 overflow-hidden ${expanded ? "opacity-100 w-auto" : "opacity-0 w-0"}`}>
+                        {item.label}
+                      </span>
                     </NavLink>
                   </TooltipTrigger>
                   {!expanded && <TooltipContent side="right">{item.label}</TooltipContent>}
