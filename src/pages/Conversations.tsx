@@ -1215,9 +1215,6 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
             <CardHeader className="flex flex-row items-center justify-between flex-shrink-0">
               <div>
                 <CardTitle className="text-lg">{forceOwner ? `${forceOwner}'s conversations` : "Recent conversations"}</CardTitle>
-                <CardDescription>
-                  {forceOwner ? `Conversations assigned to ${forceOwner}` : "Slack, Gmail, and manually logged conversations"}
-                </CardDescription>
               </div>
               <div className="flex items-center gap-2">
                 <div className="relative">
