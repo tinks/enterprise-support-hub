@@ -6,7 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 const navItems = [
   { to: "/", icon: BarChart3, label: "Stats", end: true },
-  { to: "/conversations", icon: MessageSquare, label: "Conversations" },
+  { to: "/conversations", icon: MessageSquare, label: "Inbox" },
   { to: "/import", icon: Import, label: "Import" },
   { to: "/settings", icon: Settings, label: "Settings" },
   { to: "/flow", icon: GitBranch, label: "Flow" },
