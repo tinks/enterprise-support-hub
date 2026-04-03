@@ -1355,7 +1355,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                   placeholder="Search…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-9 w-[180px] pl-8 text-sm"
+                  className="h-9 w-[50vw] max-w-[600px] pl-8 text-sm"
                 />
               </div>
               <div className="flex-1" />
