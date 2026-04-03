@@ -30,14 +30,23 @@ A Slack-to-Intercom support bridge for enterprise customers. When a user @mentio
 | `conversation_mappings` | Maps Slack threads ↔ Intercom conversations with status tracking |
 | `bot_messages` | Editable bot message templates (keyed by `message_key`) |
 | `flow_node_positions` | Persisted drag positions for the flow diagram UI |
+| `knowledge_documents` | Project knowledge document with pending-change review workflow |
+| `gmail_conversations` | Gmail-sourced conversations with thread tracking |
+| `gmail_oauth_tokens` | OAuth tokens for Gmail integration |
+| `manual_conversations` | Manually logged conversations from any source |
+| `manual_messages` | Individual messages within manual conversations |
 
 ### UI Pages
 | Route | Page | Purpose |
 |---|---|---|
-| `/` | Settings (Index) | Configure channels, Intercom IDs, testing mode, view webhook URLs |
+| `/` | Stats | System statistics |
 | `/conversations` | Conversations | View and monitor active/resolved conversations |
-| `/flow` | Flow Diagram | Interactive visual diagram of the full support workflow |
-| `/stats` | Stats | System statistics |
+| `/conversations/:id` | Conversation detail | Individual conversation thread view |
+| `/my/:owner` | Owner dashboard | Per-person dashboard (Joel, Kristina) |
+| `/import` | Import | Import conversations from external sources |
+| `/settings` | Settings | Configure channels, Intercom IDs, testing mode, view webhook URLs |
+| `/flow` | Flow diagram | Interactive visual diagram of the full support workflow |
+| `/knowledge` | Knowledge | View and edit project knowledge document |
 
 ---
 
