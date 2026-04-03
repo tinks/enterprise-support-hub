@@ -1378,7 +1378,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                         return (
                           <TableRow
                             key={`slack-${m.id}`}
-                            className={`cursor-pointer hover:bg-muted/50 transition-colors ${m.is_test ? "opacity-50" : ""}`}
+                            className={`cursor-pointer hover:bg-muted/50 transition-colors ${m.is_test ? "opacity-50" : ""} ${!m.owner ? "border-l-[3px] border-primary/70 bg-primary/5" : ""}`}
                             onClick={() => navigate(`/conversations/${m.id}`)}
                           >
                             {columnOrder.map((col) => (
