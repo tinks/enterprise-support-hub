@@ -1252,10 +1252,10 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                 <div className="flex flex-wrap items-center gap-2 px-6 pb-4">
                   <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as SourceFilter)}>
                     <SelectTrigger className="w-[130px] h-9">
-                      <SelectValue />
+                      <SelectValue placeholder="Source" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Source</SelectItem>
+                      <SelectItem value="all">Select all</SelectItem>
                       <SelectItem value="slack">Slack bot</SelectItem>
                       <SelectItem value="slack_import">Slack import</SelectItem>
                       <SelectItem value="gmail">Gmail only</SelectItem>
