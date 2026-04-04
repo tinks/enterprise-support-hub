@@ -1,23 +1,33 @@
 
 
-## Make Message/Subject column compact
+## Widen Message/Subject column
 
-### What changes
-Remove the `min-w-[600px]` constraint from the Message/Subject column so it sizes naturally based on available space, matching the compact approach used by other columns.
+### Problem
+The Message/Subject column has no minimum width set, so it gets squeezed by the fixed-width columns (ID at 40px, Status/Owner/Product area at 120px each).
+
+### Solution
+Add `min-w-[300px]` to the `message` column in `TableHead` and all `TableCell` variants. This gives it a reasonable minimum while still allowing it to grow with available space.
 
 ### Implementation
 
 **`src/pages/Conversations.tsx`**
 
-Replace all 6 occurrences of `col === "message" ? "min-w-[600px]" : ""` with `""` (or remove the ternary entirely):
+Update 6 locations where column class names are computed — add `col === "message" ? "min-w-[300px]" : ""` to the className template string:
 
-1. TableHead (~line 1441)
-2. Slack TableCell (~line 1462)
-3. Gmail main TableCell (~line 1488)
-4. Gmail sub-row TableCell (~line 1500)
-5. Manual TableCell (~line 1517)
+1. `TableHead` (~line 1441)
+2. Slack `TableCell` (~line 1462)
+3. Gmail main `TableCell` (~line 1488)
+4. Gmail sub-row `TableCell` (~line 1500)
+5. Manual `TableCell` (~line 1517)
 
-The column will auto-size to fill remaining space after the fixed-width columns (ID, Status, Owner, Product area).
+Each line changes from:
+```
+${""} ${col === "id" ? ...
+```
+to:
+```
+${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? ...
+```
 
 ### Files to edit
 - `src/pages/Conversations.tsx`
