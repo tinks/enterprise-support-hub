@@ -309,8 +309,14 @@ const Stats = () => {
 
   const gmailVolumeData = useMemo(() => {
     const byDay: Record<string, number> = {};
+    const seenPerDay: Record<string, Set<string>> = {};
     filteredGmail.forEach((g) => {
       const day = format(parseISO(g.received_at || g.created_at), "yyyy-MM-dd");
+      if (!seenPerDay[day]) seenPerDay[day] = new Set();
+      if (g.subject) {
+        if (seenPerDay[day].has(g.subject)) return;
+        seenPerDay[day].add(g.subject);
+      }
       byDay[day] = (byDay[day] || 0) + 1;
     });
     return byDay;
