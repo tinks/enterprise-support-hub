@@ -911,7 +911,7 @@ const Stats = () => {
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-lg">Resolution time trend</CardTitle>
-                      <CardDescription>7-day rolling median (minutes)</CardDescription>
+                      <CardDescription>Daily median (minutes)</CardDescription>
                     </CardHeader>
                     <CardContent>
                       {resolutionTrend.length === 0 ? (
