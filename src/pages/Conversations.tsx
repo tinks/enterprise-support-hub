@@ -306,10 +306,12 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 
 
   const ALL_STATUSES = ["active", "awaiting_context", "awaiting_support", "escalated", "resolved", "cancelled", "test"] as const;
+  const DEFAULT_HIDDEN = new Set(["test", "cancelled", "resolved"]);
   const savedHidden = localStorage.getItem("conv-hidden-statuses");
   const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(
-    savedHidden ? new Set(JSON.parse(savedHidden)) : new Set(["test", "cancelled", "resolved"])
+    savedHidden ? new Set(JSON.parse(savedHidden)) : new Set(DEFAULT_HIDDEN)
   );
+  const hiddenDiffersFromDefault = hiddenStatuses.size !== DEFAULT_HIDDEN.size || [...hiddenStatuses].some(s => !DEFAULT_HIDDEN.has(s));
 
   // Column order state
   const savedColOrder = localStorage.getItem(COLUMN_STORAGE_KEY);
