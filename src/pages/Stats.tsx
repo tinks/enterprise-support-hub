@@ -364,6 +364,7 @@ const Stats = () => {
     const manualResolved = filteredManual.filter((m) => m.status === "resolved").length;
 
     const cutoff = getCutoffDate(range);
+    // gmailDeduped computed below; use gmailTotal as placeholder, overwritten after
     let combinedTotal = total + gmailTotal + manualTotal;
     if (sourceFilter === "gmail") combinedTotal = gmailTotal;
     else if (sourceFilter === "slack") combinedTotal = total;
@@ -375,11 +376,15 @@ const Stats = () => {
         : 1;
     const avgPerDay = +(combinedTotal / daySpan).toFixed(1);
 
+    const gmailAllSubjects = new Set<string>();
+    let gmailAllOrphans = 0;
     const gmailResolvedSubjects = new Set<string>();
     let gmailResolvedOrphans = 0;
     const gmailOpenSubjects = new Set<string>();
     let gmailOpenOrphans = 0;
     filteredGmail.forEach((g) => {
+      if (g.subject) gmailAllSubjects.add(g.subject);
+      else gmailAllOrphans++;
       if (g.status === "resolved") {
         if (g.subject) gmailResolvedSubjects.add(g.subject);
         else gmailResolvedOrphans++;
@@ -388,10 +393,11 @@ const Stats = () => {
         else gmailOpenOrphans++;
       }
     });
+    const gmailDeduped = gmailAllSubjects.size + gmailAllOrphans;
     const gmailResolvedCount = gmailResolvedSubjects.size + gmailResolvedOrphans;
     const gmailOpen = gmailOpenSubjects.size + gmailOpenOrphans;
 
-    return { total, gmailTotal, emailTotal: gmailUniqueEmails, resolved, escalated, active, awaiting, processing, cancelled, open, resolvedPct, avgPerDay, gmailResolved: gmailResolvedCount, gmailOpen, manualTotal, manualActive, manualResolved };
+    return { total, gmailTotal, gmailDeduped, emailTotal: gmailUniqueEmails, resolved, escalated, active, awaiting, processing, cancelled, open, resolvedPct, avgPerDay, gmailResolved: gmailResolvedCount, gmailOpen, manualTotal, manualActive, manualResolved };
   }, [filtered, filteredGmail, filteredManual, range, sourceFilter, gmailUniqueEmails]);
 
   // Manual entries by source breakdown
@@ -892,7 +898,7 @@ const Stats = () => {
             <Card>
               <CardContent className="flex flex-col items-center justify-center p-5">
                 <MessageSquare className="mb-2 h-5 w-5 text-primary" />
-                <p className="text-3xl font-bold text-foreground">{stats.total + stats.gmailTotal + stats.manualTotal}</p>
+                <p className="text-3xl font-bold text-foreground">{stats.total + stats.gmailDeduped + stats.manualTotal}</p>
                 <p className="text-xs text-muted-foreground">Total incoming cases</p>
               </CardContent>
             </Card>
@@ -1173,8 +1179,8 @@ const Stats = () => {
               <Card>
                 <CardContent className="flex flex-col items-center justify-center p-5">
                   <Mail className="mb-2 h-5 w-5 text-muted-foreground" />
-                  <p className="text-3xl font-bold text-foreground">{stats.gmailTotal}</p>
-                  <p className="text-xs text-muted-foreground">Gmail messages</p>
+                  <p className="text-3xl font-bold text-foreground">{stats.gmailDeduped}</p>
+                  <p className="text-xs text-muted-foreground">Total</p>
                 </CardContent>
               </Card>
               <Card>
