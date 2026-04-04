@@ -15,7 +15,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell,
   LineChart, Line, AreaChart, Area, LabelList,
 } from "recharts";
-import { format, parseISO, subDays, subMonths, startOfDay, endOfDay, isAfter, isBefore, differenceInDays, differenceInMinutes } from "date-fns";
+import { format, parseISO, subDays, subMonths, startOfDay, endOfDay, startOfMonth, endOfMonth, isAfter, isBefore, differenceInDays, differenceInMinutes } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -54,7 +54,7 @@ interface ManualRow {
 }
 
 type SourceFilter = "all" | "slack" | "gmail" | "manual";
-type TimeRange = "7d" | "30d" | "90d" | "all" | "custom";
+type TimeRange = "this_month" | "7d" | "30d" | "90d" | "all" | "custom";
 
 const chartConfig = {
   resolved: { label: "Resolved", color: "#9B87F5" },
@@ -74,6 +74,7 @@ const chartConfig = {
 };
 
 const rangeLabel: Record<TimeRange, string> = {
+  this_month: "This month",
   "7d": "Last 7 days",
   "30d": "Last 30 days",
   "90d": "Last 90 days",
@@ -98,7 +99,7 @@ const Stats = () => {
   const [manualData, setManualData] = useState<ManualRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"real" | "test">("real");
-  const [range, setRange] = useState<TimeRange>("30d");
+  const [range, setRange] = useState<TimeRange>("this_month");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
@@ -187,7 +188,10 @@ const Stats = () => {
       const matchView = view === "test" ? m.is_test : !m.is_test;
       const parsed = parseISO(m.created_at);
       let matchRange: boolean;
-      if (range === "custom") {
+      if (range === "this_month") {
+        matchRange = isAfter(parsed, startOfDay(startOfMonth(new Date()))) || parsed.getTime() === startOfDay(startOfMonth(new Date())).getTime();
+        matchRange = matchRange && (isBefore(parsed, endOfDay(endOfMonth(new Date()))) || parsed.getTime() === endOfDay(endOfMonth(new Date())).getTime());
+      } else if (range === "custom") {
         matchRange = (!customFrom || isAfter(parsed, startOfDay(customFrom))) &&
                      (!customTo || isBefore(parsed, endOfDay(customTo)));
       } else {
@@ -205,7 +209,10 @@ const Stats = () => {
       const dateStr = g.received_at || g.created_at;
       const parsed = parseISO(dateStr);
       let matchRange: boolean;
-      if (range === "custom") {
+      if (range === "this_month") {
+        matchRange = (isAfter(parsed, startOfDay(startOfMonth(new Date()))) || parsed.getTime() === startOfDay(startOfMonth(new Date())).getTime()) &&
+                     (isBefore(parsed, endOfDay(endOfMonth(new Date()))) || parsed.getTime() === endOfDay(endOfMonth(new Date())).getTime());
+      } else if (range === "custom") {
         matchRange = (!customFrom || isAfter(parsed, startOfDay(customFrom))) &&
                      (!customTo || isBefore(parsed, endOfDay(customTo)));
       } else {
@@ -230,7 +237,10 @@ const Stats = () => {
       const matchView = view === "test" ? m.is_test : !m.is_test;
       const parsed = parseISO(m.created_at);
       let matchRange: boolean;
-      if (range === "custom") {
+      if (range === "this_month") {
+        matchRange = (isAfter(parsed, startOfDay(startOfMonth(new Date()))) || parsed.getTime() === startOfDay(startOfMonth(new Date())).getTime()) &&
+                     (isBefore(parsed, endOfDay(endOfMonth(new Date()))) || parsed.getTime() === endOfDay(endOfMonth(new Date())).getTime());
+      } else if (range === "custom") {
         matchRange = (!customFrom || isAfter(parsed, startOfDay(customFrom))) &&
                      (!customTo || isBefore(parsed, endOfDay(customTo)));
       } else {
@@ -383,11 +393,13 @@ const Stats = () => {
     if (sourceFilter === "gmail") combinedTotal = gmailDedupedForAvg;
     else if (sourceFilter === "slack") combinedTotal = total;
     else if (sourceFilter === "manual") combinedTotal = manualTotal;
-    const daySpan = cutoff
-      ? differenceInDays(new Date(), cutoff) || 1
-      : filtered.length > 0
-        ? differenceInDays(new Date(), parseISO(filtered[0].created_at)) || 1
-        : 1;
+    const daySpan = range === "this_month"
+      ? differenceInDays(new Date(), startOfMonth(new Date())) || 1
+      : cutoff
+        ? differenceInDays(new Date(), cutoff) || 1
+        : filtered.length > 0
+          ? differenceInDays(new Date(), parseISO(filtered[0].created_at)) || 1
+          : 1;
     const avgPerDay = +(combinedTotal / daySpan).toFixed(1);
 
     const gmailAllSubjects = new Set<string>();
@@ -801,6 +813,7 @@ const Stats = () => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="this_month">This month</SelectItem>
               <SelectItem value="7d">Last 7 days</SelectItem>
               <SelectItem value="30d">Last 30 days</SelectItem>
               <SelectItem value="90d">Last 90 days</SelectItem>
