@@ -1299,14 +1299,14 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                           </label>
                         ))}
                       </div>
-                      {hiddenStatuses.size > 0 && (
+                      {hiddenDiffersFromDefault && (
                         <Button
                           variant="ghost"
                           size="sm"
                           className="mt-2 h-7 w-full text-xs"
-                          onClick={() => setHiddenStatuses(new Set())}
+                          onClick={() => setHiddenStatuses(new Set(DEFAULT_HIDDEN))}
                         >
-                          Show all
+                          Restore defaults
                         </Button>
                       )}
                     </PopoverContent>
