@@ -44,7 +44,16 @@ interface GmailRow {
   cc_emails: string | null;
 }
 
-type SourceFilter = "all" | "slack" | "gmail";
+interface ManualRow {
+  status: string;
+  created_at: string;
+  is_test: boolean;
+  source: string;
+  owner: string | null;
+  classification: string | null;
+}
+
+type SourceFilter = "all" | "slack" | "gmail" | "manual";
 type TimeRange = "7d" | "30d" | "90d" | "all" | "custom";
 
 const chartConfig = {
@@ -58,6 +67,7 @@ const chartConfig = {
   total: { label: "Total", color: "#FF6B6B" },
   slack: { label: "Slack", color: "#FF6B6B" },
   gmail: { label: "Gmail", color: "#E66FD2" },
+  manual: { label: "Manual entry", color: "#4ECDC4" },
   cumulative: { label: "Cumulative", color: "#FF6B6B" },
   rate: { label: "Escalation rate", color: "hsl(var(--destructive))" },
   resolution: { label: "Resolution time", color: "#9B87F5" },
@@ -85,6 +95,7 @@ const Stats = () => {
   const navigate = useNavigate();
   const [data, setData] = useState<Mapping[]>([]);
   const [gmailData, setGmailData] = useState<GmailRow[]>([]);
+  const [manualData, setManualData] = useState<ManualRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"real" | "test">("real");
   const [range, setRange] = useState<TimeRange>("30d");
@@ -106,7 +117,7 @@ const Stats = () => {
 
   const loadStats = async () => {
     setLoading(true);
-    const [slackRes, gmailRes] = await Promise.all([
+    const [slackRes, gmailRes, manualRes] = await Promise.all([
       supabase
         .from("conversation_mappings")
         .select("status, created_at, is_test, slack_channel_id, resolved_at")
@@ -115,10 +126,15 @@ const Stats = () => {
         .from("gmail_conversations")
         .select("received_at, created_at, is_test, subject, status, resolved_at, gmail_thread_id, from_email, to_emails, cc_emails")
         .order("received_at", { ascending: true }),
+      supabase
+        .from("manual_conversations")
+        .select("status, created_at, is_test, source, owner, classification")
+        .order("created_at", { ascending: true }),
     ]);
     const rows = (slackRes.data as Mapping[]) || [];
     setData(rows);
     setGmailData((gmailRes.data as unknown as GmailRow[]) || []);
+    setManualData((manualRes.data as ManualRow[]) || []);
 
     // Resolve channel names
     const uniqueIds = [...new Set(rows.map((r) => r.slack_channel_id).filter(Boolean))];
@@ -208,6 +224,22 @@ const Stats = () => {
     });
   }, [gmailData, view, range, customFrom, customTo]);
 
+  const filteredManual = useMemo(() => {
+    const cutoff = getCutoffDate(range);
+    return manualData.filter((m) => {
+      const matchView = view === "test" ? m.is_test : !m.is_test;
+      const parsed = parseISO(m.created_at);
+      let matchRange: boolean;
+      if (range === "custom") {
+        matchRange = (!customFrom || isAfter(parsed, startOfDay(customFrom))) &&
+                     (!customTo || isBefore(parsed, endOfDay(customTo)));
+      } else {
+        matchRange = cutoff ? isAfter(parsed, cutoff) : true;
+      }
+      return matchView && matchRange;
+    });
+  }, [manualData, view, range, customFrom, customTo]);
+
   const gmailUniqueEmails = useMemo(() => {
     const subjects = new Set<string>();
     let nullCount = 0;
@@ -284,12 +316,20 @@ const Stats = () => {
     return byDay;
   }, [filteredGmail]);
 
+  const manualVolumeData = useMemo(() => {
+    const byDay: Record<string, number> = {};
+    filteredManual.forEach((m) => {
+      const day = format(parseISO(m.created_at), "yyyy-MM-dd");
+      byDay[day] = (byDay[day] || 0) + 1;
+    });
+    return byDay;
+  }, [filteredManual]);
+
   const mergedVolumeData = useMemo(() => {
     const allDays = new Set<string>();
-    // Collect Slack days from volumeData
     filtered.forEach((m) => allDays.add(format(parseISO(m.created_at), "yyyy-MM-dd")));
-    // Collect Gmail days
     filteredGmail.forEach((g) => allDays.add(format(parseISO(g.received_at || g.created_at), "yyyy-MM-dd")));
+    filteredManual.forEach((m) => allDays.add(format(parseISO(m.created_at), "yyyy-MM-dd")));
     
     const slackByDay: Record<string, number> = {};
     filtered.forEach((m) => {
@@ -302,12 +342,14 @@ const Stats = () => {
       label: format(parseISO(day), "MMM dd"),
       slack: slackByDay[day] || 0,
       gmail: gmailVolumeData[day] || 0,
+      manual: manualVolumeData[day] || 0,
     }));
-  }, [filtered, filteredGmail, gmailVolumeData]);
+  }, [filtered, filteredGmail, filteredManual, gmailVolumeData, manualVolumeData]);
 
   const stats = useMemo(() => {
     const total = filtered.length;
     const gmailTotal = filteredGmail.length;
+    const manualTotal = filteredManual.length;
     const resolved = filtered.filter((m) => m.status === "resolved").length;
     const escalated = filtered.filter((m) => m.status === "escalated" || m.status === "escalated_pending").length;
     const active = filtered.filter((m) => m.status === "active" || m.status === "active_pending").length;
@@ -318,8 +360,14 @@ const Stats = () => {
     const feedbackTotal = total - cancelled;
     const resolvedPct = feedbackTotal ? Math.round((resolved / feedbackTotal) * 100) : 0;
 
+    const manualActive = filteredManual.filter((m) => m.status === "active").length;
+    const manualResolved = filteredManual.filter((m) => m.status === "resolved").length;
+
     const cutoff = getCutoffDate(range);
-    const combinedTotal = sourceFilter === "gmail" ? gmailTotal : sourceFilter === "slack" ? total : total + gmailTotal;
+    let combinedTotal = total + gmailTotal + manualTotal;
+    if (sourceFilter === "gmail") combinedTotal = gmailTotal;
+    else if (sourceFilter === "slack") combinedTotal = total;
+    else if (sourceFilter === "manual") combinedTotal = manualTotal;
     const daySpan = cutoff
       ? differenceInDays(new Date(), cutoff) || 1
       : filtered.length > 0
@@ -340,11 +388,35 @@ const Stats = () => {
         else gmailOpenOrphans++;
       }
     });
-    const gmailResolved = gmailResolvedSubjects.size + gmailResolvedOrphans;
+    const gmailResolvedCount = gmailResolvedSubjects.size + gmailResolvedOrphans;
     const gmailOpen = gmailOpenSubjects.size + gmailOpenOrphans;
 
-    return { total, gmailTotal, emailTotal: gmailUniqueEmails, resolved, escalated, active, awaiting, processing, cancelled, open, resolvedPct, avgPerDay, gmailResolved, gmailOpen };
-  }, [filtered, filteredGmail, range, sourceFilter, gmailUniqueEmails]);
+    return { total, gmailTotal, emailTotal: gmailUniqueEmails, resolved, escalated, active, awaiting, processing, cancelled, open, resolvedPct, avgPerDay, gmailResolved: gmailResolvedCount, gmailOpen, manualTotal, manualActive, manualResolved };
+  }, [filtered, filteredGmail, filteredManual, range, sourceFilter, gmailUniqueEmails]);
+
+  // Manual entries by source breakdown
+  const manualBySource = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredManual.forEach((m) => {
+      const src = m.source || "other";
+      counts[src] = (counts[src] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([source, count]) => ({ source, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [filteredManual]);
+
+  // Manual entries by owner
+  const manualByOwner = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredManual.forEach((m) => {
+      const owner = m.owner || "Unassigned";
+      counts[owner] = (counts[owner] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([owner, count]) => ({ owner, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [filteredManual]);
 
   // Daily volume line chart
   const volumeData = useMemo(() => {
@@ -496,6 +568,7 @@ const Stats = () => {
       hour: `${String(i).padStart(2, "0")}:00`,
       slack: 0,
       gmail: 0,
+      manual: 0,
     }));
     const getCETHour = (dateStr: string) => {
       const d = new Date(dateStr);
@@ -503,16 +576,17 @@ const Stats = () => {
     };
     filtered.forEach((m) => { buckets[getCETHour(m.created_at)].slack++; });
     filteredGmail.forEach((g) => { buckets[getCETHour(g.received_at || g.created_at)].gmail++; });
+    filteredManual.forEach((m) => { buckets[getCETHour(m.created_at)].manual++; });
     return buckets;
-  }, [filtered, filteredGmail]);
+  }, [filtered, filteredGmail, filteredManual]);
 
   const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
   const heatmapData = useMemo(() => {
-    const grid: Record<string, Record<number, { slack: number; gmail: number; total: number }>> = {};
+    const grid: Record<string, Record<number, { slack: number; gmail: number; manual: number; total: number }>> = {};
     DAYS.forEach((d) => {
       grid[d] = {};
-      for (let h = 0; h < 24; h++) grid[d][h] = { slack: 0, gmail: 0, total: 0 };
+      for (let h = 0; h < 24; h++) grid[d][h] = { slack: 0, gmail: 0, manual: 0, total: 0 };
     });
 
     const getCET = (dateStr: string) => {
@@ -530,18 +604,22 @@ const Stats = () => {
       const { day, hour } = getCET(g.received_at || g.created_at);
       if (grid[day]) { grid[day][hour].gmail++; grid[day][hour].total++; }
     });
+    filteredManual.forEach((m) => {
+      const { day, hour } = getCET(m.created_at);
+      if (grid[day]) { grid[day][hour].manual++; grid[day][hour].total++; }
+    });
 
     let max = 0;
     DAYS.forEach((d) => {
       for (let h = 0; h < 24; h++) {
         const cell = grid[d][h];
-        const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : cell.total;
+        const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : sourceFilter === "manual" ? cell.manual : cell.total;
         if (val > max) max = val;
       }
     });
 
     return { grid, max };
-  }, [filtered, filteredGmail, sourceFilter]);
+  }, [filtered, filteredGmail, filteredManual, sourceFilter]);
 
   const [exporting, setExporting] = useState(false);
 
@@ -675,6 +753,7 @@ const Stats = () => {
                 <SelectItem value="all">All sources</SelectItem>
                 <SelectItem value="slack">Slack only</SelectItem>
                 <SelectItem value="gmail">Gmail</SelectItem>
+                <SelectItem value="manual">Manual entry</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -804,7 +883,7 @@ const Stats = () => {
         </div>
 
         {/* ── Slack section ── */}
-        {sourceFilter !== "gmail" && (
+        {(sourceFilter === "all" || sourceFilter === "slack") && (
           <div className="space-y-6">
             <div>
               <h2 className="text-lg font-semibold text-foreground">Slack</h2>
@@ -1059,7 +1138,7 @@ const Stats = () => {
         )}
 
         {/* ── Gmail section ── */}
-        {sourceFilter !== "slack" && (
+        {(sourceFilter === "all" || sourceFilter === "gmail") && (
           <div className="space-y-6">
             <div>
               <h2 className="text-lg font-semibold text-foreground">Gmail</h2>
@@ -1144,7 +1223,90 @@ const Stats = () => {
           </div>
         )}
 
-        {/* ── Combined activity section ── */}
+        {/* ── Manual entries section ── */}
+        {(sourceFilter === "all" || sourceFilter === "manual") && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Manual entries</h2>
+              <div className="mt-2 h-px w-full bg-border" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <MessageSquare className="mb-2 h-5 w-5 text-[#4ECDC4]" />
+                  <p className="text-3xl font-bold text-foreground">{stats.manualTotal}</p>
+                  <p className="text-xs text-muted-foreground">Total</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <Activity className="mb-2 h-5 w-5 text-[#4ECDC4]" />
+                  <p className="text-3xl font-bold text-foreground">{stats.manualActive}</p>
+                  <p className="text-xs text-muted-foreground">Active</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <ThumbsUp className="mb-2 h-5 w-5 text-[#9B87F5]" />
+                  <p className="text-3xl font-bold text-foreground">{stats.manualResolved}</p>
+                  <p className="text-xs text-muted-foreground">Resolved</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">By source</CardTitle>
+                  <CardDescription>Manual entries grouped by conversation source</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {manualBySource.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+                  ) : (
+                    <ChartContainer config={chartConfig} className="w-full" style={{ height: Math.max(200, manualBySource.length * 48) }}>
+                      <BarChart data={manualBySource} layout="vertical" margin={{ left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                        <XAxis type="number" allowDecimals={false} className="text-xs" />
+                        <YAxis type="category" dataKey="source" className="text-xs" width={120} tick={{ fontSize: 12 }} />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="count" fill="#4ECDC4" radius={[0, 4, 4, 0]}>
+                          <LabelList dataKey="count" position="right" className="text-xs fill-foreground" />
+                        </Bar>
+                      </BarChart>
+                    </ChartContainer>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">By owner</CardTitle>
+                  <CardDescription>Manual entries grouped by assigned owner</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {manualByOwner.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+                  ) : (
+                    <ChartContainer config={chartConfig} className="w-full" style={{ height: Math.max(200, manualByOwner.length * 48) }}>
+                      <BarChart data={manualByOwner} layout="vertical" margin={{ left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                        <XAxis type="number" allowDecimals={false} className="text-xs" />
+                        <YAxis type="category" dataKey="owner" className="text-xs" width={120} tick={{ fontSize: 12 }} />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="count" fill="#4ECDC4" radius={[0, 4, 4, 0]}>
+                          <LabelList dataKey="count" position="right" className="text-xs fill-foreground" />
+                        </Bar>
+                      </BarChart>
+                    </ChartContainer>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-6">
           <div>
             <h2 className="text-lg font-semibold text-foreground">Combined activity</h2>
@@ -1179,16 +1341,23 @@ const Stats = () => {
                         <stop offset="5%" stopColor="#E66FD2" stopOpacity={0.3} />
                         <stop offset="95%" stopColor="#E66FD2" stopOpacity={0} />
                       </linearGradient>
+                      <linearGradient id="gradManual" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4ECDC4" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#4ECDC4" stopOpacity={0} />
+                      </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="label" className="text-xs" />
                     <YAxis allowDecimals={false} className="text-xs" />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    {sourceFilter !== "gmail" && (
+                    {(sourceFilter === "all" || sourceFilter === "slack") && (
                       <Area type="monotone" dataKey="slack" stroke="hsl(var(--primary))" fill="url(#gradSlack)" strokeWidth={2} />
                     )}
-                    {sourceFilter !== "slack" && (
+                    {(sourceFilter === "all" || sourceFilter === "gmail") && (
                       <Area type="monotone" dataKey="gmail" stroke="#E66FD2" fill="url(#gradGmail)" strokeWidth={2} />
+                    )}
+                    {(sourceFilter === "all" || sourceFilter === "manual") && (
+                      <Area type="monotone" dataKey="manual" stroke="#4ECDC4" fill="url(#gradManual)" strokeWidth={2} />
                     )}
                   </AreaChart>
                 </ChartContainer>
@@ -1203,7 +1372,7 @@ const Stats = () => {
               <CardDescription>When conversations and emails arrive, bucketed by hour in CET timezone</CardDescription>
             </CardHeader>
             <CardContent>
-              {hourlyActivityData.every((b) => b.slack === 0 && b.gmail === 0) ? (
+              {hourlyActivityData.every((b) => b.slack === 0 && b.gmail === 0 && b.manual === 0) ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
               ) : (
                 <ChartContainer config={chartConfig} className="h-[280px] w-full">
@@ -1212,11 +1381,14 @@ const Stats = () => {
                     <XAxis dataKey="hour" className="text-xs" />
                     <YAxis allowDecimals={false} className="text-xs" />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    {sourceFilter !== "gmail" && (
+                    {(sourceFilter === "all" || sourceFilter === "slack") && (
                       <Bar dataKey="slack" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                     )}
-                    {sourceFilter !== "slack" && (
+                    {(sourceFilter === "all" || sourceFilter === "gmail") && (
                       <Bar dataKey="gmail" fill="#E66FD2" radius={[4, 4, 0, 0]} />
+                    )}
+                    {(sourceFilter === "all" || sourceFilter === "manual") && (
+                      <Bar dataKey="manual" fill="#4ECDC4" radius={[4, 4, 0, 0]} />
                     )}
                   </BarChart>
                 </ChartContainer>
@@ -1249,7 +1421,7 @@ const Stats = () => {
                         <div className="w-10 shrink-0 text-xs text-muted-foreground font-medium">{day}</div>
                         {Array.from({ length: 24 }, (_, h) => {
                           const cell = heatmapData.grid[day][h];
-                          const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : cell.total;
+                          const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : sourceFilter === "manual" ? cell.manual : cell.total;
                           const opacity = heatmapData.max > 0 ? Math.max(0.08, val / heatmapData.max) : 0;
                           return (
                             <div
@@ -1259,7 +1431,7 @@ const Stats = () => {
                                 val > 0 && "cursor-pointer hover:ring-2 hover:ring-primary/50"
                               )}
                               style={{ opacity: val > 0 ? opacity : 0.04 }}
-                              title={`${day} ${String(h).padStart(2, "0")}:00 — Slack: ${cell.slack}, Gmail: ${cell.gmail}, Total: ${cell.total}`}
+                              title={`${day} ${String(h).padStart(2, "0")}:00 — Slack: ${cell.slack}, Gmail: ${cell.gmail}, Manual: ${cell.manual}, Total: ${cell.total}`}
                               onClick={() => {
                                 if (val > 0) navigate(`/conversations?day=${day}&hour=${h}&source=${sourceFilter}`);
                               }}
