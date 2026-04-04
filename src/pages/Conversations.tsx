@@ -1279,7 +1279,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                       <Button variant="outline" size="sm" className="h-9 gap-1">
                         <Filter className="h-3 w-3" />
                         Status
-                        {hiddenStatuses.size > 0 && (
+                        {hiddenDiffersFromDefault && (
                           <Badge variant="secondary" className="ml-1 h-5 px-1 text-xs">
                             {hiddenStatuses.size} hidden
                           </Badge>
