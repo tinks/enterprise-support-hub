@@ -1497,7 +1497,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                                 onClick={() => navigate(`/conversations/${sub.id}?source=gmail`)}
                               >
                                 {columnOrder.map((col) => (
-<TableCell key={col} className={`${""} ${col === "id" ? "w-[40px] pl-8" : ""} ${col === "status" || col === "owner" || col === "product_area" ? "w-[120px]" : ""}`}>
+<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px] pl-8" : ""} ${col === "status" || col === "owner" || col === "product_area" ? "w-[120px]" : ""}`}>
                                     {renderGmailCell(col, sub)}
                                   </TableCell>
                                 ))}
