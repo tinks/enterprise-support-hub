@@ -817,51 +817,22 @@ const Stats = () => {
           </Button>
         </div>
 
-        {/* Summary cards */}
-        <div className={cn("grid grid-cols-2 gap-4 md:grid-cols-3", sourceFilter === "gmail" ? "lg:grid-cols-5" : "lg:grid-cols-8")}>
-          {sourceFilter !== "gmail" && (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center p-5">
-                <MessageSquare className="mb-2 h-5 w-5 text-primary" />
-                <p className="text-3xl font-bold text-foreground">{stats.total}</p>
-                <p className="text-xs text-muted-foreground">Slack total</p>
-              </CardContent>
-            </Card>
-          )}
-          {sourceFilter !== "slack" && (
-            <>
+        {/* ── Slack section ── */}
+        {sourceFilter !== "gmail" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Slack</h2>
+              <div className="mt-2 h-px w-full bg-border" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-7">
               <Card>
                 <CardContent className="flex flex-col items-center justify-center p-5">
-                  <Mail className="mb-2 h-5 w-5 text-amber-500" />
-                  <p className="text-3xl font-bold text-foreground">{stats.emailTotal}</p>
-                  <p className="text-xs text-muted-foreground">Email total</p>
+                  <MessageSquare className="mb-2 h-5 w-5 text-primary" />
+                  <p className="text-3xl font-bold text-foreground">{stats.total}</p>
+                  <p className="text-xs text-muted-foreground">Slack total</p>
                 </CardContent>
               </Card>
-               <Card>
-                <CardContent className="flex flex-col items-center justify-center p-5">
-                  <Mail className="mb-2 h-5 w-5 text-muted-foreground" />
-                  <p className="text-3xl font-bold text-foreground">{stats.gmailTotal}</p>
-                  <p className="text-xs text-muted-foreground">Gmail messages</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center p-5">
-                  <ThumbsUp className="mb-2 h-5 w-5 text-[#9B87F5]" />
-                  <p className="text-3xl font-bold text-foreground">{stats.gmailResolved}</p>
-                  <p className="text-xs text-muted-foreground">Gmail resolved</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center p-5">
-                  <AlertCircle className="mb-2 h-5 w-5 text-orange-500" />
-                  <p className="text-3xl font-bold text-foreground">{stats.gmailOpen}</p>
-                  <p className="text-xs text-muted-foreground">Gmail open</p>
-                </CardContent>
-              </Card>
-            </>
-          )}
-          {sourceFilter !== "gmail" && (
-            <>
               <Card>
                 <CardContent className="flex flex-col items-center justify-center p-5">
                   <ThumbsUp className="mb-2 h-5 w-5 text-[#9B87F5]" />
@@ -897,56 +868,124 @@ const Stats = () => {
                   <p className="text-xs text-muted-foreground">Success rate</p>
                 </CardContent>
               </Card>
-            </>
-          )}
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center p-5">
-              <Activity className="mb-2 h-5 w-5 text-primary" />
-              <p className="text-3xl font-bold text-foreground">{stats.avgPerDay}</p>
-              <p className="text-xs text-muted-foreground">Avg / day</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Slack resolution time section */}
-        {sourceFilter !== "gmail" && resolutionStats && (
-          <>
-            <div className="grid grid-cols-2 gap-4">
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center p-5">
-                  <Timer className="mb-2 h-5 w-5 text-primary" />
-                  <p className="text-3xl font-bold text-foreground">{formatDuration(resolutionStats.median)}</p>
-                  <p className="text-xs text-muted-foreground">Median resolution time</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center p-5">
-                  <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
-                  <p className="text-3xl font-bold text-foreground">{formatDuration(resolutionStats.avg)}</p>
-                  <p className="text-xs text-muted-foreground">Average resolution time</p>
-                </CardContent>
-              </Card>
             </div>
 
+            {/* Slack resolution time */}
+            {resolutionStats && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center p-5">
+                      <Timer className="mb-2 h-5 w-5 text-primary" />
+                      <p className="text-3xl font-bold text-foreground">{formatDuration(resolutionStats.median)}</p>
+                      <p className="text-xs text-muted-foreground">Median resolution time</p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center p-5">
+                      <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
+                      <p className="text-3xl font-bold text-foreground">{formatDuration(resolutionStats.avg)}</p>
+                      <p className="text-xs text-muted-foreground">Average resolution time</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Resolution time distribution</CardTitle>
+                      <CardDescription>How long conversations take to resolve</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {resolutionDistribution.length === 0 ? (
+                        <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+                      ) : (
+                        <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                          <BarChart data={resolutionDistribution}>
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                            <XAxis dataKey="label" className="text-xs" />
+                            <YAxis allowDecimals={false} className="text-xs" />
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            <Bar dataKey="count" fill="#9B87F5" radius={[4, 4, 0, 0]}>
+                              <LabelList dataKey="count" position="top" className="text-xs fill-foreground" />
+                            </Bar>
+                          </BarChart>
+                        </ChartContainer>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Resolution time trend</CardTitle>
+                      <CardDescription>7-day rolling median (minutes)</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {resolutionTrend.length === 0 ? (
+                        <p className="py-8 text-center text-sm text-muted-foreground">Not enough data yet</p>
+                      ) : (
+                        <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                          <LineChart data={resolutionTrend}>
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                            <XAxis dataKey="label" className="text-xs" />
+                            <YAxis unit="m" allowDecimals={false} className="text-xs" />
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            <Line type="monotone" dataKey="resolution" stroke="#9B87F5" strokeWidth={2} dot={false} />
+                          </LineChart>
+                        </ChartContainer>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </>
+            )}
+
+            {/* Conversations by channel */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Conversations by channel</CardTitle>
+                <CardDescription>Total conversations per Slack channel</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {channelData.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">No channel data yet</p>
+                ) : (
+                  <ChartContainer config={chartConfig} className="w-full" style={{ height: Math.max(200, channelData.length * 48) }}>
+                    <BarChart data={channelData} layout="vertical" margin={{ left: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                      <XAxis type="number" allowDecimals={false} className="text-xs" />
+                      <YAxis type="category" dataKey="channel" className="text-xs" width={160} tick={{ fontSize: 12 }} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="total" fill="#FF6B6B" radius={[0, 4, 4, 0]}>
+                        <LabelList dataKey="total" position="right" className="text-xs fill-foreground" />
+                      </Bar>
+                    </BarChart>
+                  </ChartContainer>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Daily outcomes + Status distribution */}
             <div className="grid gap-6 md:grid-cols-2">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Resolution time distribution</CardTitle>
-                  <CardDescription>How long conversations take to resolve</CardDescription>
+                  <CardTitle className="text-lg">Daily outcomes</CardTitle>
+                  <CardDescription>Resolved vs open vs escalated vs cancelled per day</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {resolutionDistribution.length === 0 ? (
-                    <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+                  {dailyOutcomes.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">No outcome data yet</p>
                   ) : (
                     <ChartContainer config={chartConfig} className="h-[250px] w-full">
-                      <BarChart data={resolutionDistribution}>
+                      <BarChart data={dailyOutcomes}>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                        <XAxis dataKey="label" className="text-xs" />
+                        <XAxis dataKey="date" className="text-xs" />
                         <YAxis allowDecimals={false} className="text-xs" />
                         <ChartTooltip content={<ChartTooltipContent />} />
-                        <Bar dataKey="count" fill="#9B87F5" radius={[4, 4, 0, 0]}>
-                          <LabelList dataKey="count" position="top" className="text-xs fill-foreground" />
-                        </Bar>
+                        <Bar dataKey="resolved" fill={chartConfig.resolved.color} radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="open" fill={chartConfig.open.color} radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="escalated" fill={chartConfig.escalated.color} radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="cancelled" fill={chartConfig.cancelled.color} radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ChartContainer>
                   )}
@@ -955,338 +994,307 @@ const Stats = () => {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Resolution time trend</CardTitle>
-                  <CardDescription>7-day rolling median (minutes)</CardDescription>
+                  <CardTitle className="text-lg">Status distribution</CardTitle>
+                  <CardDescription>Current breakdown of all conversations</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {resolutionTrend.length === 0 ? (
+                  {pieData.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+                  ) : (
+                    <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                      <PieChart>
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                          {pieData.map((entry, i) => (
+                            <Cell key={i} fill={entry.fill} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ChartContainer>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Cumulative + Escalation rate */}
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Cumulative conversations</CardTitle>
+                  <CardDescription>Growth over time</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {cumulativeData.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+                  ) : (
+                    <ChartContainer config={chartConfig} className="h-[250px] w-full">
+                      <LineChart data={cumulativeData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="label" className="text-xs" />
+                        <YAxis allowDecimals={false} className="text-xs" />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Line type="monotone" dataKey="cumulative" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ChartContainer>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    Escalation rate trend
+                    {escalationRateData.length >= 2 && (
+                      escalationRateData[escalationRateData.length - 1].rate < escalationRateData[0].rate
+                        ? <TrendingDown className="h-4 w-4 text-[#9B87F5]" />
+                        : <TrendingUp className="h-4 w-4 text-destructive" />
+                    )}
+                  </CardTitle>
+                  <CardDescription>7-day rolling escalation % of completed conversations</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {escalationRateData.length === 0 ? (
                     <p className="py-8 text-center text-sm text-muted-foreground">Not enough data yet</p>
                   ) : (
                     <ChartContainer config={chartConfig} className="h-[250px] w-full">
-                      <LineChart data={resolutionTrend}>
+                      <LineChart data={escalationRateData}>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                         <XAxis dataKey="label" className="text-xs" />
-                        <YAxis unit="m" allowDecimals={false} className="text-xs" />
+                        <YAxis unit="%" allowDecimals={false} className="text-xs" />
                         <ChartTooltip content={<ChartTooltipContent />} />
-                        <Line type="monotone" dataKey="resolution" stroke="#9B87F5" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="rate" stroke="hsl(var(--destructive))" strokeWidth={2} dot={false} />
                       </LineChart>
                     </ChartContainer>
                   )}
                 </CardContent>
               </Card>
             </div>
-          </>
+          </div>
         )}
 
-        {/* Gmail resolution time section */}
-        {sourceFilter !== "slack" && gmailResolutionStats && (
-          <div className="grid grid-cols-2 gap-4">
+        {/* ── Gmail section ── */}
+        {sourceFilter !== "slack" && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Gmail</h2>
+              <div className="mt-2 h-px w-full bg-border" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <Mail className="mb-2 h-5 w-5 text-amber-500" />
+                  <p className="text-3xl font-bold text-foreground">{stats.emailTotal}</p>
+                  <p className="text-xs text-muted-foreground">Email total</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <Mail className="mb-2 h-5 w-5 text-muted-foreground" />
+                  <p className="text-3xl font-bold text-foreground">{stats.gmailTotal}</p>
+                  <p className="text-xs text-muted-foreground">Gmail messages</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <ThumbsUp className="mb-2 h-5 w-5 text-[#9B87F5]" />
+                  <p className="text-3xl font-bold text-foreground">{stats.gmailResolved}</p>
+                  <p className="text-xs text-muted-foreground">Gmail resolved</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <AlertCircle className="mb-2 h-5 w-5 text-orange-500" />
+                  <p className="text-3xl font-bold text-foreground">{stats.gmailOpen}</p>
+                  <p className="text-xs text-muted-foreground">Gmail open</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Gmail resolution time */}
+            {gmailResolutionStats && (
+              <div className="grid grid-cols-2 gap-4">
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center p-5">
+                    <Timer className="mb-2 h-5 w-5 text-amber-500" />
+                    <p className="text-3xl font-bold text-foreground">{formatDuration(gmailResolutionStats.median)}</p>
+                    <p className="text-xs text-muted-foreground">Gmail median resolution</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center p-5">
+                    <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
+                    <p className="text-3xl font-bold text-foreground">{formatDuration(gmailResolutionStats.avg)}</p>
+                    <p className="text-xs text-muted-foreground">Gmail avg resolution</p>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Threads by customer domain */}
             <Card>
-              <CardContent className="flex flex-col items-center justify-center p-5">
-                <Timer className="mb-2 h-5 w-5 text-amber-500" />
-                <p className="text-3xl font-bold text-foreground">{formatDuration(gmailResolutionStats.median)}</p>
-                <p className="text-xs text-muted-foreground">Gmail median resolution</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center p-5">
-                <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
-                <p className="text-3xl font-bold text-foreground">{formatDuration(gmailResolutionStats.avg)}</p>
-                <p className="text-xs text-muted-foreground">Gmail avg resolution</p>
+              <CardHeader>
+                <CardTitle className="text-lg">Threads by customer</CardTitle>
+                <CardDescription>Gmail threads grouped by customer email domain (excluding @lovable.dev)</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {customerDomainData.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">No customer domain data yet — threads need To/CC headers (populated on next Gmail poll)</p>
+                ) : (
+                  <ChartContainer config={chartConfig} className="w-full" style={{ height: Math.max(200, customerDomainData.length * 40) }}>
+                    <BarChart data={customerDomainData} layout="vertical" margin={{ left: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                      <XAxis type="number" allowDecimals={false} className="text-xs" />
+                      <YAxis type="category" dataKey="domain" className="text-xs" width={160} tick={{ fontSize: 12 }} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="threads" fill="#E66FD2" radius={[0, 4, 4, 0]}>
+                        <LabelList dataKey="threads" position="right" className="text-xs fill-foreground" />
+                      </Bar>
+                    </BarChart>
+                  </ChartContainer>
+                )}
               </CardContent>
             </Card>
           </div>
         )}
 
-        {/* Threads by customer domain */}
-        {sourceFilter !== "slack" && (
+        {/* ── Combined activity section ── */}
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Combined activity</h2>
+            <div className="mt-2 h-px w-full bg-border" />
+          </div>
+
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center p-5">
+              <Activity className="mb-2 h-5 w-5 text-primary" />
+              <p className="text-3xl font-bold text-foreground">{stats.avgPerDay}</p>
+              <p className="text-xs text-muted-foreground">Avg / day</p>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Threads by customer</CardTitle>
-              <CardDescription>Gmail threads grouped by customer email domain (excluding @lovable.dev)</CardDescription>
+              <CardTitle className="text-lg">Conversation volume</CardTitle>
+              <CardDescription>Daily conversations over {activeRangeLabel.toLowerCase()}</CardDescription>
             </CardHeader>
             <CardContent>
-              {customerDomainData.length === 0 ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">No customer domain data yet — threads need To/CC headers (populated on next Gmail poll)</p>
+              {volumeData.length === 0 && filteredGmail.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
               ) : (
-                <ChartContainer config={chartConfig} className="w-full" style={{ height: Math.max(200, customerDomainData.length * 40) }}>
-                  <BarChart data={customerDomainData} layout="vertical" margin={{ left: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
-                    <XAxis type="number" allowDecimals={false} className="text-xs" />
-                    <YAxis type="category" dataKey="domain" className="text-xs" width={160} tick={{ fontSize: 12 }} />
+                <ChartContainer config={chartConfig} className="h-[280px] w-full">
+                  <AreaChart data={mergedVolumeData}>
+                    <defs>
+                      <linearGradient id="gradSlack" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="gradGmail" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#E66FD2" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#E66FD2" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="label" className="text-xs" />
+                    <YAxis allowDecimals={false} className="text-xs" />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar dataKey="threads" fill="#E66FD2" radius={[0, 4, 4, 0]}>
-                      <LabelList dataKey="threads" position="right" className="text-xs fill-foreground" />
-                    </Bar>
+                    {sourceFilter !== "gmail" && (
+                      <Area type="monotone" dataKey="slack" stroke="hsl(var(--primary))" fill="url(#gradSlack)" strokeWidth={2} />
+                    )}
+                    {sourceFilter !== "slack" && (
+                      <Area type="monotone" dataKey="gmail" stroke="#E66FD2" fill="url(#gradGmail)" strokeWidth={2} />
+                    )}
+                  </AreaChart>
+                </ChartContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Activity by hour of day */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Activity by hour of day (CET)</CardTitle>
+              <CardDescription>When conversations and emails arrive, bucketed by hour in CET timezone</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {hourlyActivityData.every((b) => b.slack === 0 && b.gmail === 0) ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+              ) : (
+                <ChartContainer config={chartConfig} className="h-[280px] w-full">
+                  <BarChart data={hourlyActivityData}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis dataKey="hour" className="text-xs" />
+                    <YAxis allowDecimals={false} className="text-xs" />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    {sourceFilter !== "gmail" && (
+                      <Bar dataKey="slack" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    )}
+                    {sourceFilter !== "slack" && (
+                      <Bar dataKey="gmail" fill="#E66FD2" radius={[4, 4, 0, 0]} />
+                    )}
                   </BarChart>
                 </ChartContainer>
               )}
             </CardContent>
           </Card>
-        )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Conversation volume</CardTitle>
-            <CardDescription>Daily conversations over {activeRangeLabel.toLowerCase()}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {volumeData.length === 0 && filteredGmail.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
-            ) : (
-              <ChartContainer config={chartConfig} className="h-[280px] w-full">
-                <AreaChart data={mergedVolumeData}>
-                  <defs>
-                    <linearGradient id="gradSlack" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="gradGmail" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#E66FD2" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#E66FD2" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="label" className="text-xs" />
-                  <YAxis allowDecimals={false} className="text-xs" />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  {sourceFilter !== "gmail" && (
-                    <Area type="monotone" dataKey="slack" stroke="hsl(var(--primary))" fill="url(#gradSlack)" strokeWidth={2} />
-                  )}
-                  {sourceFilter !== "slack" && (
-                    <Area type="monotone" dataKey="gmail" stroke="#E66FD2" fill="url(#gradGmail)" strokeWidth={2} />
-                  )}
-                </AreaChart>
-              </ChartContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Activity by hour of day */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Activity by hour of day (CET)</CardTitle>
-            <CardDescription>When conversations and emails arrive, bucketed by hour in CET timezone</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {hourlyActivityData.every((b) => b.slack === 0 && b.gmail === 0) ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
-            ) : (
-              <ChartContainer config={chartConfig} className="h-[280px] w-full">
-                <BarChart data={hourlyActivityData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="hour" className="text-xs" />
-                  <YAxis allowDecimals={false} className="text-xs" />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  {sourceFilter !== "gmail" && (
-                    <Bar dataKey="slack" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                  )}
-                  {sourceFilter !== "slack" && (
-                    <Bar dataKey="gmail" fill="#E66FD2" radius={[4, 4, 0, 0]} />
-                  )}
-                </BarChart>
-              </ChartContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Activity heatmap — day of week × hour of day */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Activity heatmap (CET)</CardTitle>
-            <CardDescription>Day of week × hour of day — darker cells indicate more activity</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {heatmapData.max === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <div className="min-w-[640px]">
-                  {/* Hour headers */}
-                  <div className="flex items-end gap-px mb-1">
-                    <div className="w-10 shrink-0" />
-                    {Array.from({ length: 24 }, (_, h) => (
-                      <div key={h} className="flex-1 text-center text-[10px] text-muted-foreground">
-                        {String(h).padStart(2, "0")}
+          {/* Activity heatmap */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Activity heatmap (CET)</CardTitle>
+              <CardDescription>Day of week × hour of day — darker cells indicate more activity</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {heatmapData.max === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <div className="min-w-[640px]">
+                    <div className="flex items-end gap-px mb-1">
+                      <div className="w-10 shrink-0" />
+                      {Array.from({ length: 24 }, (_, h) => (
+                        <div key={h} className="flex-1 text-center text-[10px] text-muted-foreground">
+                          {String(h).padStart(2, "0")}
+                        </div>
+                      ))}
+                    </div>
+                    {DAYS.map((day) => (
+                      <div key={day} className="flex items-center gap-px mb-px">
+                        <div className="w-10 shrink-0 text-xs text-muted-foreground font-medium">{day}</div>
+                        {Array.from({ length: 24 }, (_, h) => {
+                          const cell = heatmapData.grid[day][h];
+                          const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : cell.total;
+                          const opacity = heatmapData.max > 0 ? Math.max(0.08, val / heatmapData.max) : 0;
+                          return (
+                            <div
+                              key={h}
+                              className={cn(
+                                "flex-1 aspect-square rounded-sm bg-primary transition-opacity",
+                                val > 0 && "cursor-pointer hover:ring-2 hover:ring-primary/50"
+                              )}
+                              style={{ opacity: val > 0 ? opacity : 0.04 }}
+                              title={`${day} ${String(h).padStart(2, "0")}:00 — Slack: ${cell.slack}, Gmail: ${cell.gmail}, Total: ${cell.total}`}
+                              onClick={() => {
+                                if (val > 0) navigate(`/conversations?day=${day}&hour=${h}&source=${sourceFilter}`);
+                              }}
+                            />
+                          );
+                        })}
                       </div>
                     ))}
-                  </div>
-                  {/* Rows */}
-                  {DAYS.map((day) => (
-                    <div key={day} className="flex items-center gap-px mb-px">
-                      <div className="w-10 shrink-0 text-xs text-muted-foreground font-medium">{day}</div>
-                      {Array.from({ length: 24 }, (_, h) => {
-                        const cell = heatmapData.grid[day][h];
-                        const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : cell.total;
-                        const opacity = heatmapData.max > 0 ? Math.max(0.08, val / heatmapData.max) : 0;
-                        return (
-                          <div
-                            key={h}
-                            className={cn(
-                              "flex-1 aspect-square rounded-sm bg-primary transition-opacity",
-                              val > 0 && "cursor-pointer hover:ring-2 hover:ring-primary/50"
-                            )}
-                            style={{ opacity: val > 0 ? opacity : 0.04 }}
-                            title={`${day} ${String(h).padStart(2, "0")}:00 — Slack: ${cell.slack}, Gmail: ${cell.gmail}, Total: ${cell.total}`}
-                            onClick={() => {
-                              if (val > 0) navigate(`/conversations?day=${day}&hour=${h}&source=${sourceFilter}`);
-                            }}
-                          />
-                        );
-                      })}
+                    <div className="flex items-center gap-2 mt-3 justify-end">
+                      <span className="text-[10px] text-muted-foreground">Less</span>
+                      {[0.08, 0.25, 0.5, 0.75, 1].map((o) => (
+                        <div key={o} className="h-3 w-3 rounded-sm bg-primary" style={{ opacity: o }} />
+                      ))}
+                      <span className="text-[10px] text-muted-foreground">More</span>
                     </div>
-                  ))}
-                  {/* Legend */}
-                  <div className="flex items-center gap-2 mt-3 justify-end">
-                    <span className="text-[10px] text-muted-foreground">Less</span>
-                    {[0.08, 0.25, 0.5, 0.75, 1].map((o) => (
-                      <div key={o} className="h-3 w-3 rounded-sm bg-primary" style={{ opacity: o }} />
-                    ))}
-                    <span className="text-[10px] text-muted-foreground">More</span>
                   </div>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {sourceFilter !== "gmail" && (
-        /* Conversations by channel */
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Conversations by channel</CardTitle>
-            <CardDescription>Total conversations per Slack channel</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {channelData.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">No channel data yet</p>
-            ) : (
-              <ChartContainer config={chartConfig} className="w-full" style={{ height: Math.max(200, channelData.length * 48) }}>
-                <BarChart data={channelData} layout="vertical" margin={{ left: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
-                  <XAxis type="number" allowDecimals={false} className="text-xs" />
-                  <YAxis type="category" dataKey="channel" className="text-xs" width={160} tick={{ fontSize: 12 }} />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="total" fill="#FF6B6B" radius={[0, 4, 4, 0]}>
-                    <LabelList dataKey="total" position="right" className="text-xs fill-foreground" />
-                  </Bar>
-                </BarChart>
-              </ChartContainer>
-            )}
-          </CardContent>
-        </Card>
-        )}
-
-        {sourceFilter !== "gmail" && (
-        <>
-        {/* Two-column charts */}
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Daily outcomes */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Daily outcomes</CardTitle>
-              <CardDescription>Resolved vs open vs escalated vs cancelled per day</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {dailyOutcomes.length === 0 ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">No outcome data yet</p>
-              ) : (
-                <ChartContainer config={chartConfig} className="h-[250px] w-full">
-                  <BarChart data={dailyOutcomes}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="date" className="text-xs" />
-                    <YAxis allowDecimals={false} className="text-xs" />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar dataKey="resolved" fill={chartConfig.resolved.color} radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="open" fill={chartConfig.open.color} radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="escalated" fill={chartConfig.escalated.color} radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="cancelled" fill={chartConfig.cancelled.color} radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ChartContainer>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Status distribution */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Status distribution</CardTitle>
-              <CardDescription>Current breakdown of all conversations</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {pieData.length === 0 ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
-              ) : (
-                <ChartContainer config={chartConfig} className="h-[250px] w-full">
-                  <PieChart>
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                      {pieData.map((entry, i) => (
-                        <Cell key={i} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ChartContainer>
               )}
             </CardContent>
           </Card>
         </div>
-
-        {/* Second row: cumulative + escalation rate */}
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Cumulative conversations</CardTitle>
-              <CardDescription>Growth over time</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {cumulativeData.length === 0 ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
-              ) : (
-                <ChartContainer config={chartConfig} className="h-[250px] w-full">
-                  <LineChart data={cumulativeData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="label" className="text-xs" />
-                    <YAxis allowDecimals={false} className="text-xs" />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Line type="monotone" dataKey="cumulative" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ChartContainer>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                Escalation rate trend
-                {escalationRateData.length >= 2 && (
-                  escalationRateData[escalationRateData.length - 1].rate < escalationRateData[0].rate
-                    ? <TrendingDown className="h-4 w-4 text-[#9B87F5]" />
-                    : <TrendingUp className="h-4 w-4 text-destructive" />
-                )}
-              </CardTitle>
-              <CardDescription>7-day rolling escalation % of completed conversations</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {escalationRateData.length === 0 ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">Not enough data yet</p>
-              ) : (
-                <ChartContainer config={chartConfig} className="h-[250px] w-full">
-                  <LineChart data={escalationRateData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="label" className="text-xs" />
-                    <YAxis unit="%" allowDecimals={false} className="text-xs" />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Line type="monotone" dataKey="rate" stroke="hsl(var(--destructive))" strokeWidth={2} dot={false} />
-                  </LineChart>
-                </ChartContainer>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-        </>
-        )}
 
         {/* Insights footer */}
         {peakDay && (
