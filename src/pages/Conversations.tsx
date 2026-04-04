@@ -1297,7 +1297,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                       <SelectItem value="all">Source</SelectItem>
                       <SelectItem value="slack">Slack bot</SelectItem>
                       <SelectItem value="slack_import">Slack import</SelectItem>
-                      <SelectItem value="gmail">Gmail only</SelectItem>
+                      <SelectItem value="gmail">Gmail</SelectItem>
                       <SelectItem value="manual">Manual only</SelectItem>
                     </SelectContent>
                   </Select>
