@@ -1189,7 +1189,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const resetAll = () => {
     setSourceFilter("all");
     setOwnerFilter("all");
-    setHiddenStatuses(new Set(["test", "cancelled", "resolved"]));
+    setHiddenStatuses(new Set());
     setDateFrom(undefined);
     setDateTo(undefined);
     setColumnOrder([...ALL_COLUMNS]);
