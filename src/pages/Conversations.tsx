@@ -1438,7 +1438,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                           onDragEnd={handleDragEnd}
                           className={`cursor-grab select-none transition-colors ${
                             dragOverCol === col ? "border-l-2 border-l-primary bg-primary/5" : ""
-                          } ${""} ${col === "status" || col === "owner" || col === "product_area" ? "w-[120px]" : ""}`}
+                          } ${col === "message" ? "min-w-[300px]" : ""} ${col === "status" || col === "owner" || col === "product_area" ? "w-[120px]" : ""}`}
                         >
                           <span className="inline-flex items-center gap-1">
                             <GripVertical className="h-3 w-3 text-muted-foreground/50" />
@@ -1459,7 +1459,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                             onClick={() => navigate(`/conversations/${m.id}`)}
                           >
                             {columnOrder.map((col) => (
-<TableCell key={col} className={`${""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" ? "w-[120px]" : ""}`}>
+<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" ? "w-[120px]" : ""}`}>
                                 {renderSlackCell(col, m)}
                               </TableCell>
                             ))}
@@ -1485,7 +1485,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                               } : () => navigate(`/conversations/${g.id}?source=gmail`)}
                             >
                               {columnOrder.map((col) => (
-<TableCell key={col} className={`${""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" ? "w-[120px]" : ""}`}>
+<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" ? "w-[120px]" : ""}`}>
                                   {renderGmailCell(col, g, row.groupCount, row.groupedEmails, row.groupKey)}
                                 </TableCell>
                               ))}
@@ -1497,7 +1497,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                                 onClick={() => navigate(`/conversations/${sub.id}?source=gmail`)}
                               >
                                 {columnOrder.map((col) => (
-<TableCell key={col} className={`${""} ${col === "id" ? "w-[40px] pl-8" : ""} ${col === "status" || col === "owner" || col === "product_area" ? "w-[120px]" : ""}`}>
+<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px] pl-8" : ""} ${col === "status" || col === "owner" || col === "product_area" ? "w-[120px]" : ""}`}>
                                     {renderGmailCell(col, sub)}
                                   </TableCell>
                                 ))}
@@ -1514,7 +1514,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                             onClick={() => navigate(`/conversations/${mc.id}?source=manual`)}
                           >
                             {columnOrder.map((col) => (
-<TableCell key={col} className={`${""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" ? "w-[120px]" : ""}`}>
+<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" ? "w-[120px]" : ""}`}>
                                 {renderManualCell(col, mc as ManualConversation)}
                               </TableCell>
                             ))}
