@@ -199,7 +199,7 @@ const ManualLogTab = () => {
                       value={msg.role}
                       onValueChange={(v) => updateMessage(idx, "role", v)}
                     >
-                      <SelectTrigger className="w-[100px] h-8 text-xs">
+                      <SelectTrigger className="w-[180px] h-8 text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
