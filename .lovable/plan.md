@@ -1,30 +1,28 @@
 
 
-## Fix "Total incoming cases" overcounting Gmail threads
+## Add "Total resolved cases" KPI to the Overview section
 
-### Problem
-The Overview card shows `stats.total + stats.gmailTotal + stats.manualTotal` which sums raw row counts. For Gmail, each email in a thread is a separate row, so `gmailTotal` (raw row count) is much larger than the deduplicated thread count shown in the Gmail section KPIs. This makes the total appear inflated (120 instead of ~73).
+### What changes
+Add a second card in the Overview grid showing the total resolved cases across all sources: Slack resolved + Gmail resolved (deduplicated) + Manual entries resolved.
 
-### Fix
+### Implementation
 
 **`src/pages/Stats.tsx`**
 
-1. In the `stats` useMemo, add a deduplicated Gmail count using the same subject-based grouping already used for resolved/open Gmail stats:
-   ```ts
-   const gmailUniqueSubjects = new Set<string>();
-   let gmailOrphans = 0;
-   filteredGmail.forEach((g) => {
-     if (g.subject) gmailUniqueSubjects.add(g.subject);
-     else gmailOrphans++;
-   });
-   const gmailDeduped = gmailUniqueSubjects.size + gmailOrphans;
+1. After the existing "Total incoming cases" `<Card>` (~line 904), add a new card:
+   ```tsx
+   <Card>
+     <CardContent className="flex flex-col items-center justify-center p-5">
+       <ThumbsUp className="mb-2 h-5 w-5 text-[#9B87F5]" />
+       <p className="text-3xl font-bold text-foreground">
+         {stats.resolved + stats.gmailResolved + stats.manualResolved}
+       </p>
+       <p className="text-xs text-muted-foreground">Total resolved cases</p>
+     </CardContent>
+   </Card>
    ```
 
-2. Return `gmailDeduped` from the stats object.
-
-3. Update the Overview card to use `stats.total + stats.gmailDeduped + stats.manualTotal` instead of `stats.total + stats.gmailTotal + stats.manualTotal`.
-
-4. Also update the Gmail section "Total" KPI to show `gmailDeduped` instead of `gmailTotal` for consistency (so 50+18+5 = 73 matches the overview).
+All three values (`stats.resolved`, `stats.gmailResolved`, `stats.manualResolved`) already exist in the stats object — no computation changes needed.
 
 ### Files to edit
 - `src/pages/Stats.tsx`
