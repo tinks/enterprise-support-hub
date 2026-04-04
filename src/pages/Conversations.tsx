@@ -1266,7 +1266,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                       <SelectValue placeholder="Owner" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Select all</SelectItem>
+                      <SelectItem value="all">Owner</SelectItem>
                       <SelectItem value="Joel">Joel</SelectItem>
                       <SelectItem value="Kristina">Kristina</SelectItem>
                       <SelectItem value="unassigned">Unassigned</SelectItem>
