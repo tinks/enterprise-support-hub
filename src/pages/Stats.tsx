@@ -583,10 +583,10 @@ const Stats = () => {
   const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
   const heatmapData = useMemo(() => {
-    const grid: Record<string, Record<number, { slack: number; gmail: number; total: number }>> = {};
+    const grid: Record<string, Record<number, { slack: number; gmail: number; manual: number; total: number }>> = {};
     DAYS.forEach((d) => {
       grid[d] = {};
-      for (let h = 0; h < 24; h++) grid[d][h] = { slack: 0, gmail: 0, total: 0 };
+      for (let h = 0; h < 24; h++) grid[d][h] = { slack: 0, gmail: 0, manual: 0, total: 0 };
     });
 
     const getCET = (dateStr: string) => {
@@ -604,12 +604,16 @@ const Stats = () => {
       const { day, hour } = getCET(g.received_at || g.created_at);
       if (grid[day]) { grid[day][hour].gmail++; grid[day][hour].total++; }
     });
+    filteredManual.forEach((m) => {
+      const { day, hour } = getCET(m.created_at);
+      if (grid[day]) { grid[day][hour].manual++; grid[day][hour].total++; }
+    });
 
     let max = 0;
     DAYS.forEach((d) => {
       for (let h = 0; h < 24; h++) {
         const cell = grid[d][h];
-        const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : cell.total;
+        const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : sourceFilter === "manual" ? cell.manual : cell.total;
         if (val > max) max = val;
       }
     });
