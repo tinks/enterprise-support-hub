@@ -1,18 +1,30 @@
 
 
-## Restore default hidden statuses on Reset
+## Sync status, owner, product area, and classification across Gmail thread groups
 
-### Problem
-The default hidden statuses are correctly set to Resolved, Cancelled, and Test on initial load (matching the screenshot). However, clicking "Reset" clears all hidden statuses to an empty set instead of restoring these defaults.
+### What changes
+When a user updates the status, owner, product area, or classification on any row within a Gmail thread group, all sibling rows in that same thread (sharing the same `gmail_thread_id` / normalized subject key) will be updated simultaneously — both in the UI state and in the database.
 
-### Changes
+### How it works
 
 **`src/pages/Conversations.tsx`**
 
-1. Extract the default hidden statuses into a constant: `const DEFAULT_HIDDEN = new Set(["test", "cancelled", "resolved"])`
-2. Update `resetAll` to restore `hiddenStatuses` to `DEFAULT_HIDDEN` instead of an empty set
-3. Update `anyFilterActive` to compare current `hiddenStatuses` against `DEFAULT_HIDDEN` rather than checking `size > 0` — so the Reset button only appears when the status filter differs from the default
-4. Update the filter badge count logic similarly — only count status as an active filter when it differs from the default
+1. Create a helper function `getGmailThreadSiblingIds(id: string): string[]` that:
+   - Looks through `gmailRows` to find the row with the given `id`
+   - Gets its `gmail_thread_id` (or falls back to normalized subject)
+   - Returns all IDs in `gmailRows` that share the same thread key
+
+2. Update `updateStatus` — when `source === "gmail"`:
+   - Get all sibling IDs via the helper
+   - Update all siblings in local state (not just the clicked row)
+   - Batch-update all siblings in the database using `.in("id", siblingIds)` instead of `.eq("id", id)`
+
+3. Apply the same sibling-update pattern to:
+   - `updateProductArea` (gmail branch)
+   - `updateOwner` (gmail branch)
+   - `updateClassification` (gmail branch)
+
+4. No changes needed for Slack or Manual sources (they don't have thread grouping)
 
 ### Files to edit
 - `src/pages/Conversations.tsx`
