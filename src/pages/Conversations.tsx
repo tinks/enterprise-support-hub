@@ -122,13 +122,15 @@ const getCET = (dateStr: string) => {
 const CLASSIFICATION_OPTIONS = ["Issue", "Configuration", "Bug", "FR", "Question"] as const;
 const STATUS_OPTIONS = ["open", "active", "resolved", "cancelled", "escalated", "awaiting_context", "awaiting_support"] as const;
 
-const ALL_COLUMNS = ["id", "source", "sent_by", "message", "channel", "link", "intercom", "status", "owner", "date", "test", "resolved", "product_area", "bug", "classification"] as const;
+const ALL_COLUMNS = ["id", "date", "channel", "message", "status", "owner", "product_area", "sent_by", "classification", "source", "link", "intercom", "test", "resolved", "bug"] as const;
 type ColKey = typeof ALL_COLUMNS[number];
 
 type OwnerFilter = "all" | "Joel" | "Kristina" | "unassigned";
 const OWNER_OPTIONS = ["Joel", "Kristina"] as const;
 
 const COLUMN_STORAGE_KEY = "conv-column-order";
+const COLUMN_ORDER_VERSION_KEY = "conv-column-order-version";
+const COLUMN_ORDER_VERSION = 2;
 
 interface ConversationsProps {
   forceOwner?: string;
