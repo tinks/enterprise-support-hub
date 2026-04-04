@@ -1217,7 +1217,90 @@ const Stats = () => {
           </div>
         )}
 
-        {/* ── Combined activity section ── */}
+        {/* ── Manual entries section ── */}
+        {(sourceFilter === "all" || sourceFilter === "manual") && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Manual entries</h2>
+              <div className="mt-2 h-px w-full bg-border" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <MessageSquare className="mb-2 h-5 w-5 text-[#4ECDC4]" />
+                  <p className="text-3xl font-bold text-foreground">{stats.manualTotal}</p>
+                  <p className="text-xs text-muted-foreground">Total</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <Activity className="mb-2 h-5 w-5 text-[#4ECDC4]" />
+                  <p className="text-3xl font-bold text-foreground">{stats.manualActive}</p>
+                  <p className="text-xs text-muted-foreground">Active</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <ThumbsUp className="mb-2 h-5 w-5 text-[#9B87F5]" />
+                  <p className="text-3xl font-bold text-foreground">{stats.manualResolved}</p>
+                  <p className="text-xs text-muted-foreground">Resolved</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">By source</CardTitle>
+                  <CardDescription>Manual entries grouped by conversation source</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {manualBySource.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+                  ) : (
+                    <ChartContainer config={chartConfig} className="w-full" style={{ height: Math.max(200, manualBySource.length * 48) }}>
+                      <BarChart data={manualBySource} layout="vertical" margin={{ left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                        <XAxis type="number" allowDecimals={false} className="text-xs" />
+                        <YAxis type="category" dataKey="source" className="text-xs" width={120} tick={{ fontSize: 12 }} />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="count" fill="#4ECDC4" radius={[0, 4, 4, 0]}>
+                          <LabelList dataKey="count" position="right" className="text-xs fill-foreground" />
+                        </Bar>
+                      </BarChart>
+                    </ChartContainer>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">By owner</CardTitle>
+                  <CardDescription>Manual entries grouped by assigned owner</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {manualByOwner.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+                  ) : (
+                    <ChartContainer config={chartConfig} className="w-full" style={{ height: Math.max(200, manualByOwner.length * 48) }}>
+                      <BarChart data={manualByOwner} layout="vertical" margin={{ left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                        <XAxis type="number" allowDecimals={false} className="text-xs" />
+                        <YAxis type="category" dataKey="owner" className="text-xs" width={120} tick={{ fontSize: 12 }} />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="count" fill="#4ECDC4" radius={[0, 4, 4, 0]}>
+                          <LabelList dataKey="count" position="right" className="text-xs fill-foreground" />
+                        </Bar>
+                      </BarChart>
+                    </ChartContainer>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-6">
           <div>
             <h2 className="text-lg font-semibold text-foreground">Combined activity</h2>
