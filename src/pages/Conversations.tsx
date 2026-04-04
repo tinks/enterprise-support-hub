@@ -164,6 +164,8 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+  const [fromPopoverOpen, setFromPopoverOpen] = useState(false);
+  const [toPopoverOpen, setToPopoverOpen] = useState(false);
   const [creatingTicket, setCreatingTicket] = useState<Set<string>>(new Set());
   const [expandedGmailGroups, setExpandedGmailGroups] = useState<Set<string>>(new Set());
   const [editingIntercomId, setEditingIntercomId] = useState<string | null>(null);
@@ -1299,7 +1301,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                       )}
                     </PopoverContent>
                   </Popover>
-                  <Popover>
+                  <Popover open={fromPopoverOpen} onOpenChange={setFromPopoverOpen}>
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="sm" className={`h-9 gap-1 ${dateFrom ? "border-primary" : ""}`}>
                         <CalendarIcon className="h-3 w-3" />
@@ -1310,13 +1312,17 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                       <Calendar
                         mode="single"
                         selected={dateFrom}
-                        onSelect={setDateFrom}
+                        onSelect={(day) => {
+                          setDateFrom(day);
+                          setFromPopoverOpen(false);
+                          setToPopoverOpen(true);
+                        }}
                         initialFocus
                         className="p-3 pointer-events-auto"
                       />
                     </PopoverContent>
                   </Popover>
-                  <Popover>
+                  <Popover open={toPopoverOpen} onOpenChange={setToPopoverOpen}>
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="sm" className={`h-9 gap-1 ${dateTo ? "border-primary" : ""}`}>
                         <CalendarIcon className="h-3 w-3" />
@@ -1327,7 +1333,10 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                       <Calendar
                         mode="single"
                         selected={dateTo}
-                        onSelect={setDateTo}
+                        onSelect={(day) => {
+                          setDateTo(day);
+                          setToPopoverOpen(false);
+                        }}
                         initialFocus
                         className="p-3 pointer-events-auto"
                       />
