@@ -1,30 +1,23 @@
 
 
-## Sync status, owner, product area, and classification across Gmail thread groups
+## Widen Message column and shrink Status, Owner, Product area
 
 ### What changes
-When a user updates the status, owner, product area, or classification on any row within a Gmail thread group, all sibling rows in that same thread (sharing the same `gmail_thread_id` / normalized subject key) will be updated simultaneously — both in the UI state and in the database.
+- Double the Message/Subject column width from `max-w-[300px]` to `min-w-[600px]`
+- Add compact width classes to Status, Owner, and Product area columns so they only take space needed for their content
+- Apply these width constraints in both `TableHead` and `TableCell` for all row types (Slack, Gmail, Gmail sub-rows, Manual)
 
-### How it works
+### Implementation
 
 **`src/pages/Conversations.tsx`**
 
-1. Create a helper function `getGmailThreadSiblingIds(id: string): string[]` that:
-   - Looks through `gmailRows` to find the row with the given `id`
-   - Gets its `gmail_thread_id` (or falls back to normalized subject)
-   - Returns all IDs in `gmailRows` that share the same thread key
+1. In the `TableHead` rendering (~line 1432), add column-specific width classes:
+   - `col === "message"` → `min-w-[600px]`
+   - `col === "status" || col === "owner" || col === "product_area"` → `w-[120px]`
 
-2. Update `updateStatus` — when `source === "gmail"`:
-   - Get all sibling IDs via the helper
-   - Update all siblings in local state (not just the clicked row)
-   - Batch-update all siblings in the database using `.in("id", siblingIds)` instead of `.eq("id", id)`
-
-3. Apply the same sibling-update pattern to:
-   - `updateProductArea` (gmail branch)
-   - `updateOwner` (gmail branch)
-   - `updateClassification` (gmail branch)
-
-4. No changes needed for Slack or Manual sources (they don't have thread grouping)
+2. In all `TableCell` renderings (Slack line 1462, Gmail line 1488, Gmail sub-rows line 1500, Manual line 1517):
+   - Change `col === "message"` from `max-w-[300px]` to `min-w-[600px]`
+   - Add `w-[120px]` for `status`, `owner`, `product_area`
 
 ### Files to edit
 - `src/pages/Conversations.tsx`
