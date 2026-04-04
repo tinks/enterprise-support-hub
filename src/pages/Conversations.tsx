@@ -1238,7 +1238,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                     let count = 0;
                     if (sourceFilter !== "all") count++;
                     if (ownerFilter !== "all") count++;
-                    if (hiddenStatuses.size > 0) count++;
+                    if (hiddenDiffersFromDefault) count++;
                     if (dateFrom || dateTo) count++;
                     return count > 0 ? (
                       <Badge variant="secondary" className="h-5 px-1.5 text-xs">{count} active</Badge>
