@@ -1,33 +1,24 @@
 
 
-## Widen Message/Subject column
+## Update default column order
 
-### Problem
-The Message/Subject column has no minimum width set, so it gets squeezed by the fixed-width columns (ID at 40px, Status/Owner/Product area at 120px each).
-
-### Solution
-Add `min-w-[300px]` to the `message` column in `TableHead` and all `TableCell` variants. This gives it a reasonable minimum while still allowing it to grow with available space.
+### What changes
+Update the `ALL_COLUMNS` constant to match the actual desired default order. Also note "incident" likely maps to "bug" (the existing column).
 
 ### Implementation
 
-**`src/pages/Conversations.tsx`**
+**`src/pages/Conversations.tsx`** (line 125)
 
-Update 6 locations where column class names are computed — add `col === "message" ? "min-w-[300px]" : ""` to the className template string:
-
-1. `TableHead` (~line 1441)
-2. Slack `TableCell` (~line 1462)
-3. Gmail main `TableCell` (~line 1488)
-4. Gmail sub-row `TableCell` (~line 1500)
-5. Manual `TableCell` (~line 1517)
-
-Each line changes from:
-```
-${""} ${col === "id" ? ...
+Change `ALL_COLUMNS` from:
+```ts
+["id", "source", "sent_by", "message", "channel", "link", "intercom", "status", "owner", "date", "test", "resolved", "product_area", "bug", "classification"]
 ```
 to:
+```ts
+["id", "date", "channel", "message", "status", "owner", "product_area", "sent_by", "classification", "source", "link", "intercom", "test", "resolved", "bug"]
 ```
-${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? ...
-```
+
+This also clears any saved column order in localStorage on first load so users see the new default.
 
 ### Files to edit
 - `src/pages/Conversations.tsx`
