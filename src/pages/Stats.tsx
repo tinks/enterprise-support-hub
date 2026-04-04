@@ -747,6 +747,7 @@ const Stats = () => {
                 <SelectItem value="all">All sources</SelectItem>
                 <SelectItem value="slack">Slack only</SelectItem>
                 <SelectItem value="gmail">Gmail</SelectItem>
+                <SelectItem value="manual">Manual entry</SelectItem>
               </SelectContent>
             </Select>
           </div>
