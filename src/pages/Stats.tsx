@@ -117,7 +117,7 @@ const Stats = () => {
 
   const loadStats = async () => {
     setLoading(true);
-    const [slackRes, gmailRes] = await Promise.all([
+    const [slackRes, gmailRes, manualRes] = await Promise.all([
       supabase
         .from("conversation_mappings")
         .select("status, created_at, is_test, slack_channel_id, resolved_at")
@@ -126,10 +126,15 @@ const Stats = () => {
         .from("gmail_conversations")
         .select("received_at, created_at, is_test, subject, status, resolved_at, gmail_thread_id, from_email, to_emails, cc_emails")
         .order("received_at", { ascending: true }),
+      supabase
+        .from("manual_conversations")
+        .select("status, created_at, is_test, source, owner, classification")
+        .order("created_at", { ascending: true }),
     ]);
     const rows = (slackRes.data as Mapping[]) || [];
     setData(rows);
     setGmailData((gmailRes.data as unknown as GmailRow[]) || []);
+    setManualData((manualRes.data as ManualRow[]) || []);
 
     // Resolve channel names
     const uniqueIds = [...new Set(rows.map((r) => r.slack_channel_id).filter(Boolean))];
