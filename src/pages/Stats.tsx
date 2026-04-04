@@ -1421,7 +1421,7 @@ const Stats = () => {
                         <div className="w-10 shrink-0 text-xs text-muted-foreground font-medium">{day}</div>
                         {Array.from({ length: 24 }, (_, h) => {
                           const cell = heatmapData.grid[day][h];
-                          const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : cell.total;
+                          const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : sourceFilter === "manual" ? cell.manual : cell.total;
                           const opacity = heatmapData.max > 0 ? Math.max(0.08, val / heatmapData.max) : 0;
                           return (
                             <div
@@ -1431,7 +1431,7 @@ const Stats = () => {
                                 val > 0 && "cursor-pointer hover:ring-2 hover:ring-primary/50"
                               )}
                               style={{ opacity: val > 0 ? opacity : 0.04 }}
-                              title={`${day} ${String(h).padStart(2, "0")}:00 — Slack: ${cell.slack}, Gmail: ${cell.gmail}, Total: ${cell.total}`}
+                              title={`${day} ${String(h).padStart(2, "0")}:00 — Slack: ${cell.slack}, Gmail: ${cell.gmail}, Manual: ${cell.manual}, Total: ${cell.total}`}
                               onClick={() => {
                                 if (val > 0) navigate(`/conversations?day=${day}&hour=${h}&source=${sourceFilter}`);
                               }}
