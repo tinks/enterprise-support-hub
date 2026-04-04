@@ -166,6 +166,7 @@ const Stats = () => {
   }, [range]);
 
   const filtered = useMemo(() => {
+    const cutoff = getCutoffDate(range);
     return data.filter((m) => {
       const matchView = view === "test" ? m.is_test : !m.is_test;
       const parsed = parseISO(m.created_at);
