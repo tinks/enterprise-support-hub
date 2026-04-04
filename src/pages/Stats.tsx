@@ -158,6 +158,13 @@ const Stats = () => {
     setSelectedChannels([...allChannelIds]);
   }, [allChannelIds]);
 
+  useEffect(() => {
+    if (range === "custom") {
+      const t = setTimeout(() => setCustomDatePopoverOpen(true), 50);
+      return () => clearTimeout(t);
+    }
+  }, [range]);
+
   const filtered = useMemo(() => {
     const cutoff = getCutoffDate(range);
     return data.filter((m) => {
@@ -687,7 +694,7 @@ const Stats = () => {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-muted-foreground">Timeframe:</span>
-            <Select value={range} onValueChange={(v) => { setRange(v as TimeRange); if (v === "custom") setCustomDatePopoverOpen(true); }}>
+            <Select value={range} onValueChange={(v) => { setRange(v as TimeRange); }}>
             <SelectTrigger className="w-[180px] h-9">
               <SelectValue />
             </SelectTrigger>
