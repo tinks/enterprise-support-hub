@@ -94,7 +94,8 @@ const Stats = () => {
   const [channelNames, setChannelNames] = useState<Record<string, string>>({});
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [channelPopoverOpen, setChannelPopoverOpen] = useState(false);
-  const [toPopoverOpen, setToPopoverOpen] = useState(false);
+  const [customDatePopoverOpen, setCustomDatePopoverOpen] = useState(false);
+  const [customDateStep, setCustomDateStep] = useState<"from" | "to">("from");
   const statsContentRef = useRef<HTMLDivElement>(null);
 
   const activeRangeLabel = range === "custom" && customFrom && customTo
@@ -701,27 +702,44 @@ const Stats = () => {
           </div>
           {range === "custom" && (
             <div className="flex items-center gap-2">
-              <Popover>
+              <Popover open={customDatePopoverOpen} onOpenChange={(open) => { setCustomDatePopoverOpen(open); if (!open) setCustomDateStep("from"); }}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !customFrom && "text-muted-foreground")}>
+                  <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !customFrom && !customTo && "text-muted-foreground")}>
                     <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
-                    {customFrom ? format(customFrom, "MMM dd, yyyy") : "From"}
+                    {customFrom && customTo
+                      ? `${format(customFrom, "MMM dd")} – ${format(customTo, "MMM dd, yyyy")}`
+                      : customFrom
+                        ? `${format(customFrom, "MMM dd, yyyy")} – ...`
+                        : "Select dates"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={customFrom} onSelect={(date) => { setCustomFrom(date); if (date) setToPopoverOpen(true); }} initialFocus className="p-3 pointer-events-auto" />
-                </PopoverContent>
-              </Popover>
-              <span className="text-sm text-muted-foreground">–</span>
-              <Popover open={toPopoverOpen} onOpenChange={setToPopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !customTo && "text-muted-foreground")}>
-                    <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
-                    {customTo ? format(customTo, "MMM dd, yyyy") : "To"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={customTo} onSelect={(date) => { setCustomTo(date); setToPopoverOpen(false); }} disabled={(date) => customFrom ? isBefore(date, customFrom) : false} initialFocus className="p-3 pointer-events-auto" />
+                  <div className="p-3 pb-1 text-xs text-muted-foreground font-medium">
+                    {customDateStep === "from" ? "Select start date" : "Select end date"}
+                  </div>
+                  <Calendar
+                    mode="single"
+                    selected={customDateStep === "from" ? customFrom : customTo}
+                    onSelect={(date) => {
+                      if (!date) return;
+                      if (customDateStep === "from") {
+                        setCustomFrom(date);
+                        setCustomTo(undefined);
+                        setCustomDateStep("to");
+                      } else {
+                        if (customFrom && date >= customFrom) {
+                          setCustomTo(date);
+                          setCustomDatePopoverOpen(false);
+                          setCustomDateStep("from");
+                        }
+                      }
+                    }}
+                    disabled={(date) => customDateStep === "to" && customFrom ? isBefore(date, customFrom) : false}
+                    initialFocus
+                    className="p-3 pointer-events-auto"
+                    modifiers={customFrom && customTo ? { range: { after: customFrom, before: customTo } } : {}}
+                    modifiersStyles={customFrom && customTo ? { range: { backgroundColor: "hsl(var(--accent))", borderRadius: 0 } } : {}}
+                  />
                 </PopoverContent>
               </Popover>
             </div>
