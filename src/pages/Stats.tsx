@@ -240,7 +240,7 @@ const Stats = () => {
     });
   }, [manualData, view, range, customFrom, customTo]);
 
-
+  const gmailUniqueEmails = useMemo(() => {
     const subjects = new Set<string>();
     let nullCount = 0;
     filteredGmail.forEach((g) => {
