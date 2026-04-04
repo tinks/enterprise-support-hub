@@ -1455,7 +1455,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                               } : () => navigate(`/conversations/${g.id}?source=gmail`)}
                             >
                               {columnOrder.map((col) => (
-                                <TableCell key={col} className={col === "message" ? "max-w-[300px]" : ""}>
+                                <TableCell key={col} className={`${col === "message" ? "max-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""}`}>
                                   {renderGmailCell(col, g, row.groupCount, row.groupedEmails, row.groupKey)}
                                 </TableCell>
                               ))}
