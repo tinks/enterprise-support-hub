@@ -629,9 +629,17 @@ const Stats = () => {
       const { day, hour } = getCET(m.created_at);
       if (grid[day]) { grid[day][hour].slack++; grid[day][hour].total++; }
     });
+    const gmailSeenPerCell: Record<string, Set<string>> = {};
     filteredGmail.forEach((g) => {
       const { day, hour } = getCET(g.received_at || g.created_at);
-      if (grid[day]) { grid[day][hour].gmail++; grid[day][hour].total++; }
+      if (!grid[day]) return;
+      const cellKey = `${day}-${hour}`;
+      if (!gmailSeenPerCell[cellKey]) gmailSeenPerCell[cellKey] = new Set();
+      if (g.subject) {
+        if (gmailSeenPerCell[cellKey].has(g.subject)) return;
+        gmailSeenPerCell[cellKey].add(g.subject);
+      }
+      grid[day][hour].gmail++; grid[day][hour].total++;
     });
     filteredManual.forEach((m) => {
       const { day, hour } = getCET(m.created_at);
