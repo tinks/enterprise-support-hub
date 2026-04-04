@@ -1265,10 +1265,10 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                   {!forceOwner && (
                   <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v as OwnerFilter)}>
                     <SelectTrigger className="w-[120px] h-9">
-                      <SelectValue />
+                      <SelectValue placeholder="Owner" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Owner</SelectItem>
+                      <SelectItem value="all">Select all</SelectItem>
                       <SelectItem value="Joel">Joel</SelectItem>
                       <SelectItem value="Kristina">Kristina</SelectItem>
                       <SelectItem value="unassigned">Unassigned</SelectItem>
