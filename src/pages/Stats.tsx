@@ -74,6 +74,7 @@ const chartConfig = {
 };
 
 const rangeLabel: Record<TimeRange, string> = {
+  this_month: "This month",
   "7d": "Last 7 days",
   "30d": "Last 30 days",
   "90d": "Last 90 days",
