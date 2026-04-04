@@ -67,6 +67,7 @@ const chartConfig = {
   total: { label: "Total", color: "#FF6B6B" },
   slack: { label: "Slack", color: "#FF6B6B" },
   gmail: { label: "Gmail", color: "#E66FD2" },
+  manual: { label: "Manual entry", color: "#4ECDC4" },
   cumulative: { label: "Cumulative", color: "#FF6B6B" },
   rate: { label: "Escalation rate", color: "hsl(var(--destructive))" },
   resolution: { label: "Resolution time", color: "#9B87F5" },
