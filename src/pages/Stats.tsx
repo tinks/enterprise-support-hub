@@ -484,25 +484,18 @@ const Stats = () => {
         mins: differenceInMinutes(parseISO(m.resolved_at!), parseISO(m.created_at)),
       }))
       .filter((r) => r.mins >= 0);
-    if (resolved.length < 2) return [];
+    if (resolved.length === 0) return [];
     const byDay: Record<string, number[]> = {};
     for (const r of resolved) {
       if (!byDay[r.day]) byDay[r.day] = [];
       byDay[r.day].push(r.mins);
     }
     const days = Object.keys(byDay).sort();
-    const windowSize = Math.min(7, days.length);
-    const result: { label: string; resolution: number }[] = [];
-    for (let i = windowSize - 1; i < days.length; i++) {
-      const windowMins: number[] = [];
-      for (let j = i - windowSize + 1; j <= i; j++) {
-        windowMins.push(...byDay[days[j]]);
-      }
-      windowMins.sort((a, b) => a - b);
-      const median = windowMins[Math.floor(windowMins.length / 2)];
-      result.push({ label: format(parseISO(days[i]), "MMM dd"), resolution: Math.round(median) });
-    }
-    return result;
+    return days.map((day) => {
+      const vals = byDay[day].sort((a, b) => a - b);
+      const median = vals[Math.floor(vals.length / 2)];
+      return { label: format(parseISO(day), "MMM dd"), resolution: Math.round(median) };
+    });
   }, [filtered]);
 
   const hourlyActivityData = useMemo(() => {
@@ -918,7 +911,7 @@ const Stats = () => {
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-lg">Resolution time trend</CardTitle>
-                      <CardDescription>7-day rolling median (minutes)</CardDescription>
+                      <CardDescription>Daily median (minutes)</CardDescription>
                     </CardHeader>
                     <CardContent>
                       {resolutionTrend.length === 0 ? (
