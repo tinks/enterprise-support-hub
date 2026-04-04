@@ -309,8 +309,14 @@ const Stats = () => {
 
   const gmailVolumeData = useMemo(() => {
     const byDay: Record<string, number> = {};
+    const seenPerDay: Record<string, Set<string>> = {};
     filteredGmail.forEach((g) => {
       const day = format(parseISO(g.received_at || g.created_at), "yyyy-MM-dd");
+      if (!seenPerDay[day]) seenPerDay[day] = new Set();
+      if (g.subject) {
+        if (seenPerDay[day].has(g.subject)) return;
+        seenPerDay[day].add(g.subject);
+      }
       byDay[day] = (byDay[day] || 0) + 1;
     });
     return byDay;
@@ -365,8 +371,16 @@ const Stats = () => {
 
     const cutoff = getCutoffDate(range);
     // gmailDeduped computed below; use gmailTotal as placeholder, overwritten after
-    let combinedTotal = total + gmailTotal + manualTotal;
-    if (sourceFilter === "gmail") combinedTotal = gmailTotal;
+    // use gmailDeduped (computed below) — but we need it before the return,
+    // so compute a quick dedup count inline for avgPerDay
+    const gmailDedupedForAvg = (() => {
+      const subjs = new Set<string>();
+      let orphans = 0;
+      filteredGmail.forEach((g) => { if (g.subject) subjs.add(g.subject); else orphans++; });
+      return subjs.size + orphans;
+    })();
+    let combinedTotal = total + gmailDedupedForAvg + manualTotal;
+    if (sourceFilter === "gmail") combinedTotal = gmailDedupedForAvg;
     else if (sourceFilter === "slack") combinedTotal = total;
     else if (sourceFilter === "manual") combinedTotal = manualTotal;
     const daySpan = cutoff
@@ -581,7 +595,16 @@ const Stats = () => {
       return parseInt(d.toLocaleString("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false }));
     };
     filtered.forEach((m) => { buckets[getCETHour(m.created_at)].slack++; });
-    filteredGmail.forEach((g) => { buckets[getCETHour(g.received_at || g.created_at)].gmail++; });
+    const gmailSeenPerHour: Record<number, Set<string>> = {};
+    filteredGmail.forEach((g) => {
+      const h = getCETHour(g.received_at || g.created_at);
+      if (!gmailSeenPerHour[h]) gmailSeenPerHour[h] = new Set();
+      if (g.subject) {
+        if (gmailSeenPerHour[h].has(g.subject)) return;
+        gmailSeenPerHour[h].add(g.subject);
+      }
+      buckets[h].gmail++;
+    });
     filteredManual.forEach((m) => { buckets[getCETHour(m.created_at)].manual++; });
     return buckets;
   }, [filtered, filteredGmail, filteredManual]);
@@ -606,9 +629,17 @@ const Stats = () => {
       const { day, hour } = getCET(m.created_at);
       if (grid[day]) { grid[day][hour].slack++; grid[day][hour].total++; }
     });
+    const gmailSeenPerCell: Record<string, Set<string>> = {};
     filteredGmail.forEach((g) => {
       const { day, hour } = getCET(g.received_at || g.created_at);
-      if (grid[day]) { grid[day][hour].gmail++; grid[day][hour].total++; }
+      if (!grid[day]) return;
+      const cellKey = `${day}-${hour}`;
+      if (!gmailSeenPerCell[cellKey]) gmailSeenPerCell[cellKey] = new Set();
+      if (g.subject) {
+        if (gmailSeenPerCell[cellKey].has(g.subject)) return;
+        gmailSeenPerCell[cellKey].add(g.subject);
+      }
+      grid[day][hour].gmail++; grid[day][hour].total++;
     });
     filteredManual.forEach((m) => {
       const { day, hour } = getCET(m.created_at);
