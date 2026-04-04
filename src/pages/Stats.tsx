@@ -371,8 +371,16 @@ const Stats = () => {
 
     const cutoff = getCutoffDate(range);
     // gmailDeduped computed below; use gmailTotal as placeholder, overwritten after
-    let combinedTotal = total + gmailTotal + manualTotal;
-    if (sourceFilter === "gmail") combinedTotal = gmailTotal;
+    // use gmailDeduped (computed below) — but we need it before the return,
+    // so compute a quick dedup count inline for avgPerDay
+    const gmailDedupedForAvg = (() => {
+      const subjs = new Set<string>();
+      let orphans = 0;
+      filteredGmail.forEach((g) => { if (g.subject) subjs.add(g.subject); else orphans++; });
+      return subjs.size + orphans;
+    })();
+    let combinedTotal = total + gmailDedupedForAvg + manualTotal;
+    if (sourceFilter === "gmail") combinedTotal = gmailDedupedForAvg;
     else if (sourceFilter === "slack") combinedTotal = total;
     else if (sourceFilter === "manual") combinedTotal = manualTotal;
     const daySpan = cutoff
