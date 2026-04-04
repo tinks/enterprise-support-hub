@@ -1309,42 +1309,45 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                       )}
                     </PopoverContent>
                   </Popover>
-                  <Popover open={fromPopoverOpen} onOpenChange={setFromPopoverOpen}>
+                  <Popover open={datePopoverOpen} onOpenChange={(open) => {
+                    setDatePopoverOpen(open);
+                    if (!open) setDateStep("from");
+                  }}>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className={`h-9 gap-1 ${dateFrom ? "border-primary" : ""}`}>
+                      <Button variant="outline" size="sm" className={`h-9 gap-1 ${(dateFrom || dateTo) ? "border-primary" : ""}`}>
                         <CalendarIcon className="h-3 w-3" />
-                        {dateFrom ? format(dateFrom, "dd MMM") : "From"}
+                        {dateFrom && dateTo
+                          ? `${format(dateFrom, "dd MMM")} – ${format(dateTo, "dd MMM")}`
+                          : dateFrom
+                            ? `${format(dateFrom, "dd MMM")} –`
+                            : "Date"}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="end">
+                      <div className="px-3 pt-3 pb-1 text-xs text-muted-foreground font-medium">
+                        {dateStep === "from" ? "Select start date" : "Select end date"}
+                      </div>
                       <Calendar
                         mode="single"
-                        selected={dateFrom}
+                        selected={dateStep === "from" ? dateFrom : dateTo}
                         onSelect={(day) => {
-                          setDateFrom(day);
-                          setFromPopoverOpen(false);
-                          setToPopoverOpen(true);
+                          if (dateStep === "from") {
+                            setDateFrom(day);
+                            setDateTo(undefined);
+                            setDateStep("to");
+                          } else {
+                            if (day && dateFrom && day < dateFrom) {
+                              setDateTo(dateFrom);
+                              setDateFrom(day);
+                            } else {
+                              setDateTo(day);
+                            }
+                            setDatePopoverOpen(false);
+                            setDateStep("from");
+                          }
                         }}
-                        initialFocus
-                        className="p-3 pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <Popover open={toPopoverOpen} onOpenChange={setToPopoverOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm" className={`h-9 gap-1 ${dateTo ? "border-primary" : ""}`}>
-                        <CalendarIcon className="h-3 w-3" />
-                        {dateTo ? format(dateTo, "dd MMM") : "To"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="end">
-                      <Calendar
-                        mode="single"
-                        selected={dateTo}
-                        onSelect={(day) => {
-                          setDateTo(day);
-                          setToPopoverOpen(false);
-                        }}
+                        modifiers={dateFrom && dateTo ? { range: { after: dateFrom, before: dateTo } } : {}}
+                        modifiersStyles={{ range: { backgroundColor: "hsl(var(--accent))", borderRadius: 0 } }}
                         initialFocus
                         className="p-3 pointer-events-auto"
                       />
