@@ -1372,7 +1372,7 @@ const Stats = () => {
               <CardDescription>When conversations and emails arrive, bucketed by hour in CET timezone</CardDescription>
             </CardHeader>
             <CardContent>
-              {hourlyActivityData.every((b) => b.slack === 0 && b.gmail === 0) ? (
+              {hourlyActivityData.every((b) => b.slack === 0 && b.gmail === 0 && b.manual === 0) ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
               ) : (
                 <ChartContainer config={chartConfig} className="h-[280px] w-full">
@@ -1381,11 +1381,14 @@ const Stats = () => {
                     <XAxis dataKey="hour" className="text-xs" />
                     <YAxis allowDecimals={false} className="text-xs" />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    {sourceFilter !== "gmail" && (
+                    {(sourceFilter === "all" || sourceFilter === "slack") && (
                       <Bar dataKey="slack" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
                     )}
-                    {sourceFilter !== "slack" && (
+                    {(sourceFilter === "all" || sourceFilter === "gmail") && (
                       <Bar dataKey="gmail" fill="#E66FD2" radius={[4, 4, 0, 0]} />
+                    )}
+                    {(sourceFilter === "all" || sourceFilter === "manual") && (
+                      <Bar dataKey="manual" fill="#4ECDC4" radius={[4, 4, 0, 0]} />
                     )}
                   </BarChart>
                 </ChartContainer>
