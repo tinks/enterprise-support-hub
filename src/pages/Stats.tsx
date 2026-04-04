@@ -188,7 +188,10 @@ const Stats = () => {
       const matchView = view === "test" ? m.is_test : !m.is_test;
       const parsed = parseISO(m.created_at);
       let matchRange: boolean;
-      if (range === "custom") {
+      if (range === "this_month") {
+        matchRange = isAfter(parsed, startOfDay(startOfMonth(new Date()))) || parsed.getTime() === startOfDay(startOfMonth(new Date())).getTime();
+        matchRange = matchRange && (isBefore(parsed, endOfDay(endOfMonth(new Date()))) || parsed.getTime() === endOfDay(endOfMonth(new Date())).getTime());
+      } else if (range === "custom") {
         matchRange = (!customFrom || isAfter(parsed, startOfDay(customFrom))) &&
                      (!customTo || isBefore(parsed, endOfDay(customTo)));
       } else {
