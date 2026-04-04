@@ -213,7 +213,7 @@ const ManualLogTab = () => {
                         onValueChange={(v) => updateMessage(idx, "sender_name", v)}
                       >
                         <SelectTrigger className="h-8 text-sm flex-1">
-                          <SelectValue placeholder="Select admin" />
+                          <SelectValue placeholder="Select support representative" />
                         </SelectTrigger>
                         <SelectContent>
                           {ADMIN_OPTIONS.map((a) => (
