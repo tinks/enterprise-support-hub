@@ -1335,16 +1335,23 @@ const Stats = () => {
                         <stop offset="5%" stopColor="#E66FD2" stopOpacity={0.3} />
                         <stop offset="95%" stopColor="#E66FD2" stopOpacity={0} />
                       </linearGradient>
+                      <linearGradient id="gradManual" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#4ECDC4" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#4ECDC4" stopOpacity={0} />
+                      </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="label" className="text-xs" />
                     <YAxis allowDecimals={false} className="text-xs" />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    {sourceFilter !== "gmail" && (
+                    {(sourceFilter === "all" || sourceFilter === "slack") && (
                       <Area type="monotone" dataKey="slack" stroke="hsl(var(--primary))" fill="url(#gradSlack)" strokeWidth={2} />
                     )}
-                    {sourceFilter !== "slack" && (
+                    {(sourceFilter === "all" || sourceFilter === "gmail") && (
                       <Area type="monotone" dataKey="gmail" stroke="#E66FD2" fill="url(#gradGmail)" strokeWidth={2} />
+                    )}
+                    {(sourceFilter === "all" || sourceFilter === "manual") && (
+                      <Area type="monotone" dataKey="manual" stroke="#4ECDC4" fill="url(#gradManual)" strokeWidth={2} />
                     )}
                   </AreaChart>
                 </ChartContainer>
