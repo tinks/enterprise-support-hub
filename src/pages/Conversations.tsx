@@ -1358,8 +1358,8 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                       <X className="h-3 w-3" />
                     </Button>
                   )}
-                  {isCustomOrder && (
-                    <Button variant="ghost" size="sm" className="h-9 gap-1 text-xs" onClick={resetColumns}>
+                  {anyFilterActive && (
+                    <Button variant="ghost" size="sm" className="h-9 gap-1 text-xs" onClick={resetAll}>
                       <RotateCcw className="h-3 w-3" /> Reset
                     </Button>
                   )}
