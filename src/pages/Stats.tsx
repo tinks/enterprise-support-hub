@@ -349,6 +349,7 @@ const Stats = () => {
   const stats = useMemo(() => {
     const total = filtered.length;
     const gmailTotal = filteredGmail.length;
+    const manualTotal = filteredManual.length;
     const resolved = filtered.filter((m) => m.status === "resolved").length;
     const escalated = filtered.filter((m) => m.status === "escalated" || m.status === "escalated_pending").length;
     const active = filtered.filter((m) => m.status === "active" || m.status === "active_pending").length;
@@ -359,8 +360,14 @@ const Stats = () => {
     const feedbackTotal = total - cancelled;
     const resolvedPct = feedbackTotal ? Math.round((resolved / feedbackTotal) * 100) : 0;
 
+    const manualActive = filteredManual.filter((m) => m.status === "active").length;
+    const manualResolved = filteredManual.filter((m) => m.status === "resolved").length;
+
     const cutoff = getCutoffDate(range);
-    const combinedTotal = sourceFilter === "gmail" ? gmailTotal : sourceFilter === "slack" ? total : total + gmailTotal;
+    let combinedTotal = total + gmailTotal + manualTotal;
+    if (sourceFilter === "gmail") combinedTotal = gmailTotal;
+    else if (sourceFilter === "slack") combinedTotal = total;
+    else if (sourceFilter === "manual") combinedTotal = manualTotal;
     const daySpan = cutoff
       ? differenceInDays(new Date(), cutoff) || 1
       : filtered.length > 0
@@ -381,11 +388,35 @@ const Stats = () => {
         else gmailOpenOrphans++;
       }
     });
-    const gmailResolved = gmailResolvedSubjects.size + gmailResolvedOrphans;
+    const gmailResolvedCount = gmailResolvedSubjects.size + gmailResolvedOrphans;
     const gmailOpen = gmailOpenSubjects.size + gmailOpenOrphans;
 
-    return { total, gmailTotal, emailTotal: gmailUniqueEmails, resolved, escalated, active, awaiting, processing, cancelled, open, resolvedPct, avgPerDay, gmailResolved, gmailOpen };
-  }, [filtered, filteredGmail, range, sourceFilter, gmailUniqueEmails]);
+    return { total, gmailTotal, emailTotal: gmailUniqueEmails, resolved, escalated, active, awaiting, processing, cancelled, open, resolvedPct, avgPerDay, gmailResolved: gmailResolvedCount, gmailOpen, manualTotal, manualActive, manualResolved };
+  }, [filtered, filteredGmail, filteredManual, range, sourceFilter, gmailUniqueEmails]);
+
+  // Manual entries by source breakdown
+  const manualBySource = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredManual.forEach((m) => {
+      const src = m.source || "other";
+      counts[src] = (counts[src] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([source, count]) => ({ source, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [filteredManual]);
+
+  // Manual entries by owner
+  const manualByOwner = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredManual.forEach((m) => {
+      const owner = m.owner || "Unassigned";
+      counts[owner] = (counts[owner] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([owner, count]) => ({ owner, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [filteredManual]);
 
   // Daily volume line chart
   const volumeData = useMemo(() => {
