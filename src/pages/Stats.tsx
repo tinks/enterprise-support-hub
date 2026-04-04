@@ -44,7 +44,16 @@ interface GmailRow {
   cc_emails: string | null;
 }
 
-type SourceFilter = "all" | "slack" | "gmail";
+interface ManualRow {
+  status: string;
+  created_at: string;
+  is_test: boolean;
+  source: string;
+  owner: string | null;
+  classification: string | null;
+}
+
+type SourceFilter = "all" | "slack" | "gmail" | "manual";
 type TimeRange = "7d" | "30d" | "90d" | "all" | "custom";
 
 const chartConfig = {
