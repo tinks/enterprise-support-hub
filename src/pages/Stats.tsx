@@ -877,7 +877,7 @@ const Stats = () => {
         </div>
 
         {/* ── Slack section ── */}
-        {sourceFilter !== "gmail" && (
+        {(sourceFilter === "all" || sourceFilter === "slack") && (
           <div className="space-y-6">
             <div>
               <h2 className="text-lg font-semibold text-foreground">Slack</h2>
