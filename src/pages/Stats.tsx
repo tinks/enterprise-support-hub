@@ -619,7 +619,7 @@ const Stats = () => {
     });
 
     return { grid, max };
-  }, [filtered, filteredGmail, sourceFilter]);
+  }, [filtered, filteredGmail, filteredManual, sourceFilter]);
 
   const [exporting, setExporting] = useState(false);
 
