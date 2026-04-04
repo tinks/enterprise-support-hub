@@ -5,15 +5,13 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ExternalLink, Import, Loader2, Ticket } from "lucide-react";
+import { Import, Loader2, Ticket } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-interface ImportedConversation {
+interface RecentImport {
   id: string;
-  slack_channel_id: string;
-  slack_thread_ts: string;
-  slack_user_id: string;
-  original_message_text: string;
+  label: string;
+  source: "slack" | "gmail" | "manual";
   status: string;
   created_at: string;
 }
@@ -23,7 +21,7 @@ const ImportTab = () => {
   const [loading, setLoading] = useState(false);
   const [intercomUrl, setIntercomUrl] = useState("");
   const [intercomLoading, setIntercomLoading] = useState(false);
-  const [recentImports, setRecentImports] = useState<ImportedConversation[]>([]);
+  const [recentImports, setRecentImports] = useState<RecentImport[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,15 +29,44 @@ const ImportTab = () => {
   }, []);
 
   const loadRecentImports = async () => {
-    const { data } = await supabase
-      .from("conversation_mappings")
-      .select("id, slack_channel_id, slack_thread_ts, slack_user_id, original_message_text, status, created_at")
-      .eq("intercom_conversation_id", "")
-      .eq("intercom_contact_id", "")
-      .order("created_at", { ascending: false })
-      .limit(10);
+    const [slackRes, gmailRes, manualRes] = await Promise.all([
+      supabase
+        .from("conversation_mappings")
+        .select("id, original_message_text, status, created_at")
+        .order("created_at", { ascending: false })
+        .limit(5),
+      supabase
+        .from("gmail_conversations")
+        .select("id, subject, status, created_at")
+        .order("created_at", { ascending: false })
+        .limit(5),
+      supabase
+        .from("manual_conversations")
+        .select("id, subject, status, created_at")
+        .order("created_at", { ascending: false })
+        .limit(5),
+    ]);
 
-    if (data) setRecentImports(data);
+    const items: RecentImport[] = [];
+
+    if (slackRes.data) {
+      for (const r of slackRes.data) {
+        items.push({ id: r.id, label: r.original_message_text || "(no message)", source: "slack", status: r.status, created_at: r.created_at });
+      }
+    }
+    if (gmailRes.data) {
+      for (const r of gmailRes.data) {
+        items.push({ id: r.id, label: r.subject || "(no subject)", source: "gmail", status: r.status, created_at: r.created_at });
+      }
+    }
+    if (manualRes.data) {
+      for (const r of manualRes.data) {
+        items.push({ id: r.id, label: r.subject || "(no subject)", source: "manual", status: r.status, created_at: r.created_at });
+      }
+    }
+
+    items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    setRecentImports(items.slice(0, 5));
   };
 
   const handleImport = async () => {
@@ -156,6 +183,7 @@ const ImportTab = () => {
         description: data.subject || "Conversation saved",
       });
       setIntercomUrl("");
+      loadRecentImports();
       navigate(`/conversations/${data.id}?source=manual`);
     } catch (err) {
       toast.error("Failed to import Intercom ticket");
@@ -164,9 +192,18 @@ const ImportTab = () => {
     }
   };
 
-  const buildSlackLink = (channelId: string, threadTs: string) => {
-    const tsNoDecimal = threadTs.replace(".", "");
-    return `https://slack.com/archives/${channelId}/p${tsNoDecimal}`;
+  const navigateToConversation = (item: RecentImport) => {
+    const params = item.source !== "slack" ? `?source=${item.source}` : "";
+    navigate(`/conversations/${item.id}${params}`);
+  };
+
+  const sourceLabel = (source: string) => {
+    switch (source) {
+      case "slack": return "Slack";
+      case "gmail": return "Gmail";
+      case "manual": return "Manual";
+      default: return source;
+    }
   };
 
   return (
@@ -232,37 +269,30 @@ const ImportTab = () => {
           <CardHeader>
             <CardTitle className="text-lg">Recently imported</CardTitle>
             <CardDescription>
-              Manually imported Slack threads (no Intercom link)
+              Last 5 conversations across all sources
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {recentImports.map((conv) => (
+              {recentImports.map((item) => (
                 <div
-                  key={conv.id}
+                  key={item.id}
                   className="flex items-center justify-between rounded-md border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
-                  onClick={() => navigate(`/conversations/${conv.id}`)}
+                  onClick={() => navigateToConversation(item)}
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm truncate">
-                      {conv.original_message_text || "(no message)"}
-                    </p>
+                    <p className="text-sm truncate">{item.label}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {new Date(conv.created_at).toLocaleString()}
+                      {new Date(item.created_at).toLocaleString()}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 ml-3">
-                    <Badge variant="outline" className="text-xs">
-                      {conv.status}
+                    <Badge variant="secondary" className="text-xs">
+                      {sourceLabel(item.source)}
                     </Badge>
-                    <a
-                      href={buildSlackLink(conv.slack_channel_id, conv.slack_thread_ts)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-                    </a>
+                    <Badge variant="outline" className="text-xs">
+                      {item.status}
+                    </Badge>
                   </div>
                 </div>
               ))}
