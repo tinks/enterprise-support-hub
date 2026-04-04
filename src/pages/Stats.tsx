@@ -316,12 +316,20 @@ const Stats = () => {
     return byDay;
   }, [filteredGmail]);
 
+  const manualVolumeData = useMemo(() => {
+    const byDay: Record<string, number> = {};
+    filteredManual.forEach((m) => {
+      const day = format(parseISO(m.created_at), "yyyy-MM-dd");
+      byDay[day] = (byDay[day] || 0) + 1;
+    });
+    return byDay;
+  }, [filteredManual]);
+
   const mergedVolumeData = useMemo(() => {
     const allDays = new Set<string>();
-    // Collect Slack days from volumeData
     filtered.forEach((m) => allDays.add(format(parseISO(m.created_at), "yyyy-MM-dd")));
-    // Collect Gmail days
     filteredGmail.forEach((g) => allDays.add(format(parseISO(g.received_at || g.created_at), "yyyy-MM-dd")));
+    filteredManual.forEach((m) => allDays.add(format(parseISO(m.created_at), "yyyy-MM-dd")));
     
     const slackByDay: Record<string, number> = {};
     filtered.forEach((m) => {
@@ -334,8 +342,9 @@ const Stats = () => {
       label: format(parseISO(day), "MMM dd"),
       slack: slackByDay[day] || 0,
       gmail: gmailVolumeData[day] || 0,
+      manual: manualVolumeData[day] || 0,
     }));
-  }, [filtered, filteredGmail, gmailVolumeData]);
+  }, [filtered, filteredGmail, filteredManual, gmailVolumeData, manualVolumeData]);
 
   const stats = useMemo(() => {
     const total = filtered.length;
