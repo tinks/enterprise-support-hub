@@ -224,7 +224,23 @@ const Stats = () => {
     });
   }, [gmailData, view, range, customFrom, customTo]);
 
-  const gmailUniqueEmails = useMemo(() => {
+  const filteredManual = useMemo(() => {
+    const cutoff = getCutoffDate(range);
+    return manualData.filter((m) => {
+      const matchView = view === "test" ? m.is_test : !m.is_test;
+      const parsed = parseISO(m.created_at);
+      let matchRange: boolean;
+      if (range === "custom") {
+        matchRange = (!customFrom || isAfter(parsed, startOfDay(customFrom))) &&
+                     (!customTo || isBefore(parsed, endOfDay(customTo)));
+      } else {
+        matchRange = cutoff ? isAfter(parsed, cutoff) : true;
+      }
+      return matchView && matchRange;
+    });
+  }, [manualData, view, range, customFrom, customTo]);
+
+
     const subjects = new Set<string>();
     let nullCount = 0;
     filteredGmail.forEach((g) => {
