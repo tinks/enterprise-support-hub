@@ -168,8 +168,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
    const [dateStep, setDateStep] = useState<"from" | "to">("from");
   const [creatingTicket, setCreatingTicket] = useState<Set<string>>(new Set());
   const [expandedGmailGroups, setExpandedGmailGroups] = useState<Set<string>>(new Set());
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const toggleIdExpand = (id: string) => { setExpandedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; }); };
+  const copyId = (id: string, e: React.MouseEvent) => { e.stopPropagation(); navigator.clipboard.writeText(id); toast.success("ID copied"); };
   const [editingIntercomId, setEditingIntercomId] = useState<string | null>(null);
   const [editingIntercomValue, setEditingIntercomValue] = useState("");
 
@@ -787,7 +786,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 
   const renderSlackCell = (col: ColKey, m: ConversationMapping): ReactNode => {
     switch (col) {
-      case "id": return <span className="text-xs text-muted-foreground font-mono cursor-pointer" onClick={(e) => { e.stopPropagation(); toggleIdExpand(m.id); }}>{expandedIds.has(m.id) ? m.id.slice(0, 8) : m.id.slice(0, 3)}</span>;
+      case "id": return <span className="text-xs text-muted-foreground font-mono cursor-pointer hover:text-foreground transition-colors" title="Click to copy" onClick={(e) => copyId(m.id, e)}>{m.id.slice(0, 3)}</span>;
       case "source": return m.intercom_conversation_id
         ? <Badge variant="outline" className="text-xs">Slack bot</Badge>
         : <Badge variant="secondary" className="text-xs">Slack import</Badge>;
@@ -926,7 +925,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
               {expandedGmailGroups.has(groupKey) ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
             </button>
           )}
-          <span className="cursor-pointer" onClick={(e) => { e.stopPropagation(); toggleIdExpand(g.id); }}>{expandedIds.has(g.id) ? g.id.slice(0, 8) : g.id.slice(0, 3)}</span>
+          <span className="cursor-pointer hover:text-foreground transition-colors" title="Click to copy" onClick={(e) => copyId(g.id, e)}>{g.id.slice(0, 3)}</span>
           {groupCount && groupCount > 1 && (
             <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">{groupCount}</Badge>
           )}
@@ -1051,7 +1050,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 
   const renderManualCell = (col: ColKey, mc: ManualConversation): ReactNode => {
     switch (col) {
-      case "id": return <span className="text-xs text-muted-foreground font-mono cursor-pointer" onClick={(e) => { e.stopPropagation(); toggleIdExpand(mc.id); }}>{expandedIds.has(mc.id) ? mc.id.slice(0, 8) : mc.id.slice(0, 3)}</span>;
+      case "id": return <span className="text-xs text-muted-foreground font-mono cursor-pointer hover:text-foreground transition-colors" title="Click to copy" onClick={(e) => copyId(mc.id, e)}>{mc.id.slice(0, 3)}</span>;
       case "source": return mc.source === "intercom"
         ? <Badge variant="default" className="text-xs">Intercom import</Badge>
         : <Badge variant="outline" className="text-xs capitalize">{mc.source}</Badge>;
