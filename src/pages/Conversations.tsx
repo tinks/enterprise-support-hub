@@ -317,12 +317,18 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const hiddenDiffersFromDefault = hiddenStatuses.size !== DEFAULT_HIDDEN.size || [...hiddenStatuses].some(s => !DEFAULT_HIDDEN.has(s));
 
   // Column order state
-  const savedColOrder = localStorage.getItem(COLUMN_STORAGE_KEY);
+  const savedVersion = localStorage.getItem(COLUMN_ORDER_VERSION_KEY);
+  const isCurrentVersion = savedVersion === String(COLUMN_ORDER_VERSION);
+  const savedColOrder = isCurrentVersion ? localStorage.getItem(COLUMN_STORAGE_KEY) : null;
   const [columnOrder, setColumnOrder] = useState<ColKey[]>(() => {
+    if (!isCurrentVersion) {
+      localStorage.setItem(COLUMN_ORDER_VERSION_KEY, String(COLUMN_ORDER_VERSION));
+      localStorage.removeItem(COLUMN_STORAGE_KEY);
+      return [...ALL_COLUMNS];
+    }
     if (savedColOrder) {
       try {
         const parsed = JSON.parse(savedColOrder) as string[];
-        // Validate: only keep known keys, append any missing ones
         const valid = parsed.filter((k): k is ColKey => (ALL_COLUMNS as readonly string[]).includes(k));
         const missing = ALL_COLUMNS.filter((k) => !valid.includes(k));
         return [...valid, ...missing];
