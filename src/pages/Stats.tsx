@@ -898,7 +898,7 @@ const Stats = () => {
             <Card>
               <CardContent className="flex flex-col items-center justify-center p-5">
                 <MessageSquare className="mb-2 h-5 w-5 text-primary" />
-                <p className="text-3xl font-bold text-foreground">{stats.total + stats.gmailTotal + stats.manualTotal}</p>
+                <p className="text-3xl font-bold text-foreground">{stats.total + stats.gmailDeduped + stats.manualTotal}</p>
                 <p className="text-xs text-muted-foreground">Total incoming cases</p>
               </CardContent>
             </Card>
