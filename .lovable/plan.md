@@ -1,20 +1,22 @@
 
 
-## Auto-advance from "From" to "To" date picker
+## Fix the disappearing Reset button on the Inbox page
 
-### What changes
-When the user selects a date in the "From" popover, it will automatically close and open the "To" popover, so they can quickly set a date range without an extra click.
+### Problem
+The "Reset" button only appears when columns are reordered (`isCustomOrder`). It does not clear date/source/owner/status filters, and it vanishes once columns are reset — even if date filters are still active.
 
-### Implementation detail
+### Solution
+Replace the current conditional Reset button with one that:
+1. Is visible whenever **any** filter is active (source ≠ "all", owner ≠ "all", hiddenStatuses > 0, dateFrom set, dateTo set, or isCustomOrder)
+2. Clears **everything** in one click: source → "all", owner → "all", hiddenStatuses → empty, dateFrom → undefined, dateTo → undefined, columnOrder → default
+
+### Implementation
 
 **`src/pages/Conversations.tsx`**
 
-1. Add two controlled `open` states: `fromPopoverOpen` and `toPopoverOpen` (using `useState<boolean>`)
-2. Convert both `<Popover>` components from uncontrolled to controlled (`open` + `onOpenChange` props)
-3. In the "From" calendar's `onSelect` handler, after setting `dateFrom`:
-   - Close the From popover (`setFromPopoverOpen(false)`)
-   - Open the To popover (`setToPopoverOpen(true)`)
-4. The "To" popover uses its own controlled state normally
+- Compute an `anyFilterActive` boolean from all filter states + `isCustomOrder`
+- Replace the `{isCustomOrder && (<Button>Reset</Button>)}` block with `{anyFilterActive && (<Button onClick={resetAll}>Reset</Button>)}`
+- `resetAll` function clears all filter state and resets column order
 
 ### Files to edit
 - `src/pages/Conversations.tsx`
