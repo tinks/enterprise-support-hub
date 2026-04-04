@@ -1,22 +1,16 @@
 
 
-## Fix the disappearing Reset button on the Inbox page
+## Add "Select all" options to Source and Owner dropdowns
 
-### Problem
-The "Reset" button only appears when columns are reordered (`isCustomOrder`). It does not clear date/source/owner/status filters, and it vanishes once columns are reset — even if date filters are still active.
-
-### Solution
-Replace the current conditional Reset button with one that:
-1. Is visible whenever **any** filter is active (source ≠ "all", owner ≠ "all", hiddenStatuses > 0, dateFrom set, dateTo set, or isCustomOrder)
-2. Clears **everything** in one click: source → "all", owner → "all", hiddenStatuses → empty, dateFrom → undefined, dateTo → undefined, columnOrder → default
+### What changes
+The "all" option in both the Source and Owner filter dropdowns currently shows just "Source" / "Owner". Rename these to "Select all" so users clearly understand it resets the filter to show everything.
 
 ### Implementation
 
 **`src/pages/Conversations.tsx`**
-
-- Compute an `anyFilterActive` boolean from all filter states + `isCustomOrder`
-- Replace the `{isCustomOrder && (<Button>Reset</Button>)}` block with `{anyFilterActive && (<Button onClick={resetAll}>Reset</Button>)}`
-- `resetAll` function clears all filter state and resets column order
+- Change `<SelectItem value="all">Source</SelectItem>` to `<SelectItem value="all">Select all</SelectItem>`
+- Change `<SelectItem value="all">Owner</SelectItem>` to `<SelectItem value="all">Select all</SelectItem>`
+- Update the `<SelectValue placeholder="...">` for each to use "Source" and "Owner" respectively, so the trigger still shows a meaningful label when "all" is selected
 
 ### Files to edit
 - `src/pages/Conversations.tsx`
