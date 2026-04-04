@@ -199,12 +199,12 @@ const ManualLogTab = () => {
                       value={msg.role}
                       onValueChange={(v) => updateMessage(idx, "role", v)}
                     >
-                      <SelectTrigger className="w-[100px] h-8 text-xs">
+                      <SelectTrigger className="w-[180px] h-8 text-xs">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="user">User</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="admin">Support representative</SelectItem>
                       </SelectContent>
                     </Select>
                     {msg.role === "admin" ? (
@@ -213,7 +213,7 @@ const ManualLogTab = () => {
                         onValueChange={(v) => updateMessage(idx, "sender_name", v)}
                       >
                         <SelectTrigger className="h-8 text-sm flex-1">
-                          <SelectValue placeholder="Select admin" />
+                          <SelectValue placeholder="Select support representative" />
                         </SelectTrigger>
                         <SelectContent>
                           {ADMIN_OPTIONS.map((a) => (
