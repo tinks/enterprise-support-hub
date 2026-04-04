@@ -168,6 +168,8 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
    const [dateStep, setDateStep] = useState<"from" | "to">("from");
   const [creatingTicket, setCreatingTicket] = useState<Set<string>>(new Set());
   const [expandedGmailGroups, setExpandedGmailGroups] = useState<Set<string>>(new Set());
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const toggleIdExpand = (id: string) => { setExpandedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; }); };
   const [editingIntercomId, setEditingIntercomId] = useState<string | null>(null);
   const [editingIntercomValue, setEditingIntercomValue] = useState("");
 
