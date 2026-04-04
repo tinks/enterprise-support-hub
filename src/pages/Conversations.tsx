@@ -1438,7 +1438,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                           onDragEnd={handleDragEnd}
                           className={`cursor-grab select-none transition-colors ${
                             dragOverCol === col ? "border-l-2 border-l-primary bg-primary/5" : ""
-                          }`}
+                          } ${col === "message" ? "min-w-[600px]" : ""} ${col === "status" || col === "owner" || col === "product_area" ? "w-[120px]" : ""}`}
                         >
                           <span className="inline-flex items-center gap-1">
                             <GripVertical className="h-3 w-3 text-muted-foreground/50" />
