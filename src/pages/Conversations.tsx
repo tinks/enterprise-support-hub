@@ -1051,7 +1051,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 
   const renderManualCell = (col: ColKey, mc: ManualConversation): ReactNode => {
     switch (col) {
-      case "id": return <span className="text-xs text-muted-foreground font-mono">{mc.id.slice(0, 3)}</span>;
+      case "id": return <span className="text-xs text-muted-foreground font-mono cursor-pointer" onClick={(e) => { e.stopPropagation(); toggleIdExpand(mc.id); }}>{expandedIds.has(mc.id) ? mc.id.slice(0, 8) : mc.id.slice(0, 3)}</span>;
       case "source": return mc.source === "intercom"
         ? <Badge variant="default" className="text-xs">Intercom import</Badge>
         : <Badge variant="outline" className="text-xs capitalize">{mc.source}</Badge>;
