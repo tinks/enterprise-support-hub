@@ -378,16 +378,33 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     });
   };
 
+  const getGmailThreadSiblingIds = (id: string): string[] => {
+    const targetRow = gmailRows.find(r => r.id === id);
+    if (!targetRow) return [id];
+    const key = targetRow.gmail_thread_id || normalizeSubject(targetRow.subject) || targetRow.id;
+    const siblings = gmailRows.filter(r => (r.gmail_thread_id || normalizeSubject(r.subject) || r.id) === key).map(r => r.id);
+    return siblings.length > 0 ? siblings : [id];
+  };
+
   const updateStatus = async (id: string, newStatus: string, source: "slack" | "gmail" | "manual") => {
     const table = source === "slack" ? "conversation_mappings" : source === "gmail" ? "gmail_conversations" : "manual_conversations";
-    const setState = source === "slack" ? setMappings : source === "gmail" ? setGmailRows : setManualRows;
     const resolvedAt = newStatus === "resolved" ? new Date().toISOString() : null;
+    const idsToUpdate = source === "gmail" ? getGmailThreadSiblingIds(id) : [id];
+    const idSet = new Set(idsToUpdate);
 
-    setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, status: newStatus, ...(resolvedAt !== undefined ? { resolved_at: resolvedAt } : {}) } : m));
-    if (searchResults) {
-      setSearchResults((prev: any) => prev ? prev.map((m: any) => m.id === id ? { ...m, status: newStatus } : m) : prev);
+    if (source === "slack") {
+      setMappings((prev) => prev.map((m) => m.id === id ? { ...m, status: newStatus, ...(resolvedAt !== undefined ? { resolved_at: resolvedAt } : {}) } : m));
+    } else if (source === "gmail") {
+      setGmailRows((prev) => prev.map((m) => idSet.has(m.id) ? { ...m, status: newStatus, ...(resolvedAt !== undefined ? { resolved_at: resolvedAt } : {}) } : m));
+    } else {
+      setManualRows((prev) => prev.map((m) => m.id === id ? { ...m, status: newStatus, ...(resolvedAt !== undefined ? { resolved_at: resolvedAt } : {}) } : m));
     }
-    const { error } = await supabase.from(table).update({ status: newStatus, resolved_at: resolvedAt } as any).eq("id", id);
+    if (searchResults) {
+      setSearchResults((prev: any) => prev ? prev.map((m: any) => idSet.has(m.id) ? { ...m, status: newStatus } : m) : prev);
+    }
+    const { error } = source === "gmail" && idsToUpdate.length > 1
+      ? await supabase.from(table).update({ status: newStatus, resolved_at: resolvedAt } as any).in("id", idsToUpdate)
+      : await supabase.from(table).update({ status: newStatus, resolved_at: resolvedAt } as any).eq("id", id);
     if (error) {
       toast.error("Failed to update status");
       loadData();
@@ -440,27 +457,36 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const updateProductArea = async (id: string, value: string, source: "slack" | "gmail") => {
     const newValue = value === "clear" ? null : value;
     const table = source === "slack" ? "conversation_mappings" : "gmail_conversations";
-    const setState = source === "slack" ? setMappings : setGmailRows;
+    const idsToUpdate = source === "gmail" ? getGmailThreadSiblingIds(id) : [id];
+    const idSet = new Set(idsToUpdate);
 
-    setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, product_area: newValue } : m));
-    const { error } = await supabase.from(table).update({ product_area: newValue } as any).eq("id", id);
-    if (error) {
-      setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, product_area: value === "clear" ? value : null } : m));
-      toast.error("Failed to update product area");
+    if (source === "slack") {
+      setMappings((prev) => prev.map((m) => m.id === id ? { ...m, product_area: newValue } : m));
+    } else {
+      setGmailRows((prev) => prev.map((m) => idSet.has(m.id) ? { ...m, product_area: newValue } : m));
     }
+    const { error } = source === "gmail" && idsToUpdate.length > 1
+      ? await supabase.from(table).update({ product_area: newValue } as any).in("id", idsToUpdate)
+      : await supabase.from(table).update({ product_area: newValue } as any).eq("id", id);
+    if (error) toast.error("Failed to update product area");
   };
 
   const updateOwner = async (id: string, value: string, source: "slack" | "gmail" | "manual") => {
     const newValue = value === "clear" ? null : value;
     const table = source === "slack" ? "conversation_mappings" : source === "gmail" ? "gmail_conversations" : "manual_conversations";
+    const idsToUpdate = source === "gmail" ? getGmailThreadSiblingIds(id) : [id];
+    const idSet = new Set(idsToUpdate);
+
     if (source === "slack") {
       setMappings((prev) => prev.map((m) => m.id === id ? { ...m, owner: newValue } : m));
     } else if (source === "gmail") {
-      setGmailRows((prev) => prev.map((g) => g.id === id ? { ...g, owner: newValue } : g));
+      setGmailRows((prev) => prev.map((g) => idSet.has(g.id) ? { ...g, owner: newValue } : g));
     } else {
       setManualRows((prev) => prev.map((mc) => mc.id === id ? { ...mc, owner: newValue } : mc));
     }
-    const { error } = await supabase.from(table).update({ owner: newValue } as any).eq("id", id);
+    const { error } = source === "gmail" && idsToUpdate.length > 1
+      ? await supabase.from(table).update({ owner: newValue } as any).in("id", idsToUpdate)
+      : await supabase.from(table).update({ owner: newValue } as any).eq("id", id);
     if (error) toast.error("Failed to update owner");
   };
 
@@ -481,14 +507,19 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const updateClassification = async (id: string, value: string, source: "slack" | "gmail" | "manual") => {
     const newValue = value === "clear" ? null : value;
     const table = source === "slack" ? "conversation_mappings" : source === "gmail" ? "gmail_conversations" : "manual_conversations";
+    const idsToUpdate = source === "gmail" ? getGmailThreadSiblingIds(id) : [id];
+    const idSet = new Set(idsToUpdate);
+
     if (source === "slack") {
       setMappings((prev) => prev.map((m) => m.id === id ? { ...m, classification: newValue } : m));
     } else if (source === "gmail") {
-      setGmailRows((prev) => prev.map((g) => g.id === id ? { ...g, classification: newValue } : g));
+      setGmailRows((prev) => prev.map((g) => idSet.has(g.id) ? { ...g, classification: newValue } : g));
     } else {
       setManualRows((prev) => prev.map((mc) => mc.id === id ? { ...mc, classification: newValue } : mc));
     }
-    const { error } = await supabase.from(table).update({ classification: newValue } as any).eq("id", id);
+    const { error } = source === "gmail" && idsToUpdate.length > 1
+      ? await supabase.from(table).update({ classification: newValue } as any).in("id", idsToUpdate)
+      : await supabase.from(table).update({ classification: newValue } as any).eq("id", id);
     if (error) toast.error("Failed to update classification");
   };
 
