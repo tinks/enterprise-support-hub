@@ -1036,7 +1036,7 @@ const Stats = () => {
                         : <TrendingUp className="h-4 w-4 text-destructive" />
                     )}
                   </CardTitle>
-                  <CardDescription>7-day rolling escalation % of completed conversations</CardDescription>
+                  <CardDescription>Daily escalation % of completed conversations</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {escalationRateData.length === 0 ? (
