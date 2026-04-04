@@ -99,7 +99,7 @@ const Stats = () => {
   const [manualData, setManualData] = useState<ManualRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"real" | "test">("real");
-  const [range, setRange] = useState<TimeRange>("30d");
+  const [range, setRange] = useState<TimeRange>("this_month");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
