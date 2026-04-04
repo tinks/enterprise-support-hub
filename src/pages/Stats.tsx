@@ -595,7 +595,16 @@ const Stats = () => {
       return parseInt(d.toLocaleString("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false }));
     };
     filtered.forEach((m) => { buckets[getCETHour(m.created_at)].slack++; });
-    filteredGmail.forEach((g) => { buckets[getCETHour(g.received_at || g.created_at)].gmail++; });
+    const gmailSeenPerHour: Record<number, Set<string>> = {};
+    filteredGmail.forEach((g) => {
+      const h = getCETHour(g.received_at || g.created_at);
+      if (!gmailSeenPerHour[h]) gmailSeenPerHour[h] = new Set();
+      if (g.subject) {
+        if (gmailSeenPerHour[h].has(g.subject)) return;
+        gmailSeenPerHour[h].add(g.subject);
+      }
+      buckets[h].gmail++;
+    });
     filteredManual.forEach((m) => { buckets[getCETHour(m.created_at)].manual++; });
     return buckets;
   }, [filtered, filteredGmail, filteredManual]);
