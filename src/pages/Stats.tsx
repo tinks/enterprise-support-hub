@@ -568,6 +568,7 @@ const Stats = () => {
       hour: `${String(i).padStart(2, "0")}:00`,
       slack: 0,
       gmail: 0,
+      manual: 0,
     }));
     const getCETHour = (dateStr: string) => {
       const d = new Date(dateStr);
@@ -575,8 +576,9 @@ const Stats = () => {
     };
     filtered.forEach((m) => { buckets[getCETHour(m.created_at)].slack++; });
     filteredGmail.forEach((g) => { buckets[getCETHour(g.received_at || g.created_at)].gmail++; });
+    filteredManual.forEach((m) => { buckets[getCETHour(m.created_at)].manual++; });
     return buckets;
-  }, [filtered, filteredGmail]);
+  }, [filtered, filteredGmail, filteredManual]);
 
   const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
