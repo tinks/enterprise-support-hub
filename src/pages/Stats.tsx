@@ -95,6 +95,7 @@ const Stats = () => {
   const navigate = useNavigate();
   const [data, setData] = useState<Mapping[]>([]);
   const [gmailData, setGmailData] = useState<GmailRow[]>([]);
+  const [manualData, setManualData] = useState<ManualRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"real" | "test">("real");
   const [range, setRange] = useState<TimeRange>("30d");
