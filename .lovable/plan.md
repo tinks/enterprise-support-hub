@@ -1,30 +1,23 @@
 
 
-## Fix Combined activity to use deduplicated Gmail thread counts
+## Merge Combined activity into Overview section
 
-### Problem
-Three places in the Combined activity section count raw Gmail rows instead of deduplicated threads:
-1. **`gmailVolumeData`** (line 310-317) — counts every email row per day, inflating the stacked volume chart
-2. **`hourlyActivityData`** (line 572-587) — counts every email row per hour bucket
-3. **`heatmapData`** (line 591-628) — counts every email row per day×hour cell
-4. **`avgPerDay`** (line 368-377) — uses `gmailTotal` (raw count) instead of `gmailDeduped`
-
-### Approach
-Deduplicate Gmail by counting only one row per unique `subject` (matching the existing KPI logic). For each Gmail grouping, track which subjects have already been counted and skip duplicates.
+### What changes
+Move all content from the "Combined activity" section (lines 1377-1522) into the existing "Overview" section (lines 935-957), placing it after the two existing KPI cards. Then delete the now-empty "Combined activity" section. The title stays "Overview".
 
 ### Implementation
 
 **`src/pages/Stats.tsx`**
 
-1. **`gmailVolumeData`** (~line 310): Track seen subjects per day. Only increment the count for the first row of each subject on that day.
+1. **Expand the Overview section** (after the closing `</div>` of the KPI grid at line 956): Insert the following blocks currently in Combined activity:
+   - Avg/day KPI card (add to the existing grid as a 3rd card)
+   - Conversation volume area chart
+   - Activity by hour of day bar chart
+   - Activity heatmap
 
-2. **`hourlyActivityData`** (~line 572): Track seen subjects per hour bucket. Only count one row per subject per hour.
+2. **Delete the Combined activity section** (lines 1377-1522) — heading, separator, and all four cards/charts.
 
-3. **`heatmapData`** (~line 591): Track seen subjects per day×hour cell. Only count one row per subject per cell.
-
-4. **`avgPerDay`** (~line 368): Replace `gmailTotal` with `gmailDeduped` in the `combinedTotal` calculation so the average is consistent.
-
-5. **`mergedVolumeData`** (~line 328): Already uses `gmailVolumeData` — will automatically reflect the fix from step 1.
+3. No data/logic changes needed — same variables (`mergedVolumeData`, `hourlyActivityData`, `heatmapData`, `stats.avgPerDay`) are used.
 
 ### Files to edit
 - `src/pages/Stats.tsx`
