@@ -5,7 +5,7 @@ import { Settings, BarChart3, GitBranch, MessageSquare, BookOpen, Import, Users 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const navItems = [
-  { to: "/", icon: BarChart3, label: "Stats", end: true },
+  { to: "/", icon: BarChart3, label: "Analytics", end: true },
   { to: "/conversations", icon: MessageSquare, label: "Inbox" },
   { to: "/import", icon: Import, label: "Import" },
   { to: "/settings", icon: Settings, label: "Settings" },
