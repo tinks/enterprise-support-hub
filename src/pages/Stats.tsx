@@ -393,11 +393,13 @@ const Stats = () => {
     if (sourceFilter === "gmail") combinedTotal = gmailDedupedForAvg;
     else if (sourceFilter === "slack") combinedTotal = total;
     else if (sourceFilter === "manual") combinedTotal = manualTotal;
-    const daySpan = cutoff
-      ? differenceInDays(new Date(), cutoff) || 1
-      : filtered.length > 0
-        ? differenceInDays(new Date(), parseISO(filtered[0].created_at)) || 1
-        : 1;
+    const daySpan = range === "this_month"
+      ? differenceInDays(new Date(), startOfMonth(new Date())) || 1
+      : cutoff
+        ? differenceInDays(new Date(), cutoff) || 1
+        : filtered.length > 0
+          ? differenceInDays(new Date(), parseISO(filtered[0].created_at)) || 1
+          : 1;
     const avgPerDay = +(combinedTotal / daySpan).toFixed(1);
 
     const gmailAllSubjects = new Set<string>();
