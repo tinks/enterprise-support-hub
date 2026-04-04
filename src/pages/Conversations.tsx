@@ -766,7 +766,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 
   // Column definitions
   const columnHeaders: Record<ColKey, string> = {
-    id: "#",
+    id: "ID",
     source: "Source",
     sent_by: "Sent by",
     message: "Message / Subject",
