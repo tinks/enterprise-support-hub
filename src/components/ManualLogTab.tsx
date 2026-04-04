@@ -204,7 +204,7 @@ const ManualLogTab = () => {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="user">User</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="admin">Support representative</SelectItem>
                       </SelectContent>
                     </Select>
                     {msg.role === "admin" ? (
