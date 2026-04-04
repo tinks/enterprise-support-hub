@@ -925,7 +925,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
               {expandedGmailGroups.has(groupKey) ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
             </button>
           )}
-          <span className="cursor-pointer" onClick={(e) => { e.stopPropagation(); toggleIdExpand(g.id); }}>{expandedIds.has(g.id) ? g.id.slice(0, 8) : g.id.slice(0, 3)}</span>
+          <span className="cursor-pointer hover:text-foreground transition-colors" title="Click to copy" onClick={(e) => copyId(g.id, e)}>{g.id.slice(0, 3)}</span>
           {groupCount && groupCount > 1 && (
             <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">{groupCount}</Badge>
           )}
