@@ -373,10 +373,8 @@ const Stats = () => {
     });
   }, [volumeData]);
 
-  // Escalation rate over time (rolling 7-day window) — computed from raw filtered data
+  // Escalation rate over time (daily) — computed from raw filtered data
   const escalationRateData = useMemo(() => {
-    if (volumeData.length < 2) return [];
-    // Build per-day escalated counts from filtered data
     const escalatedByDay: Record<string, number> = {};
     filtered.forEach((m) => {
       if (m.status === "escalated" || m.status === "escalated_pending") {
@@ -384,21 +382,16 @@ const Stats = () => {
         escalatedByDay[day] = (escalatedByDay[day] || 0) + 1;
       }
     });
-    const windowSize = Math.min(7, volumeData.length);
-    const result: { label: string; rate: number }[] = [];
-    for (let i = windowSize - 1; i < volumeData.length; i++) {
-      let resolved = 0, escalated = 0;
-      for (let j = i - windowSize + 1; j <= i; j++) {
-        resolved += volumeData[j].resolved;
-        escalated += escalatedByDay[volumeData[j].date] || 0;
-      }
-      const total = resolved + escalated;
-      result.push({
-        label: volumeData[i].label,
-        rate: total > 0 ? Math.round((escalated / total) * 100) : 0,
+    return volumeData
+      .filter((d) => d.resolved > 0 || (escalatedByDay[d.date] || 0) > 0)
+      .map((d) => {
+        const escalated = escalatedByDay[d.date] || 0;
+        const total = d.resolved + escalated;
+        return {
+          label: d.label,
+          rate: total > 0 ? Math.round((escalated / total) * 100) : 0,
+        };
       });
-    }
-    return result;
   }, [volumeData, filtered]);
 
   // Daily outcomes bar chart
@@ -1043,7 +1036,7 @@ const Stats = () => {
                         : <TrendingUp className="h-4 w-4 text-destructive" />
                     )}
                   </CardTitle>
-                  <CardDescription>7-day rolling escalation % of completed conversations</CardDescription>
+                  <CardDescription>Daily escalation % of completed conversations</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {escalationRateData.length === 0 ? (
