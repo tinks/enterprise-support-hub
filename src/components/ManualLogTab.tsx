@@ -139,7 +139,7 @@ const ManualLogTab = () => {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Log conversation</CardTitle>
+          <CardTitle className="text-base">Log conversation manually</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Header fields */}
