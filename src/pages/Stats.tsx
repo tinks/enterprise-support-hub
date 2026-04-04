@@ -54,7 +54,7 @@ interface ManualRow {
 }
 
 type SourceFilter = "all" | "slack" | "gmail" | "manual";
-type TimeRange = "7d" | "30d" | "90d" | "all" | "custom";
+type TimeRange = "this_month" | "7d" | "30d" | "90d" | "all" | "custom";
 
 const chartConfig = {
   resolved: { label: "Resolved", color: "#9B87F5" },
