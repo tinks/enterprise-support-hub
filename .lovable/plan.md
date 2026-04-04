@@ -1,41 +1,39 @@
 
 
-## Show daily median instead of 7-day rolling median on resolution time trend
+## Show daily escalation rate instead of 7-day rolling window
 
 ### What changes
-Replace the 7-day rolling window median calculation with a simple per-day median, and lower the minimum threshold from 2 to 1 so every day with at least one resolved conversation appears.
+Replace the 7-day rolling window escalation rate calculation with a simple per-day escalation percentage, matching the approach used for the resolution time trend.
 
 ### Implementation
 
-**`src/pages/Stats.tsx`** (~lines 479-506)
+**`src/pages/Stats.tsx`**
 
-Replace the `resolutionTrend` useMemo body:
+1. Replace the `escalationRateData` useMemo (~lines 376-402) with daily logic:
 
 ```tsx
-const resolutionTrend = useMemo(() => {
-  const resolved = filtered
-    .filter((m) => m.status === "resolved" && m.resolved_at)
-    .map((m) => ({
-      day: format(parseISO(m.created_at), "yyyy-MM-dd"),
-      mins: differenceInMinutes(parseISO(m.resolved_at!), parseISO(m.created_at)),
-    }))
-    .filter((r) => r.mins >= 0);
-  if (resolved.length === 0) return [];
-  const byDay: Record<string, number[]> = {};
-  for (const r of resolved) {
-    if (!byDay[r.day]) byDay[r.day] = [];
-    byDay[r.day].push(r.mins);
-  }
-  const days = Object.keys(byDay).sort();
-  return days.map((day) => {
-    const vals = byDay[day].sort((a, b) => a - b);
-    const median = vals[Math.floor(vals.length / 2)];
-    return { label: format(parseISO(day), "MMM dd"), resolution: Math.round(median) };
+const escalationRateData = useMemo(() => {
+  const escalatedByDay: Record<string, number> = {};
+  filtered.forEach((m) => {
+    if (m.status === "escalated" || m.status === "escalated_pending") {
+      const day = format(parseISO(m.created_at), "yyyy-MM-dd");
+      escalatedByDay[day] = (escalatedByDay[day] || 0) + 1;
+    }
   });
-}, [filtered]);
+  return volumeData
+    .filter((d) => d.resolved > 0 || (escalatedByDay[d.date] || 0) > 0)
+    .map((d) => {
+      const escalated = escalatedByDay[d.date] || 0;
+      const total = d.resolved + escalated;
+      return {
+        label: d.label,
+        rate: total > 0 ? Math.round((escalated / total) * 100) : 0,
+      };
+    });
+}, [volumeData, filtered]);
 ```
 
-Also update the chart subtitle (~line 921) from `"7-day rolling median (minutes)"` to `"Daily median (minutes)"`.
+2. Update the chart subtitle (~line 1046) from `"7-day rolling escalation % of completed conversations"` to `"Daily escalation % of completed conversations"`.
 
 ### Files to edit
 - `src/pages/Stats.tsx`
