@@ -364,6 +364,7 @@ const Stats = () => {
     const manualResolved = filteredManual.filter((m) => m.status === "resolved").length;
 
     const cutoff = getCutoffDate(range);
+    // gmailDeduped computed below; use gmailTotal as placeholder, overwritten after
     let combinedTotal = total + gmailTotal + manualTotal;
     if (sourceFilter === "gmail") combinedTotal = gmailTotal;
     else if (sourceFilter === "slack") combinedTotal = total;
