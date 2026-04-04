@@ -507,14 +507,19 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const updateClassification = async (id: string, value: string, source: "slack" | "gmail" | "manual") => {
     const newValue = value === "clear" ? null : value;
     const table = source === "slack" ? "conversation_mappings" : source === "gmail" ? "gmail_conversations" : "manual_conversations";
+    const idsToUpdate = source === "gmail" ? getGmailThreadSiblingIds(id) : [id];
+    const idSet = new Set(idsToUpdate);
+
     if (source === "slack") {
       setMappings((prev) => prev.map((m) => m.id === id ? { ...m, classification: newValue } : m));
     } else if (source === "gmail") {
-      setGmailRows((prev) => prev.map((g) => g.id === id ? { ...g, classification: newValue } : g));
+      setGmailRows((prev) => prev.map((g) => idSet.has(g.id) ? { ...g, classification: newValue } : g));
     } else {
       setManualRows((prev) => prev.map((mc) => mc.id === id ? { ...mc, classification: newValue } : mc));
     }
-    const { error } = await supabase.from(table).update({ classification: newValue } as any).eq("id", id);
+    const { error } = source === "gmail" && idsToUpdate.length > 1
+      ? await supabase.from(table).update({ classification: newValue } as any).in("id", idsToUpdate)
+      : await supabase.from(table).update({ classification: newValue } as any).eq("id", id);
     if (error) toast.error("Failed to update classification");
   };
 
