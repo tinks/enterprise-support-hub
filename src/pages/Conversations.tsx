@@ -306,10 +306,12 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 
 
   const ALL_STATUSES = ["active", "awaiting_context", "awaiting_support", "escalated", "resolved", "cancelled", "test"] as const;
+  const DEFAULT_HIDDEN = new Set(["test", "cancelled", "resolved"]);
   const savedHidden = localStorage.getItem("conv-hidden-statuses");
   const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(
-    savedHidden ? new Set(JSON.parse(savedHidden)) : new Set(["test", "cancelled", "resolved"])
+    savedHidden ? new Set(JSON.parse(savedHidden)) : new Set(DEFAULT_HIDDEN)
   );
+  const hiddenDiffersFromDefault = hiddenStatuses.size !== DEFAULT_HIDDEN.size || [...hiddenStatuses].some(s => !DEFAULT_HIDDEN.has(s));
 
   // Column order state
   const savedColOrder = localStorage.getItem(COLUMN_STORAGE_KEY);
@@ -1183,11 +1185,11 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   };
 
   const isCustomOrder = JSON.stringify(columnOrder) !== JSON.stringify([...ALL_COLUMNS]);
-  const anyFilterActive = sourceFilter !== "all" || ownerFilter !== "all" || hiddenStatuses.size > 0 || !!dateFrom || !!dateTo || isCustomOrder;
+  const anyFilterActive = sourceFilter !== "all" || ownerFilter !== "all" || hiddenDiffersFromDefault || !!dateFrom || !!dateTo || isCustomOrder;
   const resetAll = () => {
     setSourceFilter("all");
     setOwnerFilter("all");
-    setHiddenStatuses(new Set());
+    setHiddenStatuses(new Set(DEFAULT_HIDDEN));
     setDateFrom(undefined);
     setDateTo(undefined);
     setColumnOrder([...ALL_COLUMNS]);
@@ -1236,7 +1238,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                     let count = 0;
                     if (sourceFilter !== "all") count++;
                     if (ownerFilter !== "all") count++;
-                    if (hiddenStatuses.size > 0) count++;
+                    if (hiddenDiffersFromDefault) count++;
                     if (dateFrom || dateTo) count++;
                     return count > 0 ? (
                       <Badge variant="secondary" className="h-5 px-1.5 text-xs">{count} active</Badge>
@@ -1277,7 +1279,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                       <Button variant="outline" size="sm" className="h-9 gap-1">
                         <Filter className="h-3 w-3" />
                         Status
-                        {hiddenStatuses.size > 0 && (
+                        {hiddenDiffersFromDefault && (
                           <Badge variant="secondary" className="ml-1 h-5 px-1 text-xs">
                             {hiddenStatuses.size} hidden
                           </Badge>
@@ -1297,14 +1299,14 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                           </label>
                         ))}
                       </div>
-                      {hiddenStatuses.size > 0 && (
+                      {hiddenDiffersFromDefault && (
                         <Button
                           variant="ghost"
                           size="sm"
                           className="mt-2 h-7 w-full text-xs"
-                          onClick={() => setHiddenStatuses(new Set())}
+                          onClick={() => setHiddenStatuses(new Set(DEFAULT_HIDDEN))}
                         >
-                          Show all
+                          Restore defaults
                         </Button>
                       )}
                     </PopoverContent>
