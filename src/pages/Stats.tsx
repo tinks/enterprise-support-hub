@@ -209,7 +209,10 @@ const Stats = () => {
       const dateStr = g.received_at || g.created_at;
       const parsed = parseISO(dateStr);
       let matchRange: boolean;
-      if (range === "custom") {
+      if (range === "this_month") {
+        matchRange = (isAfter(parsed, startOfDay(startOfMonth(new Date()))) || parsed.getTime() === startOfDay(startOfMonth(new Date())).getTime()) &&
+                     (isBefore(parsed, endOfDay(endOfMonth(new Date()))) || parsed.getTime() === endOfDay(endOfMonth(new Date())).getTime());
+      } else if (range === "custom") {
         matchRange = (!customFrom || isAfter(parsed, startOfDay(customFrom))) &&
                      (!customTo || isBefore(parsed, endOfDay(customTo)));
       } else {
