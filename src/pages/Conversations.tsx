@@ -168,6 +168,8 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
    const [dateStep, setDateStep] = useState<"from" | "to">("from");
   const [creatingTicket, setCreatingTicket] = useState<Set<string>>(new Set());
   const [expandedGmailGroups, setExpandedGmailGroups] = useState<Set<string>>(new Set());
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const toggleIdExpand = (id: string) => { setExpandedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; }); };
   const [editingIntercomId, setEditingIntercomId] = useState<string | null>(null);
   const [editingIntercomValue, setEditingIntercomValue] = useState("");
 
@@ -785,7 +787,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 
   const renderSlackCell = (col: ColKey, m: ConversationMapping): ReactNode => {
     switch (col) {
-      case "id": return <span className="text-xs text-muted-foreground font-mono">{m.id.slice(0, 8)}</span>;
+      case "id": return <span className="text-xs text-muted-foreground font-mono cursor-pointer" onClick={(e) => { e.stopPropagation(); toggleIdExpand(m.id); }}>{expandedIds.has(m.id) ? m.id.slice(0, 8) : m.id.slice(0, 3)}</span>;
       case "source": return m.intercom_conversation_id
         ? <Badge variant="outline" className="text-xs">Slack bot</Badge>
         : <Badge variant="secondary" className="text-xs">Slack import</Badge>;
@@ -924,7 +926,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
               {expandedGmailGroups.has(groupKey) ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
             </button>
           )}
-          {g.id.slice(0, 8)}
+          <span className="cursor-pointer" onClick={(e) => { e.stopPropagation(); toggleIdExpand(g.id); }}>{expandedIds.has(g.id) ? g.id.slice(0, 8) : g.id.slice(0, 3)}</span>
           {groupCount && groupCount > 1 && (
             <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">{groupCount}</Badge>
           )}
@@ -1049,7 +1051,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 
   const renderManualCell = (col: ColKey, mc: ManualConversation): ReactNode => {
     switch (col) {
-      case "id": return <span className="text-xs text-muted-foreground font-mono">{mc.id.slice(0, 8)}</span>;
+      case "id": return <span className="text-xs text-muted-foreground font-mono cursor-pointer" onClick={(e) => { e.stopPropagation(); toggleIdExpand(mc.id); }}>{expandedIds.has(mc.id) ? mc.id.slice(0, 8) : mc.id.slice(0, 3)}</span>;
       case "source": return mc.source === "intercom"
         ? <Badge variant="default" className="text-xs">Intercom import</Badge>
         : <Badge variant="outline" className="text-xs capitalize">{mc.source}</Badge>;
@@ -1427,7 +1429,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                             onClick={() => navigate(`/conversations/${m.id}`)}
                           >
                             {columnOrder.map((col) => (
-                              <TableCell key={col} className={col === "message" ? "max-w-[300px]" : ""}>
+                              <TableCell key={col} className={`${col === "message" ? "max-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""}`}>
                                 {renderSlackCell(col, m)}
                               </TableCell>
                             ))}
@@ -1453,7 +1455,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                               } : () => navigate(`/conversations/${g.id}?source=gmail`)}
                             >
                               {columnOrder.map((col) => (
-                                <TableCell key={col} className={col === "message" ? "max-w-[300px]" : ""}>
+                                <TableCell key={col} className={`${col === "message" ? "max-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""}`}>
                                   {renderGmailCell(col, g, row.groupCount, row.groupedEmails, row.groupKey)}
                                 </TableCell>
                               ))}
@@ -1465,7 +1467,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                                 onClick={() => navigate(`/conversations/${sub.id}?source=gmail`)}
                               >
                                 {columnOrder.map((col) => (
-                                  <TableCell key={col} className={`${col === "message" ? "max-w-[300px]" : ""} ${col === "id" ? "pl-8" : ""}`}>
+                                  <TableCell key={col} className={`${col === "message" ? "max-w-[300px]" : ""} ${col === "id" ? "w-[40px] pl-8" : ""}`}>
                                     {renderGmailCell(col, sub)}
                                   </TableCell>
                                 ))}
@@ -1482,7 +1484,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                             onClick={() => navigate(`/conversations/${mc.id}?source=manual`)}
                           >
                             {columnOrder.map((col) => (
-                              <TableCell key={col} className={col === "message" ? "max-w-[300px]" : ""}>
+                              <TableCell key={col} className={`${col === "message" ? "max-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""}`}>
                                 {renderManualCell(col, mc as ManualConversation)}
                               </TableCell>
                             ))}
