@@ -1185,11 +1185,11 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   };
 
   const isCustomOrder = JSON.stringify(columnOrder) !== JSON.stringify([...ALL_COLUMNS]);
-  const anyFilterActive = sourceFilter !== "all" || ownerFilter !== "all" || hiddenStatuses.size > 0 || !!dateFrom || !!dateTo || isCustomOrder;
+  const anyFilterActive = sourceFilter !== "all" || ownerFilter !== "all" || hiddenDiffersFromDefault || !!dateFrom || !!dateTo || isCustomOrder;
   const resetAll = () => {
     setSourceFilter("all");
     setOwnerFilter("all");
-    setHiddenStatuses(new Set());
+    setHiddenStatuses(new Set(DEFAULT_HIDDEN));
     setDateFrom(undefined);
     setDateTo(undefined);
     setColumnOrder([...ALL_COLUMNS]);
