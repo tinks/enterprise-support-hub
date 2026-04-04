@@ -1484,7 +1484,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                             onClick={() => navigate(`/conversations/${mc.id}?source=manual`)}
                           >
                             {columnOrder.map((col) => (
-                              <TableCell key={col} className={col === "message" ? "max-w-[300px]" : ""}>
+                              <TableCell key={col} className={`${col === "message" ? "max-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""}`}>
                                 {renderManualCell(col, mc as ManualConversation)}
                               </TableCell>
                             ))}
