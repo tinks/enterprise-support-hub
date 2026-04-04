@@ -1253,7 +1253,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                       <SelectValue placeholder="Source" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Select all</SelectItem>
+                      <SelectItem value="all">Source</SelectItem>
                       <SelectItem value="slack">Slack bot</SelectItem>
                       <SelectItem value="slack_import">Slack import</SelectItem>
                       <SelectItem value="gmail">Gmail only</SelectItem>
@@ -1266,7 +1266,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                       <SelectValue placeholder="Owner" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Select all</SelectItem>
+                      <SelectItem value="all">Owner</SelectItem>
                       <SelectItem value="Joel">Joel</SelectItem>
                       <SelectItem value="Kristina">Kristina</SelectItem>
                       <SelectItem value="unassigned">Unassigned</SelectItem>
