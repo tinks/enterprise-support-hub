@@ -1,32 +1,45 @@
 
 
-## Add "Awaiting engineering" status option
+## Fix Intercom import: message ordering, filtering, and subject formatting
 
-### What changes
-Add `awaiting_engineering` to the status dropdown on the conversation detail page, with appropriate label and color.
+### Problem
+1. **Subject has raw HTML tags** — The subject stored from Intercom contains `<p>...</p>` tags that display literally
+2. **Internal notes imported** — Assignment events, bot status notes ("Sam is working"), and other internal Intercom parts are included as messages
+3. **Message ordering** — Messages should display with the initial message first, then chronologically
 
 ### Implementation
 
+**`supabase/functions/import-intercom-ticket/index.ts`**
+
+1. **Strip HTML from subject** (line 90) — Apply `stripHtml` to the subject before saving:
+   ```ts
+   const subject = stripHtml(icData.source?.subject || icData.title || `Intercom #${intercomConvId}`);
+   ```
+   Move the `stripHtml` helper definition above the subject extraction (before line 90).
+
+2. **Filter out internal notes and system parts** (line 140) — Skip conversation parts that are internal notes or system events. Intercom parts have a `part_type` field; filter out:
+   - `part_type === "note"` (internal notes)
+   - `part_type === "assignment"` (team assignment changes)  
+   - `part_type === "open"` / `"close"` (status changes)
+   - Parts where `author.type === "bot"` (bot status messages like "Sam is working")
+   
+   Add a filter before processing each part:
+   ```ts
+   const SKIP_PART_TYPES = new Set(["note", "assignment", "open", "close", "away_mode_assignment"]);
+   for (const part of parts) {
+     if (!part.body) continue;
+     if (SKIP_PART_TYPES.has(part.part_type)) continue;
+     if (part.author?.type === "bot") continue;
+     // ... rest of processing
+   }
+   ```
+
+3. **Ensure chronological order** — Messages are already inserted in order (source message first, then parts in API order). The detail page fetches `manual_messages` ordered by `created_at` ascending, so this is correct. No change needed.
+
 **`src/pages/ConversationDetail.tsx`**
 
-1. **Line 104** — Add `"awaiting_engineering"` to `STATUS_OPTIONS`:
-   ```ts
-   const STATUS_OPTIONS = ["active", "resolved", "cancelled", "escalated", "awaiting_context", "awaiting_support", "awaiting_engineering"];
-   ```
-
-2. **Lines 112-113** — Add a case in `statusColor`:
-   ```ts
-   case "awaiting_engineering": return "outline" as const;
-   ```
-
-3. **Lines 120-121** — Add a case in `statusLabel`:
-   ```ts
-   case "awaiting_engineering": return "Awaiting engineering";
-   ```
-
-4. **`src/pages/Stats.tsx`** — Add `awaiting_engineering` to any status filtering logic (e.g., the `awaiting` count at ~line 372) so it appears in analytics. Add a `chartConfig` entry if needed.
+4. **No changes needed** — The detail page already displays messages in order and the subject is rendered from the database value. Fixing the data at import time resolves the display issues.
 
 ### Files to edit
-- `src/pages/ConversationDetail.tsx`
-- `src/pages/Stats.tsx`
+- `supabase/functions/import-intercom-ticket/index.ts`
 
