@@ -918,7 +918,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       );
       case "product_area": return (
         <Select value={m.product_area || ""} onValueChange={(v) => updateProductArea(m.id, v, "slack")}>
-          <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
+          <SelectTrigger className="h-8 w-full text-xs" onClick={(e) => e.stopPropagation()}>
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
@@ -952,7 +952,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       );
       case "classification": return (
         <Select value={m.classification || ""} onValueChange={(v) => updateClassification(m.id, v, "slack")}>
-          <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
+          <SelectTrigger className="h-8 w-full text-xs" onClick={(e) => e.stopPropagation()}>
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
@@ -1064,7 +1064,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       );
       case "product_area": return (
         <Select value={g.product_area || ""} onValueChange={(v) => updateProductArea(g.id, v, "gmail")}>
-          <SelectTrigger className="h-8 w-[130px] text-xs">
+          <SelectTrigger className="h-8 w-full text-xs">
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
@@ -1097,7 +1097,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       );
       case "classification": return (
         <Select value={g.classification || ""} onValueChange={(v) => updateClassification(g.id, v, "gmail")}>
-          <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
+          <SelectTrigger className="h-8 w-full text-xs" onClick={(e) => e.stopPropagation()}>
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
@@ -1192,7 +1192,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
             if (error) toast.error("Failed to update product area");
           }}
         >
-          <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
+          <SelectTrigger className="h-8 w-full text-xs" onClick={(e) => e.stopPropagation()}>
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
@@ -1234,7 +1234,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       );
       case "classification": return (
         <Select value={mc.classification || ""} onValueChange={(v) => updateClassification(mc.id, v, "manual")}>
-          <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
+          <SelectTrigger className="h-8 w-full text-xs" onClick={(e) => e.stopPropagation()}>
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
@@ -1470,7 +1470,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                           onDragEnd={handleDragEnd}
                           className={`cursor-grab select-none transition-colors ${
                             dragOverCol === col ? "border-l-2 border-l-primary bg-primary/5" : ""
-                          } ${col === "message" ? "min-w-[300px]" : ""} ${col === "status" || col === "owner" || col === "product_area" ? "w-[120px]" : ""}`}
+                          } ${col === "message" ? "min-w-[300px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}
                         >
                           <span className="inline-flex items-center gap-1">
                             <GripVertical className="h-3 w-3 text-muted-foreground/50" />
@@ -1491,7 +1491,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                             onClick={() => navigate(`/conversations/${m.id}`)}
                           >
                             {columnOrder.map((col) => (
-<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" ? "w-[120px]" : ""}`}>
+<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
                                 {renderSlackCell(col, m)}
                               </TableCell>
                             ))}
@@ -1510,7 +1510,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                               onClick={() => navigate(`/conversations/${g.id}?source=gmail`)}
                             >
                               {columnOrder.map((col) => (
-<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" ? "w-[120px]" : ""}`}>
+<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
                                   {renderGmailCell(col, g, row.groupCount, row.groupedEmails, row.groupKey)}
                                 </TableCell>
                               ))}
@@ -1522,7 +1522,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                                 onClick={() => navigate(`/conversations/${sub.id}?source=gmail`)}
                               >
                                 {columnOrder.map((col) => (
-<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px] pl-8" : ""} ${col === "status" || col === "owner" || col === "product_area" ? "w-[120px]" : ""}`}>
+<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px] pl-8" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
                                     {renderGmailCell(col, sub)}
                                   </TableCell>
                                 ))}
@@ -1539,7 +1539,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                             onClick={() => navigate(`/conversations/${mc.id}?source=manual`)}
                           >
                             {columnOrder.map((col) => (
-<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" ? "w-[120px]" : ""}`}>
+<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
                                 {renderManualCell(col, mc as ManualConversation)}
                               </TableCell>
                             ))}
