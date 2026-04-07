@@ -161,10 +161,30 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Conversation parts — filter out internal notes and system events
+    // Conversation parts — paginate to get ALL parts
     const SKIP_PART_TYPES = new Set(["note", "assignment", "open", "close", "away_mode_assignment"]);
-    const parts = icData.conversation_parts?.conversation_parts || [];
-    for (const part of parts) {
+    let allParts = icData.conversation_parts?.conversation_parts || [];
+    let nextPageUrl = icData.conversation_parts?.pages?.next;
+
+    while (nextPageUrl) {
+      const pageRes = await fetch(nextPageUrl, {
+        headers: {
+          Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+          Accept: "application/json",
+          "Intercom-Version": "2.11",
+        },
+      });
+      if (!pageRes.ok) {
+        console.error("Pagination fetch failed:", pageRes.status);
+        break;
+      }
+      const pageData = await pageRes.json();
+      const pageParts = pageData.conversation_parts || [];
+      allParts = [...allParts, ...pageParts];
+      nextPageUrl = pageData.pages?.next;
+    }
+
+    for (const part of allParts) {
       if (!part.body) continue;
       if (SKIP_PART_TYPES.has(part.part_type)) continue;
       if (part.author?.type === "bot") continue;
@@ -178,6 +198,9 @@ Deno.serve(async (req) => {
         created_at: part.created_at ? toIso(part.created_at) : new Date().toISOString(),
       });
     }
+
+    // Sort all messages chronologically (oldest first)
+    messages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
     if (messages.length > 0) {
       const { error: msgErr } = await sb.from("manual_messages").insert(messages);
