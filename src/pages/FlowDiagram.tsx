@@ -129,9 +129,10 @@ const ROW_H = 380;
 /*  three tables. Badge shows "Intercom import" in conversations list. */
 /* ------------------------------------------------------------------ */
 /*  Owner tracking: each conversation (Slack, Gmail, Manual) has an    */
-/*  owner column (Joel or Kristina). Assignable inline from the        */
-/*  Conversations table and the detail view Classification card.       */
-/*  Owner filter dropdown lets users filter by owner or unassigned.    */
+/*  owner column (Joel, Kristina, Sam, or CSM). Assignable inline      */
+/*  from the Conversations table and the detail view Classification    */
+/*  card. Owner filter dropdown lets users filter by owner or          */
+/*  unassigned. CSM is used for non-technical-support questions.        */
 /* ------------------------------------------------------------------ */
 /*  Owner dashboards: /my/joel and /my/kristina show personal views    */
 /*  with KPI cards (open, resolved, bugs, feature requests) and a     */
