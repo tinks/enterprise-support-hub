@@ -255,17 +255,20 @@ Deno.serve(async (req) => {
       const subject = strip(icData.source?.subject || icData.title || `Intercom #${intercomConvId}`);
       const convUrl = `https://app.intercom.com/a/inbox/wq44gprj/inbox/conversation/${intercomConvId}`;
 
-      // Insert conversation
+      // Insert conversation (with owner if resolved from admin map)
+      const insertPayload: Record<string, unknown> = {
+        source: "intercom",
+        contact_name: contactName,
+        subject,
+        link: convUrl,
+        intercom_conversation_id: intercomConvId,
+        status: "active",
+      };
+      if (resolvedOwner) insertPayload.owner = resolvedOwner;
+
       const { data: inserted, error: insertErr } = await supabase
         .from("manual_conversations")
-        .insert({
-          source: "intercom",
-          contact_name: contactName,
-          subject,
-          link: convUrl,
-          intercom_conversation_id: intercomConvId,
-          status: "active",
-        })
+        .insert(insertPayload)
         .select("id")
         .single();
 
