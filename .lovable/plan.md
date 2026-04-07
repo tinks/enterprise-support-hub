@@ -1,17 +1,34 @@
 
 
-## Fix inconsistent product area column alignment
+## Sort product areas alphabetically with "Other" pinned at the bottom
 
 ### Problem
-The `SelectTrigger` for the product area column is `w-[130px]` but the `TableCell` containing it is only `w-[120px]`. This mismatch causes the select dropdowns to overflow their cells inconsistently, creating the visual misalignment visible in the screenshot.
+Product areas are displayed in insertion order everywhere. They should be sorted alphabetically, with "Other" always appearing last.
 
 ### Solution
 
+Apply a sort helper wherever product areas are parsed into an array. The sort places "Other" (case-insensitive) at the end, and sorts everything else alphabetically.
+
+**`src/components/ProductAreasCard.tsx`**
+- Sort the `areas` array displayed in the badge list: alphabetical, "Other" last
+
 **`src/pages/Conversations.tsx`**
-- Change all `SelectTrigger` widths for product_area from `w-[130px]` to `w-full` so they fill their cell naturally
-- Increase the `TableCell` width for product_area from `w-[120px]` to `w-[140px]` to give enough room for longer values like "Main Product"
-- Apply this consistently across all three render functions (Slack, Gmail, Manual)
+- Sort `productAreas` state after loading from settings (~line 662)
+
+**`src/pages/ConversationDetail.tsx`**
+- Sort `productAreas` state after loading from settings (~line 202)
+
+### Sorting logic (used in all three files)
+```typescript
+.sort((a, b) => {
+  if (a.toLowerCase() === "other") return 1;
+  if (b.toLowerCase() === "other") return -1;
+  return a.localeCompare(b);
+})
+```
 
 ### Files to edit
+- `src/components/ProductAreasCard.tsx`
 - `src/pages/Conversations.tsx`
+- `src/pages/ConversationDetail.tsx`
 
