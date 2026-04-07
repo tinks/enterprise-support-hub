@@ -162,7 +162,7 @@ Deno.serve(async (req) => {
     }
 
     // Conversation parts — paginate to get ALL parts
-    const SKIP_PART_TYPES = new Set(["open", "close", "away_mode_assignment"]);
+    const SKIP_PART_TYPES = new Set(["note", "open", "close", "away_mode_assignment"]);
     let allParts = icData.conversation_parts?.conversation_parts || [];
     let nextPageUrl = icData.conversation_parts?.pages?.next;
 
