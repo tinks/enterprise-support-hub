@@ -918,7 +918,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       );
       case "product_area": return (
         <Select value={m.product_area || ""} onValueChange={(v) => updateProductArea(m.id, v, "slack")}>
-          <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
+          <SelectTrigger className="h-8 w-full text-xs" onClick={(e) => e.stopPropagation()}>
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
@@ -952,7 +952,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       );
       case "classification": return (
         <Select value={m.classification || ""} onValueChange={(v) => updateClassification(m.id, v, "slack")}>
-          <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
+          <SelectTrigger className="h-8 w-full text-xs" onClick={(e) => e.stopPropagation()}>
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
@@ -1064,7 +1064,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       );
       case "product_area": return (
         <Select value={g.product_area || ""} onValueChange={(v) => updateProductArea(g.id, v, "gmail")}>
-          <SelectTrigger className="h-8 w-[130px] text-xs">
+          <SelectTrigger className="h-8 w-full text-xs">
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
@@ -1097,7 +1097,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       );
       case "classification": return (
         <Select value={g.classification || ""} onValueChange={(v) => updateClassification(g.id, v, "gmail")}>
-          <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
+          <SelectTrigger className="h-8 w-full text-xs" onClick={(e) => e.stopPropagation()}>
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
@@ -1192,7 +1192,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
             if (error) toast.error("Failed to update product area");
           }}
         >
-          <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
+          <SelectTrigger className="h-8 w-full text-xs" onClick={(e) => e.stopPropagation()}>
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
@@ -1234,7 +1234,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       );
       case "classification": return (
         <Select value={mc.classification || ""} onValueChange={(v) => updateClassification(mc.id, v, "manual")}>
-          <SelectTrigger className="h-8 w-[130px] text-xs" onClick={(e) => e.stopPropagation()}>
+          <SelectTrigger className="h-8 w-full text-xs" onClick={(e) => e.stopPropagation()}>
             <SelectValue placeholder="—" />
           </SelectTrigger>
           <SelectContent>
