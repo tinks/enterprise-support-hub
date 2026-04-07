@@ -299,6 +299,7 @@ export default function TestChannelReview() {
                       <TableHead className="w-[100px]">Drift</TableHead>
                       <TableHead className="w-[50px]">URL</TableHead>
                       <TableHead className="w-[80px]">Relink</TableHead>
+                      <TableHead className="w-[80px]">Dupes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
