@@ -131,6 +131,7 @@ export default function TestChannelReview() {
           body: {
             url: finalUrl,
             force: true,
+            existingId: row.id,
           },
         });
 
@@ -160,6 +161,32 @@ export default function TestChannelReview() {
     setSelected(new Set());
     setCustomUrls({});
     loadData();
+  }
+
+  async function relinkConversation() {
+    if (!relinkRow || !relinkUrl.trim()) return;
+    setRelinking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("import-slack-thread", {
+        body: {
+          url: relinkUrl.trim(),
+          force: true,
+          existingId: relinkRow.id,
+        },
+      });
+      if (error || data?.error) {
+        toast.error(data?.error || error?.message || "Failed to relink");
+      } else {
+        toast.success("Conversation relinked successfully");
+        setRelinkRow(null);
+        setRelinkUrl("");
+        loadData();
+      }
+    } catch (err) {
+      toast.error("Failed to relink conversation");
+    }
+    setRelinking(false);
+  }
   }
 
   const channelName = channelNameOverrides[TARGET_CHANNEL] || TARGET_CHANNEL;
@@ -227,6 +254,7 @@ export default function TestChannelReview() {
                       <TableHead className="w-[140px]">Thread time</TableHead>
                       <TableHead className="w-[100px]">Drift</TableHead>
                       <TableHead className="w-[50px]">URL</TableHead>
+                      <TableHead className="w-[80px]">Relink</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -304,6 +332,20 @@ export default function TestChannelReview() {
                               </PopoverContent>
                             </Popover>
                           </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => {
+                                setRelinkRow(row);
+                                setRelinkUrl("");
+                              }}
+                            >
+                              <RefreshCw className="h-3 w-3 mr-1" />
+                              Relink
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -313,6 +355,35 @@ export default function TestChannelReview() {
             </CardContent>
           </Card>
         )}
+
+        <Dialog open={!!relinkRow} onOpenChange={(open) => { if (!open) { setRelinkRow(null); setRelinkUrl(""); } }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Relink conversation</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground mb-2">
+              Paste the correct Slack thread URL. This will overwrite the channel, thread, user, message, and date for this conversation.
+            </p>
+            {relinkRow && (
+              <p className="text-xs text-muted-foreground bg-muted p-2 rounded">
+                Current: {relinkRow.original_message_text?.slice(0, 100) || "(empty)"}
+              </p>
+            )}
+            <Input
+              placeholder="https://lovable.slack.com/archives/..."
+              value={relinkUrl}
+              onChange={(e) => setRelinkUrl(e.target.value)}
+            />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setRelinkRow(null); setRelinkUrl(""); }}>
+                Cancel
+              </Button>
+              <Button onClick={relinkConversation} disabled={relinking || !relinkUrl.trim()}>
+                {relinking ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Relinking...</> : "Relink"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
