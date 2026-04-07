@@ -96,6 +96,7 @@ const statusColor = (status: string) => {
     case "cancelled": return "outline" as const;
     case "awaiting_context": return "outline" as const;
     case "awaiting_support": return "outline" as const;
+    case "awaiting_engineering": return "outline" as const;
     default: return "outline" as const;
   }
 };
@@ -104,6 +105,7 @@ const statusLabel = (status: string) => {
   switch (status) {
     case "awaiting_context": return "Awaiting customer";
     case "awaiting_support": return "Awaiting support";
+    case "awaiting_engineering": return "Awaiting engineering";
     default: return status.replace(/_/g, " ");
   }
 };
@@ -120,7 +122,7 @@ const getCET = (dateStr: string) => {
 };
 
 const CLASSIFICATION_OPTIONS = ["Issue", "Configuration", "Bug", "FR", "Question"] as const;
-const STATUS_OPTIONS = ["open", "active", "resolved", "cancelled", "escalated", "awaiting_context", "awaiting_support"] as const;
+const STATUS_OPTIONS = ["open", "active", "resolved", "cancelled", "escalated", "awaiting_context", "awaiting_support", "awaiting_engineering"] as const;
 
 const ALL_COLUMNS = ["id", "date", "channel", "message", "status", "owner", "product_area", "sent_by", "classification", "source", "link", "intercom", "test", "resolved", "bug"] as const;
 type ColKey = typeof ALL_COLUMNS[number];
