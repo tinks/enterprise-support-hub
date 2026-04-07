@@ -1,57 +1,76 @@
 
 
-## Add "Log as manual" action to test review page
+## AI-powered thread parsing fallback
 
 ### Problem
-The current duplicate finder requires manually searching and deleting — clunky. You want a single action per row: click a button, paste the thread text, and it gets saved as a manual conversation while the old bot-tracked `conversation_mappings` row is deleted.
+The current regex parser handles two Slack copy formats but fails on a third common one: `Name  5:43 AM` (time without brackets). There will always be more edge cases — new Slack versions, mobile copy formats, etc. Rather than endlessly adding regexes, use AI as a fallback when regex parsing fails.
 
 ### Solution
 
-Add a "Log & replace" button per row on `/test-review` (similar to the existing Relink dialog):
+**Two-pass approach**: Try regex first (fast, free), fall back to AI when regex returns zero messages.
 
-1. **New dialog**: Click "Log & replace" on a row → opens a dialog with:
-   - Channel name input (pre-filled with the channel name)
-   - Date picker (pre-filled from thread timestamp)
-   - Large textarea to paste the raw Slack thread
-   - Owner dropdown (pre-filled from row's owner if set)
-   - "Parse & save" button
+**`supabase/functions/parse-thread/index.ts`** (new edge function)
+- Accepts `{ rawThread: string }` 
+- Sends the raw thread text to Lovable AI with a system prompt instructing it to extract structured messages
+- Uses tool calling to get structured output: array of `{ sender_name, message_text }` objects
+- Returns the parsed messages array
+- Uses `LOVABLE_API_KEY` (already available)
 
-2. **On submit**:
-   - Parse the pasted thread using the same `parseThread()` logic from ManualLogTab
-   - Create a `manual_conversations` entry with source `slack_thread`, the channel name, contact name from first message, subject from first ~60 chars
-   - Create `manual_messages` for each parsed message
-   - Copy over `owner`, `product_area`, `classification`, `is_bug`, `is_feature_request` from the original row
-   - Set `created_at` to the selected date
-   - Delete the original `conversation_mappings` row (via edge function since RLS denies public delete — use the existing `import-slack-thread` function's service role, or add a small new edge function)
-   - Refresh the table
+**`src/lib/parseThread.ts`** — add Format C regex + AI fallback helper
+- Add Format C: `Name  HH:MM AM/PM` (no brackets) as a quick regex fix for this specific case
+- Export a new `parseThreadWithAI(raw: string)` async function that calls the edge function when all regexes fail
+- Keep `parseThread()` synchronous for backward compatibility
 
-3. **Deleting the old row**: Since `conversation_mappings` has `Deny public delete` RLS, we need a small edge function or use the existing service-role pattern. Simplest: add a new edge function `delete-conversation-mapping` that accepts an ID and deletes it with service role.
+**`src/components/ManualLogTab.tsx`** — update parse handler
+- When `parseThread()` returns empty, call `parseThreadWithAI()` as fallback
+- Show a toast like "Using AI to parse thread..." while waiting
+- If AI also fails, show error
+
+**`src/pages/TestChannelReview.tsx`** — same fallback in the Log & replace dialog
 
 ### Technical details
 
-**`src/pages/TestChannelReview.tsx`**
-- Extract `parseThread` and `cleanBody` from ManualLogTab into a shared util (`src/lib/parseThread.ts`)
-- Add "Log & replace" button per row (next to Relink)
-- New dialog with textarea, channel input, date picker, owner select
-- On save: insert into `manual_conversations` + `manual_messages`, then call edge function to delete the `conversation_mappings` row
+**Edge function system prompt** (simplified):
+```
+Parse this Slack thread into individual messages. 
+Extract each message's sender name and message text.
+Ignore timestamps, reply counts, reactions, and metadata.
+```
 
-**`src/lib/parseThread.ts`** (new)
-- Move `parseThread`, `cleanBody`, `ADMIN_NAMES` from ManualLogTab
+**Tool calling schema** for structured output:
+```json
+{
+  "name": "extract_messages",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "messages": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "sender_name": { "type": "string" },
+            "message_text": { "type": "string" }
+          },
+          "required": ["sender_name", "message_text"]
+        }
+      }
+    },
+    "required": ["messages"]
+  }
+}
+```
 
-**`src/components/ManualLogTab.tsx`**
-- Import `parseThread` from shared util instead of defining locally
-
-**`supabase/functions/delete-conversation-mapping/index.ts`** (new)
-- Accepts `{ id: string }`, deletes from `conversation_mappings` using service role
-- Simple ~20 line function
-
-**`src/pages/FlowDiagram.tsx`**
-- Note the "Log & replace" capability
+**Format C regex** (added to `parseThread`):
+```
+/^(.+?)\s{2,}(\d{1,2}:\d{2}\s?(?:AM|PM))\s*$/gm
+```
+This catches `Name  5:43 AM` without brackets — requires 2+ spaces before time to avoid false positives.
 
 ### Files to create/edit
-- `src/lib/parseThread.ts` (new — shared parser)
-- `supabase/functions/delete-conversation-mapping/index.ts` (new — service-role delete)
-- `src/pages/TestChannelReview.tsx` (add Log & replace dialog)
-- `src/components/ManualLogTab.tsx` (import from shared util)
-- `src/pages/FlowDiagram.tsx` (update notes)
+- `src/lib/parseThread.ts` — add Format C regex + export `parseThreadWithAI()`
+- `supabase/functions/parse-thread/index.ts` (new) — AI parsing edge function
+- `src/components/ManualLogTab.tsx` — use AI fallback in parse handler
+- `src/pages/TestChannelReview.tsx` — use AI fallback in Log & replace
+- `src/pages/FlowDiagram.tsx` — note AI parsing fallback
 
