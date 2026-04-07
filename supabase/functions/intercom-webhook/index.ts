@@ -111,9 +111,15 @@ Deno.serve(async (req) => {
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  // Fetch settings for testing_mode
+  // Fetch settings for testing_mode and admin owner map
   const { data: appSettings } = await supabase.from("settings").select("*").limit(1).single();
   const testingMode = appSettings?.testing_mode === true;
+
+  // Parse admin-to-owner mapping (JSON string like {"12345":"Joel","67890":"Kristina"})
+  let adminOwnerMap: Record<string, string> = {};
+  try {
+    adminOwnerMap = JSON.parse(appSettings?.admin_owner_map || "{}");
+  } catch { /* ignore parse errors */ }
 
   try {
     // Identity guard: verify token matches expected bot before posting to Slack
