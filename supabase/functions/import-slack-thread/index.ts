@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { url, force } = body;
+    const { url, force, existingId } = body;
     if (!url || typeof url !== "string") {
       return new Response(
         JSON.stringify({ error: "url is required" }),
@@ -66,21 +66,26 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Check for duplicates
-    const { data: existing } = await supabase
-      .from("conversation_mappings")
-      .select("id")
-      .eq("slack_channel_id", channelId)
-      .eq("slack_thread_ts", threadTs)
-      .limit(1);
+    // Determine target ID for update
+    let targetId: string | null = existingId || null;
 
-    if (existing && existing.length > 0 && !force) {
-      return new Response(
-        JSON.stringify({ error: "This thread has already been imported", existingId: existing[0].id }),
-        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (!targetId) {
+      // Check for duplicates
+      const { data: existing } = await supabase
+        .from("conversation_mappings")
+        .select("id")
+        .eq("slack_channel_id", channelId)
+        .eq("slack_thread_ts", threadTs)
+        .limit(1);
+
+      if (existing && existing.length > 0 && !force) {
+        return new Response(
+          JSON.stringify({ error: "This thread has already been imported", existingId: existing[0].id }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      targetId = existing && existing.length > 0 ? existing[0].id : null;
     }
-    const existingId = existing && existing.length > 0 ? existing[0].id : null;
 
     // Fetch ALL thread replies (paginated)
     const allMessages: any[] = [];
@@ -211,15 +216,18 @@ Deno.serve(async (req) => {
     let inserted: any;
     let insertError: any;
 
-    if (existingId && force) {
-      // Force re-import: update existing row
+    if (targetId && force) {
+      // Force re-import: update existing row with ALL fields
       const { data, error } = await supabase
         .from("conversation_mappings")
         .update({
+          slack_channel_id: channelId,
+          slack_thread_ts: threadTs,
+          slack_user_id: slackUserId,
           original_message_text: messageText,
           created_at: threadCreatedAt,
         })
-        .eq("id", existingId)
+        .eq("id", targetId)
         .select()
         .single();
       inserted = data;

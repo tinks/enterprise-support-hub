@@ -159,6 +159,9 @@ const ROW_H = 380;
 /*  from old bot channels (e.g. C0AJP396C85). import-slack-thread     */
 /*  accepts force=true to update existing rows and sets created_at     */
 /*  from slack_thread_ts so analytics reflect the actual thread date.  */
+/*  Relink: passing existingId + force + a new URL fully overwrites    */
+/*  slack_channel_id, slack_thread_ts, slack_user_id, message text,    */
+/*  and created_at — effectively relinking the row to a new thread.    */
 /* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */

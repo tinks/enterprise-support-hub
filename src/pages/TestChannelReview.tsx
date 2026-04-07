@@ -18,7 +18,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { channelNameOverrides } from "@/lib/channelOverrides";
-import { Loader2, Link } from "lucide-react";
+import { Loader2, Link, RefreshCw } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 interface ConversationRow {
   id: string;
@@ -54,6 +61,9 @@ export default function TestChannelReview() {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [customUrls, setCustomUrls] = useState<Record<string, string>>({});
+  const [relinkRow, setRelinkRow] = useState<ConversationRow | null>(null);
+  const [relinkUrl, setRelinkUrl] = useState("");
+  const [relinking, setRelinking] = useState(false);
 
   useEffect(() => {
     loadData();
