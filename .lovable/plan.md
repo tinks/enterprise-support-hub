@@ -1,50 +1,46 @@
 
 
-## Fix unique constraint violation on relink
+## Add "paste thread" mode to manual log
 
-### Problem
-When relinking a conversation to a new Slack thread URL, the update sets `slack_channel_id` + `slack_thread_ts` to the new values. But if another row in `conversation_mappings` already has that exact channel+thread combo (from the unique index `idx_conversation_mappings_slack`), the update fails with a duplicate key error.
+### What it does
+Adds a "Paste thread" option to the manual log tab where you can type a channel name (e.g. `#ai-days-march`) and paste an entire copied Slack thread. The system parses it into individual messages automatically — extracting sender names, timestamps, and message text — so you don't have to manually add each message one by one.
 
-In this case, row `0c7a2630` is being relinked to thread `C098JSW5XBJ/1774918999.819219`, but another row already exists for that thread.
+### How it works
 
-### Solution
+1. A toggle or tab at the top of the manual log card: "Log manually" vs "Paste thread"
+2. In "Paste thread" mode, you see:
+   - **Channel name** input (e.g. `#ai-days-march`) — saved as the source
+   - **Thread text** — a large textarea where you paste the full copied thread
+   - **Parse** button — extracts messages from the pasted text
+3. The parser detects the pattern: `Name  [Time]\n Message text` (with optional `(edited)`, reply counts like `60 replies`, etc.)
+4. After parsing, messages appear in the same editable message list as manual mode — you can fix any parsing errors before saving
+5. The first user message's timestamp is used as `created_at` for the conversation
+6. Contact name is auto-set from the first message sender
+7. Source is set to `slack_thread` with the channel name stored
 
-**`supabase/functions/import-slack-thread/index.ts`**
+### Parser logic
+The regex splits on lines matching `SomeName  [HH:MM AM/PM]` or `SomeName [HH:MM AM/PM]`. For each match:
+- Extract sender name and timestamp
+- Everything until the next sender line is the message text
+- Lines like `60 replies`, `(edited)`, thread metadata are stripped
+- Messages from known admins (Joel Samuelson, Kristina Bodurova) are tagged as `admin` role; others as `user`
 
-When `force: true` + `existingId` is set and the target thread already exists as a different row:
-1. Before the update, query for any existing row matching the new `channelId` + `threadTs` that is NOT the `targetId`
-2. If found, delete that conflicting row first (it's a duplicate that will be replaced by the relinked record)
-3. Then proceed with the update as before
+### Technical details
 
-```typescript
-// Before the update block (~line 219):
-if (targetId && force) {
-  // Remove any conflicting row that already has this channel+thread
-  const { data: conflicting } = await supabase
-    .from("conversation_mappings")
-    .select("id")
-    .eq("slack_channel_id", channelId)
-    .eq("slack_thread_ts", threadTs)
-    .neq("id", targetId)
-    .limit(1);
-
-  if (conflicting && conflicting.length > 0) {
-    await supabase
-      .from("conversation_mappings")
-      .delete()
-      .eq("id", conflicting[0].id);
-  }
-
-  // Then update...
-}
-```
-
-Note: the delete uses the service role key (already in use), bypassing the RLS deny-delete policy on the public role.
+**`src/components/ManualLogTab.tsx`**
+- Add a `mode` state: `"manual" | "paste"`
+- Add `channelName` and `rawThread` state for paste mode
+- Add `parseThread()` function that uses regex to split the pasted text into `ManualMessage[]`
+- On parse, populate the existing `messages` state, `contactName`, and `subject` (first ~60 chars of first message)
+- Compute `created_at` from parsed timestamps (combine with today's date or let user pick a date)
+- Add a date picker for the thread date since pasted timestamps only have time, not date
+- Pass `created_at` override to `handleSave` when in paste mode
+- Update `handleSave` to accept optional `created_at` for the conversation insert
 
 **`src/pages/FlowDiagram.tsx`**
-- Note that relink auto-removes conflicting duplicate rows
+- Note paste-thread mode for manual logging
 
 ### Files to edit
-- `supabase/functions/import-slack-thread/index.ts`
+- `src/components/ManualLogTab.tsx`
 - `src/pages/FlowDiagram.tsx`
 
