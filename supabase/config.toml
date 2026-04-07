@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.import-intercom-ticket]
 verify_jwt = false
+
+[functions.search-intercom-by-email]
+verify_jwt = false
