@@ -569,16 +569,68 @@ const ConversationDetail = () => {
           </CardContent>
         </Card>
 
-        {gmailConv.snippet && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Snippet</CardTitle>
-            </CardHeader>
-            <CardContent>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-sm">Email thread</CardTitle>
+            {gmailConv.gmail_thread_id && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={async () => {
+                  setGmailThreadLoading(true);
+                  try {
+                    const res = await supabase.functions.invoke("fetch-gmail-thread", {
+                      body: { threadId: gmailConv.gmail_thread_id },
+                    });
+                    if (res.data?.messages) setGmailThreadMessages(res.data.messages);
+                  } catch (err) {
+                    console.error("Failed to refresh Gmail thread:", err);
+                    toast.error("Failed to refresh thread");
+                  } finally {
+                    setGmailThreadLoading(false);
+                  }
+                }}
+                disabled={gmailThreadLoading}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${gmailThreadLoading ? "animate-spin" : ""}`} />
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent>
+            {gmailThreadLoading && gmailThreadMessages.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Loading thread…</p>
+            ) : gmailThreadMessages.length > 0 ? (
+              <div className="space-y-4">
+                {gmailThreadMessages.map((msg) => (
+                  <div key={msg.id} className="flex gap-3">
+                    <Avatar className="h-8 w-8 shrink-0 mt-0.5">
+                      <AvatarFallback className="bg-muted text-muted-foreground text-xs">
+                        {(msg.from_name || msg.from_email || "?").slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm font-medium text-foreground">
+                          {msg.from_name || msg.from_email}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(msg.date).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-sm whitespace-pre-wrap break-words text-foreground">
+                        {msg.body || msg.snippet}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : gmailConv.snippet ? (
               <p className="text-sm text-foreground whitespace-pre-wrap">{gmailConv.snippet}</p>
-            </CardContent>
-          </Card>
-        )}
+            ) : (
+              <p className="text-sm text-muted-foreground">No messages found.</p>
+            )}
+          </CardContent>
+        </Card>
       </>
     );
   };
