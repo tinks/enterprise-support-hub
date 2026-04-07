@@ -86,8 +86,8 @@ Deno.serve(async (req) => {
       contactName = sourceContact.name || sourceContact.email || "";
     }
 
-    // Extract subject/title
-    const subject = icData.source?.subject || icData.title || `Intercom #${intercomConvId}`;
+    // Extract subject/title (strip HTML tags)
+    const subject = stripHtml(icData.source?.subject || icData.title || `Intercom #${intercomConvId}`);
 
     // Insert into manual_conversations
     const { data: inserted, error: insertErr } = await sb
@@ -112,9 +112,6 @@ Deno.serve(async (req) => {
     }
 
     // --- Extract and insert messages ---
-    const stripHtml = (html: string) =>
-      html.replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ").trim();
-
     const mapRole = (type: string) => (type === "user" || type === "lead") ? "user" : "admin";
     const toIso = (ts: number) => new Date(ts * 1000).toISOString();
 
@@ -135,10 +132,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Conversation parts
+    // Conversation parts — filter out internal notes and system events
+    const SKIP_PART_TYPES = new Set(["note", "assignment", "open", "close", "away_mode_assignment"]);
     const parts = icData.conversation_parts?.conversation_parts || [];
     for (const part of parts) {
       if (!part.body) continue;
+      if (SKIP_PART_TYPES.has(part.part_type)) continue;
+      if (part.author?.type === "bot") continue;
       const text = stripHtml(part.body);
       if (!text) continue;
       messages.push({
