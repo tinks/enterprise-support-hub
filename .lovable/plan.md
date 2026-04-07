@@ -1,36 +1,50 @@
 
 
-## Relink conversation to a new Slack thread via re-import
+## Fix unique constraint violation on relink
 
 ### Problem
-The current re-import flow only updates `original_message_text` and `created_at` on the existing row. It doesn't update `slack_channel_id`, `slack_thread_ts`, or `slack_user_id` — so the conversation stays linked to the old (wrong) thread. The user wants: click re-import → paste the correct Slack URL → old record is fully replaced with data from the new thread.
+When relinking a conversation to a new Slack thread URL, the update sets `slack_channel_id` + `slack_thread_ts` to the new values. But if another row in `conversation_mappings` already has that exact channel+thread combo (from the unique index `idx_conversation_mappings_slack`), the update fails with a duplicate key error.
 
-### UX flow
-1. On `/test-review`, user clicks a "Re-import" button on a row
-2. A dialog/popover opens asking for the correct Slack thread URL
-3. On confirm, the edge function fetches the new thread's data and overwrites all fields on the existing row
-4. The row updates in place with the correct channel, thread, user, message, and `created_at`
+In this case, row `0c7a2630` is being relinked to thread `C098JSW5XBJ/1774918999.819219`, but another row already exists for that thread.
 
-### Changes
+### Solution
 
 **`supabase/functions/import-slack-thread/index.ts`**
-- Accept optional `existingId` in request body
-- When `force: true` + `existingId` is provided, skip the duplicate lookup and update the specified row with ALL fields: `slack_channel_id`, `slack_thread_ts`, `slack_user_id`, `original_message_text`, `created_at`
-- Current update (line 216-221) only sets `original_message_text` and `created_at` — expand to include `slack_channel_id`, `slack_thread_ts`, `slack_user_id`
 
-**`src/pages/TestChannelReview.tsx`**
-- Replace the bulk select + custom URL popover approach with a simpler per-row "Re-import" button
-- Clicking it opens a dialog with a URL input field
-- On confirm, calls the edge function with `{ url, force: true, existingId: row.id }`
-- On success, refresh the table
-- Keep the existing bulk "Select drifted → Re-import selected" flow for rows that just need timestamp correction (no URL change)
-- When bulk re-importing with a custom URL set, pass `existingId: row.id`
+When `force: true` + `existingId` is set and the target thread already exists as a different row:
+1. Before the update, query for any existing row matching the new `channelId` + `threadTs` that is NOT the `targetId`
+2. If found, delete that conflicting row first (it's a duplicate that will be replaced by the relinked record)
+3. Then proceed with the update as before
+
+```typescript
+// Before the update block (~line 219):
+if (targetId && force) {
+  // Remove any conflicting row that already has this channel+thread
+  const { data: conflicting } = await supabase
+    .from("conversation_mappings")
+    .select("id")
+    .eq("slack_channel_id", channelId)
+    .eq("slack_thread_ts", threadTs)
+    .neq("id", targetId)
+    .limit(1);
+
+  if (conflicting && conflicting.length > 0) {
+    await supabase
+      .from("conversation_mappings")
+      .delete()
+      .eq("id", conflicting[0].id);
+  }
+
+  // Then update...
+}
+```
+
+Note: the delete uses the service role key (already in use), bypassing the RLS deny-delete policy on the public role.
 
 **`src/pages/FlowDiagram.tsx`**
-- Note that force re-import with `existingId` fully relinks a conversation to a different Slack thread
+- Note that relink auto-removes conflicting duplicate rows
 
 ### Files to edit
 - `supabase/functions/import-slack-thread/index.ts`
-- `src/pages/TestChannelReview.tsx`
 - `src/pages/FlowDiagram.tsx`
 
