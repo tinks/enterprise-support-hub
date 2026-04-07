@@ -172,6 +172,9 @@ const ConversationDetail = () => {
   const [threadLoading, setThreadLoading] = useState(false);
   const [productAreas, setProductAreas] = useState<string[]>([]);
   const [creatingIntercom, setCreatingIntercom] = useState(false);
+  const [intercomSuggestions, setIntercomSuggestions] = useState<{ id: string; title: string; created_at: string | null; state: string }[]>([]);
+  const [searchingIntercom, setSearchingIntercom] = useState(false);
+  const [linkingIntercomId, setLinkingIntercomId] = useState<string | null>(null);
 
   const fetchThread = async (channelId: string, threadTs: string) => {
     setThreadLoading(true);
