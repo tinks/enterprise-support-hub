@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
           message_text: text,
           sender_name: src.author?.name || src.author?.email || src.author?.type || "Unknown",
           role: mapRole(src.author?.type || "user"),
-          created_at: src.created_at ? toIso(src.created_at) : new Date().toISOString(),
+          created_at: src.created_at ? toIso(src.created_at) : (icData.created_at ? toIso(icData.created_at) : new Date().toISOString()),
         });
       }
     }
