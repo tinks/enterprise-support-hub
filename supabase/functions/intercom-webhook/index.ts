@@ -404,15 +404,15 @@ Deno.serve(async (req) => {
     }
 
     if (!mapping) {
-      // Fallback: check manual_conversations for manually imported Intercom conversations
-      if (REPLY_TOPICS.includes(topic)) {
-        const allConvIds = [String(conversationId), ...[
-          body.data?.item?.ticket?.id,
-          body.data?.item?.id,
-          body.data?.item?.ticket_id,
-          body.data?.item?.conversation_id,
-        ].filter(Boolean).map(String).filter(id => id !== String(conversationId))];
+      // Fallback: check manual_conversations / gmail_conversations for non-Slack tracked conversations
+      const allConvIds = [String(conversationId), ...[
+        body.data?.item?.ticket?.id,
+        body.data?.item?.id,
+        body.data?.item?.ticket_id,
+        body.data?.item?.conversation_id,
+      ].filter(Boolean).map(String).filter(id => id !== String(conversationId))];
 
+      if (REPLY_TOPICS.includes(topic)) {
         let manualConv = null;
         for (const cid of allConvIds) {
           const { data } = await supabase
@@ -464,6 +464,50 @@ Deno.serve(async (req) => {
               });
             }
           }
+        }
+      }
+
+      // Fallback: resolve manual_conversations or gmail_conversations on Intercom close
+      if (CLOSED_TOPICS.includes(topic)) {
+        const now = new Date().toISOString();
+        let resolved = false;
+
+        for (const cid of allConvIds) {
+          const { data: mc } = await supabase
+            .from("manual_conversations")
+            .update({ status: "resolved", resolved_at: now } as any)
+            .eq("intercom_conversation_id", cid)
+            .neq("status", "resolved")
+            .select("id")
+            .maybeSingle();
+          if (mc) {
+            console.log(`Resolved manual_conversation ${mc.id} via Intercom close`);
+            resolved = true;
+            break;
+          }
+        }
+
+        if (!resolved) {
+          for (const cid of allConvIds) {
+            const { data: gc } = await supabase
+              .from("gmail_conversations")
+              .update({ status: "resolved", resolved_at: now })
+              .eq("intercom_conversation_id", cid)
+              .neq("status", "resolved")
+              .select("id")
+              .maybeSingle();
+            if (gc) {
+              console.log(`Resolved gmail_conversation ${gc.id} via Intercom close`);
+              resolved = true;
+              break;
+            }
+          }
+        }
+
+        if (resolved) {
+          return new Response(JSON.stringify({ ok: true, message: "Resolved via Intercom close" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
         }
       }
 
