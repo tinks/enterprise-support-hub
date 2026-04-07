@@ -260,6 +260,52 @@ const ConversationDetail = () => {
     load();
   }, [id, source]);
 
+  // Auto-search Intercom for Gmail threads without a linked conversation
+  useEffect(() => {
+    if (source !== "gmail" || !gmailConv || gmailConv.intercom_conversation_id || !gmailConv.from_email) return;
+    const search = async () => {
+      setSearchingIntercom(true);
+      try {
+        const { data } = await supabase.functions.invoke("search-intercom-by-email", {
+          body: { email: gmailConv.from_email },
+        });
+        if (data?.conversations?.length) {
+          setIntercomSuggestions(data.conversations);
+        }
+      } catch (err) {
+        console.error("Failed to search Intercom:", err);
+      } finally {
+        setSearchingIntercom(false);
+      }
+    };
+    search();
+  }, [gmailConv?.id, gmailConv?.intercom_conversation_id, source]);
+
+  const linkIntercomConversation = async (intercomConvId: string) => {
+    if (!gmailConv) return;
+    setLinkingIntercomId(intercomConvId);
+    try {
+      await supabase.from("gmail_conversations").update({ intercom_conversation_id: intercomConvId } as any).eq("id", gmailConv.id);
+      if (gmailConv.gmail_thread_id) {
+        const { data: siblings } = await supabase
+          .from("gmail_conversations")
+          .select("id")
+          .eq("gmail_thread_id", gmailConv.gmail_thread_id)
+          .neq("id", gmailConv.id);
+        if (siblings?.length) {
+          await supabase.from("gmail_conversations").update({ intercom_conversation_id: intercomConvId } as any).in("id", siblings.map((s: any) => s.id));
+        }
+      }
+      setGmailConv({ ...gmailConv, intercom_conversation_id: intercomConvId });
+      setIntercomSuggestions([]);
+      toast.success("Intercom conversation linked");
+    } catch {
+      toast.error("Failed to link Intercom conversation");
+    } finally {
+      setLinkingIntercomId(null);
+    }
+  };
+
   // Shared helpers for updating fields
   const getTable = () => source === "slack" ? "conversation_mappings" : source === "gmail" ? "gmail_conversations" : "manual_conversations";
   const getCurrentData = () => source === "slack" ? conv : source === "gmail" ? gmailConv : manualConv;
