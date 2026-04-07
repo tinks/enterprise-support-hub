@@ -44,6 +44,14 @@ export function parseThread(raw: string): ParsedMessage[] {
     }
   }
 
+  // Format D: Teams — "Name  3/26/2025 11:03 AM" (date + time, 2+ spaces)
+  if (parts.length === 0) {
+    const regexD = /^(.+?)\s{2,}(\d{1,2}\/\d{1,2}\/\d{2,4})\s+(\d{1,2}:\d{2}\s?(?:AM|PM))\s*$/gm;
+    while ((match = regexD.exec(raw)) !== null) {
+      parts.push({ name: match[1].trim(), startIdx: match.index + match[0].length });
+    }
+  }
+
   if (parts.length === 0) return [];
 
   const messages: ParsedMessage[] = [];
