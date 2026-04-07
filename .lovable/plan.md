@@ -1,50 +1,39 @@
 
 
-## Auto-import Intercom conversations on assignment to enterprise inbox
+## Fix: Include message body from assignment parts
 
-### How it works
+### Problem
+Your reply is tagged as `part_type=assignment` by Intercom (because you replied while reassigning the conversation). The current code unconditionally skips all `assignment` parts, which drops your message.
 
-When Intercom fires an assignment webhook (`conversation.admin.assigned`, `conversation.admin.open.assigned`, `ticket.admin.assigned`, `ticket.team.assigned`), the existing `intercom-webhook` function will:
+From the logs:
+```
+Part: type=assignment, author.type=admin, author.name=Joel Samuelson, hasBody=true  ← YOUR MESSAGE, SKIPPED
+```
 
-1. Detect it's an assignment topic
-2. Extract the assigned team/inbox ID from the payload
-3. Compare against `settings.intercom_inbox_id` (enterprise inbox)
-4. If it doesn't match the enterprise inbox → ignore
-5. If it matches → check if the conversation already exists in `conversation_mappings`, `gmail_conversations`, or `manual_conversations`
-6. If already tracked → ignore
-7. If new → fetch the full conversation from Intercom API (with pagination), extract messages using the same logic as `import-intercom-ticket`, and insert into `manual_conversations` + `manual_messages`
+### Solution
 
-### Technical detail
+**`supabase/functions/import-intercom-ticket/index.ts`**
 
-**Assignment webhook payload** provides:
-- `body.data.item.id` — the conversation/ticket ID
-- `body.data.item.admin_assignee_id` or `body.data.item.team_assignee_id` — who it's assigned to
-- For ticket topics: `body.data.item.ticket.id`
+Change the filtering logic: instead of skipping `assignment` parts entirely, only skip them if they have no body. The existing `if (!part.body) continue;` check already handles empty parts, so we just need to remove `"assignment"` from `SKIP_PART_TYPES`.
 
-The auto-import reuses the exact message extraction logic from `import-intercom-ticket`: `stripHtml`, pagination of conversation parts, `SKIP_PART_TYPES` filter, bot author filter, chronological sorting.
+Updated skip set:
+```
+Before: ["assignment", "open", "close", "away_mode_assignment"]
+After:  ["open", "close", "away_mode_assignment"]
+```
 
-The Intercom conversation URL is constructed as `https://app.intercom.com/a/inbox/.../conversation/{id}` for the `link` field stored in `manual_conversations`.
-
-### Changes
+Assignment parts without a body (pure reassignments) are already caught by `if (!part.body) continue;`. Assignment parts WITH a body (admin replied while reassigning) will now be included.
 
 **`supabase/functions/intercom-webhook/index.ts`**
 
-1. Add `ASSIGNMENT_TOPICS` constant: `["conversation.admin.assigned", "conversation.admin.open.assigned", "ticket.admin.assigned", "ticket.team.assigned"]`
-2. Update the topic gate (line 139) to also accept assignment topics
-3. Add new handler block for assignment topics (before the reply/close handling):
-   - Extract `team_assignee_id` from payload
-   - Compare against `appSettings.intercom_inbox_id`
-   - If no match → return early
-   - Check all three tables for existing `intercom_conversation_id`
-   - If found → return early (already tracked)
-   - If new → fetch full conversation from Intercom API with pagination, extract messages with `stripHtml` + filtering, insert into `manual_conversations` + `manual_messages`
-   - Return success with the new conversation ID
-4. Add `stripHtml` helper function to the file (same as in `import-intercom-ticket`)
+Apply the same change to the auto-import handler's `SKIP_PART_TYPES` set for consistency.
 
 **`src/pages/FlowDiagram.tsx`**
-- Add a node for the auto-import-on-assignment path showing the new flow
+
+Update flow to note that assignment parts with message bodies are now included.
 
 ### Files to edit
+- `supabase/functions/import-intercom-ticket/index.ts`
 - `supabase/functions/intercom-webhook/index.ts`
 - `src/pages/FlowDiagram.tsx`
 
