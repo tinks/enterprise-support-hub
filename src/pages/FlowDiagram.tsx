@@ -127,6 +127,9 @@ const ROW_H = 380;
 /*  "intercom", pre-linked intercom_conversation_id, and metadata      */
 /*  fetched from the Intercom API. Duplicates checked across all       */
 /*  three tables. Badge shows "Intercom import" in conversations list. */
+/*  Imported conversations use the first user message timestamp as     */
+/*  created_at instead of the import time, so analytics reflect when   */
+/*  the conversation actually started.                                  */
 /* ------------------------------------------------------------------ */
 /*  Owner tracking: each conversation (Slack, Gmail, Manual) has an    */
 /*  owner column (Joel, Kristina, Sam, or CSM). Assignable inline      */
