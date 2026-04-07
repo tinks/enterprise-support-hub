@@ -276,6 +276,7 @@ export type Database = {
           link: string | null
           owner: string | null
           product_area: string | null
+          resolved_at: string | null
           source: string
           status: string
           subject: string
@@ -293,6 +294,7 @@ export type Database = {
           link?: string | null
           owner?: string | null
           product_area?: string | null
+          resolved_at?: string | null
           source?: string
           status?: string
           subject?: string
@@ -310,6 +312,7 @@ export type Database = {
           link?: string | null
           owner?: string | null
           product_area?: string | null
+          resolved_at?: string | null
           source?: string
           status?: string
           subject?: string

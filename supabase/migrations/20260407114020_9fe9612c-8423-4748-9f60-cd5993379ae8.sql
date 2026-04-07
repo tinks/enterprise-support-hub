@@ -1,0 +1,1 @@
+ALTER TABLE public.manual_conversations ADD COLUMN resolved_at timestamp with time zone;

@@ -495,9 +495,8 @@ function buildNodes(
         details: [
           "Handles conversation.admin.closed & ticket.state.updated",
           "Filters ticket.state.updated to only resolved/closed states (via ticket_state.category)",
-          "Removes all feedback buttons",
-          "Removes 👀 and ⏳, adds ✅",
-          "Posts resolution notice",
+          "Slack-originated: removes feedback buttons, swaps reactions to ✅, posts resolution notice",
+          "Manual/Gmail fallback: if no Slack mapping found, resolves matching manual_conversations or gmail_conversations by intercom_conversation_id",
         ],
         message: msgs.conversation_closed,
         messageKey: "conversation_closed",
