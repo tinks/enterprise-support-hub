@@ -1,25 +1,33 @@
 
 
-## Fix source message timestamp in Intercom import
+## Fix: Stop filtering out admin messages in Intercom import
 
 ### Problem
-The source message (first message in the conversation) gets timestamped at import time instead of its actual send time. This happens because `icData.source.created_at` doesn't exist in the Intercom API response — the source object doesn't carry its own `created_at`. The conversation's creation timestamp is at `icData.created_at` (top-level), so the code falls through to the `new Date().toISOString()` fallback.
+Joel's message (a real admin reply) is being excluded during import. The current code uses a blocklist of `part_type` values to skip, which includes `"note"`. In Intercom's API, some admin replies — especially internal-facing ones — may be tagged with unexpected `part_type` values, causing legitimate messages to be dropped.
 
-### Fix
+### Root cause
+Line 165 filters by `part_type` using a blocklist. This is fragile — if Intercom labels an admin reply with a type we didn't anticipate, it gets silently dropped. The safer approach is to flip to an **allowlist** or remove the `part_type` filter entirely and rely only on: (1) has body content, (2) not a bot author, (3) not a pure system event.
+
+### Solution
 
 **`supabase/functions/import-intercom-ticket/index.ts`**
 
-Line 159 — change the `created_at` for the source message to use the conversation-level timestamp:
+1. **Replace blocklist with minimal system-event filter** — Only skip parts that are purely operational (no message content): `assignment`, `open`, `close`, `away_mode_assignment`. Remove `"note"` from the skip set entirely.
 
-```ts
-// Before
-created_at: src.created_at ? toIso(src.created_at) : new Date().toISOString(),
+2. **Add debug logging** — Log each part's `part_type`, `author.type`, and `author.name` before filtering, so future issues are diagnosable from edge function logs.
 
-// After
-created_at: src.created_at ? toIso(src.created_at) : (icData.created_at ? toIso(icData.created_at) : new Date().toISOString()),
+```text
+Before:
+  SKIP_PART_TYPES = ["note", "assignment", "open", "close", "away_mode_assignment"]
+  + skip if author.type === "bot"
+
+After:
+  SKIP_PART_TYPES = ["assignment", "open", "close", "away_mode_assignment"]
+  + skip if author.type === "bot"
+  + log each part's metadata for debugging
 ```
 
-This adds a second fallback: `src.created_at` → `icData.created_at` (conversation creation time) → `now()`. The conversation-level `created_at` matches when the initial message was sent.
+This ensures all human messages (admin replies, notes with actual content, email replies) are included. Bot messages and system events remain filtered.
 
 ### Files to edit
 - `supabase/functions/import-intercom-ticket/index.ts`
