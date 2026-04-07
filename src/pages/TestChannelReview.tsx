@@ -64,6 +64,8 @@ export default function TestChannelReview() {
   const [relinkRow, setRelinkRow] = useState<ConversationRow | null>(null);
   const [relinkUrl, setRelinkUrl] = useState("");
   const [relinking, setRelinking] = useState(false);
+  const [dupeResults, setDupeResults] = useState<Record<string, Array<{ id: string; subject: string; contact_name: string; source: string; created_at: string }>>>({});
+  const [dupeLoading, setDupeLoading] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
