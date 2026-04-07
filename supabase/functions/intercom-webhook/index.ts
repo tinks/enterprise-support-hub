@@ -257,7 +257,7 @@ Deno.serve(async (req) => {
       // Extract messages
       const mapRole = (type: string) => (type === "user" || type === "lead") ? "user" : "admin";
       const toIso = (ts: number) => new Date(ts * 1000).toISOString();
-      const SKIP_PART_TYPES = new Set(["open", "close", "away_mode_assignment"]);
+      const SKIP_PART_TYPES = new Set(["note", "open", "close", "away_mode_assignment"]);
 
       const messages: Array<{ conversation_id: string; message_text: string; sender_name: string; role: string; created_at: string }> = [];
 
@@ -379,6 +379,69 @@ Deno.serve(async (req) => {
     }
 
     if (!mapping) {
+      // Fallback: check manual_conversations for manually imported Intercom conversations
+      if (REPLY_TOPICS.includes(topic)) {
+        const allConvIds = [String(conversationId), ...[
+          body.data?.item?.ticket?.id,
+          body.data?.item?.id,
+          body.data?.item?.ticket_id,
+          body.data?.item?.conversation_id,
+        ].filter(Boolean).map(String).filter(id => id !== String(conversationId))];
+
+        let manualConv = null;
+        for (const cid of allConvIds) {
+          const { data } = await supabase
+            .from("manual_conversations")
+            .select("id")
+            .eq("intercom_conversation_id", cid)
+            .maybeSingle();
+          if (data) { manualConv = data; break; }
+        }
+
+        if (manualConv) {
+          // Extract reply from webhook payload
+          const parts = body.data?.item?.conversation_parts?.conversation_parts || [];
+          const latestPart = parts[parts.length - 1] || parts[0];
+          if (latestPart?.body) {
+            const strip = (html: string): string =>
+              html
+                .replace(/<[^>]*>/g, "")
+                .replace(/&amp;/g, "&")
+                .replace(/&lt;/g, "<")
+                .replace(/&gt;/g, ">")
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .replace(/&nbsp;/g, " ")
+                .trim();
+            const text = strip(latestPart.body);
+            if (text) {
+              const authorType = latestPart.author?.type || "admin";
+              const role = (authorType === "user" || authorType === "lead") ? "user" : "admin";
+              const senderName = latestPart.author?.name || latestPart.author?.email || authorType;
+              const createdAt = latestPart.created_at
+                ? new Date(latestPart.created_at * 1000).toISOString()
+                : new Date().toISOString();
+
+              const { error: msgErr } = await supabase.from("manual_messages").insert({
+                conversation_id: manualConv.id,
+                message_text: text,
+                sender_name: senderName,
+                role,
+                created_at: createdAt,
+              });
+              if (msgErr) {
+                console.error("Failed to insert live reply for manual conv:", msgErr);
+              } else {
+                console.log(`Appended live reply to manual conversation ${manualConv.id}`);
+              }
+              return new Response(JSON.stringify({ ok: true, message: "Appended to manual conversation", id: manualConv.id }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+          }
+        }
+      }
+
       console.log(`No mapping found for Intercom conversation ${conversationId}. Payload IDs: item.id=${body.data?.item?.id}, ticket.id=${body.data?.item?.ticket?.id}, ticket_id=${body.data?.item?.ticket_id}, type=${body.data?.item?.type}`);
       return new Response(JSON.stringify({ ok: true, message: "No mapping found" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
