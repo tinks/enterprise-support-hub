@@ -1,45 +1,31 @@
 
 
-## Fix Intercom import: message ordering, filtering, and subject formatting
+## Add delete & re-import for manual (Intercom) conversations
 
 ### Problem
-1. **Subject has raw HTML tags** — The subject stored from Intercom contains `<p>...</p>` tags that display literally
-2. **Internal notes imported** — Assignment events, bot status notes ("Sam is working"), and other internal Intercom parts are included as messages
-3. **Message ordering** — Messages should display with the initial message first, then chronologically
+A previously imported Intercom ticket had incomplete data (messages didn't import). Now re-importing fails with "Already imported" because the duplicate check finds the existing row. There's no way to delete it and try again.
+
+### Solution
+Add a **Delete conversation** button on the conversation detail page for manual-source conversations. Deleting removes the `manual_conversations` row and its `manual_messages`, allowing re-import.
 
 ### Implementation
 
 **`supabase/functions/import-intercom-ticket/index.ts`**
+1. Add a `force` parameter. When `force: true` is passed, delete the existing `manual_conversations` row (and cascade messages) before re-importing, instead of returning 409.
 
-1. **Strip HTML from subject** (line 90) — Apply `stripHtml` to the subject before saving:
-   ```ts
-   const subject = stripHtml(icData.source?.subject || icData.title || `Intercom #${intercomConvId}`);
-   ```
-   Move the `stripHtml` helper definition above the subject extraction (before line 90).
-
-2. **Filter out internal notes and system parts** (line 140) — Skip conversation parts that are internal notes or system events. Intercom parts have a `part_type` field; filter out:
-   - `part_type === "note"` (internal notes)
-   - `part_type === "assignment"` (team assignment changes)  
-   - `part_type === "open"` / `"close"` (status changes)
-   - Parts where `author.type === "bot"` (bot status messages like "Sam is working")
-   
-   Add a filter before processing each part:
-   ```ts
-   const SKIP_PART_TYPES = new Set(["note", "assignment", "open", "close", "away_mode_assignment"]);
-   for (const part of parts) {
-     if (!part.body) continue;
-     if (SKIP_PART_TYPES.has(part.part_type)) continue;
-     if (part.author?.type === "bot") continue;
-     // ... rest of processing
-   }
-   ```
-
-3. **Ensure chronological order** — Messages are already inserted in order (source message first, then parts in API order). The detail page fetches `manual_messages` ordered by `created_at` ascending, so this is correct. No change needed.
+**`src/components/ImportTab.tsx`**
+2. When the "Already imported" toast appears for Intercom, add a **Re-import** action button that re-calls the function with `force: true`.
 
 **`src/pages/ConversationDetail.tsx`**
+3. Add a **Delete conversation** button in the sidebar for `source === "manual"` conversations. On click, show a confirmation dialog, then delete from `manual_messages` (by `conversation_id`) and `manual_conversations` (by `id`), and navigate back to `/conversations`.
 
-4. **No changes needed** — The detail page already displays messages in order and the subject is rendered from the database value. Fixing the data at import time resolves the display issues.
+**`supabase/functions/import-intercom-ticket/index.ts`** (detail)
+- Accept optional `force: boolean` in request body
+- When `force` is true and a duplicate exists in `manual_conversations`, delete the existing row and its messages before proceeding with the import
+- If the duplicate is in `conversation_mappings` or `gmail_conversations`, still return 409 (don't delete those)
 
 ### Files to edit
 - `supabase/functions/import-intercom-ticket/index.ts`
+- `src/components/ImportTab.tsx`
+- `src/pages/ConversationDetail.tsx`
 
