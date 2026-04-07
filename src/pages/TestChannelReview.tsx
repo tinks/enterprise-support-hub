@@ -382,6 +382,7 @@ export default function TestChannelReview() {
                       <TableHead className="w-[50px]">URL</TableHead>
                       <TableHead className="w-[80px]">Relink</TableHead>
                       <TableHead className="w-[80px]">Dupes</TableHead>
+                      <TableHead className="w-[100px]">Log & replace</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -458,6 +459,23 @@ export default function TestChannelReview() {
                                 </div>
                               </PopoverContent>
                             </Popover>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => {
+                                setLogRow(row);
+                                setLogChannelName(channelNameOverrides[row.slack_channel_id] || row.slack_channel_id);
+                                setLogDate(threadTsToDate(row.slack_thread_ts));
+                                setLogOwner(row.owner || "");
+                                setLogRawThread("");
+                              }}
+                            >
+                              <ClipboardPaste className="h-3 w-3 mr-1" />
+                              Log
+                            </Button>
                           </TableCell>
                           <TableCell>
                             <Button
