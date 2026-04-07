@@ -36,6 +36,9 @@ verify_jwt = false
 [functions.backfill-gmail-headers]
 verify_jwt = false
 
+[functions.fetch-gmail-thread]
+verify_jwt = false
+
 [functions.import-slack-thread]
 verify_jwt = false
 

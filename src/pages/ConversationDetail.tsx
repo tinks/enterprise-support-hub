@@ -175,6 +175,8 @@ const ConversationDetail = () => {
   const [intercomSuggestions, setIntercomSuggestions] = useState<{ id: string; title: string; created_at: string | null; state: string }[]>([]);
   const [searchingIntercom, setSearchingIntercom] = useState(false);
   const [linkingIntercomId, setLinkingIntercomId] = useState<string | null>(null);
+  const [gmailThreadMessages, setGmailThreadMessages] = useState<{ id: string; from_name: string; from_email: string; date: string; body: string; snippet: string }[]>([]);
+  const [gmailThreadLoading, setGmailThreadLoading] = useState(false);
 
   const fetchThread = async (channelId: string, threadTs: string) => {
     setThreadLoading(true);
