@@ -1,27 +1,33 @@
 
 
-## Fix `import-intercom-ticket` missing `stripHtml` function
+## Show full Gmail thread messages on conversation detail
 
 ### Problem
-The edge function crashes with `ReferenceError: stripHtml is not defined` because the code references `stripHtml()` (added when message extraction was implemented) but the function was never defined in the file.
+The Gmail conversation detail page only displays the `snippet` field (a short preview stored during polling). It does not fetch or show the full email thread — there's no equivalent of the Slack `fetch-thread-messages` function for Gmail.
 
-### Fix
-Add the `stripHtml` helper function to `supabase/functions/import-intercom-ticket/index.ts`, before the `Deno.serve()` call. Same implementation used in `search-intercom-by-email`:
+### Solution
+Create a new edge function `fetch-gmail-thread` that retrieves all messages in a Gmail thread via the Gmail API, and update the detail page to display them.
 
-```ts
-function stripHtml(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, "")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, " ")
-    .trim();
-}
-```
+### Implementation
 
-### Files to edit
-- `supabase/functions/import-intercom-ticket/index.ts`
+**New edge function: `supabase/functions/fetch-gmail-thread/index.ts`**
+1. Accept `{ threadId }` in the request body
+2. Load Gmail OAuth tokens from `gmail_oauth_tokens`, refresh if expired
+3. Call Gmail API `GET /users/me/threads/{threadId}?format=full` to get all messages in the thread
+4. For each message, extract: sender (From header), date, plain text body (from `text/plain` part, falling back to `text/html` with HTML stripping), and snippet
+5. Return `{ messages: [{ from_name, from_email, date, body, snippet }] }` sorted chronologically
+
+**`src/pages/ConversationDetail.tsx`**
+1. Add state `gmailThreadMessages` and a loader flag
+2. When a Gmail conversation loads and has a `gmail_thread_id`, invoke `fetch-gmail-thread` with that thread ID
+3. Update `renderGmailContent()` to show the full message list (same avatar + message layout as manual/Slack threads) below the metadata card, replacing the snippet card
+4. Keep snippet as fallback if thread fetch fails
+
+**`src/pages/FlowDiagram.tsx`**
+- Add the new `fetch-gmail-thread` function to the flow diagram
+
+### Files to create/edit
+- `supabase/functions/fetch-gmail-thread/index.ts` (new)
+- `src/pages/ConversationDetail.tsx`
+- `src/pages/FlowDiagram.tsx`
 
