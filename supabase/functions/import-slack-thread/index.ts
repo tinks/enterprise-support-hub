@@ -217,6 +217,22 @@ Deno.serve(async (req) => {
     let insertError: any;
 
     if (targetId && force) {
+      // Remove any conflicting row that already has this channel+thread
+      const { data: conflicting } = await supabase
+        .from("conversation_mappings")
+        .select("id")
+        .eq("slack_channel_id", channelId)
+        .eq("slack_thread_ts", threadTs)
+        .neq("id", targetId)
+        .limit(1);
+
+      if (conflicting && conflicting.length > 0) {
+        await supabase
+          .from("conversation_mappings")
+          .delete()
+          .eq("id", conflicting[0].id);
+      }
+
       // Force re-import: update existing row with ALL fields
       const { data, error } = await supabase
         .from("conversation_mappings")
