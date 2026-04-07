@@ -36,6 +36,14 @@ export function parseThread(raw: string): ParsedMessage[] {
     }
   }
 
+  // Format C: "Name  5:43 AM" — no brackets, 2+ spaces before time
+  if (parts.length === 0) {
+    const regexC = /^(.+?)\s{2,}(\d{1,2}:\d{2}\s?(?:AM|PM))\s*$/gm;
+    while ((match = regexC.exec(raw)) !== null) {
+      parts.push({ name: match[1].trim(), startIdx: match.index + match[0].length });
+    }
+  }
+
   if (parts.length === 0) return [];
 
   const messages: ParsedMessage[] = [];
