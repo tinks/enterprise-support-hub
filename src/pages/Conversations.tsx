@@ -130,6 +130,45 @@ type ColKey = typeof ALL_COLUMNS[number];
 type OwnerFilter = "all" | "Joel" | "Kristina" | "Sam" | "CSM" | "unassigned";
 const OWNER_OPTIONS = ["Joel", "Kristina", "Sam", "CSM"] as const;
 
+const ColumnFilter = ({ value, options, onChange, label }: { value: string; options: string[]; onChange: (v: string) => void; label: string }) => (
+  <Popover>
+    <PopoverTrigger asChild>
+      <button
+        className={`ml-1 inline-flex items-center justify-center rounded p-0.5 transition-colors ${value !== "all" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Filter className={`h-3 w-3 ${value !== "all" ? "fill-primary" : ""}`} />
+      </button>
+    </PopoverTrigger>
+    <PopoverContent className="w-44 p-2" align="start">
+      <div className="flex flex-col gap-0.5">
+        <button
+          className={`rounded px-2 py-1.5 text-left text-sm transition-colors ${value === "all" ? "bg-accent text-accent-foreground" : "hover:bg-muted"}`}
+          onClick={() => onChange("all")}
+        >
+          All
+        </button>
+        <button
+          className={`rounded px-2 py-1.5 text-left text-sm transition-colors ${value === "unassigned" ? "bg-accent text-accent-foreground" : "hover:bg-muted"}`}
+          onClick={() => onChange("unassigned")}
+        >
+          Unassigned
+        </button>
+        <div className="my-1 h-px bg-border" />
+        {options.map((opt) => (
+          <button
+            key={opt}
+            className={`rounded px-2 py-1.5 text-left text-sm transition-colors ${value === opt ? "bg-accent text-accent-foreground" : "hover:bg-muted"}`}
+            onClick={() => onChange(opt)}
+          >
+            {opt}
+          </button>
+        ))}
+      </div>
+    </PopoverContent>
+  </Popover>
+);
+
 const COLUMN_STORAGE_KEY = "conv-column-order";
 const COLUMN_ORDER_VERSION_KEY = "conv-column-order-version";
 const COLUMN_ORDER_VERSION = 2;
@@ -162,6 +201,10 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const [searchQuery, setSearchQuery] = useState("");
   const savedOwner = localStorage.getItem("conv-owner-filter") as OwnerFilter | null;
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(forceOwner as OwnerFilter || savedOwner || "all");
+  const savedPaFilter = localStorage.getItem("conv-pa-filter");
+  const [productAreaFilter, setProductAreaFilter] = useState<string>(savedPaFilter || "all");
+  const savedClassFilter = localStorage.getItem("conv-class-filter");
+  const [classificationFilter, setClassificationFilter] = useState<string>(savedClassFilter || "all");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [searchResults, setSearchResults] = useState<{ slack: ConversationMapping[]; gmail: GmailConversation[]; manual: ManualConversation[] } | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -346,6 +389,8 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   useEffect(() => { localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(columnOrder)); }, [columnOrder]);
   useEffect(() => { localStorage.setItem("conv-source-filter", sourceFilter); }, [sourceFilter]);
   useEffect(() => { if (!forceOwner) localStorage.setItem("conv-owner-filter", ownerFilter); }, [ownerFilter, forceOwner]);
+  useEffect(() => { localStorage.setItem("conv-pa-filter", productAreaFilter); }, [productAreaFilter]);
+  useEffect(() => { localStorage.setItem("conv-class-filter", classificationFilter); }, [classificationFilter]);
   useEffect(() => { localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses]);
 
   const handleDragStart = useCallback((col: ColKey) => { dragCol.current = col; }, []);
@@ -834,20 +879,34 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
           return o === ownerFilter;
         });
 
+    // Apply product area filter
+    const paFiltered = productAreaFilter === "all"
+      ? ownerFiltered
+      : productAreaFilter === "unassigned"
+        ? ownerFiltered.filter((r) => !(r.data as any).product_area)
+        : ownerFiltered.filter((r) => (r.data as any).product_area === productAreaFilter);
+
+    // Apply classification filter
+    const classFiltered = classificationFilter === "all"
+      ? paFiltered
+      : classificationFilter === "unassigned"
+        ? paFiltered.filter((r) => !(r.data as any).classification)
+        : paFiltered.filter((r) => (r.data as any).classification === classificationFilter);
+
     // Apply status filter (skip when searching — show all matches)
     if (!searchResults) {
       const filtered = hiddenStatuses.size > 0
-        ? ownerFiltered.filter((r) => {
+        ? classFiltered.filter((r) => {
             if (hiddenStatuses.has("test") && r.data.is_test) return false;
             if (hiddenStatuses.has(r.data.status)) return false;
             return true;
           })
-        : ownerFiltered;
+        : classFiltered;
       return filtered;
     }
 
-    return ownerFiltered;
-  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, hiddenStatuses, ownerFilter]);
+    return classFiltered;
+  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter]);
 
   const canLoadMore =
     !isHeatmapMode && !searchResults && (
@@ -1276,10 +1335,12 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   };
 
   const isCustomOrder = JSON.stringify(columnOrder) !== JSON.stringify([...ALL_COLUMNS]);
-  const anyFilterActive = sourceFilter !== "all" || ownerFilter !== "all" || hiddenDiffersFromDefault || !!dateFrom || !!dateTo || isCustomOrder;
+  const anyFilterActive = sourceFilter !== "all" || ownerFilter !== "all" || productAreaFilter !== "all" || classificationFilter !== "all" || hiddenDiffersFromDefault || !!dateFrom || !!dateTo || isCustomOrder;
   const resetAll = () => {
     setSourceFilter("all");
     setOwnerFilter("all");
+    setProductAreaFilter("all");
+    setClassificationFilter("all");
     setHiddenStatuses(new Set(DEFAULT_HIDDEN));
     setDateFrom(undefined);
     setDateTo(undefined);
@@ -1329,6 +1390,8 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                     let count = 0;
                     if (sourceFilter !== "all") count++;
                     if (ownerFilter !== "all") count++;
+                    if (productAreaFilter !== "all") count++;
+                    if (classificationFilter !== "all") count++;
                     if (hiddenDiffersFromDefault) count++;
                     if (dateFrom || dateTo) count++;
                     return count > 0 ? (
@@ -1352,21 +1415,6 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                       <SelectItem value="manual">Manual entry</SelectItem>
                     </SelectContent>
                   </Select>
-                  {!forceOwner && (
-                  <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v as OwnerFilter)}>
-                    <SelectTrigger className="w-[120px] h-9">
-                      <SelectValue placeholder="Owner" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Owner</SelectItem>
-                      <SelectItem value="Joel">Joel</SelectItem>
-                      <SelectItem value="Kristina">Kristina</SelectItem>
-                      <SelectItem value="Sam">Sam</SelectItem>
-                      <SelectItem value="CSM">CSM</SelectItem>
-                      <SelectItem value="unassigned">Unassigned</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  )}
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="sm" className="h-9 gap-1">
@@ -1504,6 +1552,30 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                           <span className="inline-flex items-center gap-1">
                             <GripVertical className="h-3 w-3 text-muted-foreground/50" />
                             {columnHeaders[col]}
+                            {col === "owner" && !forceOwner && (
+                              <ColumnFilter
+                                value={ownerFilter}
+                                options={[...OWNER_OPTIONS]}
+                                onChange={(v) => setOwnerFilter(v as OwnerFilter)}
+                                label="Owner"
+                              />
+                            )}
+                            {col === "product_area" && (
+                              <ColumnFilter
+                                value={productAreaFilter}
+                                options={productAreas}
+                                onChange={setProductAreaFilter}
+                                label="Product area"
+                              />
+                            )}
+                            {col === "classification" && (
+                              <ColumnFilter
+                                value={classificationFilter}
+                                options={[...CLASSIFICATION_OPTIONS]}
+                                onChange={setClassificationFilter}
+                                label="Classification"
+                              />
+                            )}
                           </span>
                         </TableHead>
                       ))}
