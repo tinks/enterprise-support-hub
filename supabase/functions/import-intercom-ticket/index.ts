@@ -162,7 +162,7 @@ Deno.serve(async (req) => {
     }
 
     // Conversation parts — paginate to get ALL parts
-    const SKIP_PART_TYPES = new Set(["note", "assignment", "open", "close", "away_mode_assignment"]);
+    const SKIP_PART_TYPES = new Set(["assignment", "open", "close", "away_mode_assignment"]);
     let allParts = icData.conversation_parts?.conversation_parts || [];
     let nextPageUrl = icData.conversation_parts?.pages?.next;
 
@@ -185,6 +185,7 @@ Deno.serve(async (req) => {
     }
 
     for (const part of allParts) {
+      console.log(`Part: type=${part.part_type}, author.type=${part.author?.type}, author.name=${part.author?.name}, hasBody=${!!part.body}`);
       if (!part.body) continue;
       if (SKIP_PART_TYPES.has(part.part_type)) continue;
       if (part.author?.type === "bot") continue;
