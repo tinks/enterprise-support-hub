@@ -423,20 +423,25 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 
   const toggleTest = async (id: string, currentValue: boolean, source: "slack" | "gmail") => {
     const newValue = !currentValue;
+    const table = source === "slack" ? "conversation_mappings" : "gmail_conversations";
+    const idsToUpdate = source === "gmail" ? getGmailThreadSiblingIds(id) : [id];
+    const idSet = new Set(idsToUpdate);
+
     if (source === "slack") {
       setMappings((prev) => prev.map((m) => m.id === id ? { ...m, is_test: newValue } : m));
-      const { error } = await supabase.from("conversation_mappings").update({ is_test: newValue }).eq("id", id);
-      if (error) {
-        setMappings((prev) => prev.map((m) => m.id === id ? { ...m, is_test: currentValue } : m));
-        toast.error("Failed to update test flag");
-      }
     } else {
-      setGmailRows((prev) => prev.map((m) => m.id === id ? { ...m, is_test: newValue } : m));
-      const { error } = await supabase.from("gmail_conversations").update({ is_test: newValue }).eq("id", id);
-      if (error) {
-        setGmailRows((prev) => prev.map((m) => m.id === id ? { ...m, is_test: currentValue } : m));
-        toast.error("Failed to update test flag");
+      setGmailRows((prev) => prev.map((m) => idSet.has(m.id) ? { ...m, is_test: newValue } : m));
+    }
+    const { error } = source === "gmail" && idsToUpdate.length > 1
+      ? await supabase.from(table).update({ is_test: newValue } as any).in("id", idsToUpdate)
+      : await supabase.from(table).update({ is_test: newValue } as any).eq("id", id);
+    if (error) {
+      if (source === "slack") {
+        setMappings((prev) => prev.map((m) => m.id === id ? { ...m, is_test: currentValue } : m));
+      } else {
+        setGmailRows((prev) => prev.map((m) => idSet.has(m.id) ? { ...m, is_test: currentValue } : m));
       }
+      toast.error("Failed to update test flag");
     }
   };
 
@@ -444,21 +449,25 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     const isResolved = currentStatus === "resolved";
     const newStatus = isResolved ? (source === "slack" ? "active" : "open") : "resolved";
     const resolvedAt = isResolved ? null : new Date().toISOString();
+    const table = source === "slack" ? "conversation_mappings" : "gmail_conversations";
+    const idsToUpdate = source === "gmail" ? getGmailThreadSiblingIds(id) : [id];
+    const idSet = new Set(idsToUpdate);
 
     if (source === "slack") {
       setMappings((prev) => prev.map((m) => m.id === id ? { ...m, status: newStatus, resolved_at: resolvedAt } as ConversationMapping : m));
-      const { error } = await supabase.from("conversation_mappings").update({ status: newStatus, resolved_at: resolvedAt }).eq("id", id);
-      if (error) {
-        setMappings((prev) => prev.map((m) => m.id === id ? { ...m, status: currentStatus } : m));
-        toast.error("Failed to update resolved status");
-      }
     } else {
-      setGmailRows((prev) => prev.map((m) => m.id === id ? { ...m, status: newStatus, resolved_at: resolvedAt } : m));
-      const { error } = await supabase.from("gmail_conversations").update({ status: newStatus, resolved_at: resolvedAt }).eq("id", id);
-      if (error) {
-        setGmailRows((prev) => prev.map((m) => m.id === id ? { ...m, status: currentStatus } : m));
-        toast.error("Failed to update resolved status");
+      setGmailRows((prev) => prev.map((m) => idSet.has(m.id) ? { ...m, status: newStatus, resolved_at: resolvedAt } : m));
+    }
+    const { error } = source === "gmail" && idsToUpdate.length > 1
+      ? await supabase.from(table).update({ status: newStatus, resolved_at: resolvedAt } as any).in("id", idsToUpdate)
+      : await supabase.from(table).update({ status: newStatus, resolved_at: resolvedAt } as any).eq("id", id);
+    if (error) {
+      if (source === "slack") {
+        setMappings((prev) => prev.map((m) => m.id === id ? { ...m, status: currentStatus } : m));
+      } else {
+        setGmailRows((prev) => prev.map((m) => idSet.has(m.id) ? { ...m, status: currentStatus } : m));
       }
+      toast.error("Failed to update resolved status");
     }
   };
 
@@ -503,12 +512,23 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const toggleBug = async (id: string, currentValue: boolean, source: "slack" | "gmail") => {
     const newValue = !currentValue;
     const table = source === "slack" ? "conversation_mappings" : "gmail_conversations";
-    const setState = source === "slack" ? setMappings : setGmailRows;
+    const idsToUpdate = source === "gmail" ? getGmailThreadSiblingIds(id) : [id];
+    const idSet = new Set(idsToUpdate);
 
-    setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, is_bug: newValue } : m));
-    const { error } = await supabase.from(table).update({ is_bug: newValue } as any).eq("id", id);
+    if (source === "slack") {
+      setMappings((prev) => prev.map((m) => m.id === id ? { ...m, is_bug: newValue } : m));
+    } else {
+      setGmailRows((prev) => prev.map((m) => idSet.has(m.id) ? { ...m, is_bug: newValue } : m));
+    }
+    const { error } = source === "gmail" && idsToUpdate.length > 1
+      ? await supabase.from(table).update({ is_bug: newValue } as any).in("id", idsToUpdate)
+      : await supabase.from(table).update({ is_bug: newValue } as any).eq("id", id);
     if (error) {
-      setState((prev: any[]) => prev.map((m: any) => m.id === id ? { ...m, is_bug: currentValue } : m));
+      if (source === "slack") {
+        setMappings((prev) => prev.map((m) => m.id === id ? { ...m, is_bug: currentValue } : m));
+      } else {
+        setGmailRows((prev) => prev.map((m) => idSet.has(m.id) ? { ...m, is_bug: currentValue } : m));
+      }
       toast.error("Failed to update bug flag");
     }
   };
