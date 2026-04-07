@@ -266,6 +266,20 @@ const ImportTab = () => {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Bulk import from CSV</CardTitle>
+          <CardDescription>
+            Upload Intercom CSV exports to review and import missing conversations in bulk
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" onClick={() => navigate("/import/bulk")}>
+            Open bulk import review
+          </Button>
+        </CardContent>
+      </Card>
+
       {recentImports.length > 0 && (
         <Card>
           <CardHeader>
