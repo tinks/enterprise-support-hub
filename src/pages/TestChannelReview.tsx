@@ -190,6 +190,49 @@ export default function TestChannelReview() {
     setRelinking(false);
   }
 
+  async function findDuplicates(row: ConversationRow) {
+    const searchTerm = (row.original_message_text || "").substring(0, 40).trim();
+    if (!searchTerm) {
+      toast.error("No message text to search");
+      return;
+    }
+    setDupeLoading(row.id);
+    const { data, error } = await supabase
+      .from("manual_conversations")
+      .select("id, subject, contact_name, source, created_at")
+      .ilike("subject", `%${searchTerm}%`);
+
+    if (error) {
+      toast.error("Failed to search duplicates");
+    } else {
+      setDupeResults((prev) => ({ ...prev, [row.id]: data || [] }));
+    }
+    setDupeLoading(null);
+  }
+
+  async function deleteDuplicate(manualId: string, rowId: string) {
+    const { error: msgErr } = await supabase
+      .from("manual_messages")
+      .delete()
+      .eq("conversation_id", manualId);
+    if (msgErr) console.error("Failed to delete messages:", msgErr);
+
+    const { error } = await supabase
+      .from("manual_conversations")
+      .delete()
+      .eq("id", manualId);
+
+    if (error) {
+      toast.error("Failed to delete duplicate");
+    } else {
+      toast.success("Duplicate removed");
+      setDupeResults((prev) => ({
+        ...prev,
+        [rowId]: (prev[rowId] || []).filter((d) => d.id !== manualId),
+      }));
+    }
+  }
+
   const channelName = channelNameOverrides[TARGET_CHANNEL] || TARGET_CHANNEL;
 
   const driftedCount = rows.filter((r) => {
