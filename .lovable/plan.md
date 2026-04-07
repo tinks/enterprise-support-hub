@@ -1,36 +1,33 @@
 
 
-## Improve bulk import review: better match display and filtering
+## Temporary page: review and re-import old bot-tracked Slack conversations
 
-### Problems
-1. **Matched conversations show truncated/useless text** — Slack matches display `original_message_text` which is often just a single word snippet. The subject column for matches is too narrow and truncated.
-2. **No filtering** — Can't filter by status (tracked/missing/possible duplicate), by file, or search by subject/user.
+### Context
+25 conversations in `conversation_mappings` from channel `C0AJP396C85` have `is_test = false`. These were created by the old bot method — they have message text but 19/25 lack an owner, and their `created_at` is set to import time rather than the actual thread timestamp.
 
 ### Solution
 
-**`src/pages/BulkImportReview.tsx`**
+**New page: `/test-review`** → `src/pages/TestChannelReview.tsx`
 
-**Filtering:**
-- Add a status filter row with toggle buttons: All, Tracked, Possible duplicate, Missing
-- Add a text search input that filters by subject, user email, user name, or conversation ID
-- Add a file filter dropdown when multiple files are uploaded
+A temporary review page that:
+- Loads all `conversation_mappings` where `is_test = false` and `slack_channel_id = 'C0AJP396C85'` (or configurable)
+- Shows a table: message preview, status, owner, `created_at` vs actual thread time (derived from `slack_thread_ts`), time drift indicator
+- Allows selecting rows for re-import
+- "Re-import selected" button calls the updated `import-slack-thread` function with a `force` flag
+- After re-import, the row's `created_at` is corrected to match the thread timestamp
 
-**Better match display:**
-- Fetch more data for Slack conversations: also select `slack_channel_id` and `slack_thread_ts` so we have context
-- Show the full subject/message text without truncation in the expanded match area — use `whitespace-normal break-words` instead of `truncate`
-- Show the matched conversation's contact/email more prominently
-- Add the Intercom ID from the CSV row next to the match's Intercom ID so the user can visually compare
-- Show match date if available (fetch `created_at` from all three tables)
+**Edge function update: `import-slack-thread`**
+- Add `force: true` flag — when set, updates existing row instead of returning 409 duplicate error
+- On insert or force-update, set `created_at` to `to_timestamp(slack_thread_ts)` so the conversation is dated to when the user actually sent the first message
+- Update `original_message_text` with freshly fetched parent message text
 
-**ExistingConversation interface update:**
-- Add `createdAt` field to the interface
-- Fetch `created_at` from all three tables in `loadExistingConversations`
+**Route + flow updates**
+- Add `/test-review` route in `src/App.tsx`
+- Update `src/pages/FlowDiagram.tsx` to note re-import path
 
-**Match card redesign:**
-- Two-row layout per match: top row has source badge + full subject, bottom row has contact, Intercom ID, and date
-- Remove `truncate` from subject text in match cards
-- Make the match card wider and more readable
-
-### Files to edit
-- `src/pages/BulkImportReview.tsx`
+### Files to create/edit
+- `src/pages/TestChannelReview.tsx` (new)
+- `supabase/functions/import-slack-thread/index.ts` (add `force` flag + set `created_at` from thread timestamp)
+- `src/App.tsx` (add route)
+- `src/pages/FlowDiagram.tsx` (update)
 
