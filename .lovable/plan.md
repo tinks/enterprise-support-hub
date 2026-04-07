@@ -1,36 +1,39 @@
 
 
-## Make test review rows clickable + add delete for all conversation types
+## Add Teams thread parsing and SAP channel option
 
 ### Problem
-1. Rows on `/test-review` aren't clickable — you can't navigate to the conversation detail page.
-2. The detail page only allows deleting manual-source conversations. You want to delete any conversation regardless of source.
+The thread parser only handles Slack copy formats. Microsoft Teams threads have a different format (e.g. `Name 3/26/2025 11:03 AM` or similar). Also, "SAP" needs to be available as a channel name option.
 
 ### Changes
 
-**`src/pages/TestChannelReview.tsx`**
-- Make each `TableRow` clickable: `onClick={() => navigate(`/conversations/${row.id}`)}` with `cursor-pointer` styling
-- Add `useNavigate` import from react-router-dom
-- Use `e.stopPropagation()` on all interactive elements in the row (checkbox, buttons, popovers) to prevent navigation when clicking actions
+**`src/lib/parseThread.ts`** — add Format D for Teams threads
+- Teams copied threads typically look like: `Name  3/26/2025 11:03 AM` or `Name  March 26, 2025 11:03 AM`
+- Add a new regex format that matches name followed by a date+time pattern (MM/DD/YYYY or month name + date + year)
+- This runs after Slack formats A–C, before the AI fallback
+- Regex: `/^(.+?)\s{2,}(\d{1,2}\/\d{1,2}\/\d{2,4})\s+(\d{1,2}:\d{2}\s?(?:AM|PM))\s*$/gm`
+- Also handle `Name sent the following message at HH:MM AM` and other Teams variants via the existing AI fallback
 
-**`src/pages/ConversationDetail.tsx`**
-- Move the "Delete conversation" card outside the `source === "manual"` condition so it appears for all sources
-- For Slack (`conversation_mappings`) and Gmail (`gmail_conversations`) sources, use the existing `delete-conversation-mapping` edge function for Slack, and add a similar service-role delete for Gmail
-- For Slack: call `delete-conversation-mapping` edge function with the conversation ID
-- For Gmail: add a new edge function `delete-gmail-conversation` or reuse the pattern — but since `gmail_conversations` also has RLS deny-delete, use an edge function
-- Actually, simplest approach: generalize the `delete-conversation-mapping` edge function to accept a `table` parameter, or create one more small edge function for Gmail
+**`src/components/ManualLogTab.tsx`** — add source options
+- Add "SAP" to the source dropdown options
+- Add "teams" if not already present
+- Update the paste mode to store source as `"teams_thread"` when channel looks like a Teams thread, or keep `"slack_thread"` — actually simpler: let the user pick source in paste mode too, defaulting based on channel name
 
-**`supabase/functions/delete-conversation-mapping/index.ts`**
-- Add optional `table` parameter: `"conversation_mappings"` (default), `"gmail_conversations"`, or `"manual_conversations"`
-- Validate the table name against an allowlist to prevent SQL injection
-- Delete from the specified table by ID using service role
+**`src/pages/FlowDiagram.tsx`** — note Teams parsing support
 
-**`src/pages/FlowDiagram.tsx`**
-- Note that any conversation can be deleted from the detail page
+### Technical details
+
+**Format D regex** (Teams date+time):
+```
+/^(.+?)\s{2,}(\d{1,2}\/\d{1,2}\/\d{2,4})\s+(\d{1,2}:\d{2}\s?(?:AM|PM))\s*$/gm
+```
+
+The AI fallback (`parseThreadWithAI`) already handles arbitrary formats since it uses an LLM — so even unusual Teams formats will work. Format D just makes the common case fast and free.
+
+For SAP: simply add `"sap"` to the source `<Select>` options in ManualLogTab alongside the existing `"teams"`, `"slack"`, `"intercom"`, `"email"`, `"other"`.
 
 ### Files to edit
-- `src/pages/TestChannelReview.tsx` — make rows clickable
-- `src/pages/ConversationDetail.tsx` — enable delete for all sources
-- `supabase/functions/delete-conversation-mapping/index.ts` — support multiple tables
-- `src/pages/FlowDiagram.tsx` — update notes
+- `src/lib/parseThread.ts` — add Format D for Teams
+- `src/components/ManualLogTab.tsx` — add SAP source option
+- `src/pages/FlowDiagram.tsx` — note Teams parsing
 
