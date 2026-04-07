@@ -1483,14 +1483,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                             <TableRow
                               key={`gmail-${g.id}`}
                               className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "opacity-50" : ""} ${!g.owner ? "border-l-[3px] border-primary/70 bg-primary/5" : ""}`}
-                              onClick={isGrouped && row.groupKey ? () => {
-                                setExpandedGmailGroups((prev) => {
-                                  const next = new Set(prev);
-                                  if (next.has(row.groupKey!)) next.delete(row.groupKey!);
-                                  else next.add(row.groupKey!);
-                                  return next;
-                                });
-                              } : () => navigate(`/conversations/${g.id}?source=gmail`)}
+                              onClick={() => navigate(`/conversations/${g.id}?source=gmail`)}
                             >
                               {columnOrder.map((col) => (
 <TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" ? "w-[120px]" : ""}`}>
