@@ -1390,6 +1390,8 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                     let count = 0;
                     if (sourceFilter !== "all") count++;
                     if (ownerFilter !== "all") count++;
+                    if (productAreaFilter !== "all") count++;
+                    if (classificationFilter !== "all") count++;
                     if (hiddenDiffersFromDefault) count++;
                     if (dateFrom || dateTo) count++;
                     return count > 0 ? (
@@ -1413,21 +1415,6 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                       <SelectItem value="manual">Manual entry</SelectItem>
                     </SelectContent>
                   </Select>
-                  {!forceOwner && (
-                  <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v as OwnerFilter)}>
-                    <SelectTrigger className="w-[120px] h-9">
-                      <SelectValue placeholder="Owner" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Owner</SelectItem>
-                      <SelectItem value="Joel">Joel</SelectItem>
-                      <SelectItem value="Kristina">Kristina</SelectItem>
-                      <SelectItem value="Sam">Sam</SelectItem>
-                      <SelectItem value="CSM">CSM</SelectItem>
-                      <SelectItem value="unassigned">Unassigned</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  )}
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="sm" className="h-9 gap-1">
