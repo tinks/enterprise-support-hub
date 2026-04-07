@@ -1335,10 +1335,12 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   };
 
   const isCustomOrder = JSON.stringify(columnOrder) !== JSON.stringify([...ALL_COLUMNS]);
-  const anyFilterActive = sourceFilter !== "all" || ownerFilter !== "all" || hiddenDiffersFromDefault || !!dateFrom || !!dateTo || isCustomOrder;
+  const anyFilterActive = sourceFilter !== "all" || ownerFilter !== "all" || productAreaFilter !== "all" || classificationFilter !== "all" || hiddenDiffersFromDefault || !!dateFrom || !!dateTo || isCustomOrder;
   const resetAll = () => {
     setSourceFilter("all");
     setOwnerFilter("all");
+    setProductAreaFilter("all");
+    setClassificationFilter("all");
     setHiddenStatuses(new Set(DEFAULT_HIDDEN));
     setDateFrom(undefined);
     setDateTo(undefined);
