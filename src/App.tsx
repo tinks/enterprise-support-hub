@@ -12,6 +12,7 @@ import ProjectKnowledge from "./pages/ProjectKnowledge";
 import ImportPage from "./pages/ImportPage";
 import NotFound from "./pages/NotFound";
 import OwnerDashboard from "./pages/OwnerDashboard";
+import BulkImportReview from "./pages/BulkImportReview";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/conversations/:id" element={<ConversationDetail />} />
           <Route path="/my/:owner" element={<OwnerDashboard />} />
           <Route path="/import" element={<ImportPage />} />
+          <Route path="/import/bulk" element={<BulkImportReview />} />
           <Route path="/settings" element={<Index />} />
           <Route path="/flow" element={<FlowDiagram />} />
           <Route path="/knowledge" element={<ProjectKnowledge />} />

@@ -131,6 +131,13 @@ const ROW_H = 380;
 /*  created_at instead of the import time, so analytics reflect when   */
 /*  the conversation actually started.                                  */
 /* ------------------------------------------------------------------ */
+/*  Bulk import: /import/bulk page accepts Intercom CSV exports,        */
+/*  parses client-side, matches against all 3 conversation tables       */
+/*  (exact intercom_conversation_id + fuzzy subject). Rows marked       */
+/*  Tracked / Possible duplicate / Missing. Selected missing rows are   */
+/*  imported via bulk-import-intercom edge function in batches of 10.   */
+/*  Owner auto-set from CSV "Teammate currently assigned" column.       */
+/* ------------------------------------------------------------------ */
 /*  Owner tracking: each conversation (Slack, Gmail, Manual) has an    */
 /*  owner column (Joel, Kristina, Sam, or CSM). Assignable inline      */
 /*  from the Conversations table and the detail view Classification    */
