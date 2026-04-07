@@ -576,6 +576,72 @@ export default function TestChannelReview() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Log & replace dialog */}
+        <Dialog open={!!logRow} onOpenChange={(open) => { if (!open) { setLogRow(null); setLogRawThread(""); } }}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Log as manual & replace</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Paste the Slack thread below. This will create a manual conversation and delete the old bot-tracked entry.
+            </p>
+            {logRow && (
+              <p className="text-xs text-muted-foreground bg-muted p-2 rounded">
+                Current: {logRow.original_message_text?.slice(0, 120) || "(empty)"}
+              </p>
+            )}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Channel</label>
+                <Input value={logChannelName} onChange={(e) => setLogChannelName(e.target.value)} placeholder="#channel-name" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Date</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !logDate && "text-muted-foreground")}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {logDate ? format(logDate, "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={logDate} onSelect={setLogDate} initialFocus className="p-3 pointer-events-auto" />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Owner</label>
+                <Select value={logOwner} onValueChange={setLogOwner}>
+                  <SelectTrigger><SelectValue placeholder="Select owner" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Joel">Joel</SelectItem>
+                    <SelectItem value="Kristina">Kristina</SelectItem>
+                    <SelectItem value="Sam">Sam</SelectItem>
+                    <SelectItem value="CSM">CSM</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Paste full thread</label>
+              <Textarea
+                value={logRawThread}
+                onChange={(e) => setLogRawThread(e.target.value)}
+                placeholder={"Akshat Saneja\n  Mar 26th at 11:03 AM\nHi team — ..."}
+                className="min-h-[200px] text-sm font-mono"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setLogRow(null); setLogRawThread(""); }}>
+                Cancel
+              </Button>
+              <Button onClick={logAndReplace} disabled={logSaving || !logRawThread.trim() || !logDate}>
+                {logSaving ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Saving...</> : "Parse & save"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );
