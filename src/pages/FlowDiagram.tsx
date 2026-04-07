@@ -509,6 +509,27 @@ function buildNodes(
       },
     },
     {
+      id: "intercom-auto",
+      type: "flowNode",
+      position: { x: COL_W * -0.6, y: 0 },
+      data: {
+        label: "Auto-import on Intercom assignment",
+        desc: "When a conversation is assigned to the enterprise inbox in Intercom, the webhook auto-imports it into manual_conversations if it's not already tracked via Slack or Gmail.",
+        icon: Ticket,
+        edgeFunction: "intercom-webhook",
+        details: [
+          "Listens for assignment webhook topics: conversation.admin.assigned, conversation.admin.open.assigned, ticket.admin.assigned, ticket.team.assigned",
+          "Checks team_assignee_id matches settings.intercom_inbox_id (enterprise inbox)",
+          "Deduplicates across conversation_mappings, gmail_conversations, and manual_conversations",
+          "Fetches full conversation from Intercom API with pagination",
+          "Extracts messages: skips bots, system events (assignment/open/close), strips HTML",
+          "Inserts into manual_conversations (source='intercom') + manual_messages",
+          "Conversations from other channels (web, mobile, non-enterprise email) get tracked automatically",
+        ],
+        accent: "orange",
+      },
+    },
+    {
       id: "gmail",
       type: "flowNode",
       position: { x: COL_W * 2.6, y: 0 },
