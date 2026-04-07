@@ -1,33 +1,33 @@
 
 
-## Auto-find existing Intercom conversation for Gmail threads
+## Enhance Intercom search: use customer email + subject matching, strip HTML from titles
 
-### Problem
-Gmail threads often already have an associated Intercom conversation created through other channels. Currently there's no way to discover this — users must manually search Intercom and paste the ID.
-
-### Solution
-Create an edge function that searches Intercom by the sender's email address and returns matching conversations. When a Gmail conversation detail page loads without an `intercom_conversation_id`, automatically search Intercom and show suggestions the user can link with one click.
+### Problems
+1. The search currently uses `gmailConv.from_email`, which may be an internal team member's email (when they replied). It should identify the external customer email instead.
+2. Intercom conversation titles contain raw HTML tags (e.g., `<p>...</p>`)
+3. No subject-based matching — the email subject could help find the right Intercom conversation
 
 ### Implementation
 
-**New edge function: `supabase/functions/search-intercom-by-email/index.ts`**
-1. Accept `{ email: string }` in the request body
-2. Use Intercom Contacts Search API to find the contact by email
-3. If found, use Intercom Conversations Search API to list recent conversations for that contact
-4. Return `{ conversations: [{ id, title, created_at }] }` — up to 10 results
+**`supabase/functions/search-intercom-by-email/index.ts`**
+1. Accept optional `subject` parameter alongside `email`
+2. Strip HTML from conversation titles before returning (reuse simple regex `/<[^>]*>/g`)
+3. If `subject` is provided, also search Intercom conversations by source body/subject using the Conversations Search API with a second query, then merge and deduplicate results
 
 **`src/pages/ConversationDetail.tsx`**
-1. When `source === "gmail"` and `gmailConv` loads with no `intercom_conversation_id`, call the new edge function with `gmailConv.from_email`
-2. Show a small "Existing Intercom conversations" section in the sidebar (below the "Create Intercom ticket" button) listing matches
-3. Each match shows the conversation ID and a truncated subject/title, with a **Link** button
-4. Clicking **Link** updates `gmail_conversations.intercom_conversation_id` with the selected Intercom conversation ID and refreshes the UI
-5. Also sync the `intercom_conversation_id` to sibling Gmail threads (same `gmail_thread_id`) for consistency
+1. Fix email selection logic: when `from_email` matches the monitored Gmail account (the support DL), use the first email from `to_emails` instead — that's the customer
+2. Pass `gmailConv.subject` to the edge function as the `subject` parameter
+3. Update the `useEffect` to also consider `to_emails` for determining the search email
 
-**`src/pages/FlowDiagram.tsx`**
-- Update flow diagram to reflect the new Intercom lookup step for Gmail conversations
+### Detail on subject search
+The Intercom Conversations Search API supports searching by `source.body` field. We'll run two searches:
+- By contact ID (existing logic)
+- By subject text match using `source.subject` contains query
+
+Then merge, deduplicate by conversation ID, and return.
 
 ### Files to edit
-- `supabase/functions/search-intercom-by-email/index.ts` (new)
+- `supabase/functions/search-intercom-by-email/index.ts`
 - `src/pages/ConversationDetail.tsx`
-- `src/pages/FlowDiagram.tsx`
+- `src/pages/FlowDiagram.tsx` (update flow to reflect improved lookup logic)
 
