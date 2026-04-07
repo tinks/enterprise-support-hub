@@ -518,7 +518,7 @@ function buildNodes(
         icon: Ticket,
         edgeFunction: "intercom-webhook",
         details: [
-521:           "Listens for assignment webhook topics: conversation.admin.assigned, conversation.admin.open.assigned, ticket.admin.assigned, ticket.team.assigned",
+"Listens for assignment webhook topics: conversation.admin.assigned, conversation.admin.open.assigned, ticket.admin.assigned, ticket.team.assigned",
           "Checks team_assignee_id matches settings.intercom_inbox_id (enterprise inbox)",
           "Deduplicates across conversation_mappings, gmail_conversations, and manual_conversations",
           "Fetches full conversation from Intercom API with pagination",
