@@ -127,8 +127,8 @@ const STATUS_OPTIONS = ["open", "active", "resolved", "cancelled", "escalated", 
 const ALL_COLUMNS = ["id", "date", "channel", "message", "status", "owner", "product_area", "sent_by", "classification", "source", "link", "intercom", "test", "resolved", "bug"] as const;
 type ColKey = typeof ALL_COLUMNS[number];
 
-type OwnerFilter = "all" | "Joel" | "Kristina" | "unassigned";
-const OWNER_OPTIONS = ["Joel", "Kristina"] as const;
+type OwnerFilter = "all" | "Joel" | "Kristina" | "Sam" | "CSM" | "unassigned";
+const OWNER_OPTIONS = ["Joel", "Kristina", "Sam", "CSM"] as const;
 
 const COLUMN_STORAGE_KEY = "conv-column-order";
 const COLUMN_ORDER_VERSION_KEY = "conv-column-order-version";
@@ -1332,6 +1332,8 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                       <SelectItem value="all">Owner</SelectItem>
                       <SelectItem value="Joel">Joel</SelectItem>
                       <SelectItem value="Kristina">Kristina</SelectItem>
+                      <SelectItem value="Sam">Sam</SelectItem>
+                      <SelectItem value="CSM">CSM</SelectItem>
                       <SelectItem value="unassigned">Unassigned</SelectItem>
                     </SelectContent>
                   </Select>
