@@ -60,3 +60,21 @@ export function parseThread(raw: string): ParsedMessage[] {
   }
   return messages;
 }
+
+export async function parseThreadWithAI(raw: string): Promise<ParsedMessage[]> {
+  const { supabase } = await import("@/integrations/supabase/client");
+  const { data, error } = await supabase.functions.invoke("parse-thread", {
+    body: { rawThread: raw },
+  });
+
+  if (error || !data?.messages) return [];
+
+  return (data.messages as Array<{ sender_name: string; message_text: string }>).map((m) => {
+    const isAdmin = ADMIN_NAMES.some((n) => m.sender_name.toLowerCase().includes(n));
+    return {
+      role: isAdmin ? "admin" : "user",
+      sender_name: m.sender_name,
+      message_text: m.message_text,
+    } as ParsedMessage;
+  });
+}

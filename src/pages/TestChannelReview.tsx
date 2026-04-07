@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { channelNameOverrides } from "@/lib/channelOverrides";
-import { parseThread } from "@/lib/parseThread";
+import { parseThread, parseThreadWithAI } from "@/lib/parseThread";
 import { Loader2, Link, RefreshCw, Search, Trash2, ClipboardPaste, CalendarIcon } from "lucide-react";
 import {
   Dialog,
@@ -250,7 +250,11 @@ export default function TestChannelReview() {
     if (!logRow || !logRawThread.trim() || !logDate) return;
     setLogSaving(true);
 
-    const parsed = parseThread(logRawThread);
+    let parsed = parseThread(logRawThread);
+    if (parsed.length === 0) {
+      toast.info("Using AI to parse thread…");
+      parsed = await parseThreadWithAI(logRawThread);
+    }
     if (parsed.length === 0) {
       toast.error("Could not parse any messages from the pasted thread");
       setLogSaving(false);

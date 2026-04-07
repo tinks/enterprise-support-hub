@@ -15,7 +15,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Plus, Trash2, Save, ExternalLink, CalendarIcon, ClipboardPaste } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { parseThread, ADMIN_OPTIONS, type ParsedMessage } from "@/lib/parseThread";
+import { parseThread, parseThreadWithAI, ADMIN_OPTIONS, type ParsedMessage } from "@/lib/parseThread";
 
 type ManualMessage = ParsedMessage;
 
@@ -82,25 +82,27 @@ const ManualLogTab = () => {
     );
   };
 
-  const handleParse = () => {
+  const handleParse = async () => {
     if (!rawThread.trim()) {
       toast.error("Paste a thread first");
       return;
     }
-    const parsed = parseThread(rawThread);
-    if (parsed.length === 0) {
-      toast.error("Could not parse any messages. Expected format: Name [HH:MM AM/PM]");
+    let result = parseThread(rawThread);
+    if (result.length === 0) {
+      toast.info("Using AI to parse thread…");
+      result = await parseThreadWithAI(rawThread);
+    }
+    if (result.length === 0) {
+      toast.error("Could not parse any messages — neither regex nor AI could extract them");
       return;
     }
-    setMessages(parsed);
-    // Auto-set contact name from first user message
-    const firstUser = parsed.find((m) => m.role === "user");
+    setMessages(result);
+    const firstUser = result.find((m) => m.role === "user");
     if (firstUser) setContactName(firstUser.sender_name);
-    // Auto-set subject from first message (truncated)
-    const firstMsg = parsed[0].message_text;
+    const firstMsg = result[0].message_text;
     setSubject(firstMsg.length > 60 ? firstMsg.slice(0, 60) + "…" : firstMsg);
     setParsed(true);
-    toast.success(`Parsed ${parsed.length} messages`);
+    toast.success(`Parsed ${result.length} messages`);
   };
 
   const handleSave = async () => {
