@@ -199,7 +199,11 @@ const ConversationDetail = () => {
     const loadAreas = async () => {
       const { data } = await supabase.from("settings").select("product_areas").limit(1).single();
       if (data?.product_areas) {
-        setProductAreas(data.product_areas.split(",").map((a: string) => a.trim()).filter(Boolean));
+        setProductAreas(data.product_areas.split(",").map((a: string) => a.trim()).filter(Boolean).sort((a, b) => {
+          if (a.toLowerCase() === "other") return 1;
+          if (b.toLowerCase() === "other") return -1;
+          return a.localeCompare(b);
+        }));
       }
     };
     loadAreas();

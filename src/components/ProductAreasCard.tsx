@@ -29,7 +29,12 @@ const ProductAreasCard = ({ settings, setSettings, onSave }: ProductAreasCardPro
   const areas = (settings?.product_areas || "")
     .split(",")
     .map((s) => s.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .sort((a, b) => {
+      if (a.toLowerCase() === "other") return 1;
+      if (b.toLowerCase() === "other") return -1;
+      return a.localeCompare(b);
+    });
 
   const addArea = () => {
     const trimmed = newArea.trim();
