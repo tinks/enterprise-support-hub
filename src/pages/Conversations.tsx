@@ -879,20 +879,34 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
           return o === ownerFilter;
         });
 
+    // Apply product area filter
+    const paFiltered = productAreaFilter === "all"
+      ? ownerFiltered
+      : productAreaFilter === "unassigned"
+        ? ownerFiltered.filter((r) => !(r.data as any).product_area)
+        : ownerFiltered.filter((r) => (r.data as any).product_area === productAreaFilter);
+
+    // Apply classification filter
+    const classFiltered = classificationFilter === "all"
+      ? paFiltered
+      : classificationFilter === "unassigned"
+        ? paFiltered.filter((r) => !(r.data as any).classification)
+        : paFiltered.filter((r) => (r.data as any).classification === classificationFilter);
+
     // Apply status filter (skip when searching — show all matches)
     if (!searchResults) {
       const filtered = hiddenStatuses.size > 0
-        ? ownerFiltered.filter((r) => {
+        ? classFiltered.filter((r) => {
             if (hiddenStatuses.has("test") && r.data.is_test) return false;
             if (hiddenStatuses.has(r.data.status)) return false;
             return true;
           })
-        : ownerFiltered;
+        : classFiltered;
       return filtered;
     }
 
-    return ownerFiltered;
-  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, hiddenStatuses, ownerFilter]);
+    return classFiltered;
+  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter]);
 
   const canLoadMore =
     !isHeatmapMode && !searchResults && (
