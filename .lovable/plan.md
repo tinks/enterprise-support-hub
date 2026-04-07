@@ -1,35 +1,25 @@
 
 
-## Fix Intercom import: missing admin messages and ordering
+## Fix source message timestamp in Intercom import
 
 ### Problem
-1. **Missing human agent responses**: The Intercom API paginates conversation parts (default ~20 per page). The current function only fetches the first page, so admin replies beyond page 1 are lost.
-2. **Message ordering**: Messages are inserted without explicit chronological sorting, which can produce odd ordering.
+The source message (first message in the conversation) gets timestamped at import time instead of its actual send time. This happens because `icData.source.created_at` doesn't exist in the Intercom API response — the source object doesn't carry its own `created_at`. The conversation's creation timestamp is at `icData.created_at` (top-level), so the code falls through to the `new Date().toISOString()` fallback.
 
-### Solution
+### Fix
 
 **`supabase/functions/import-intercom-ticket/index.ts`**
 
-1. **Paginate conversation parts**: After the initial conversation fetch, check if `conversation_parts.pages` indicates more pages. Loop through all pages using the Intercom pagination URL (`conversation_parts.pages.next`) until all parts are collected.
+Line 159 — change the `created_at` for the source message to use the conversation-level timestamp:
 
-2. **Sort messages chronologically**: After collecting all messages (source + all parts), sort by `created_at` ascending before inserting into `manual_messages`.
+```ts
+// Before
+created_at: src.created_at ? toIso(src.created_at) : new Date().toISOString(),
 
-3. **Keep existing filters**: Continue skipping `note`, `assignment`, `open`, `close`, `away_mode_assignment` part types and `bot` author types — these are system/internal. Human admin replies have `part_type: "comment"` and `author.type: "admin"`, which pass through correctly.
-
-### Implementation detail
-
-```text
-Current flow:
-  Fetch /conversations/{id} → get source + first page of parts → insert
-
-New flow:
-  Fetch /conversations/{id} → get source + first page of parts
-  → while (next page URL exists) fetch next page, append parts
-  → sort all messages by created_at ascending
-  → insert
+// After
+created_at: src.created_at ? toIso(src.created_at) : (icData.created_at ? toIso(icData.created_at) : new Date().toISOString()),
 ```
 
-The pagination uses the `pages.next` URL from `icData.conversation_parts.pages`. Each subsequent page returns more `conversation_parts` with the same structure.
+This adds a second fallback: `src.created_at` → `icData.created_at` (conversation creation time) → `now()`. The conversation-level `created_at` matches when the initial message was sent.
 
 ### Files to edit
 - `supabase/functions/import-intercom-ticket/index.ts`
