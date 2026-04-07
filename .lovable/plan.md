@@ -1,34 +1,50 @@
 
 
-## Fix: Stop filtering out admin messages in Intercom import
+## Auto-import Intercom conversations on assignment to enterprise inbox
 
-### Problem
-Joel's message (a real admin reply) is being excluded during import. The current code uses a blocklist of `part_type` values to skip, which includes `"note"`. In Intercom's API, some admin replies — especially internal-facing ones — may be tagged with unexpected `part_type` values, causing legitimate messages to be dropped.
+### How it works
 
-### Root cause
-Line 165 filters by `part_type` using a blocklist. This is fragile — if Intercom labels an admin reply with a type we didn't anticipate, it gets silently dropped. The safer approach is to flip to an **allowlist** or remove the `part_type` filter entirely and rely only on: (1) has body content, (2) not a bot author, (3) not a pure system event.
+When Intercom fires an assignment webhook (`conversation.admin.assigned`, `conversation.admin.open.assigned`, `ticket.admin.assigned`, `ticket.team.assigned`), the existing `intercom-webhook` function will:
 
-### Solution
+1. Detect it's an assignment topic
+2. Extract the assigned team/inbox ID from the payload
+3. Compare against `settings.intercom_inbox_id` (enterprise inbox)
+4. If it doesn't match the enterprise inbox → ignore
+5. If it matches → check if the conversation already exists in `conversation_mappings`, `gmail_conversations`, or `manual_conversations`
+6. If already tracked → ignore
+7. If new → fetch the full conversation from Intercom API (with pagination), extract messages using the same logic as `import-intercom-ticket`, and insert into `manual_conversations` + `manual_messages`
 
-**`supabase/functions/import-intercom-ticket/index.ts`**
+### Technical detail
 
-1. **Replace blocklist with minimal system-event filter** — Only skip parts that are purely operational (no message content): `assignment`, `open`, `close`, `away_mode_assignment`. Remove `"note"` from the skip set entirely.
+**Assignment webhook payload** provides:
+- `body.data.item.id` — the conversation/ticket ID
+- `body.data.item.admin_assignee_id` or `body.data.item.team_assignee_id` — who it's assigned to
+- For ticket topics: `body.data.item.ticket.id`
 
-2. **Add debug logging** — Log each part's `part_type`, `author.type`, and `author.name` before filtering, so future issues are diagnosable from edge function logs.
+The auto-import reuses the exact message extraction logic from `import-intercom-ticket`: `stripHtml`, pagination of conversation parts, `SKIP_PART_TYPES` filter, bot author filter, chronological sorting.
 
-```text
-Before:
-  SKIP_PART_TYPES = ["note", "assignment", "open", "close", "away_mode_assignment"]
-  + skip if author.type === "bot"
+The Intercom conversation URL is constructed as `https://app.intercom.com/a/inbox/.../conversation/{id}` for the `link` field stored in `manual_conversations`.
 
-After:
-  SKIP_PART_TYPES = ["assignment", "open", "close", "away_mode_assignment"]
-  + skip if author.type === "bot"
-  + log each part's metadata for debugging
-```
+### Changes
 
-This ensures all human messages (admin replies, notes with actual content, email replies) are included. Bot messages and system events remain filtered.
+**`supabase/functions/intercom-webhook/index.ts`**
+
+1. Add `ASSIGNMENT_TOPICS` constant: `["conversation.admin.assigned", "conversation.admin.open.assigned", "ticket.admin.assigned", "ticket.team.assigned"]`
+2. Update the topic gate (line 139) to also accept assignment topics
+3. Add new handler block for assignment topics (before the reply/close handling):
+   - Extract `team_assignee_id` from payload
+   - Compare against `appSettings.intercom_inbox_id`
+   - If no match → return early
+   - Check all three tables for existing `intercom_conversation_id`
+   - If found → return early (already tracked)
+   - If new → fetch full conversation from Intercom API with pagination, extract messages with `stripHtml` + filtering, insert into `manual_conversations` + `manual_messages`
+   - Return success with the new conversation ID
+4. Add `stripHtml` helper function to the file (same as in `import-intercom-ticket`)
+
+**`src/pages/FlowDiagram.tsx`**
+- Add a node for the auto-import-on-assignment path showing the new flow
 
 ### Files to edit
-- `supabase/functions/import-intercom-ticket/index.ts`
+- `supabase/functions/intercom-webhook/index.ts`
+- `src/pages/FlowDiagram.tsx`
 
