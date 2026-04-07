@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -79,6 +80,7 @@ export default function TestChannelReview() {
   const [logRawThread, setLogRawThread] = useState("");
   const [logOwner, setLogOwner] = useState("");
   const [logSaving, setLogSaving] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadData();
@@ -394,8 +396,8 @@ export default function TestChannelReview() {
                       const drift = driftLabel(row.created_at, row.slack_thread_ts);
                       const threadDate = threadTsToDate(row.slack_thread_ts);
                       return (
-                        <TableRow key={row.id}>
-                          <TableCell>
+                        <TableRow key={row.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/conversations/${row.id}`)}>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
                             <Checkbox
                               checked={selected.has(row.id)}
                               onCheckedChange={() => toggleSelect(row.id)}
@@ -425,7 +427,7 @@ export default function TestChannelReview() {
                               {drift.text}
                             </span>
                           </TableCell>
-                          <TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
                             <Popover>
                               <PopoverTrigger asChild>
                                 <Button variant={customUrls[row.id] ? "default" : "ghost"} size="icon" className="h-7 w-7">
@@ -464,7 +466,7 @@ export default function TestChannelReview() {
                               </PopoverContent>
                             </Popover>
                           </TableCell>
-                          <TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
                             <Button
                               variant="outline"
                               size="sm"
@@ -481,7 +483,7 @@ export default function TestChannelReview() {
                               Log
                             </Button>
                           </TableCell>
-                          <TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
                             <Button
                               variant="outline"
                               size="sm"
@@ -495,7 +497,7 @@ export default function TestChannelReview() {
                               Relink
                             </Button>
                           </TableCell>
-                          <TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
                             <Popover>
                               <PopoverTrigger asChild>
                                 <Button

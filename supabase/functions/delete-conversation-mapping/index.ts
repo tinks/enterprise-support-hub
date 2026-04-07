@@ -6,15 +6,24 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+const ALLOWED_TABLES = ["conversation_mappings", "gmail_conversations", "manual_conversations"];
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    const { id } = await req.json();
+    const { id, table = "conversation_mappings" } = await req.json();
     if (!id || typeof id !== "string") {
       return new Response(JSON.stringify({ error: "id is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!ALLOWED_TABLES.includes(table)) {
+      return new Response(JSON.stringify({ error: "Invalid table" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -25,8 +34,13 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
+    // If deleting a manual conversation, also delete its messages
+    if (table === "manual_conversations") {
+      await supabase.from("manual_messages").delete().eq("conversation_id", id);
+    }
+
     const { error } = await supabase
-      .from("conversation_mappings")
+      .from(table)
       .delete()
       .eq("id", id);
 
