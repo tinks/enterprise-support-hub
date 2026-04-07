@@ -13,6 +13,7 @@ import ImportPage from "./pages/ImportPage";
 import NotFound from "./pages/NotFound";
 import OwnerDashboard from "./pages/OwnerDashboard";
 import BulkImportReview from "./pages/BulkImportReview";
+import TestChannelReview from "./pages/TestChannelReview";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ const App = () => (
           <Route path="/my/:owner" element={<OwnerDashboard />} />
           <Route path="/import" element={<ImportPage />} />
           <Route path="/import/bulk" element={<BulkImportReview />} />
+          <Route path="/test-review" element={<TestChannelReview />} />
           <Route path="/settings" element={<Index />} />
           <Route path="/flow" element={<FlowDiagram />} />
           <Route path="/knowledge" element={<ProjectKnowledge />} />

@@ -43,7 +43,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { url } = await req.json();
+    const body = await req.json();
+    const { url, force } = body;
     if (!url || typeof url !== "string") {
       return new Response(
         JSON.stringify({ error: "url is required" }),
@@ -73,12 +74,13 @@ Deno.serve(async (req) => {
       .eq("slack_thread_ts", threadTs)
       .limit(1);
 
-    if (existing && existing.length > 0) {
+    if (existing && existing.length > 0 && !force) {
       return new Response(
         JSON.stringify({ error: "This thread has already been imported", existingId: existing[0].id }),
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    const existingId = existing && existing.length > 0 ? existing[0].id : null;
 
     // Fetch ALL thread replies (paginated)
     const allMessages: any[] = [];
@@ -203,23 +205,47 @@ Deno.serve(async (req) => {
     const channelData = await channelRes.json();
     const channelName = channelData.ok ? channelData.channel?.name || channelId : channelId;
 
-    // Insert into conversation_mappings
-    const { data: inserted, error: insertError } = await supabase
-      .from("conversation_mappings")
-      .insert({
-        slack_channel_id: channelId,
-        slack_thread_ts: threadTs,
-        slack_user_id: slackUserId,
-        original_message_text: messageText,
-        status: "active",
-      })
-      .select()
-      .single();
+    // Compute created_at from thread timestamp
+    const threadCreatedAt = new Date(parseFloat(threadTs) * 1000).toISOString();
+
+    let inserted: any;
+    let insertError: any;
+
+    if (existingId && force) {
+      // Force re-import: update existing row
+      const { data, error } = await supabase
+        .from("conversation_mappings")
+        .update({
+          original_message_text: messageText,
+          created_at: threadCreatedAt,
+        })
+        .eq("id", existingId)
+        .select()
+        .single();
+      inserted = data;
+      insertError = error;
+    } else {
+      // New insert
+      const { data, error } = await supabase
+        .from("conversation_mappings")
+        .insert({
+          slack_channel_id: channelId,
+          slack_thread_ts: threadTs,
+          slack_user_id: slackUserId,
+          original_message_text: messageText,
+          status: "active",
+          created_at: threadCreatedAt,
+        })
+        .select()
+        .single();
+      inserted = data;
+      insertError = error;
+    }
 
     if (insertError) {
-      console.error("Insert error:", insertError);
+      console.error("Insert/update error:", insertError);
       return new Response(
-        JSON.stringify({ error: `Failed to insert: ${insertError.message}` }),
+        JSON.stringify({ error: `Failed to save: ${insertError.message}` }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
