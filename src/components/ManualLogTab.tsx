@@ -19,6 +19,16 @@ import { parseThread, ADMIN_OPTIONS, type ParsedMessage } from "@/lib/parseThrea
 
 type ManualMessage = ParsedMessage;
 
+interface ManualConversation {
+  id: string;
+  source: string;
+  contact_name: string;
+  subject: string;
+  link: string | null;
+  status: string;
+  created_at: string;
+}
+
 const ManualLogTab = () => {
   const navigate = useNavigate();
   const [mode, setMode] = useState<"manual" | "paste">("manual");
