@@ -168,6 +168,11 @@ const ROW_H = 380;
 /*  text, saves as manual_conversation + manual_messages, then deletes */
 /*  the old conversation_mappings row via delete-conversation-mapping   */
 /*  edge function (service-role). Copies owner from original row.      */
+/*  Test review rows are clickable → navigate to /conversations/:id.   */
+/*  Delete conversation: available for ALL sources (slack, gmail,       */
+/*  manual) from the detail page. Uses delete-conversation-mapping      */
+/*  edge function with a `table` param for slack/gmail (RLS blocks     */
+/*  public DELETE). Manual uses client-side delete.                     */
 /* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
