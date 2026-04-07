@@ -187,7 +187,6 @@ export default function TestChannelReview() {
     }
     setRelinking(false);
   }
-  }
 
   const channelName = channelNameOverrides[TARGET_CHANNEL] || TARGET_CHANNEL;
 
