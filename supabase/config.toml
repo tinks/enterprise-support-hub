@@ -50,3 +50,9 @@ verify_jwt = false
 
 [functions.search-intercom-by-email]
 verify_jwt = false
+
+[functions.delete-conversation-mapping]
+verify_jwt = false
+
+[functions.parse-thread]
+verify_jwt = false
