@@ -518,7 +518,7 @@ function buildNodes(
         icon: Ticket,
         edgeFunction: "intercom-webhook",
         details: [
-          "Listens for assignment webhook topics: conversation.admin.assigned, conversation.admin.open.assigned, ticket.admin.assigned, ticket.team.assigned",
+"Listens for assignment webhook topics: conversation.admin.assigned, conversation.admin.open.assigned, ticket.admin.assigned, ticket.team.assigned",
           "Checks team_assignee_id matches settings.intercom_inbox_id (enterprise inbox)",
           "Deduplicates across conversation_mappings, gmail_conversations, and manual_conversations",
           "Fetches full conversation from Intercom API with pagination",
@@ -526,6 +526,7 @@ function buildNodes(
           "Inserts into manual_conversations (source='intercom') + manual_messages",
           "Conversations from other channels (web, mobile, non-enterprise email) get tracked automatically",
           "Live reply tracking: subsequent replies in Intercom are appended to manual_messages via webhook fallback (no Slack forwarding needed)",
+          "Auto-owner: resolves admin_assignee_id via settings.admin_owner_map (JSON) to set owner at import time; also updates owner on already-tracked conversations when reassigned",
         ],
         accent: "orange",
       },

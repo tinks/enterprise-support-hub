@@ -111,9 +111,15 @@ Deno.serve(async (req) => {
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-  // Fetch settings for testing_mode
+  // Fetch settings for testing_mode and admin owner map
   const { data: appSettings } = await supabase.from("settings").select("*").limit(1).single();
   const testingMode = appSettings?.testing_mode === true;
+
+  // Parse admin-to-owner mapping (JSON string like {"12345":"Joel","67890":"Kristina"})
+  let adminOwnerMap: Record<string, string> = {};
+  try {
+    adminOwnerMap = JSON.parse(appSettings?.admin_owner_map || "{}");
+  } catch { /* ignore parse errors */ }
 
   try {
     // Identity guard: verify token matches expected bot before posting to Slack
@@ -155,7 +161,10 @@ Deno.serve(async (req) => {
       const enterpriseInboxId = appSettings?.intercom_inbox_id;
       const intercomConvId = String(body.data?.item?.id || body.data?.item?.ticket?.id || "");
 
-      console.log(`Assignment event: team=${assignedTeamId}, enterpriseInbox=${enterpriseInboxId}, convId=${intercomConvId}`);
+      // Resolve owner from admin_assignee_id
+      const adminAssigneeId = String(body.data?.item?.admin_assignee_id || "");
+      const resolvedOwner = adminOwnerMap[adminAssigneeId] || null;
+      console.log(`Assignment event: team=${assignedTeamId}, enterpriseInbox=${enterpriseInboxId}, convId=${intercomConvId}, adminAssignee=${adminAssigneeId}, resolvedOwner=${resolvedOwner}`);
 
       if (!enterpriseInboxId || assignedTeamId !== enterpriseInboxId) {
         console.log(`Assignment not to enterprise inbox (${assignedTeamId} vs ${enterpriseInboxId}), ignoring`);
@@ -180,8 +189,21 @@ Deno.serve(async (req) => {
 
       if (dup1.data || dup2.data || dup3.data) {
         const existingId = dup1.data?.id || dup2.data?.id || dup3.data?.id;
-        console.log(`Intercom ${intercomConvId} already tracked (${existingId}), skipping auto-import`);
-        return new Response(JSON.stringify({ ok: true, message: "Already tracked", existingId }), {
+        console.log(`Intercom ${intercomConvId} already tracked (${existingId}), updating owner if resolved`);
+
+        // Update owner on the existing row if we resolved one
+        if (resolvedOwner) {
+          if (dup1.data) {
+            await supabase.from("conversation_mappings").update({ owner: resolvedOwner }).eq("id", dup1.data.id);
+          } else if (dup2.data) {
+            await supabase.from("gmail_conversations").update({ owner: resolvedOwner }).eq("id", dup2.data.id);
+          } else if (dup3.data) {
+            await supabase.from("manual_conversations").update({ owner: resolvedOwner }).eq("id", dup3.data.id);
+          }
+          console.log(`Updated owner to ${resolvedOwner} for existing conversation ${existingId}`);
+        }
+
+        return new Response(JSON.stringify({ ok: true, message: "Already tracked", existingId, ownerUpdated: !!resolvedOwner }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -233,17 +255,20 @@ Deno.serve(async (req) => {
       const subject = strip(icData.source?.subject || icData.title || `Intercom #${intercomConvId}`);
       const convUrl = `https://app.intercom.com/a/inbox/wq44gprj/inbox/conversation/${intercomConvId}`;
 
-      // Insert conversation
+      // Insert conversation (with owner if resolved from admin map)
+      const insertPayload: Record<string, unknown> = {
+        source: "intercom",
+        contact_name: contactName,
+        subject,
+        link: convUrl,
+        intercom_conversation_id: intercomConvId,
+        status: "active",
+      };
+      if (resolvedOwner) insertPayload.owner = resolvedOwner;
+
       const { data: inserted, error: insertErr } = await supabase
         .from("manual_conversations")
-        .insert({
-          source: "intercom",
-          contact_name: contactName,
-          subject,
-          link: convUrl,
-          intercom_conversation_id: intercomConvId,
-          status: "active",
-        })
+        .insert(insertPayload)
         .select("id")
         .single();
 

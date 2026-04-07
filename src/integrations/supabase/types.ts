@@ -354,6 +354,7 @@ export type Database = {
       }
       settings: {
         Row: {
+          admin_owner_map: string
           auto_mark_employee_test: boolean
           created_at: string
           gmail_last_polled_at: string | null
@@ -369,6 +370,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          admin_owner_map?: string
           auto_mark_employee_test?: boolean
           created_at?: string
           gmail_last_polled_at?: string | null
@@ -384,6 +386,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          admin_owner_map?: string
           auto_mark_employee_test?: boolean
           created_at?: string
           gmail_last_polled_at?: string | null
