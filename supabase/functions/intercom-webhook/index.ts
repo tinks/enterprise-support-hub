@@ -9,6 +9,12 @@ const corsHeaders = {
 };
 
 const SLACK_API_URL = "https://slack.com/api";
+const ASSIGNMENT_TOPICS = [
+  "conversation.admin.assigned",
+  "conversation.admin.open.assigned",
+  "ticket.admin.assigned",
+  "ticket.team.assigned",
+];
 const BOT_IDENTITY = {
   username: "Ask Lovable",
   icon_url: "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/bot-avatar/lovable-logo.png",
@@ -136,9 +142,182 @@ Deno.serve(async (req) => {
     const REPLY_TOPICS = ["conversation.admin.replied", "conversation.admin.single.reply", "ticket.admin.replied"];
     const CLOSED_TOPICS = ["conversation.admin.closed", "ticket.state.updated"];
 
-    if (!REPLY_TOPICS.includes(topic) && !CLOSED_TOPICS.includes(topic)) {
+    if (!REPLY_TOPICS.includes(topic) && !CLOSED_TOPICS.includes(topic) && !ASSIGNMENT_TOPICS.includes(topic)) {
       console.log(`Ignoring topic: ${topic}`);
       return new Response(JSON.stringify({ ok: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // --- Handle assignment topics: auto-import to manual_conversations ---
+    if (ASSIGNMENT_TOPICS.includes(topic)) {
+      const assignedTeamId = String(body.data?.item?.team_assignee_id || body.data?.item?.admin_assignee_id || "");
+      const enterpriseInboxId = appSettings?.intercom_inbox_id;
+      const intercomConvId = String(body.data?.item?.id || body.data?.item?.ticket?.id || "");
+
+      console.log(`Assignment event: team=${assignedTeamId}, enterpriseInbox=${enterpriseInboxId}, convId=${intercomConvId}`);
+
+      if (!enterpriseInboxId || assignedTeamId !== enterpriseInboxId) {
+        console.log(`Assignment not to enterprise inbox (${assignedTeamId} vs ${enterpriseInboxId}), ignoring`);
+        return new Response(JSON.stringify({ ok: true, message: "Not enterprise inbox" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!intercomConvId) {
+        console.log("No conversation ID in assignment payload");
+        return new Response(JSON.stringify({ ok: true, message: "No conv ID" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Check if already tracked in any table
+      const [dup1, dup2, dup3] = await Promise.all([
+        supabase.from("conversation_mappings").select("id").eq("intercom_conversation_id", intercomConvId).maybeSingle(),
+        supabase.from("gmail_conversations").select("id").eq("intercom_conversation_id", intercomConvId).maybeSingle(),
+        supabase.from("manual_conversations").select("id").eq("intercom_conversation_id", intercomConvId).maybeSingle(),
+      ]);
+
+      if (dup1.data || dup2.data || dup3.data) {
+        const existingId = dup1.data?.id || dup2.data?.id || dup3.data?.id;
+        console.log(`Intercom ${intercomConvId} already tracked (${existingId}), skipping auto-import`);
+        return new Response(JSON.stringify({ ok: true, message: "Already tracked", existingId }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Fetch full conversation from Intercom API
+      if (!INTERCOM_API_TOKEN) {
+        console.error("INTERCOM_API_TOKEN not configured, cannot auto-import");
+        return new Response(JSON.stringify({ ok: true, message: "No API token" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const icRes = await fetch(`https://api.intercom.io/conversations/${intercomConvId}`, {
+        headers: {
+          Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+          Accept: "application/json",
+          "Intercom-Version": "2.11",
+        },
+      });
+
+      if (!icRes.ok) {
+        console.error("Intercom API error during auto-import:", icRes.status, await icRes.text());
+        return new Response(JSON.stringify({ ok: true, message: "Intercom API error" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const icData = await icRes.json();
+
+      // Extract contact name
+      let contactName = "";
+      const sourceContact = icData.source?.author;
+      if (sourceContact) {
+        contactName = sourceContact.name || sourceContact.email || "";
+      }
+
+      // Strip HTML helper
+      const strip = (html: string): string =>
+        html
+          .replace(/<[^>]*>/g, "")
+          .replace(/&amp;/g, "&")
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">")
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/&nbsp;/g, " ")
+          .trim();
+
+      const subject = strip(icData.source?.subject || icData.title || `Intercom #${intercomConvId}`);
+      const convUrl = `https://app.intercom.com/a/inbox/wq44gprj/inbox/conversation/${intercomConvId}`;
+
+      // Insert conversation
+      const { data: inserted, error: insertErr } = await supabase
+        .from("manual_conversations")
+        .insert({
+          source: "intercom",
+          contact_name: contactName,
+          subject,
+          link: convUrl,
+          intercom_conversation_id: intercomConvId,
+          status: "active",
+        })
+        .select("id")
+        .single();
+
+      if (insertErr) {
+        console.error("Auto-import insert error:", insertErr);
+        return new Response(JSON.stringify({ ok: true, message: "Insert failed" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Extract messages
+      const mapRole = (type: string) => (type === "user" || type === "lead") ? "user" : "admin";
+      const toIso = (ts: number) => new Date(ts * 1000).toISOString();
+      const SKIP_PART_TYPES = new Set(["assignment", "open", "close", "away_mode_assignment"]);
+
+      const messages: Array<{ conversation_id: string; message_text: string; sender_name: string; role: string; created_at: string }> = [];
+
+      // Source message
+      const src = icData.source;
+      if (src?.body) {
+        const text = strip(src.body);
+        if (text) {
+          messages.push({
+            conversation_id: inserted.id,
+            message_text: text,
+            sender_name: src.author?.name || src.author?.email || src.author?.type || "Unknown",
+            role: mapRole(src.author?.type || "user"),
+            created_at: src.created_at ? toIso(src.created_at) : (icData.created_at ? toIso(icData.created_at) : new Date().toISOString()),
+          });
+        }
+      }
+
+      // Paginate conversation parts
+      let allParts = icData.conversation_parts?.conversation_parts || [];
+      let nextPageUrl = icData.conversation_parts?.pages?.next;
+
+      while (nextPageUrl) {
+        const pageRes = await fetch(nextPageUrl, {
+          headers: {
+            Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+            Accept: "application/json",
+            "Intercom-Version": "2.11",
+          },
+        });
+        if (!pageRes.ok) break;
+        const pageData = await pageRes.json();
+        allParts = [...allParts, ...(pageData.conversation_parts || [])];
+        nextPageUrl = pageData.pages?.next;
+      }
+
+      for (const part of allParts) {
+        if (!part.body) continue;
+        if (SKIP_PART_TYPES.has(part.part_type)) continue;
+        if (part.author?.type === "bot") continue;
+        const text = strip(part.body);
+        if (!text) continue;
+        messages.push({
+          conversation_id: inserted.id,
+          message_text: text,
+          sender_name: part.author?.name || part.author?.email || part.author?.type || "Unknown",
+          role: mapRole(part.author?.type || "admin"),
+          created_at: part.created_at ? toIso(part.created_at) : new Date().toISOString(),
+        });
+      }
+
+      messages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+      if (messages.length > 0) {
+        const { error: msgErr } = await supabase.from("manual_messages").insert(messages);
+        if (msgErr) console.error("Auto-import messages insert error:", msgErr);
+      }
+
+      console.log(`Auto-imported Intercom ${intercomConvId} as ${inserted.id} with ${messages.length} messages`);
+      return new Response(JSON.stringify({ ok: true, id: inserted.id, messagesImported: messages.length }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
