@@ -234,7 +234,7 @@ function buildNodes(
            "Conversations tab has multi-select status filter (popover with checkboxes) to hide/show: active, awaiting_context (labelled 'Awaiting customer'), awaiting_support, escalated, resolved, cancelled, test — defaults to hiding test, cancelled, resolved",
            "Status display labels: awaiting_context → 'Awaiting customer', awaiting_support → 'Awaiting support' (DB values unchanged)",
            "Status is editable inline from the conversations list via a dropdown (active, resolved, cancelled, escalated, awaiting_context, awaiting_support)",
-           "Manual log also supports 'Paste thread' mode: paste a full copied Slack thread, parser splits on 'Name [HH:MM AM/PM]', 'Name\\nMar 26th at HH:MM AM/PM', or 'Name  HH:MM AM/PM' patterns. If all regex formats fail, AI fallback (parse-thread edge function) extracts messages. Auto-detects admin vs user role, date picker sets created_at for accurate analytics dating",
+           "Manual log also supports 'Paste thread' mode: paste a full copied Slack or Teams thread. Parser handles formats: 'Name [HH:MM AM/PM]', 'Name\\nMar 26th at HH:MM AM/PM', 'Name  HH:MM AM/PM', and Teams 'Name  MM/DD/YYYY HH:MM AM/PM'. If all regex formats fail, AI fallback (parse-thread edge function) extracts messages. Auto-detects admin vs user role, date picker sets created_at for accurate analytics dating. Source options include Slack, Teams, SAP, phone, and other",
         ],
         message: "@SupportBot I'm having trouble deploying my project...",
         accent: "blue",
