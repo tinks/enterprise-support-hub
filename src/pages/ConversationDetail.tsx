@@ -11,7 +11,8 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket, Mail } from "lucide-react";
+import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket, Mail, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { channelNameOverrides } from "@/lib/channelOverrides";
 
@@ -766,6 +767,38 @@ const ConversationDetail = () => {
                 ))}
               </CardContent>
             </Card>
+
+            {/* Delete (manual only) */}
+            {source === "manual" && manualConv && (
+              <Card>
+                <CardContent className="pt-4">
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm" className="w-full">
+                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete conversation
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete conversation?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete this conversation and all its messages. You can re-import it afterwards.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={async () => {
+                          await supabase.from("manual_messages").delete().eq("conversation_id", manualConv.id);
+                          await supabase.from("manual_conversations").delete().eq("id", manualConv.id);
+                          toast.success("Conversation deleted");
+                          navigate("/conversations");
+                        }}>Delete</AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Raw IDs (Slack only) */}
             {source === "slack" && conv && (
