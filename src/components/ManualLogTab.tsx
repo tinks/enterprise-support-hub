@@ -15,19 +15,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { Plus, Trash2, Save, ExternalLink, CalendarIcon, ClipboardPaste } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { parseThread, ADMIN_OPTIONS, type ParsedMessage } from "@/lib/parseThread";
 
-const ADMIN_OPTIONS = [
-  { name: "Joel Samuelson", slackId: "U091GANMA2U" },
-  { name: "Kristina Bodurova", slackId: "U0AFU714807" },
-];
-
-const ADMIN_NAMES = ADMIN_OPTIONS.map((a) => a.name.toLowerCase());
-
-interface ManualMessage {
-  role: "user" | "admin";
-  sender_name: string;
-  message_text: string;
-}
+type ManualMessage = ParsedMessage;
 
 interface ManualConversation {
   id: string;
@@ -37,49 +27,6 @@ interface ManualConversation {
   link: string | null;
   status: string;
   created_at: string;
-}
-
-/* ---- Thread parser ---- */
-function cleanBody(body: string): string {
-  return body
-    .replace(/^\d+\s+repl(y|ies).*$/gm, "")
-    .replace(/\(edited\)/g, "")
-    .replace(/^:[\w_]+:.*$/gm, "")
-    .trim();
-}
-
-function parseThread(raw: string): ManualMessage[] {
-  // Format A: "Name  [1:47 PM]" or "Name [1:47 PM]" — single line
-  const regexA = /^(.+?)\s{1,}\[(\d{1,2}:\d{2}\s?(?:AM|PM))\]\s*$/gm;
-  let parts: { name: string; startIdx: number }[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = regexA.exec(raw)) !== null) {
-    parts.push({ name: match[1].trim(), startIdx: match.index + match[0].length });
-  }
-
-  // Format B: Name on one line, then "  Mar 26th at 11:03 AM" on the next
-  if (parts.length === 0) {
-    const regexB = /^(\S.+)\n\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}(?:st|nd|rd|th)?\s+at\s+(\d{1,2}:\d{2}\s?(?:AM|PM))\s*$/gm;
-    while ((match = regexB.exec(raw)) !== null) {
-      parts.push({ name: match[1].trim(), startIdx: match.index + match[0].length });
-    }
-  }
-
-  if (parts.length === 0) return [];
-
-  const messages: ManualMessage[] = [];
-  for (let i = 0; i < parts.length; i++) {
-    const endIdx = i + 1 < parts.length ? raw.lastIndexOf("\n", raw.indexOf(parts[i + 1].name, parts[i].startIdx)) : raw.length;
-    let body = cleanBody(raw.slice(parts[i].startIdx, endIdx));
-    if (!body) continue;
-    const isAdmin = ADMIN_NAMES.some((n) => parts[i].name.toLowerCase().includes(n));
-    messages.push({
-      role: isAdmin ? "admin" : "user",
-      sender_name: parts[i].name,
-      message_text: body,
-    });
-  }
-  return messages;
 }
 
 const ManualLogTab = () => {

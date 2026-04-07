@@ -5,7 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Table,
   TableBody,
@@ -17,8 +20,10 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 import { channelNameOverrides } from "@/lib/channelOverrides";
-import { Loader2, Link, RefreshCw, Search, Trash2 } from "lucide-react";
+import { parseThread } from "@/lib/parseThread";
+import { Loader2, Link, RefreshCw, Search, Trash2, ClipboardPaste, CalendarIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -66,6 +71,14 @@ export default function TestChannelReview() {
   const [relinking, setRelinking] = useState(false);
   const [dupeResults, setDupeResults] = useState<Record<string, Array<{ id: string; subject: string; contact_name: string; source: string; created_at: string }>>>({});
   const [dupeLoading, setDupeLoading] = useState<string | null>(null);
+
+  // Log & replace state
+  const [logRow, setLogRow] = useState<ConversationRow | null>(null);
+  const [logChannelName, setLogChannelName] = useState("");
+  const [logDate, setLogDate] = useState<Date | undefined>(undefined);
+  const [logRawThread, setLogRawThread] = useState("");
+  const [logOwner, setLogOwner] = useState("");
+  const [logSaving, setLogSaving] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -233,6 +246,75 @@ export default function TestChannelReview() {
     }
   }
 
+  async function logAndReplace() {
+    if (!logRow || !logRawThread.trim() || !logDate) return;
+    setLogSaving(true);
+
+    const parsed = parseThread(logRawThread);
+    if (parsed.length === 0) {
+      toast.error("Could not parse any messages from the pasted thread");
+      setLogSaving(false);
+      return;
+    }
+
+    const firstUser = parsed.find((m) => m.role === "user");
+    const contactName = firstUser?.sender_name || "";
+    const firstMsg = parsed[0].message_text;
+    const subject = firstMsg.length > 60 ? firstMsg.slice(0, 60) + "…" : firstMsg;
+
+    // Create manual conversation
+    const { data: convo, error: convoErr } = await supabase
+      .from("manual_conversations")
+      .insert({
+        source: "slack_thread",
+        contact_name: contactName,
+        subject,
+        link: logChannelName.trim() || null,
+        owner: logOwner || logRow.owner || null,
+        created_at: logDate.toISOString(),
+        status: logRow.status === "resolved" ? "resolved" : "active",
+      })
+      .select("id")
+      .single();
+
+    if (convoErr || !convo) {
+      toast.error("Failed to create manual conversation");
+      setLogSaving(false);
+      return;
+    }
+
+    // Insert messages
+    const messagesToInsert = parsed
+      .filter((m) => m.message_text.trim())
+      .map((m) => ({
+        conversation_id: convo.id,
+        role: m.role,
+        sender_name: m.sender_name.trim(),
+        message_text: m.message_text.trim(),
+      }));
+
+    await supabase.from("manual_messages").insert(messagesToInsert);
+
+    // Delete the old conversation_mappings row via edge function
+    const { error: delErr } = await supabase.functions.invoke("delete-conversation-mapping", {
+      body: { id: logRow.id },
+    });
+
+    if (delErr) {
+      toast.error("Manual log created but failed to delete old row");
+    } else {
+      toast.success("Logged as manual & removed old entry");
+    }
+
+    setLogRow(null);
+    setLogChannelName("");
+    setLogDate(undefined);
+    setLogRawThread("");
+    setLogOwner("");
+    setLogSaving(false);
+    loadData();
+  }
+
   const channelName = channelNameOverrides[TARGET_CHANNEL] || TARGET_CHANNEL;
 
   const driftedCount = rows.filter((r) => {
@@ -300,6 +382,7 @@ export default function TestChannelReview() {
                       <TableHead className="w-[50px]">URL</TableHead>
                       <TableHead className="w-[80px]">Relink</TableHead>
                       <TableHead className="w-[80px]">Dupes</TableHead>
+                      <TableHead className="w-[100px]">Log & replace</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -376,6 +459,23 @@ export default function TestChannelReview() {
                                 </div>
                               </PopoverContent>
                             </Popover>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => {
+                                setLogRow(row);
+                                setLogChannelName(channelNameOverrides[row.slack_channel_id] || row.slack_channel_id);
+                                setLogDate(threadTsToDate(row.slack_thread_ts));
+                                setLogOwner(row.owner || "");
+                                setLogRawThread("");
+                              }}
+                            >
+                              <ClipboardPaste className="h-3 w-3 mr-1" />
+                              Log
+                            </Button>
                           </TableCell>
                           <TableCell>
                             <Button
@@ -472,6 +572,72 @@ export default function TestChannelReview() {
               </Button>
               <Button onClick={relinkConversation} disabled={relinking || !relinkUrl.trim()}>
                 {relinking ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Relinking...</> : "Relink"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Log & replace dialog */}
+        <Dialog open={!!logRow} onOpenChange={(open) => { if (!open) { setLogRow(null); setLogRawThread(""); } }}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Log as manual & replace</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Paste the Slack thread below. This will create a manual conversation and delete the old bot-tracked entry.
+            </p>
+            {logRow && (
+              <p className="text-xs text-muted-foreground bg-muted p-2 rounded">
+                Current: {logRow.original_message_text?.slice(0, 120) || "(empty)"}
+              </p>
+            )}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Channel</label>
+                <Input value={logChannelName} onChange={(e) => setLogChannelName(e.target.value)} placeholder="#channel-name" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Date</label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !logDate && "text-muted-foreground")}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {logDate ? format(logDate, "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={logDate} onSelect={setLogDate} initialFocus className="p-3 pointer-events-auto" />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Owner</label>
+                <Select value={logOwner} onValueChange={setLogOwner}>
+                  <SelectTrigger><SelectValue placeholder="Select owner" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Joel">Joel</SelectItem>
+                    <SelectItem value="Kristina">Kristina</SelectItem>
+                    <SelectItem value="Sam">Sam</SelectItem>
+                    <SelectItem value="CSM">CSM</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium">Paste full thread</label>
+              <Textarea
+                value={logRawThread}
+                onChange={(e) => setLogRawThread(e.target.value)}
+                placeholder={"Akshat Saneja\n  Mar 26th at 11:03 AM\nHi team — ..."}
+                className="min-h-[200px] text-sm font-mono"
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setLogRow(null); setLogRawThread(""); }}>
+                Cancel
+              </Button>
+              <Button onClick={logAndReplace} disabled={logSaving || !logRawThread.trim() || !logDate}>
+                {logSaving ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Saving...</> : "Parse & save"}
               </Button>
             </DialogFooter>
           </DialogContent>

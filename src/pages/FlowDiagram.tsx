@@ -164,6 +164,10 @@ const ROW_H = 380;
 /*  and created_at — effectively relinking the row to a new thread.    */
 /*  Duplicate cleanup: /test-review has a per-row "Dupes" search that  */
 /*  finds matching manual_conversations and lets you delete them.      */
+/*  Log & replace: per-row button opens dialog to paste a Slack thread */
+/*  text, saves as manual_conversation + manual_messages, then deletes */
+/*  the old conversation_mappings row via delete-conversation-mapping   */
+/*  edge function (service-role). Copies owner from original row.      */
 /* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
