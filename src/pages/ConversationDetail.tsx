@@ -451,7 +451,7 @@ const ConversationDetail = () => {
       <AppLayout>
         <div className="bg-background p-6">
           <div className="mx-auto max-w-3xl">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/conversations")}>
+            <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
               <ArrowLeft className="mr-1 h-4 w-4" /> Back
             </Button>
             <p className="mt-4 text-sm text-muted-foreground">Conversation not found.</p>
@@ -770,7 +770,7 @@ const ConversationDetail = () => {
       <div className="bg-background p-6">
         {/* Back button */}
         <div className="mb-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/conversations")}>
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
             <ArrowLeft className="mr-1 h-4 w-4" /> Back
           </Button>
         </div>
@@ -983,7 +983,7 @@ const ConversationDetail = () => {
                           }
                         }
                         toast.success("Conversation deleted");
-                        navigate("/conversations");
+                        navigate(-1);
                       }}>Delete</AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
