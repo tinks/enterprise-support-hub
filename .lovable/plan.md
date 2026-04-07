@@ -1,33 +1,20 @@
 
 
-## Temporary page: review and re-import old bot-tracked Slack conversations
+## Add custom Slack URL override per row on test review page
 
-### Context
-25 conversations in `conversation_mappings` from channel `C0AJP396C85` have `is_test = false`. These were created by the old bot method — they have message text but 19/25 lack an owner, and their `created_at` is set to import time rather than the actual thread timestamp.
+### Problem
+Currently, re-import always constructs the Slack URL from the existing `slack_channel_id` and `slack_thread_ts`. Some conversations may need to be re-imported using a different Slack thread URL (e.g. the correct thread in a different channel).
 
 ### Solution
 
-**New page: `/test-review`** → `src/pages/TestChannelReview.tsx`
+**`src/pages/TestChannelReview.tsx`**
 
-A temporary review page that:
-- Loads all `conversation_mappings` where `is_test = false` and `slack_channel_id = 'C0AJP396C85'` (or configurable)
-- Shows a table: message preview, status, owner, `created_at` vs actual thread time (derived from `slack_thread_ts`), time drift indicator
-- Allows selecting rows for re-import
-- "Re-import selected" button calls the updated `import-slack-thread` function with a `force` flag
-- After re-import, the row's `created_at` is corrected to match the thread timestamp
+- Add a `customUrls` state map (`Record<string, string>`) keyed by row ID
+- Add a small text input (or an edit icon that reveals an input) in each table row where the user can paste a custom Slack thread URL
+- When re-importing, if `customUrls[row.id]` is set, use that URL instead of the auto-constructed one
+- The input should show a placeholder like "Custom Slack URL" and be compact (inline in the row or in a popover)
+- Clear the custom URL for a row after successful re-import
 
-**Edge function update: `import-slack-thread`**
-- Add `force: true` flag — when set, updates existing row instead of returning 409 duplicate error
-- On insert or force-update, set `created_at` to `to_timestamp(slack_thread_ts)` so the conversation is dated to when the user actually sent the first message
-- Update `original_message_text` with freshly fetched parent message text
-
-**Route + flow updates**
-- Add `/test-review` route in `src/App.tsx`
-- Update `src/pages/FlowDiagram.tsx` to note re-import path
-
-### Files to create/edit
-- `src/pages/TestChannelReview.tsx` (new)
-- `supabase/functions/import-slack-thread/index.ts` (add `force` flag + set `created_at` from thread timestamp)
-- `src/App.tsx` (add route)
-- `src/pages/FlowDiagram.tsx` (update)
+### Files to edit
+- `src/pages/TestChannelReview.tsx`
 
