@@ -1,42 +1,58 @@
 
 
-## Fix: Re-add note filtering + track live replies for manual Intercom conversations
+## Auto-assign owner based on Intercom assignment
 
-### Problem 1: Internal notes included unnecessarily
-The `"note"` part type was removed from `SKIP_PART_TYPES` as a debugging step, but the actual blocker was `"assignment"`. Internal notes should be filtered again to avoid leaking private team notes into the conversation view.
+### Approach
 
-### Problem 2: Live replies not tracked
-When someone replies in an Intercom conversation that was imported into `manual_conversations`, the webhook doesn't append the new message. The reply webhook handler only looks up `conversation_mappings` (Slack-originated conversations) — it never checks `manual_conversations`. So subsequent replies after import are lost.
+When the webhook receives an assignment event, the payload includes `admin_assignee_id` (the individual admin) and `team_assignee_id` (the team/inbox). We can map known Intercom admin IDs to the app's owner values ("Joel" or "Kristina").
 
-### Solution
+This works for:
+1. **Auto-imported conversations** — set `owner` at import time
+2. **Already-tracked conversations** — update `owner` when reassigned to a different admin
+3. **Slack-originated conversations** — update `owner` in `conversation_mappings` too
 
-**`supabase/functions/import-intercom-ticket/index.ts`**
-- Re-add `"note"` to `SKIP_PART_TYPES`: `["note", "open", "close", "away_mode_assignment"]`
+### Implementation
 
-**`supabase/functions/intercom-webhook/index.ts`**
+**Add admin-to-owner mapping to `settings` table**
 
-1. Re-add `"note"` to `SKIP_PART_TYPES` in the auto-import block (line 260)
-2. For reply topics (`conversation.admin.replied`, etc.): after the existing `conversation_mappings` lookup fails, add a fallback that checks `manual_conversations` for the `intercom_conversation_id`
-3. If a matching `manual_conversations` row is found, extract the reply text from the webhook payload (`body.data.item.conversation_parts.conversation_parts[0].body`), strip HTML, and insert a new row into `manual_messages` with the correct `conversation_id`, `sender_name`, `role`, and `created_at`
-4. Return early after inserting — no Slack forwarding needed for manual conversations
+Add a new column `admin_owner_map` (text, stores JSON like `{"12345":"Joel","67890":"Kristina"}`). This avoids hardcoding IDs and lets you update mappings from the dashboard later.
 
-```text
-Current flow (reply topics):
-  webhook → lookup conversation_mappings → not found → ignore
-
-New flow:
-  webhook → lookup conversation_mappings → found → forward to Slack (existing)
-  webhook → lookup conversation_mappings → not found
-         → lookup manual_conversations by intercom_conversation_id
-         → found → insert new message into manual_messages
-         → not found → ignore
+*Migration:*
+```sql
+ALTER TABLE settings ADD COLUMN admin_owner_map text NOT NULL DEFAULT '{}';
 ```
 
-**`src/pages/FlowDiagram.tsx`**
-- Update flow to reflect live reply tracking for manual Intercom conversations
+**Update `supabase/functions/intercom-webhook/index.ts`**
+
+1. Read `admin_owner_map` from settings and parse it as JSON
+2. In the assignment handler: extract `admin_assignee_id` from the payload, look it up in the map
+3. If a match is found:
+   - For **new auto-imports**: include `owner` in the insert
+   - For **already-tracked conversations**: update the `owner` field in whichever table holds that `intercom_conversation_id` (`conversation_mappings`, `gmail_conversations`, or `manual_conversations`)
+4. Log the mapping result for debugging
+
+```text
+Assignment webhook flow (updated):
+  → extract admin_assignee_id
+  → look up in admin_owner_map → resolve owner name (or null)
+  → if new conversation: auto-import with owner set
+  → if already tracked: update owner in existing row
+```
+
+**Populate the mapping**
+
+After the migration, use the database insert tool to set the initial mapping with Joel's and Kristina's Intercom admin IDs. You'll need to provide these IDs (visible in Intercom admin settings or from webhook payload logs).
+
+**Update `src/pages/FlowDiagram.tsx`**
+
+Add note about auto-owner assignment from Intercom admin mapping.
+
+### Questions
+
+Before proceeding, I need one thing: do you know Joel's and Kristina's Intercom admin IDs? If not, we can log them from the next assignment webhook and populate the mapping afterward. Alternatively, we could match by admin name from the webhook payload (less reliable but requires no ID lookup).
 
 ### Files to edit
-- `supabase/functions/import-intercom-ticket/index.ts`
+- `settings` table (migration: add `admin_owner_map` column)
 - `supabase/functions/intercom-webhook/index.ts`
 - `src/pages/FlowDiagram.tsx`
 
