@@ -1552,6 +1552,30 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                           <span className="inline-flex items-center gap-1">
                             <GripVertical className="h-3 w-3 text-muted-foreground/50" />
                             {columnHeaders[col]}
+                            {col === "owner" && !forceOwner && (
+                              <ColumnFilter
+                                value={ownerFilter}
+                                options={[...OWNER_OPTIONS]}
+                                onChange={(v) => setOwnerFilter(v as OwnerFilter)}
+                                label="Owner"
+                              />
+                            )}
+                            {col === "product_area" && (
+                              <ColumnFilter
+                                value={productAreaFilter}
+                                options={productAreas}
+                                onChange={setProductAreaFilter}
+                                label="Product area"
+                              />
+                            )}
+                            {col === "classification" && (
+                              <ColumnFilter
+                                value={classificationFilter}
+                                options={[...CLASSIFICATION_OPTIONS]}
+                                onChange={setClassificationFilter}
+                                label="Classification"
+                              />
+                            )}
                           </span>
                         </TableHead>
                       ))}
