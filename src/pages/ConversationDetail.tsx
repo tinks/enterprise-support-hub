@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket, Mail, Trash2 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket, Mail, Trash2, Link, Search } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { channelNameOverrides } from "@/lib/channelOverrides";
@@ -172,6 +172,9 @@ const ConversationDetail = () => {
   const [threadLoading, setThreadLoading] = useState(false);
   const [productAreas, setProductAreas] = useState<string[]>([]);
   const [creatingIntercom, setCreatingIntercom] = useState(false);
+  const [intercomSuggestions, setIntercomSuggestions] = useState<{ id: string; title: string; created_at: string | null; state: string }[]>([]);
+  const [searchingIntercom, setSearchingIntercom] = useState(false);
+  const [linkingIntercomId, setLinkingIntercomId] = useState<string | null>(null);
 
   const fetchThread = async (channelId: string, threadTs: string) => {
     setThreadLoading(true);
@@ -256,6 +259,52 @@ const ConversationDetail = () => {
     };
     load();
   }, [id, source]);
+
+  // Auto-search Intercom for Gmail threads without a linked conversation
+  useEffect(() => {
+    if (source !== "gmail" || !gmailConv || gmailConv.intercom_conversation_id || !gmailConv.from_email) return;
+    const search = async () => {
+      setSearchingIntercom(true);
+      try {
+        const { data } = await supabase.functions.invoke("search-intercom-by-email", {
+          body: { email: gmailConv.from_email },
+        });
+        if (data?.conversations?.length) {
+          setIntercomSuggestions(data.conversations);
+        }
+      } catch (err) {
+        console.error("Failed to search Intercom:", err);
+      } finally {
+        setSearchingIntercom(false);
+      }
+    };
+    search();
+  }, [gmailConv?.id, gmailConv?.intercom_conversation_id, source]);
+
+  const linkIntercomConversation = async (intercomConvId: string) => {
+    if (!gmailConv) return;
+    setLinkingIntercomId(intercomConvId);
+    try {
+      await supabase.from("gmail_conversations").update({ intercom_conversation_id: intercomConvId } as any).eq("id", gmailConv.id);
+      if (gmailConv.gmail_thread_id) {
+        const { data: siblings } = await supabase
+          .from("gmail_conversations")
+          .select("id")
+          .eq("gmail_thread_id", gmailConv.gmail_thread_id)
+          .neq("id", gmailConv.id);
+        if (siblings?.length) {
+          await supabase.from("gmail_conversations").update({ intercom_conversation_id: intercomConvId } as any).in("id", siblings.map((s: any) => s.id));
+        }
+      }
+      setGmailConv({ ...gmailConv, intercom_conversation_id: intercomConvId });
+      setIntercomSuggestions([]);
+      toast.success("Intercom conversation linked");
+    } catch {
+      toast.error("Failed to link Intercom conversation");
+    } finally {
+      setLinkingIntercomId(null);
+    }
+  };
 
   // Shared helpers for updating fields
   const getTable = () => source === "slack" ? "conversation_mappings" : source === "gmail" ? "gmail_conversations" : "manual_conversations";
@@ -752,6 +801,55 @@ const ConversationDetail = () => {
                 {renderLinks()}
               </CardContent>
             </Card>
+
+            {/* Intercom suggestions (Gmail only, when no intercom_conversation_id) */}
+            {source === "gmail" && !intercomId && (intercomSuggestions.length > 0 || searchingIntercom) && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm inline-flex items-center gap-1.5">
+                    <Search className="h-3.5 w-3.5" /> Existing Intercom conversations
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {searchingIntercom ? (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Searching…
+                    </p>
+                  ) : (
+                    intercomSuggestions.map((ic) => (
+                      <div key={ic.id} className="flex items-start justify-between gap-2 text-xs border rounded-md p-2">
+                        <div className="min-w-0 flex-1">
+                          <a
+                            href={`https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${ic.id}?view=List`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline font-mono"
+                          >
+                            #{ic.id}
+                          </a>
+                          <p className="text-muted-foreground truncate mt-0.5">{ic.title}</p>
+                          {ic.created_at && (
+                            <p className="text-muted-foreground mt-0.5">
+                              {new Date(ic.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0 h-7 text-xs"
+                          disabled={linkingIntercomId === ic.id}
+                          onClick={() => linkIntercomConversation(ic.id)}
+                        >
+                          {linkingIntercomId === ic.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link className="h-3 w-3 mr-1" />}
+                          Link
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Dates */}
             <Card>
