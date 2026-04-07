@@ -1,0 +1,1 @@
+ALTER TABLE public.settings ADD COLUMN admin_owner_map text NOT NULL DEFAULT '{}';
