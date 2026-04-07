@@ -72,6 +72,14 @@ export default function TestChannelReview() {
   const [dupeResults, setDupeResults] = useState<Record<string, Array<{ id: string; subject: string; contact_name: string; source: string; created_at: string }>>>({});
   const [dupeLoading, setDupeLoading] = useState<string | null>(null);
 
+  // Log & replace state
+  const [logRow, setLogRow] = useState<ConversationRow | null>(null);
+  const [logChannelName, setLogChannelName] = useState("");
+  const [logDate, setLogDate] = useState<Date | undefined>(undefined);
+  const [logRawThread, setLogRawThread] = useState("");
+  const [logOwner, setLogOwner] = useState("");
+  const [logSaving, setLogSaving] = useState(false);
+
   useEffect(() => {
     loadData();
   }, []);
