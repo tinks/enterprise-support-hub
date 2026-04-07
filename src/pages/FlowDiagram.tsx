@@ -522,7 +522,7 @@ function buildNodes(
           "Checks team_assignee_id matches settings.intercom_inbox_id (enterprise inbox)",
           "Deduplicates across conversation_mappings, gmail_conversations, and manual_conversations",
           "Fetches full conversation from Intercom API with pagination",
-          "Extracts messages: skips bots, system events (assignment/open/close), strips HTML",
+          "Extracts messages: skips bots, system events (open/close); assignment parts with body are included",
           "Inserts into manual_conversations (source='intercom') + manual_messages",
           "Conversations from other channels (web, mobile, non-enterprise email) get tracked automatically",
         ],
