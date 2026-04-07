@@ -391,6 +391,53 @@ export default function TestChannelReview() {
                               Relink
                             </Button>
                           </TableCell>
+                          <TableCell>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => findDuplicates(row)}
+                                  disabled={dupeLoading === row.id}
+                                >
+                                  {dupeLoading === row.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Search className="h-3.5 w-3.5" />
+                                  )}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-96" align="end">
+                                <div className="space-y-2">
+                                  <p className="text-sm font-medium">Manual log duplicates</p>
+                                  {!dupeResults[row.id] ? (
+                                    <p className="text-xs text-muted-foreground">Click to search</p>
+                                  ) : dupeResults[row.id].length === 0 ? (
+                                    <p className="text-xs text-muted-foreground">No duplicates found</p>
+                                  ) : (
+                                    dupeResults[row.id].map((dupe) => (
+                                      <div key={dupe.id} className="border rounded p-2 space-y-1">
+                                        <p className="text-xs font-medium">{dupe.subject.slice(0, 120)}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {dupe.contact_name} · {dupe.source} · {format(new Date(dupe.created_at), "MMM d, HH:mm")}
+                                        </p>
+                                        <Button
+                                          variant="destructive"
+                                          size="sm"
+                                          className="h-6 text-xs"
+                                          onClick={() => deleteDuplicate(dupe.id, row.id)}
+                                        >
+                                          <Trash2 className="h-3 w-3 mr-1" />
+                                          Delete duplicate
+                                        </Button>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          </TableCell>
                         </TableRow>
                       );
                     })}
