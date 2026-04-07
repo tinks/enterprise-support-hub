@@ -262,12 +262,21 @@ const ConversationDetail = () => {
 
   // Auto-search Intercom for Gmail threads without a linked conversation
   useEffect(() => {
-    if (source !== "gmail" || !gmailConv || gmailConv.intercom_conversation_id || !gmailConv.from_email) return;
+    if (source !== "gmail" || !gmailConv || gmailConv.intercom_conversation_id) return;
+    // Determine the customer email: if from_email looks like our support DL, use to_emails instead
+    const fromEmail = gmailConv.from_email || "";
+    const toEmails = gmailConv.to_emails || "";
+    const supportPatterns = ["support@", "help@", "info@"];
+    const isFromSupport = supportPatterns.some((p) => fromEmail.toLowerCase().includes(p));
+    const customerEmail = isFromSupport
+      ? toEmails.split(",").map((e: string) => e.trim()).filter((e: string) => !supportPatterns.some((p) => e.toLowerCase().includes(p)))[0] || fromEmail
+      : fromEmail;
+    if (!customerEmail) return;
     const search = async () => {
       setSearchingIntercom(true);
       try {
         const { data } = await supabase.functions.invoke("search-intercom-by-email", {
-          body: { email: gmailConv.from_email },
+          body: { email: customerEmail, subject: gmailConv.subject || undefined },
         });
         if (data?.conversations?.length) {
           setIntercomSuggestions(data.conversations);

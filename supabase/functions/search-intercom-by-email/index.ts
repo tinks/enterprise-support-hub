@@ -6,6 +6,18 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .trim();
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -20,7 +32,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { email } = await req.json();
+    const { email, subject } = await req.json();
     if (!email) {
       return new Response(
         JSON.stringify({ error: "email is required" }),
@@ -35,7 +47,9 @@ Deno.serve(async (req) => {
       "Intercom-Version": "2.11",
     };
 
-    // Search for contact by email
+    const allConversations = new Map<string, { id: string; title: string; created_at: string | null; state: string }>();
+
+    // 1. Search by contact email
     const contactRes = await fetch("https://api.intercom.io/contacts/search", {
       method: "POST",
       headers: intercomHeaders,
@@ -45,37 +59,71 @@ Deno.serve(async (req) => {
     });
     const contactData = await contactRes.json();
 
-    if (!contactData.data?.length) {
-      return new Response(
-        JSON.stringify({ conversations: [] }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    let contactId: string | null = null;
+    if (contactData.data?.length) {
+      contactId = contactData.data[0].id;
+
+      const convsRes = await fetch("https://api.intercom.io/conversations/search", {
+        method: "POST",
+        headers: intercomHeaders,
+        body: JSON.stringify({
+          query: {
+            field: "contact_ids",
+            operator: "=",
+            value: contactId,
+          },
+          pagination: { per_page: 10 },
+          sort: { field: "updated_at", order: "desc" },
+        }),
+      });
+      const convsData = await convsRes.json();
+
+      for (const c of convsData.conversations || []) {
+        const rawTitle = c.source?.subject || c.source?.body?.substring(0, 100) || `Conversation ${c.id}`;
+        allConversations.set(c.id, {
+          id: c.id,
+          title: stripHtml(rawTitle),
+          created_at: c.created_at ? new Date(c.created_at * 1000).toISOString() : null,
+          state: c.state,
+        });
+      }
     }
 
-    const contactId = contactData.data[0].id;
+    // 2. Search by subject if provided
+    if (subject) {
+      try {
+        const subjectRes = await fetch("https://api.intercom.io/conversations/search", {
+          method: "POST",
+          headers: intercomHeaders,
+          body: JSON.stringify({
+            query: {
+              field: "source.subject",
+              operator: "~",
+              value: subject,
+            },
+            pagination: { per_page: 10 },
+            sort: { field: "updated_at", order: "desc" },
+          }),
+        });
+        const subjectData = await subjectRes.json();
 
-    // Search conversations for this contact
-    const convsRes = await fetch("https://api.intercom.io/conversations/search", {
-      method: "POST",
-      headers: intercomHeaders,
-      body: JSON.stringify({
-        query: {
-          field: "contact_ids",
-          operator: "=",
-          value: contactId,
-        },
-        pagination: { per_page: 10 },
-        sort: { field: "updated_at", order: "desc" },
-      }),
-    });
-    const convsData = await convsRes.json();
+        for (const c of subjectData.conversations || []) {
+          if (!allConversations.has(c.id)) {
+            const rawTitle = c.source?.subject || c.source?.body?.substring(0, 100) || `Conversation ${c.id}`;
+            allConversations.set(c.id, {
+              id: c.id,
+              title: stripHtml(rawTitle),
+              created_at: c.created_at ? new Date(c.created_at * 1000).toISOString() : null,
+              state: c.state,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Subject search failed (non-fatal):", err);
+      }
+    }
 
-    const conversations = (convsData.conversations || []).map((c: any) => ({
-      id: c.id,
-      title: c.source?.subject || c.source?.body?.substring(0, 100) || `Conversation ${c.id}`,
-      created_at: c.created_at ? new Date(c.created_at * 1000).toISOString() : null,
-      state: c.state,
-    }));
+    const conversations = Array.from(allConversations.values());
 
     return new Response(
       JSON.stringify({ conversations, contactId }),
