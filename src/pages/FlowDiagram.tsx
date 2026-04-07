@@ -155,6 +155,11 @@ const ROW_H = 380;
 /*  The FR toggle was removed; feature requests are now tracked via    */
 /*  the Classification dropdown with the "FR" option.                  */
 /* ------------------------------------------------------------------ */
+/*  Re-import old bot conversations: /test-review page lists convos    */
+/*  from old bot channels (e.g. C0AJP396C85). import-slack-thread     */
+/*  accepts force=true to update existing rows and sets created_at     */
+/*  from slack_thread_ts so analytics reflect the actual thread date.  */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */

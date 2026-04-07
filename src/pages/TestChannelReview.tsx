@@ -1,0 +1,264 @@
+import { useEffect, useState } from "react";
+import AppLayout from "@/components/AppLayout";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { channelNameOverrides } from "@/lib/channelOverrides";
+import { Loader2 } from "lucide-react";
+
+interface ConversationRow {
+  id: string;
+  slack_channel_id: string;
+  slack_thread_ts: string;
+  slack_user_id: string;
+  original_message_text: string;
+  status: string;
+  owner: string | null;
+  created_at: string;
+  is_test: boolean;
+}
+
+function threadTsToDate(ts: string): Date {
+  return new Date(parseFloat(ts) * 1000);
+}
+
+function driftLabel(createdAt: string, threadTs: string): { text: string; color: string } {
+  const dbDate = new Date(createdAt);
+  const threadDate = threadTsToDate(threadTs);
+  const diffHours = Math.abs(dbDate.getTime() - threadDate.getTime()) / (1000 * 60 * 60);
+  if (diffHours < 1) return { text: "OK", color: "bg-green-100 text-green-800" };
+  if (diffHours < 24) return { text: `${Math.round(diffHours)}h drift`, color: "bg-yellow-100 text-yellow-800" };
+  return { text: `${Math.round(diffHours / 24)}d drift`, color: "bg-red-100 text-red-800" };
+}
+
+const TARGET_CHANNEL = "C0AJP396C85";
+
+export default function TestChannelReview() {
+  const [rows, setRows] = useState<ConversationRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function loadData() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("conversation_mappings")
+      .select("id, slack_channel_id, slack_thread_ts, slack_user_id, original_message_text, status, owner, created_at, is_test")
+      .eq("slack_channel_id", TARGET_CHANNEL)
+      .eq("is_test", false)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      toast.error("Failed to load conversations");
+      console.error(error);
+    } else {
+      setRows(data || []);
+    }
+    setLoading(false);
+  }
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAll() {
+    if (selected.size === rows.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(rows.map((r) => r.id)));
+    }
+  }
+
+  function selectDrifted() {
+    const drifted = rows.filter((r) => {
+      const diffHours = Math.abs(new Date(r.created_at).getTime() - threadTsToDate(r.slack_thread_ts).getTime()) / (1000 * 60 * 60);
+      return diffHours >= 1;
+    });
+    setSelected(new Set(drifted.map((r) => r.id)));
+  }
+
+  async function reimportSelected() {
+    const toImport = rows.filter((r) => selected.has(r.id));
+    if (toImport.length === 0) return;
+
+    setImporting(true);
+    setImportProgress(0);
+    let success = 0;
+    let failed = 0;
+
+    for (let i = 0; i < toImport.length; i++) {
+      const row = toImport[i];
+      const slackUrl = `https://app.slack.com/client/T/thread/${row.slack_channel_id}-${row.slack_thread_ts}`;
+
+      try {
+        const { data, error } = await supabase.functions.invoke("import-slack-thread", {
+          body: {
+            url: `https://lovable.slack.com/archives/${row.slack_channel_id}/p${row.slack_thread_ts.replace(".", "")}`,
+            force: true,
+          },
+        });
+
+        if (error) {
+          console.error(`Failed to re-import ${row.id}:`, error);
+          failed++;
+        } else if (data?.error) {
+          console.error(`Re-import error for ${row.id}:`, data.error);
+          failed++;
+        } else {
+          success++;
+        }
+      } catch (err) {
+        console.error(`Exception re-importing ${row.id}:`, err);
+        failed++;
+      }
+
+      setImportProgress(i + 1);
+      // Rate limit
+      if (i < toImport.length - 1) {
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    }
+
+    toast.success(`Re-imported ${success} conversations${failed > 0 ? `, ${failed} failed` : ""}`);
+    setImporting(false);
+    setSelected(new Set());
+    loadData();
+  }
+
+  const channelName = channelNameOverrides[TARGET_CHANNEL] || TARGET_CHANNEL;
+
+  const driftedCount = rows.filter((r) => {
+    const diffHours = Math.abs(new Date(r.created_at).getTime() - threadTsToDate(r.slack_thread_ts).getTime()) / (1000 * 60 * 60);
+    return diffHours >= 1;
+  }).length;
+
+  return (
+    <AppLayout>
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Test channel review</h1>
+            <p className="text-muted-foreground">
+              #{channelName} — {rows.length} conversations, {driftedCount} with timestamp drift
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={selectDrifted} disabled={importing}>
+              Select drifted ({driftedCount})
+            </Button>
+            <Button variant="outline" size="sm" onClick={selectAll} disabled={importing}>
+              {selected.size === rows.length ? "Deselect all" : "Select all"}
+            </Button>
+            <Button
+              size="sm"
+              onClick={reimportSelected}
+              disabled={importing || selected.size === 0}
+            >
+              {importing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                  Re-importing {importProgress}/{selected.size}
+                </>
+              ) : (
+                `Re-import selected (${selected.size})`
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[40px]">
+                        <Checkbox
+                          checked={selected.size === rows.length && rows.length > 0}
+                          onCheckedChange={selectAll}
+                        />
+                      </TableHead>
+                      <TableHead className="w-[300px]">Message preview</TableHead>
+                      <TableHead className="w-[100px]">Status</TableHead>
+                      <TableHead className="w-[100px]">Owner</TableHead>
+                      <TableHead className="w-[140px]">DB created_at</TableHead>
+                      <TableHead className="w-[140px]">Thread time</TableHead>
+                      <TableHead className="w-[100px]">Drift</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((row) => {
+                      const drift = driftLabel(row.created_at, row.slack_thread_ts);
+                      const threadDate = threadTsToDate(row.slack_thread_ts);
+                      return (
+                        <TableRow key={row.id}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selected.has(row.id)}
+                              onCheckedChange={() => toggleSelect(row.id)}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <p className="text-sm whitespace-normal break-words leading-relaxed max-w-[300px]">
+                              {row.original_message_text || "(empty)"}
+                            </p>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={row.status === "resolved" ? "secondary" : "default"}>
+                              {row.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {row.owner || "—"}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {format(new Date(row.created_at), "MMM d, HH:mm")}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {format(threadDate, "MMM d, HH:mm")}
+                          </TableCell>
+                          <TableCell>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${drift.color}`}>
+                              {drift.text}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </AppLayout>
+  );
+}
