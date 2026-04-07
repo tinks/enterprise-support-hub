@@ -246,6 +246,75 @@ export default function TestChannelReview() {
     }
   }
 
+  async function logAndReplace() {
+    if (!logRow || !logRawThread.trim() || !logDate) return;
+    setLogSaving(true);
+
+    const parsed = parseThread(logRawThread);
+    if (parsed.length === 0) {
+      toast.error("Could not parse any messages from the pasted thread");
+      setLogSaving(false);
+      return;
+    }
+
+    const firstUser = parsed.find((m) => m.role === "user");
+    const contactName = firstUser?.sender_name || "";
+    const firstMsg = parsed[0].message_text;
+    const subject = firstMsg.length > 60 ? firstMsg.slice(0, 60) + "…" : firstMsg;
+
+    // Create manual conversation
+    const { data: convo, error: convoErr } = await supabase
+      .from("manual_conversations")
+      .insert({
+        source: "slack_thread",
+        contact_name: contactName,
+        subject,
+        link: logChannelName.trim() || null,
+        owner: logOwner || logRow.owner || null,
+        created_at: logDate.toISOString(),
+        status: logRow.status === "resolved" ? "resolved" : "active",
+      })
+      .select("id")
+      .single();
+
+    if (convoErr || !convo) {
+      toast.error("Failed to create manual conversation");
+      setLogSaving(false);
+      return;
+    }
+
+    // Insert messages
+    const messagesToInsert = parsed
+      .filter((m) => m.message_text.trim())
+      .map((m) => ({
+        conversation_id: convo.id,
+        role: m.role,
+        sender_name: m.sender_name.trim(),
+        message_text: m.message_text.trim(),
+      }));
+
+    await supabase.from("manual_messages").insert(messagesToInsert);
+
+    // Delete the old conversation_mappings row via edge function
+    const { error: delErr } = await supabase.functions.invoke("delete-conversation-mapping", {
+      body: { id: logRow.id },
+    });
+
+    if (delErr) {
+      toast.error("Manual log created but failed to delete old row");
+    } else {
+      toast.success("Logged as manual & removed old entry");
+    }
+
+    setLogRow(null);
+    setLogChannelName("");
+    setLogDate(undefined);
+    setLogRawThread("");
+    setLogOwner("");
+    setLogSaving(false);
+    loadData();
+  }
+
   const channelName = channelNameOverrides[TARGET_CHANNEL] || TARGET_CHANNEL;
 
   const driftedCount = rows.filter((r) => {
