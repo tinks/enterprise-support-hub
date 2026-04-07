@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,10 @@ import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Upload, ChevronDown, ChevronRight, Loader2, FileText, CheckCircle2, AlertTriangle, HelpCircle } from "lucide-react";
+import { Upload, ChevronDown, ChevronRight, Loader2, FileText, CheckCircle2, AlertTriangle, HelpCircle, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface CsvRow {
@@ -28,6 +30,7 @@ interface ExistingConversation {
   source: "slack" | "gmail" | "manual";
   intercomId: string | null;
   contactOrEmail: string;
+  createdAt: string;
 }
 
 type MatchStatus = "tracked" | "possible_duplicate" | "missing";
@@ -112,6 +115,8 @@ function mapOwner(teammate: string): string | null {
   return null;
 }
 
+type StatusFilter = "all" | MatchStatus;
+
 const BulkImportReview = () => {
   const [reviewRows, setReviewRows] = useState<ReviewRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -119,31 +124,59 @@ const BulkImportReview = () => {
   const [importProgress, setImportProgress] = useState({ done: 0, total: 0 });
   const [importResults, setImportResults] = useState<ImportResult[]>([]);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [fileFilter, setFileFilter] = useState<string>("all");
   const fileRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
+  const fileNames = useMemo(() => {
+    const names = new Set(reviewRows.map(r => r.fileName));
+    return Array.from(names).sort();
+  }, [reviewRows]);
+
+  const filteredRows = useMemo(() => {
+    let rows = reviewRows;
+    if (statusFilter !== "all") {
+      rows = rows.filter(r => r.status === statusFilter);
+    }
+    if (fileFilter !== "all") {
+      rows = rows.filter(r => r.fileName === fileFilter);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      rows = rows.filter(r =>
+        r.subject.toLowerCase().includes(q) ||
+        r.userEmail.toLowerCase().includes(q) ||
+        r.userName.toLowerCase().includes(q) ||
+        r.conversationId.toLowerCase().includes(q)
+      );
+    }
+    return rows;
+  }, [reviewRows, statusFilter, searchQuery, fileFilter]);
+
   const loadExistingConversations = useCallback(async () => {
     const [slackRes, gmailRes, manualRes] = await Promise.all([
-      supabase.from("conversation_mappings").select("id, original_message_text, intercom_conversation_id").limit(1000),
-      supabase.from("gmail_conversations").select("id, subject, intercom_conversation_id, from_email").limit(1000),
-      supabase.from("manual_conversations").select("id, subject, intercom_conversation_id, contact_name").limit(1000),
+      supabase.from("conversation_mappings").select("id, original_message_text, intercom_conversation_id, slack_channel_id, slack_thread_ts, created_at").limit(1000),
+      supabase.from("gmail_conversations").select("id, subject, intercom_conversation_id, from_email, created_at").limit(1000),
+      supabase.from("manual_conversations").select("id, subject, intercom_conversation_id, contact_name, created_at").limit(1000),
     ]);
 
     const existing: ExistingConversation[] = [];
 
     if (slackRes.data) {
       for (const r of slackRes.data) {
-        existing.push({ id: r.id, subject: r.original_message_text || "", source: "slack", intercomId: r.intercom_conversation_id, contactOrEmail: "" });
+        existing.push({ id: r.id, subject: r.original_message_text || "", source: "slack", intercomId: r.intercom_conversation_id, contactOrEmail: "", createdAt: r.created_at });
       }
     }
     if (gmailRes.data) {
       for (const r of gmailRes.data) {
-        existing.push({ id: r.id, subject: r.subject || "", source: "gmail", intercomId: r.intercom_conversation_id, contactOrEmail: r.from_email || "" });
+        existing.push({ id: r.id, subject: r.subject || "", source: "gmail", intercomId: r.intercom_conversation_id, contactOrEmail: r.from_email || "", createdAt: r.created_at });
       }
     }
     if (manualRes.data) {
       for (const r of manualRes.data) {
-        existing.push({ id: r.id, subject: r.subject || "", source: "manual", intercomId: r.intercom_conversation_id, contactOrEmail: r.contact_name || "" });
+        existing.push({ id: r.id, subject: r.subject || "", source: "manual", intercomId: r.intercom_conversation_id, contactOrEmail: r.contact_name || "", createdAt: r.created_at });
       }
     }
 
@@ -194,14 +227,12 @@ const BulkImportReview = () => {
             assignedTeammate: teammateIdx >= 0 ? row[teammateIdx]?.trim() || "" : "",
           };
 
-          // Check exact match
           if (existingIntercomIds.has(convId)) {
             const matches = existing.filter(e => e.intercomId === convId);
             allRows.push({ ...csvRow, status: "tracked", matches, selected: false, fileName: file.name });
             continue;
           }
 
-          // Fuzzy matching
           const fuzzyMatches: ExistingConversation[] = [];
           if (csvRow.subject) {
             for (const e of existing) {
@@ -274,7 +305,6 @@ const BulkImportReview = () => {
     setImportProgress({ done: 0, total: selected.length });
     setImportResults([]);
 
-    // Process in batches of 10
     const BATCH_SIZE = 10;
     const allResults: ImportResult[] = [];
 
@@ -309,7 +339,6 @@ const BulkImportReview = () => {
     const failed = allResults.filter(r => r.status === "failed").length;
     toast.success(`Import complete: ${imported} imported, ${failed} failed`);
 
-    // Update row statuses
     const importedIds = new Set(allResults.filter(r => r.status === "imported").map(r => r.id));
     setReviewRows(prev => prev.map(r =>
       importedIds.has(r.conversationId) ? { ...r, status: "tracked", selected: false } : r
@@ -378,34 +407,63 @@ const BulkImportReview = () => {
           </CardContent>
         </Card>
 
-        {/* Summary */}
         {reviewRows.length > 0 && (
           <>
+            {/* Summary */}
             <div className="grid grid-cols-4 gap-4">
-              <Card>
+              <Card className={`cursor-pointer transition-colors ${statusFilter === "all" ? "ring-2 ring-primary" : ""}`} onClick={() => setStatusFilter("all")}>
                 <CardContent className="pt-4 text-center">
                   <p className="text-2xl font-bold">{reviewRows.length}</p>
                   <p className="text-sm text-muted-foreground">Total</p>
                 </CardContent>
               </Card>
-              <Card>
+              <Card className={`cursor-pointer transition-colors ${statusFilter === "tracked" ? "ring-2 ring-green-500" : ""}`} onClick={() => setStatusFilter(statusFilter === "tracked" ? "all" : "tracked")}>
                 <CardContent className="pt-4 text-center">
                   <p className="text-2xl font-bold text-green-600">{trackedCount}</p>
                   <p className="text-sm text-muted-foreground">Tracked</p>
                 </CardContent>
               </Card>
-              <Card>
+              <Card className={`cursor-pointer transition-colors ${statusFilter === "possible_duplicate" ? "ring-2 ring-yellow-500" : ""}`} onClick={() => setStatusFilter(statusFilter === "possible_duplicate" ? "all" : "possible_duplicate")}>
                 <CardContent className="pt-4 text-center">
                   <p className="text-2xl font-bold text-yellow-600">{possibleCount}</p>
                   <p className="text-sm text-muted-foreground">Possible duplicates</p>
                 </CardContent>
               </Card>
-              <Card>
+              <Card className={`cursor-pointer transition-colors ${statusFilter === "missing" ? "ring-2 ring-red-500" : ""}`} onClick={() => setStatusFilter(statusFilter === "missing" ? "all" : "missing")}>
                 <CardContent className="pt-4 text-center">
                   <p className="text-2xl font-bold text-red-600">{missingCount}</p>
                   <p className="text-sm text-muted-foreground">Missing</p>
                 </CardContent>
               </Card>
+            </div>
+
+            {/* Filters */}
+            <div className="flex items-center gap-3">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by subject, email, name, or ID..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              {fileNames.length > 1 && (
+                <Select value={fileFilter} onValueChange={setFileFilter}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="All files" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All files</SelectItem>
+                    {fileNames.map(f => (
+                      <SelectItem key={f} value={f}>{f}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                Showing {filteredRows.length} of {reviewRows.length}
+              </span>
             </div>
 
             {/* Import controls */}
@@ -451,7 +509,7 @@ const BulkImportReview = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {reviewRows.map((row) => {
+                    {filteredRows.map((row) => {
                       const hasMatches = row.matches.length > 0;
                       const isExpanded = expandedRows.has(row.conversationId);
                       const result = importResults.find(r => r.id === row.conversationId);
@@ -504,21 +562,32 @@ const BulkImportReview = () => {
                             <CollapsibleContent asChild>
                               <TableRow className="bg-muted/30">
                                 <TableCell colSpan={10} className="p-4">
-                                  <p className="text-xs font-medium mb-2">Matched conversations:</p>
-                                  <div className="space-y-1">
+                                  <p className="text-xs font-medium mb-3">Matched conversations ({row.matches.length}):</p>
+                                  <div className="space-y-2">
                                     {row.matches.map(m => (
                                       <div
                                         key={m.id}
-                                        className="flex items-center gap-3 text-xs p-2 rounded border bg-background cursor-pointer hover:bg-muted/50"
+                                        className="p-3 rounded-lg border bg-background cursor-pointer hover:bg-muted/50 transition-colors"
                                         onClick={() => {
                                           const params = m.source !== "slack" ? `?source=${m.source}` : "";
                                           navigate(`/conversations/${m.id}${params}`);
                                         }}
                                       >
-                                        <Badge variant="secondary">{sourceLabel(m.source)}</Badge>
-                                        <span className="truncate flex-1">{m.subject || "—"}</span>
-                                        {m.intercomId && <span className="text-muted-foreground">IC: {m.intercomId}</span>}
-                                        <span className="text-muted-foreground">{m.contactOrEmail}</span>
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                          <Badge variant="secondary" className="text-xs">{sourceLabel(m.source)}</Badge>
+                                          {m.intercomId && (
+                                            <span className="text-xs text-muted-foreground font-mono">IC: {m.intercomId}</span>
+                                          )}
+                                          <span className="text-xs text-muted-foreground ml-auto">
+                                            {new Date(m.createdAt).toLocaleDateString()}
+                                          </span>
+                                        </div>
+                                        <p className="text-sm whitespace-normal break-words leading-relaxed">
+                                          {m.subject || "No subject"}
+                                        </p>
+                                        {m.contactOrEmail && (
+                                          <p className="text-xs text-muted-foreground mt-1">{m.contactOrEmail}</p>
+                                        )}
                                       </div>
                                     ))}
                                   </div>
