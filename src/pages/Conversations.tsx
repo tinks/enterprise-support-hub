@@ -130,6 +130,45 @@ type ColKey = typeof ALL_COLUMNS[number];
 type OwnerFilter = "all" | "Joel" | "Kristina" | "Sam" | "CSM" | "unassigned";
 const OWNER_OPTIONS = ["Joel", "Kristina", "Sam", "CSM"] as const;
 
+const ColumnFilter = ({ value, options, onChange, label }: { value: string; options: string[]; onChange: (v: string) => void; label: string }) => (
+  <Popover>
+    <PopoverTrigger asChild>
+      <button
+        className={`ml-1 inline-flex items-center justify-center rounded p-0.5 transition-colors ${value !== "all" ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Filter className={`h-3 w-3 ${value !== "all" ? "fill-primary" : ""}`} />
+      </button>
+    </PopoverTrigger>
+    <PopoverContent className="w-44 p-2" align="start">
+      <div className="flex flex-col gap-0.5">
+        <button
+          className={`rounded px-2 py-1.5 text-left text-sm transition-colors ${value === "all" ? "bg-accent text-accent-foreground" : "hover:bg-muted"}`}
+          onClick={() => onChange("all")}
+        >
+          All
+        </button>
+        <button
+          className={`rounded px-2 py-1.5 text-left text-sm transition-colors ${value === "unassigned" ? "bg-accent text-accent-foreground" : "hover:bg-muted"}`}
+          onClick={() => onChange("unassigned")}
+        >
+          Unassigned
+        </button>
+        <div className="my-1 h-px bg-border" />
+        {options.map((opt) => (
+          <button
+            key={opt}
+            className={`rounded px-2 py-1.5 text-left text-sm transition-colors ${value === opt ? "bg-accent text-accent-foreground" : "hover:bg-muted"}`}
+            onClick={() => onChange(opt)}
+          >
+            {opt}
+          </button>
+        ))}
+      </div>
+    </PopoverContent>
+  </Popover>
+);
+
 const COLUMN_STORAGE_KEY = "conv-column-order";
 const COLUMN_ORDER_VERSION_KEY = "conv-column-order-version";
 const COLUMN_ORDER_VERSION = 2;
@@ -162,6 +201,10 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const [searchQuery, setSearchQuery] = useState("");
   const savedOwner = localStorage.getItem("conv-owner-filter") as OwnerFilter | null;
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(forceOwner as OwnerFilter || savedOwner || "all");
+  const savedPaFilter = localStorage.getItem("conv-pa-filter");
+  const [productAreaFilter, setProductAreaFilter] = useState<string>(savedPaFilter || "all");
+  const savedClassFilter = localStorage.getItem("conv-class-filter");
+  const [classificationFilter, setClassificationFilter] = useState<string>(savedClassFilter || "all");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [searchResults, setSearchResults] = useState<{ slack: ConversationMapping[]; gmail: GmailConversation[]; manual: ManualConversation[] } | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
