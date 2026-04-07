@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { url } = await req.json();
+    const { url, force } = await req.json();
     if (!url || typeof url !== "string") {
       return new Response(
         JSON.stringify({ error: "Missing url field" }),
@@ -50,13 +50,30 @@ Deno.serve(async (req) => {
       sb.from("gmail_conversations").select("id").eq("intercom_conversation_id", intercomConvId).maybeSingle(),
     ]);
 
-    const existingId = dup1.data?.id || dup2.data?.id || dup3.data?.id;
-    const existingSource = dup1.data ? "manual" : dup2.data ? "slack" : dup3.data ? "gmail" : null;
-    if (existingId) {
+    const existingManualId = dup1.data?.id;
+    const existingOtherId = dup2.data?.id || dup3.data?.id;
+    const existingOtherSource = dup2.data ? "slack" : dup3.data ? "gmail" : null;
+
+    // If duplicate exists in non-manual tables, always block
+    if (existingOtherId) {
       return new Response(
-        JSON.stringify({ error: "Already imported", existingId, existingSource }),
+        JSON.stringify({ error: "Already imported", existingId: existingOtherId, existingSource: existingOtherSource }),
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // If duplicate exists in manual_conversations
+    if (existingManualId) {
+      if (force) {
+        // Delete existing and re-import
+        await sb.from("manual_messages").delete().eq("conversation_id", existingManualId);
+        await sb.from("manual_conversations").delete().eq("id", existingManualId);
+      } else {
+        return new Response(
+          JSON.stringify({ error: "Already imported", existingId: existingManualId, existingSource: "manual" }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Fetch conversation from Intercom

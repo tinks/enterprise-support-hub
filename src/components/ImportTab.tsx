@@ -20,6 +20,7 @@ const ImportTab = () => {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [intercomUrl, setIntercomUrl] = useState("");
+  const [lastIntercomUrl, setLastIntercomUrl] = useState("");
   const [intercomLoading, setIntercomLoading] = useState(false);
   const [recentImports, setRecentImports] = useState<RecentImport[]>([]);
   const navigate = useNavigate();
@@ -127,8 +128,8 @@ const ImportTab = () => {
     }
   };
 
-  const handleIntercomImport = async () => {
-    const trimmed = intercomUrl.trim();
+  const handleIntercomImport = async (force = false) => {
+    const trimmed = intercomUrl.trim() || lastIntercomUrl;
     if (!trimmed) {
       toast.error("Please paste an Intercom URL");
       return;
@@ -140,8 +141,9 @@ const ImportTab = () => {
 
     setIntercomLoading(true);
     try {
+      setLastIntercomUrl(trimmed);
       const { data, error } = await supabase.functions.invoke("import-intercom-ticket", {
-        body: { url: trimmed },
+        body: { url: trimmed, force },
       });
 
       if (error) {
@@ -164,8 +166,8 @@ const ImportTab = () => {
           toast.error("Already imported", {
             description: "This Intercom conversation already exists.",
             action: {
-              label: "View",
-              onClick: () => navigate(`/conversations/${errorBody.existingId}?source=${source}`),
+              label: "Re-import",
+              onClick: () => handleIntercomImport(true),
             },
           });
         } else {
