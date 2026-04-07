@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -13,10 +14,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { channelNameOverrides } from "@/lib/channelOverrides";
-import { Loader2 } from "lucide-react";
+import { Loader2, Link } from "lucide-react";
 
 interface ConversationRow {
   id: string;
@@ -51,6 +53,7 @@ export default function TestChannelReview() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
+  const [customUrls, setCustomUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadData();
@@ -110,12 +113,13 @@ export default function TestChannelReview() {
 
     for (let i = 0; i < toImport.length; i++) {
       const row = toImport[i];
-      const slackUrl = `https://app.slack.com/client/T/thread/${row.slack_channel_id}-${row.slack_thread_ts}`;
+      const defaultUrl = `https://lovable.slack.com/archives/${row.slack_channel_id}/p${row.slack_thread_ts.replace(".", "")}`;
+      const finalUrl = customUrls[row.id] || defaultUrl;
 
       try {
         const { data, error } = await supabase.functions.invoke("import-slack-thread", {
           body: {
-            url: `https://lovable.slack.com/archives/${row.slack_channel_id}/p${row.slack_thread_ts.replace(".", "")}`,
+            url: finalUrl,
             force: true,
           },
         });
@@ -144,6 +148,7 @@ export default function TestChannelReview() {
     toast.success(`Re-imported ${success} conversations${failed > 0 ? `, ${failed} failed` : ""}`);
     setImporting(false);
     setSelected(new Set());
+    setCustomUrls({});
     loadData();
   }
 
@@ -211,6 +216,7 @@ export default function TestChannelReview() {
                       <TableHead className="w-[140px]">DB created_at</TableHead>
                       <TableHead className="w-[140px]">Thread time</TableHead>
                       <TableHead className="w-[100px]">Drift</TableHead>
+                      <TableHead className="w-[50px]">URL</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -248,6 +254,45 @@ export default function TestChannelReview() {
                             <span className={`text-xs px-2 py-0.5 rounded-full ${drift.color}`}>
                               {drift.text}
                             </span>
+                          </TableCell>
+                          <TableCell>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button variant={customUrls[row.id] ? "default" : "ghost"} size="icon" className="h-7 w-7">
+                                  <Link className="h-3.5 w-3.5" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80" align="end">
+                                <div className="space-y-2">
+                                  <p className="text-sm font-medium">Custom Slack URL</p>
+                                  <Input
+                                    placeholder="https://lovable.slack.com/archives/..."
+                                    value={customUrls[row.id] || ""}
+                                    onChange={(e) =>
+                                      setCustomUrls((prev) => ({
+                                        ...prev,
+                                        [row.id]: e.target.value,
+                                      }))
+                                    }
+                                  />
+                                  {customUrls[row.id] && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() =>
+                                        setCustomUrls((prev) => {
+                                          const next = { ...prev };
+                                          delete next[row.id];
+                                          return next;
+                                        })
+                                      }
+                                    >
+                                      Clear
+                                    </Button>
+                                  )}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
                           </TableCell>
                         </TableRow>
                       );
