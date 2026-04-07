@@ -1,34 +1,28 @@
 
 
-## Sort product areas alphabetically with "Other" pinned at the bottom
+## Use first user message timestamp for manual conversation dating
 
 ### Problem
-Product areas are displayed in insertion order everywhere. They should be sorted alphabetically, with "Other" always appearing last.
+When importing Intercom conversations, `created_at` defaults to `now()` (the database default), so they appear as today's conversations in analytics. They should be dated based on when the user actually sent their first message.
 
 ### Solution
 
-Apply a sort helper wherever product areas are parsed into an array. The sort places "Other" (case-insensitive) at the end, and sorts everything else alphabetically.
+**`supabase/functions/import-intercom-ticket/index.ts`**
+- After building the `messages` array and sorting chronologically, extract the timestamp of the earliest message
+- Update the `manual_conversations` row's `created_at` to that timestamp (using an UPDATE after insert, or by passing `created_at` in the insert)
+- Specifically: set `created_at` to `messages[0].created_at` if messages exist, otherwise use the Intercom conversation's `created_at` field (`toIso(icData.created_at)`)
 
-**`src/components/ProductAreasCard.tsx`**
-- Sort the `areas` array displayed in the badge list: alphabetical, "Other" last
+**`supabase/functions/intercom-webhook/index.ts`**
+- In the auto-import-on-assignment handler, apply the same logic: set `created_at` on the inserted `manual_conversations` row to the earliest message timestamp or the Intercom conversation creation time
 
-**`src/pages/Conversations.tsx`**
-- Sort `productAreas` state after loading from settings (~line 662)
+**`src/components/ManualLogTab.tsx`**
+- For manually typed conversations, no change needed — `created_at` at time of entry is correct since these are logged in real time
 
-**`src/pages/ConversationDetail.tsx`**
-- Sort `productAreas` state after loading from settings (~line 202)
-
-### Sorting logic (used in all three files)
-```typescript
-.sort((a, b) => {
-  if (a.toLowerCase() === "other") return 1;
-  if (b.toLowerCase() === "other") return -1;
-  return a.localeCompare(b);
-})
-```
+**`src/pages/FlowDiagram.tsx`**
+- Note that imported conversations use first message timestamp for `created_at`
 
 ### Files to edit
-- `src/components/ProductAreasCard.tsx`
-- `src/pages/Conversations.tsx`
-- `src/pages/ConversationDetail.tsx`
+- `supabase/functions/import-intercom-ticket/index.ts`
+- `supabase/functions/intercom-webhook/index.ts`
+- `src/pages/FlowDiagram.tsx`
 
