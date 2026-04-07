@@ -212,8 +212,25 @@ const ConversationDetail = () => {
 
       if (source === "gmail") {
         const { data } = await supabase.from("gmail_conversations").select("*").eq("id", id).single();
-        setGmailConv(data as unknown as GmailConv | null);
+        const gmailData = data as unknown as GmailConv | null;
+        setGmailConv(gmailData);
         setLoading(false);
+        // Fetch full thread messages
+        if (gmailData?.gmail_thread_id) {
+          setGmailThreadLoading(true);
+          try {
+            const res = await supabase.functions.invoke("fetch-gmail-thread", {
+              body: { threadId: gmailData.gmail_thread_id },
+            });
+            if (res.data?.messages) {
+              setGmailThreadMessages(res.data.messages);
+            }
+          } catch (err) {
+            console.error("Failed to fetch Gmail thread:", err);
+          } finally {
+            setGmailThreadLoading(false);
+          }
+        }
         return;
       }
 
