@@ -101,7 +101,7 @@ interface ThreadMessage {
 
 type SourceType = "slack" | "gmail" | "manual";
 
-const STATUS_OPTIONS = ["active", "resolved", "cancelled", "escalated", "awaiting_context", "awaiting_support"];
+const STATUS_OPTIONS = ["active", "resolved", "cancelled", "escalated", "awaiting_context", "awaiting_support", "awaiting_engineering"];
 
 const statusColor = (status: string) => {
   switch (status) {
@@ -111,6 +111,7 @@ const statusColor = (status: string) => {
     case "cancelled": return "outline" as const;
     case "awaiting_context": return "outline" as const;
     case "awaiting_support": return "outline" as const;
+    case "awaiting_engineering": return "outline" as const;
     default: return "outline" as const;
   }
 };
@@ -119,6 +120,7 @@ const statusLabel = (status: string) => {
   switch (status) {
     case "awaiting_context": return "Awaiting customer";
     case "awaiting_support": return "Awaiting support";
+    case "awaiting_engineering": return "Awaiting engineering";
     default: return status.replace(/_/g, " ");
   }
 };
