@@ -257,7 +257,7 @@ Deno.serve(async (req) => {
       // Extract messages
       const mapRole = (type: string) => (type === "user" || type === "lead") ? "user" : "admin";
       const toIso = (ts: number) => new Date(ts * 1000).toISOString();
-      const SKIP_PART_TYPES = new Set(["assignment", "open", "close", "away_mode_assignment"]);
+      const SKIP_PART_TYPES = new Set(["open", "close", "away_mode_assignment"]);
 
       const messages: Array<{ conversation_id: string; message_text: string; sender_name: string; role: string; created_at: string }> = [];
 
