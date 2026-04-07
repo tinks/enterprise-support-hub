@@ -950,37 +950,46 @@ const ConversationDetail = () => {
               </CardContent>
             </Card>
 
-            {/* Delete (manual only) */}
-            {source === "manual" && manualConv && (
-              <Card>
-                <CardContent className="pt-4">
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" size="sm" className="w-full">
-                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete conversation
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete conversation?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently delete this conversation and all its messages. You can re-import it afterwards.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={async () => {
+            {/* Delete conversation */}
+            <Card>
+              <CardContent className="pt-4">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm" className="w-full">
+                      <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete conversation
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete conversation?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete this conversation and all its messages. You can re-import it afterwards.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={async () => {
+                        if (source === "manual" && manualConv) {
                           await supabase.from("manual_messages").delete().eq("conversation_id", manualConv.id);
                           await supabase.from("manual_conversations").delete().eq("id", manualConv.id);
-                          toast.success("Conversation deleted");
-                          navigate("/conversations");
-                        }}>Delete</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </CardContent>
-              </Card>
-            )}
+                        } else {
+                          const table = source === "slack" ? "conversation_mappings" : source === "gmail" ? "gmail_conversations" : "manual_conversations";
+                          const { error } = await supabase.functions.invoke("delete-conversation-mapping", {
+                            body: { id: current.id, table },
+                          });
+                          if (error) {
+                            toast.error("Failed to delete conversation");
+                            return;
+                          }
+                        }
+                        toast.success("Conversation deleted");
+                        navigate("/conversations");
+                      }}>Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </CardContent>
+            </Card>
 
             {/* Raw IDs (Slack only) */}
             {source === "slack" && conv && (
