@@ -1,65 +1,92 @@
 
 
-## Improve conversation search to include message content
+## Add column-level filters to inbox table
 
 ### Problem
-The current search only matches against metadata columns (subject, sender name, status, product area). It never searches the actual message content — Slack thread replies aren't searched, Gmail full bodies aren't searched, and `manual_messages` text isn't searched. This makes it nearly impossible to find conversations by what was actually discussed.
+Filters are in a collapsible section at the top, separate from the table columns they apply to. You can't filter by product area, classification, or "no owner" directly in the table. The current owner filter has an "unassigned" option but product area and classification don't have equivalent "empty" options.
 
 ### Solution
-Create a backend function that performs a full-text search across all conversation sources, including message content. Use a two-pass approach: first search metadata (fast, current behavior), then also search message content tables to find conversations by what was said in them.
+Move the owner and product area filters into the table header as clickable dropdowns on each column. Add a new classification column filter too. Each filter dropdown appears when you click the column header and includes an "Unassigned" / "None" option to filter for empty values.
 
 ### Changes
 
-**New edge function: `supabase/functions/search-conversations/index.ts`**
-- Accepts `{ query: string, source?: string }` 
-- Uses service role to query across tables
-- Searches `manual_messages.message_text` and joins back to `manual_conversations` to return matching conversation IDs
-- For Slack: searches `original_message_text` on `conversation_mappings` (thread message content isn't stored in DB — only the first message is)
-- For Gmail: searches `subject` and `snippet` on `gmail_conversations`
-- For manual: searches both `manual_conversations.subject` + `manual_messages.message_text`
-- Returns deduplicated conversation IDs grouped by source
-- Uses `ilike` for simple substring matching (no AI needed — just searching more tables)
-
 **`src/pages/Conversations.tsx`**
-- Update the search effect to also query `manual_messages` for matching message text
-- For the manual source: run an additional query on `manual_messages` where `message_text ilike query`, collect the `conversation_id`s, then fetch those conversations and merge with the existing metadata search results
-- This can be done client-side with two Supabase queries — no edge function needed:
-  1. Current metadata search (keep as-is)
-  2. Additional `manual_messages` search: `supabase.from("manual_messages").select("conversation_id").ilike("message_text", ilike)` → get unique conversation IDs → fetch those conversations → merge into results
 
-Actually, the simplest effective approach: add a parallel query to `manual_messages` in the existing search effect, merge the resulting conversation IDs into the manual results. This avoids a new edge function entirely.
+1. **Add new filter state variables:**
+   - `productAreaFilter: string` — `"all"`, a specific area, or `"unassigned"`
+   - `classificationFilter: string` — `"all"`, a specific value, or `"unassigned"`
+   - Persist both in localStorage like the existing owner/source filters
+
+2. **Move owner filter from top bar into table header:**
+   - Remove the owner `<Select>` from the top filter bar
+   - Add a filter dropdown icon in the "Owner" column header that opens a popover with owner options (Joel, Kristina, Sam, CSM, Unassigned, All)
+   - Show a dot/indicator on the column header when a filter is active
+
+3. **Add product area filter in table header:**
+   - Add a filter dropdown icon in the "Product area" column header
+   - Options: All, each product area from settings, plus "Unassigned" (for null/empty)
+   - Apply in the `unified` useMemo alongside the existing owner filter
+
+4. **Add classification filter in table header:**
+   - Add a filter dropdown icon in the "Classification" column header
+   - Options: All, Issue, Configuration, Bug, FR, Question, plus "Unassigned"
+   - Apply in the `unified` useMemo
+
+5. **Update the unified useMemo filtering:**
+   - After owner filter, also apply product area and classification filters
+   - For "unassigned": filter where the field is null or empty string
+
+6. **Update `anyFilterActive` and `resetAll`:**
+   - Include the two new filters in the active count and reset logic
+
+7. **Keep source, status, and date filters in the top bar** — they work well there since they don't map to a single column cleanly
+
+8. **Column header filter UI pattern:**
+   - Each filterable column header gets a small funnel icon next to the column name
+   - Clicking it opens a `Popover` with a list of options (radio-style, single select)
+   - When a filter is active, the funnel icon is highlighted/filled
+   - This pattern is reusable across owner, product area, and classification columns
 
 **`src/pages/FlowDiagram.tsx`**
-- Note that search now includes message content for manual conversations
+- Note that inbox has column-level filters for owner, product area, and classification
 
 ### Technical details
 
-In the existing `doSearch` function, add after the three parallel queries:
-
+Filter popover component (inline in the column header):
 ```typescript
-// Also search manual message content
-const msgRes = await supabase
-  .from("manual_messages")
-  .select("conversation_id")
-  .ilike("message_text", ilike)
-  .limit(200);
-
-const extraIds = (msgRes.data ?? [])
-  .map(r => r.conversation_id)
-  .filter(id => !manualRes.data?.some(m => m.id === id));
-
-if (extraIds.length > 0) {
-  const { data: extraConvos } = await supabase
-    .from("manual_conversations")
-    .select("*")
-    .in("id", extraIds);
-  // merge into manual results
-}
+const ColumnFilter = ({ value, options, onChange, includeUnassigned }) => (
+  <Popover>
+    <PopoverTrigger asChild>
+      <button className={`ml-1 ${value !== "all" ? "text-primary" : "text-muted-foreground"}`}>
+        <Filter className="h-3 w-3" />
+      </button>
+    </PopoverTrigger>
+    <PopoverContent className="w-44 p-2">
+      <div className="flex flex-col gap-1">
+        <button onClick={() => onChange("all")}>All</button>
+        {includeUnassigned && <button onClick={() => onChange("unassigned")}>Unassigned</button>}
+        {options.map(opt => <button key={opt} onClick={() => onChange(opt)}>{opt}</button>)}
+      </div>
+    </PopoverContent>
+  </Popover>
+)
 ```
 
-This is lightweight, requires no new edge function, and immediately makes manual conversation search much more useful since it searches the actual thread content.
+Filtering logic added to unified useMemo:
+```typescript
+// After owner filter
+const paFiltered = productAreaFilter === "all" ? ownerFiltered
+  : productAreaFilter === "unassigned"
+    ? ownerFiltered.filter(r => !(r.data as any).product_area)
+    : ownerFiltered.filter(r => (r.data as any).product_area === productAreaFilter);
+
+const classFiltered = classificationFilter === "all" ? paFiltered
+  : classificationFilter === "unassigned"
+    ? paFiltered.filter(r => !(r.data as any).classification)
+    : paFiltered.filter(r => (r.data as any).classification === classificationFilter);
+```
 
 ### Files to edit
-- `src/pages/Conversations.tsx` — add manual_messages content search
-- `src/pages/FlowDiagram.tsx` — note improved search
+- `src/pages/Conversations.tsx` — add column-level filter dropdowns for owner, product area, classification
+- `src/pages/FlowDiagram.tsx` — note column-level filters
 
