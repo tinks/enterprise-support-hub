@@ -91,7 +91,9 @@ const ROW_H = 380;
 /*  Conversation search is server-side: when a search query is active, */
 /*  all three tables are queried with ilike filters (+ exact id match  */
 /*  for UUIDs), bypassing client-side pagination. Results debounced    */
-/*  at 300ms, limited to 200 rows per source.                          */
+/*  at 300ms, limited to 200 rows per source. For manual convos,       */
+/*  search also queries manual_messages.message_text so you can find   */
+/*  conversations by what was said inside the thread, not just metadata.*/
 /* ------------------------------------------------------------------ */
 /*  Conversations date filter: from/to date pickers filter rows        */
 /*  server-side via .gte/.lte on created_at/received_at. Client-side   */
