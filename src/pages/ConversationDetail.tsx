@@ -802,6 +802,55 @@ const ConversationDetail = () => {
               </CardContent>
             </Card>
 
+            {/* Intercom suggestions (Gmail only, when no intercom_conversation_id) */}
+            {source === "gmail" && !intercomId && (intercomSuggestions.length > 0 || searchingIntercom) && (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm inline-flex items-center gap-1.5">
+                    <Search className="h-3.5 w-3.5" /> Existing Intercom conversations
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {searchingIntercom ? (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Searching…
+                    </p>
+                  ) : (
+                    intercomSuggestions.map((ic) => (
+                      <div key={ic.id} className="flex items-start justify-between gap-2 text-xs border rounded-md p-2">
+                        <div className="min-w-0 flex-1">
+                          <a
+                            href={`https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${ic.id}?view=List`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline font-mono"
+                          >
+                            #{ic.id}
+                          </a>
+                          <p className="text-muted-foreground truncate mt-0.5">{ic.title}</p>
+                          {ic.created_at && (
+                            <p className="text-muted-foreground mt-0.5">
+                              {new Date(ic.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0 h-7 text-xs"
+                          disabled={linkingIntercomId === ic.id}
+                          onClick={() => linkIntercomConversation(ic.id)}
+                        >
+                          {linkingIntercomId === ic.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link className="h-3 w-3 mr-1" />}
+                          Link
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {/* Dates */}
             <Card>
               <CardHeader className="pb-3">
