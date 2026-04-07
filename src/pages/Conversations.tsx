@@ -697,7 +697,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     const doSearch = async () => {
       const isUuid = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i.test(q);
 
-      const [slackRes, gmailRes, manualRes] = await Promise.all([
+      const [slackRes, gmailRes, manualRes, msgRes] = await Promise.all([
         (sourceFilter === "all" || sourceFilter === "slack" || sourceFilter === "slack_import")
           ? supabase
               .from("conversation_mappings")
@@ -734,12 +734,37 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
               .order("created_at", { ascending: false })
               .limit(200)
           : Promise.resolve({ data: [] }),
+        (sourceFilter === "all" || sourceFilter === "manual")
+          ? supabase
+              .from("manual_messages")
+              .select("conversation_id")
+              .ilike("message_text", ilike)
+              .limit(200)
+          : Promise.resolve({ data: [] }),
       ]);
+
+      const manualData = (manualRes.data ?? []) as unknown as ManualConversation[];
+      const manualIds = new Set(manualData.map(m => m.id));
+
+      const extraIds = [...new Set((msgRes.data ?? []).map((r: any) => r.conversation_id as string))]
+        .filter(id => !manualIds.has(id));
+
+      let mergedManual = manualData;
+      if (extraIds.length > 0) {
+        const { data: extraConvos } = await supabase
+          .from("manual_conversations")
+          .select("*")
+          .in("id", extraIds)
+          .order("created_at", { ascending: false });
+        if (extraConvos && extraConvos.length > 0) {
+          mergedManual = [...manualData, ...(extraConvos as unknown as ManualConversation[])];
+        }
+      }
 
       setSearchResults({
         slack: (slackRes.data ?? []) as unknown as ConversationMapping[],
         gmail: (gmailRes.data ?? []) as unknown as GmailConversation[],
-        manual: (manualRes.data ?? []) as unknown as ManualConversation[],
+        manual: mergedManual,
       });
       setSearchLoading(false);
     };
