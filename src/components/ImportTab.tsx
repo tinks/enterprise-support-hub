@@ -254,7 +254,7 @@ const ImportTab = () => {
               onKeyDown={(e) => e.key === "Enter" && handleIntercomImport()}
               className="flex-1"
             />
-            <Button onClick={handleIntercomImport} disabled={intercomLoading}>
+            <Button onClick={() => handleIntercomImport()} disabled={intercomLoading}>
               {intercomLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
