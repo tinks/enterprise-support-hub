@@ -18,7 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { channelNameOverrides } from "@/lib/channelOverrides";
-import { Loader2, Link, RefreshCw } from "lucide-react";
+import { Loader2, Link, RefreshCw, Search, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -64,6 +64,8 @@ export default function TestChannelReview() {
   const [relinkRow, setRelinkRow] = useState<ConversationRow | null>(null);
   const [relinkUrl, setRelinkUrl] = useState("");
   const [relinking, setRelinking] = useState(false);
+  const [dupeResults, setDupeResults] = useState<Record<string, Array<{ id: string; subject: string; contact_name: string; source: string; created_at: string }>>>({});
+  const [dupeLoading, setDupeLoading] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -188,6 +190,49 @@ export default function TestChannelReview() {
     setRelinking(false);
   }
 
+  async function findDuplicates(row: ConversationRow) {
+    const searchTerm = (row.original_message_text || "").substring(0, 40).trim();
+    if (!searchTerm) {
+      toast.error("No message text to search");
+      return;
+    }
+    setDupeLoading(row.id);
+    const { data, error } = await supabase
+      .from("manual_conversations")
+      .select("id, subject, contact_name, source, created_at")
+      .ilike("subject", `%${searchTerm}%`);
+
+    if (error) {
+      toast.error("Failed to search duplicates");
+    } else {
+      setDupeResults((prev) => ({ ...prev, [row.id]: data || [] }));
+    }
+    setDupeLoading(null);
+  }
+
+  async function deleteDuplicate(manualId: string, rowId: string) {
+    const { error: msgErr } = await supabase
+      .from("manual_messages")
+      .delete()
+      .eq("conversation_id", manualId);
+    if (msgErr) console.error("Failed to delete messages:", msgErr);
+
+    const { error } = await supabase
+      .from("manual_conversations")
+      .delete()
+      .eq("id", manualId);
+
+    if (error) {
+      toast.error("Failed to delete duplicate");
+    } else {
+      toast.success("Duplicate removed");
+      setDupeResults((prev) => ({
+        ...prev,
+        [rowId]: (prev[rowId] || []).filter((d) => d.id !== manualId),
+      }));
+    }
+  }
+
   const channelName = channelNameOverrides[TARGET_CHANNEL] || TARGET_CHANNEL;
 
   const driftedCount = rows.filter((r) => {
@@ -254,6 +299,7 @@ export default function TestChannelReview() {
                       <TableHead className="w-[100px]">Drift</TableHead>
                       <TableHead className="w-[50px]">URL</TableHead>
                       <TableHead className="w-[80px]">Relink</TableHead>
+                      <TableHead className="w-[80px]">Dupes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -344,6 +390,53 @@ export default function TestChannelReview() {
                               <RefreshCw className="h-3 w-3 mr-1" />
                               Relink
                             </Button>
+                          </TableCell>
+                          <TableCell>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => findDuplicates(row)}
+                                  disabled={dupeLoading === row.id}
+                                >
+                                  {dupeLoading === row.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Search className="h-3.5 w-3.5" />
+                                  )}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-96" align="end">
+                                <div className="space-y-2">
+                                  <p className="text-sm font-medium">Manual log duplicates</p>
+                                  {!dupeResults[row.id] ? (
+                                    <p className="text-xs text-muted-foreground">Click to search</p>
+                                  ) : dupeResults[row.id].length === 0 ? (
+                                    <p className="text-xs text-muted-foreground">No duplicates found</p>
+                                  ) : (
+                                    dupeResults[row.id].map((dupe) => (
+                                      <div key={dupe.id} className="border rounded p-2 space-y-1">
+                                        <p className="text-xs font-medium">{dupe.subject.slice(0, 120)}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {dupe.contact_name} · {dupe.source} · {format(new Date(dupe.created_at), "MMM d, HH:mm")}
+                                        </p>
+                                        <Button
+                                          variant="destructive"
+                                          size="sm"
+                                          className="h-6 text-xs"
+                                          onClick={() => deleteDuplicate(dupe.id, row.id)}
+                                        >
+                                          <Trash2 className="h-3 w-3 mr-1" />
+                                          Delete duplicate
+                                        </Button>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
                           </TableCell>
                         </TableRow>
                       );

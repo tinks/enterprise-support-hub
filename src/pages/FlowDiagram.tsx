@@ -162,6 +162,8 @@ const ROW_H = 380;
 /*  Relink: passing existingId + force + a new URL fully overwrites    */
 /*  slack_channel_id, slack_thread_ts, slack_user_id, message text,    */
 /*  and created_at — effectively relinking the row to a new thread.    */
+/*  Duplicate cleanup: /test-review has a per-row "Dupes" search that  */
+/*  finds matching manual_conversations and lets you delete them.      */
 /* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
