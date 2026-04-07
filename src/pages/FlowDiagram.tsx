@@ -224,6 +224,7 @@ function buildNodes(
            "Status display labels: awaiting_context → 'Awaiting customer', awaiting_support → 'Awaiting support' (DB values unchanged)",
            "Status is editable inline from the conversations list via a dropdown (active, resolved, cancelled, escalated, awaiting_context, awaiting_support)",
            "Import page has free-form 'Log conversation manually' for Teams/phone/Slack DM/Private chat/other threads — saves to manual_conversations + manual_messages tables, shown in Conversations with source filter 'Manual'",
+           "Manual log also supports 'Paste thread' mode: paste a full copied Slack thread, parser splits on 'Name [HH:MM AM/PM]' pattern, auto-detects admin vs user role, date picker sets created_at for accurate analytics dating",
         ],
         message: "@SupportBot I'm having trouble deploying my project...",
         accent: "blue",
