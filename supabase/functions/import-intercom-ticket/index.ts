@@ -111,8 +111,52 @@ Deno.serve(async (req) => {
       );
     }
 
+    // --- Extract and insert messages ---
+    const stripHtml = (html: string) =>
+      html.replace(/<[^>]*>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ").trim();
+
+    const mapRole = (type: string) => (type === "user" || type === "lead") ? "user" : "admin";
+    const toIso = (ts: number) => new Date(ts * 1000).toISOString();
+
+    const messages: Array<{ conversation_id: string; message_text: string; sender_name: string; role: string; created_at: string }> = [];
+
+    // Initial source message
+    const src = icData.source;
+    if (src?.body) {
+      const text = stripHtml(src.body);
+      if (text) {
+        messages.push({
+          conversation_id: inserted.id,
+          message_text: text,
+          sender_name: src.author?.name || src.author?.email || src.author?.type || "Unknown",
+          role: mapRole(src.author?.type || "user"),
+          created_at: src.created_at ? toIso(src.created_at) : new Date().toISOString(),
+        });
+      }
+    }
+
+    // Conversation parts
+    const parts = icData.conversation_parts?.conversation_parts || [];
+    for (const part of parts) {
+      if (!part.body) continue;
+      const text = stripHtml(part.body);
+      if (!text) continue;
+      messages.push({
+        conversation_id: inserted.id,
+        message_text: text,
+        sender_name: part.author?.name || part.author?.email || part.author?.type || "Unknown",
+        role: mapRole(part.author?.type || "admin"),
+        created_at: part.created_at ? toIso(part.created_at) : new Date().toISOString(),
+      });
+    }
+
+    if (messages.length > 0) {
+      const { error: msgErr } = await sb.from("manual_messages").insert(messages);
+      if (msgErr) console.error("Failed to insert messages:", msgErr);
+    }
+
     return new Response(
-      JSON.stringify({ success: true, id: inserted.id, contactName, subject }),
+      JSON.stringify({ success: true, id: inserted.id, contactName, subject, messagesImported: messages.length }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
