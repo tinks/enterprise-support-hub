@@ -203,6 +203,13 @@ Deno.serve(async (req) => {
     // Sort all messages chronologically (oldest first)
     messages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
+    // Set conversation created_at to the earliest message timestamp (or Intercom creation time)
+    const conversationCreatedAt = messages.length > 0
+      ? messages[0].created_at
+      : (icData.created_at ? toIso(icData.created_at) : new Date().toISOString());
+
+    await sb.from("manual_conversations").update({ created_at: conversationCreatedAt }).eq("id", inserted.id);
+
     if (messages.length > 0) {
       const { error: msgErr } = await sb.from("manual_messages").insert(messages);
       if (msgErr) console.error("Failed to insert messages:", msgErr);
