@@ -186,6 +186,10 @@ const ConversationDetail = () => {
   const [linkingIntercomId, setLinkingIntercomId] = useState<string | null>(null);
   const [gmailThreadMessages, setGmailThreadMessages] = useState<{ id: string; from_name: string; from_email: string; date: string; body: string; snippet: string }[]>([]);
   const [gmailThreadLoading, setGmailThreadLoading] = useState(false);
+  const [notes, setNotes] = useState<ConversationNote[]>([]);
+  const [newNoteText, setNewNoteText] = useState("");
+  const [noteAuthor, setNoteAuthor] = useState(() => localStorage.getItem("note_author") || "");
+  const [addingNote, setAddingNote] = useState(false);
 
   const fetchThread = async (channelId: string, threadTs: string) => {
     setThreadLoading(true);
