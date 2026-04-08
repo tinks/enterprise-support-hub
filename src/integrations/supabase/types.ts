@@ -116,6 +116,33 @@ export type Database = {
         }
         Relationships: []
       }
+      conversation_notes: {
+        Row: {
+          author: string
+          conversation_id: string
+          conversation_source: string
+          created_at: string
+          id: string
+          note_text: string
+        }
+        Insert: {
+          author?: string
+          conversation_id: string
+          conversation_source?: string
+          created_at?: string
+          id?: string
+          note_text?: string
+        }
+        Update: {
+          author?: string
+          conversation_id?: string
+          conversation_source?: string
+          created_at?: string
+          id?: string
+          note_text?: string
+        }
+        Relationships: []
+      }
       flow_node_positions: {
         Row: {
           id: string
