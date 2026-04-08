@@ -1,22 +1,51 @@
 
 
-## Update owner for all direct message conversations
+## Add internal notes to conversations
 
-### Problem
-The previous "assign CSM to direct messages" update only applied to `manual_conversations` where `source = 'slack_dm'` (2 rows). But there are 12 additional DM conversations in `conversation_mappings` where `slack_channel_id` starts with `D` (Slack DM channels) that were missed. These show as "Direct message" in the UI with no owner.
+### What it does
+Adds an "Internal notes" section below the messages on every conversation detail page. Team members can leave timestamped notes visible only to internal users — useful for tracking context, decisions, or handoff info.
 
-### Solution
+### Changes
 
-**Database migration** — update the 12 unassigned DM rows:
+**Database migration** — create `conversation_notes` table:
 ```sql
-UPDATE conversation_mappings
-SET owner = 'CSM'
-WHERE slack_channel_id LIKE 'D%'
-  AND (owner IS NULL OR owner = '');
+CREATE TABLE conversation_notes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id uuid NOT NULL,
+  conversation_source text NOT NULL DEFAULT 'slack',
+  author text NOT NULL DEFAULT '',
+  note_text text NOT NULL DEFAULT '',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE conversation_notes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public read conversation_notes" ON conversation_notes FOR SELECT TO public USING (true);
+CREATE POLICY "Allow public insert conversation_notes" ON conversation_notes FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY "Allow public delete conversation_notes" ON conversation_notes FOR DELETE TO public USING (true);
+
+CREATE INDEX idx_conversation_notes_lookup ON conversation_notes (conversation_id, conversation_source);
 ```
 
-This is a one-line migration. No code changes needed.
+**`src/pages/ConversationDetail.tsx`**
+- Add state for notes list, new note text, and author name
+- On load, fetch notes from `conversation_notes` where `conversation_id` and `conversation_source` match
+- Render an "Internal notes" card below the messages section (left panel) with:
+  - List of existing notes showing author, timestamp, and text
+  - Delete button (x) on each note
+  - Input area at the bottom: author text field + note textarea + "Add note" button
+- Insert new notes into `conversation_notes` on submit
+
+**`src/pages/FlowDiagram.tsx`** — note that internal notes are available on conversation detail pages
+
+### Technical details
+- `conversation_source` stores "slack", "gmail", or "manual" to scope notes correctly since IDs aren't globally unique across tables
+- No authentication required — matches existing app pattern (public RLS)
+- Notes are ordered by `created_at` ascending
+- Author field remembers last used value via localStorage
 
 ### Files to edit
-- Database migration only
+- Database migration — new `conversation_notes` table
+- `src/pages/ConversationDetail.tsx` — notes UI
+- `src/pages/FlowDiagram.tsx` — update flow notes
 
