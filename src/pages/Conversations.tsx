@@ -924,7 +924,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter, isResolutionMode, resolutionMin, resolutionMax]);
 
   const canLoadMore =
-    !isHeatmapMode && !searchResults && (
+    !isHeatmapMode && !isResolutionMode && !searchResults && (
       ((sourceFilter === "all" || sourceFilter === "slack" || sourceFilter === "slack_import") && hasMore) ||
       ((sourceFilter === "all" || sourceFilter === "gmail") && hasMoreGmail)
     );
