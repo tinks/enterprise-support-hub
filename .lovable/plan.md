@@ -1,70 +1,67 @@
 
 
-## Clickable resolution distribution bars — drill into conversations
+## Fix duplicate conversation creation from Intercom webhooks
 
 ### Problem
-When you see "5 conversations under 15 minutes" in the resolution time distribution chart, you can't click the bar to see which conversations those are. You want to click any bar and navigate to the conversations page filtered to just those conversations.
+When a conversation is assigned in Intercom, multiple webhook events fire nearly simultaneously (e.g. `conversation.admin.assigned` and `ticket.team.assigned`). Both hit the assignment handler, both pass the duplicate check (neither has inserted yet), and both create a new `manual_conversations` row. The screenshot shows two pairs of exact duplicates with identical `intercom_conversation_id` values.
+
+### Root causes
+1. **Race condition**: No atomic deduplication — the check-then-insert is not atomic, so concurrent webhooks both pass the "already tracked?" check
+2. **Multiple events per action**: Intercom sends both conversation-level and ticket-level assignment events for the same action
 
 ### Solution
-Make each bar in the resolution distribution chart clickable. Clicking navigates to `/conversations` with a query param like `?resolutionBucket=0-15` (or `15-60`, `240-1440`, etc.). The Conversations page reads that param and filters to only show resolved conversations whose resolution time falls in that bucket.
 
-### Changes
+**Database migration — add unique constraint**
+- Add a unique index on `manual_conversations.intercom_conversation_id` (where not null) to prevent duplicates at the database level
+- This is the only reliable fix for race conditions — application-level checks can't prevent them
 
-**`src/pages/Stats.tsx`**
-- Add `onClick` handler to the `<Bar>` in the resolution distribution chart
-- Each bucket already has a `max` value; add a `min` to each bucket too (0, 15, 60, 240, 1440)
-- Include min/max in the chart data so the click handler can read it
-- On click, navigate to `/conversations?resolutionMin={min}&resolutionMax={max}&source=slack`
-- Add `cursor: pointer` styling to the bars
+**`supabase/functions/intercom-webhook/index.ts`**
+- Change the insert to use upsert with `onConflict: 'intercom_conversation_id'` so the second webhook gracefully no-ops instead of failing
+- Also fix the ID extraction in the assignment handler (line 162) to match the reply handler logic: prioritize `item.ticket.id` for ticket topics, since `item.id` on ticket events can be a part ID
 
-**`src/pages/Conversations.tsx`**
-- Read `resolutionMin` and `resolutionMax` from search params
-- When present, filter the unified list to only show Slack conversations where `resolved_at - created_at` falls within that range (in minutes)
-- Need `resolved_at` in the data — already fetched for `conversation_mappings`
-- Show a banner like the heatmap filter: "Showing conversations resolved in < 15m" with a clear button
-- Add to the `isHeatmapMode`-style check so the banner and filtering logic work
+**Database cleanup**
+- Delete the 2 duplicate rows (keep one of each pair)
 
 **`src/pages/FlowDiagram.tsx`**
-- Note clickable resolution distribution bars
+- Note deduplication constraint on Intercom imports
 
-### Technical detail
+### Technical details
 
-Resolution distribution buckets with min/max:
-```typescript
-const buckets = [
-  { label: "< 15m", min: 0, max: 15, count: 0 },
-  { label: "15m–1h", min: 15, max: 60, count: 0 },
-  { label: "1–4h", min: 60, max: 240, count: 0 },
-  { label: "4–24h", min: 240, max: 1440, count: 0 },
-  { label: "24h+", min: 1440, max: 999999, count: 0 },
-];
+Migration:
+```sql
+-- Remove duplicates first (keep the earliest inserted)
+DELETE FROM manual_messages WHERE conversation_id IN (
+  SELECT id FROM manual_conversations mc1
+  WHERE EXISTS (
+    SELECT 1 FROM manual_conversations mc2
+    WHERE mc2.intercom_conversation_id = mc1.intercom_conversation_id
+      AND mc2.id < mc1.id
+  )
+);
+DELETE FROM manual_conversations mc1
+WHERE EXISTS (
+  SELECT 1 FROM manual_conversations mc2
+  WHERE mc2.intercom_conversation_id = mc1.intercom_conversation_id
+    AND mc2.id < mc1.id
+);
+
+-- Add unique constraint
+CREATE UNIQUE INDEX idx_manual_conversations_intercom_id
+  ON manual_conversations (intercom_conversation_id)
+  WHERE intercom_conversation_id IS NOT NULL;
 ```
 
-Click handler on BarChart:
+Webhook insert change:
 ```typescript
-<BarChart data={resolutionDistribution} onClick={(state) => {
-  if (state?.activePayload?.[0]) {
-    const { min, max } = state.activePayload[0].payload;
-    navigate(`/conversations?resolutionMin=${min}&resolutionMax=${max}&source=slack`);
-  }
-}} style={{ cursor: "pointer" }}>
-```
-
-Conversations filter (in unified useMemo):
-```typescript
-if (resolutionMin !== null && resolutionMax !== null) {
-  return rows.filter(r => {
-    if (r.source !== "slack") return false;
-    const m = r.data as ConversationMapping;
-    if (!m.resolved_at) return false;
-    const mins = differenceInMinutes(parseISO(m.resolved_at), parseISO(m.created_at));
-    return mins >= resolutionMin && mins < resolutionMax;
-  });
-}
+const { data: inserted, error: insertErr } = await supabase
+  .from("manual_conversations")
+  .upsert(insertPayload, { onConflict: "intercom_conversation_id" })
+  .select("id")
+  .single();
 ```
 
 ### Files to edit
-- `src/pages/Stats.tsx` — add min to buckets, add click handler on resolution distribution bars
-- `src/pages/Conversations.tsx` — read resolution params, filter, show banner
-- `src/pages/FlowDiagram.tsx` — note clickable chart bars
+- Database migration — unique index + cleanup duplicates
+- `supabase/functions/intercom-webhook/index.ts` — upsert + fix ID extraction for ticket topics
+- `src/pages/FlowDiagram.tsx` — note deduplication
 
