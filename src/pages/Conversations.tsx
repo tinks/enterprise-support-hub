@@ -1392,6 +1392,31 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
               </div>
             </div>
           )}
+          {isResolutionMode && (
+            <div className="mb-4 flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-4 py-2 text-sm">
+              <span className="text-foreground">
+                Showing conversations resolved in <strong>{resolutionMax! >= 999999 ? `${resolutionMin}m+` : resolutionMax! <= 15 ? `< ${resolutionMax}m` : `${resolutionMin}m–${resolutionMax}m`}</strong>
+              </span>
+              <div className="ml-auto flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => navigate("/")}
+                >
+                  <ArrowLeft className="mr-1 h-3 w-3" /> Back to stats
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => setSearchParams({})}
+                >
+                  <X className="mr-1 h-3 w-3" /> Clear filter
+                </Button>
+              </div>
+            </div>
+          )}
           <Card className="min-h-0 flex-1 flex flex-col">
             <CardHeader className="flex-shrink-0 pb-2">
               <CardTitle className="text-lg">{forceOwner ? `${forceOwner}'s conversations` : "\n"}</CardTitle>
