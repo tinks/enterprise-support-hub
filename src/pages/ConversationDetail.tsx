@@ -836,6 +836,59 @@ const ConversationDetail = () => {
             {source === "slack" && renderSlackContent()}
             {source === "gmail" && renderGmailContent()}
             {source === "manual" && renderManualContent()}
+
+            {/* Internal notes */}
+            <Card>
+              <CardHeader className="flex flex-row items-center gap-2 pb-3">
+                <StickyNote className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm">Internal notes</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {notes.length > 0 && (
+                  <div className="space-y-3">
+                    {notes.map((note) => (
+                      <div key={note.id} className="group relative bg-muted/50 rounded-md p-3">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="text-xs font-medium text-foreground">{note.author}</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(note.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                            </span>
+                            <button
+                              onClick={() => deleteNote(note.id)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="mt-1 text-sm text-foreground whitespace-pre-wrap">{note.note_text}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Input
+                    placeholder="Your name"
+                    value={noteAuthor}
+                    onChange={(e) => setNoteAuthor(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                  <Textarea
+                    placeholder="Add a note…"
+                    value={newNoteText}
+                    onChange={(e) => setNewNoteText(e.target.value)}
+                    className="min-h-[60px] text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addNote();
+                    }}
+                  />
+                  <Button size="sm" onClick={addNote} disabled={addingNote || !newNoteText.trim()}>
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Add note
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Right: 30% — metadata sidebar */}
