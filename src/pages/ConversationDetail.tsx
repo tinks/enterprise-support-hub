@@ -11,7 +11,9 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket, Mail, Trash2, Link, Search } from "lucide-react";
+import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket, Mail, Trash2, Link, Search, StickyNote, X, Plus } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { channelNameOverrides } from "@/lib/channelOverrides";
@@ -89,6 +91,13 @@ interface ManualMessage {
   role: string;
   sender_name: string;
   message_text: string;
+  created_at: string;
+}
+
+interface ConversationNote {
+  id: string;
+  author: string;
+  note_text: string;
   created_at: string;
 }
 
@@ -177,6 +186,10 @@ const ConversationDetail = () => {
   const [linkingIntercomId, setLinkingIntercomId] = useState<string | null>(null);
   const [gmailThreadMessages, setGmailThreadMessages] = useState<{ id: string; from_name: string; from_email: string; date: string; body: string; snippet: string }[]>([]);
   const [gmailThreadLoading, setGmailThreadLoading] = useState(false);
+  const [notes, setNotes] = useState<ConversationNote[]>([]);
+  const [newNoteText, setNewNoteText] = useState("");
+  const [noteAuthor, setNoteAuthor] = useState(() => localStorage.getItem("note_author") || "");
+  const [addingNote, setAddingNote] = useState(false);
 
   const fetchThread = async (channelId: string, threadTs: string) => {
     setThreadLoading(true);
@@ -283,7 +296,48 @@ const ConversationDetail = () => {
     load();
   }, [id, source]);
 
-  // Auto-search Intercom for Gmail threads without a linked conversation
+  // Fetch internal notes
+  useEffect(() => {
+    if (!id) return;
+    const fetchNotes = async () => {
+      const { data } = await supabase
+        .from("conversation_notes")
+        .select("*")
+        .eq("conversation_id", id)
+        .eq("conversation_source", source)
+        .order("created_at", { ascending: true });
+      setNotes((data ?? []) as unknown as ConversationNote[]);
+    };
+    fetchNotes();
+  }, [id, source]);
+
+  const addNote = async () => {
+    if (!id || !newNoteText.trim()) return;
+    setAddingNote(true);
+    const authorName = noteAuthor.trim() || "Anonymous";
+    localStorage.setItem("note_author", authorName);
+    const { data, error } = await supabase
+      .from("conversation_notes")
+      .insert({ conversation_id: id, conversation_source: source, author: authorName, note_text: newNoteText.trim() } as any)
+      .select()
+      .single();
+    if (!error && data) {
+      setNotes((prev) => [...prev, data as unknown as ConversationNote]);
+      setNewNoteText("");
+      toast.success("Note added");
+    } else {
+      toast.error("Failed to add note");
+    }
+    setAddingNote(false);
+  };
+
+  const deleteNote = async (noteId: string) => {
+    await supabase.from("conversation_notes").delete().eq("id", noteId);
+    setNotes((prev) => prev.filter((n) => n.id !== noteId));
+    toast.success("Note deleted");
+  };
+
+
   useEffect(() => {
     if (source !== "gmail" || !gmailConv || gmailConv.intercom_conversation_id) return;
     // Determine the customer email: if from_email looks like our support DL, use to_emails instead
@@ -782,6 +836,59 @@ const ConversationDetail = () => {
             {source === "slack" && renderSlackContent()}
             {source === "gmail" && renderGmailContent()}
             {source === "manual" && renderManualContent()}
+
+            {/* Internal notes */}
+            <Card>
+              <CardHeader className="flex flex-row items-center gap-2 pb-3">
+                <StickyNote className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm">Internal notes</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {notes.length > 0 && (
+                  <div className="space-y-3">
+                    {notes.map((note) => (
+                      <div key={note.id} className="group relative bg-muted/50 rounded-md p-3">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="text-xs font-medium text-foreground">{note.author}</span>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(note.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                            </span>
+                            <button
+                              onClick={() => deleteNote(note.id)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="mt-1 text-sm text-foreground whitespace-pre-wrap">{note.note_text}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Input
+                    placeholder="Your name"
+                    value={noteAuthor}
+                    onChange={(e) => setNoteAuthor(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                  <Textarea
+                    placeholder="Add a note…"
+                    value={newNoteText}
+                    onChange={(e) => setNewNoteText(e.target.value)}
+                    className="min-h-[60px] text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addNote();
+                    }}
+                  />
+                  <Button size="sm" onClick={addNote} disabled={addingNote || !newNoteText.trim()}>
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Add note
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Right: 30% — metadata sidebar */}
