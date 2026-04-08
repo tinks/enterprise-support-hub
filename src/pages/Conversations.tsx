@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { channelNameOverrides } from "@/lib/channelOverrides";
 import { Calendar } from "@/components/ui/calendar";
-import { format, startOfDay, endOfDay } from "date-fns";
+import { format, startOfDay, endOfDay, differenceInMinutes, parseISO } from "date-fns";
 
 interface ConversationMapping {
   id: string;
@@ -27,6 +27,7 @@ interface ConversationMapping {
   intercom_ticket_id: string | null;
   status: string;
   created_at: string;
+  resolved_at: string | null;
   is_test: boolean;
   original_message_text: string;
   product_area: string | null;
@@ -183,6 +184,9 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const paramDay = searchParams.get("day");
   const paramHour = searchParams.get("hour") !== null ? parseInt(searchParams.get("hour")!) : null;
   const paramSource = searchParams.get("source") as SourceFilter | null;
+  const resolutionMin = searchParams.get("resolutionMin") !== null ? parseInt(searchParams.get("resolutionMin")!) : null;
+  const resolutionMax = searchParams.get("resolutionMax") !== null ? parseInt(searchParams.get("resolutionMax")!) : null;
+  const isResolutionMode = resolutionMin !== null && resolutionMax !== null;
 
   const [mappings, setMappings] = useState<ConversationMapping[]>([]);
   const [gmailRows, setGmailRows] = useState<GmailConversation[]>([]);
@@ -641,7 +645,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       setGmailOffset(0);
     }
 
-    const pageSize = isHeatmapMode ? 1000 : 50;
+    const pageSize = (isHeatmapMode || isResolutionMode) ? 1000 : 50;
 
     let slackQuery = supabase
       .from("conversation_mappings")
@@ -870,6 +874,17 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       });
     }
 
+    // Apply resolution time filter from query params
+    if (isResolutionMode) {
+      return rows.filter((r) => {
+        if (r.source !== "slack") return false;
+        const m = r.data as ConversationMapping;
+        if (!m.resolved_at) return false;
+        const mins = differenceInMinutes(parseISO(m.resolved_at), parseISO(m.created_at));
+        return mins >= resolutionMin! && mins < resolutionMax!;
+      });
+    }
+
     // Apply owner filter
     const ownerFiltered = ownerFilter === "all"
       ? rows
@@ -906,10 +921,10 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     }
 
     return classFiltered;
-  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter]);
+  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter, isResolutionMode, resolutionMin, resolutionMax]);
 
   const canLoadMore =
-    !isHeatmapMode && !searchResults && (
+    !isHeatmapMode && !isResolutionMode && !searchResults && (
       ((sourceFilter === "all" || sourceFilter === "slack" || sourceFilter === "slack_import") && hasMore) ||
       ((sourceFilter === "all" || sourceFilter === "gmail") && hasMoreGmail)
     );
@@ -1356,6 +1371,31 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
             <div className="mb-4 flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-4 py-2 text-sm">
               <span className="text-foreground">
                 Showing activity for <strong>{paramDay} {String(paramHour).padStart(2, "0")}:00–{String(paramHour).padStart(2, "0")}:59 CET</strong>
+              </span>
+              <div className="ml-auto flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => navigate("/")}
+                >
+                  <ArrowLeft className="mr-1 h-3 w-3" /> Back to stats
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => setSearchParams({})}
+                >
+                  <X className="mr-1 h-3 w-3" /> Clear filter
+                </Button>
+              </div>
+            </div>
+          )}
+          {isResolutionMode && (
+            <div className="mb-4 flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-4 py-2 text-sm">
+              <span className="text-foreground">
+                Showing conversations resolved in <strong>{resolutionMax! >= 999999 ? `${resolutionMin}m+` : resolutionMax! <= 15 ? `< ${resolutionMax}m` : `${resolutionMin}m–${resolutionMax}m`}</strong>
               </span>
               <div className="ml-auto flex items-center gap-1">
                 <Button

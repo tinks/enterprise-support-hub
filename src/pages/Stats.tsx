@@ -560,11 +560,11 @@ const Stats = () => {
   const resolutionDistribution = useMemo(() => {
     if (resolutionTimes.length === 0) return [];
     const buckets = [
-      { label: "< 15m", max: 15, count: 0 },
-      { label: "15m–1h", max: 60, count: 0 },
-      { label: "1–4h", max: 240, count: 0 },
-      { label: "4–24h", max: 1440, count: 0 },
-      { label: "24h+", max: Infinity, count: 0 },
+      { label: "< 15m", min: 0, max: 15, count: 0 },
+      { label: "15m–1h", min: 15, max: 60, count: 0 },
+      { label: "1–4h", min: 60, max: 240, count: 0 },
+      { label: "4–24h", min: 240, max: 1440, count: 0 },
+      { label: "24h+", min: 1440, max: 999999, count: 0 },
     ];
     for (const mins of resolutionTimes) {
       const bucket = buckets.find((b) => mins < b.max) || buckets[buckets.length - 1];
@@ -1179,7 +1179,16 @@ const Stats = () => {
                         <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
                       ) : (
                         <ChartContainer config={chartConfig} className="h-[250px] w-full">
-                          <BarChart data={resolutionDistribution}>
+                          <BarChart
+                            data={resolutionDistribution}
+                            onClick={(state) => {
+                              if (state?.activePayload?.[0]) {
+                                const { min, max } = state.activePayload[0].payload;
+                                navigate(`/conversations?resolutionMin=${min}&resolutionMax=${max}&source=slack`);
+                              }
+                            }}
+                            style={{ cursor: "pointer" }}
+                          >
                             <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                             <XAxis dataKey="label" className="text-xs" />
                             <YAxis allowDecimals={false} className="text-xs" />
