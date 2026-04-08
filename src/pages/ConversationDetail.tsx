@@ -296,7 +296,48 @@ const ConversationDetail = () => {
     load();
   }, [id, source]);
 
-  // Auto-search Intercom for Gmail threads without a linked conversation
+  // Fetch internal notes
+  useEffect(() => {
+    if (!id) return;
+    const fetchNotes = async () => {
+      const { data } = await supabase
+        .from("conversation_notes")
+        .select("*")
+        .eq("conversation_id", id)
+        .eq("conversation_source", source)
+        .order("created_at", { ascending: true });
+      setNotes((data ?? []) as unknown as ConversationNote[]);
+    };
+    fetchNotes();
+  }, [id, source]);
+
+  const addNote = async () => {
+    if (!id || !newNoteText.trim()) return;
+    setAddingNote(true);
+    const authorName = noteAuthor.trim() || "Anonymous";
+    localStorage.setItem("note_author", authorName);
+    const { data, error } = await supabase
+      .from("conversation_notes")
+      .insert({ conversation_id: id, conversation_source: source, author: authorName, note_text: newNoteText.trim() } as any)
+      .select()
+      .single();
+    if (!error && data) {
+      setNotes((prev) => [...prev, data as unknown as ConversationNote]);
+      setNewNoteText("");
+      toast.success("Note added");
+    } else {
+      toast.error("Failed to add note");
+    }
+    setAddingNote(false);
+  };
+
+  const deleteNote = async (noteId: string) => {
+    await supabase.from("conversation_notes").delete().eq("id", noteId);
+    setNotes((prev) => prev.filter((n) => n.id !== noteId));
+    toast.success("Note deleted");
+  };
+
+
   useEffect(() => {
     if (source !== "gmail" || !gmailConv || gmailConv.intercom_conversation_id) return;
     // Determine the customer email: if from_email looks like our support DL, use to_emails instead
