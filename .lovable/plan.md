@@ -1,51 +1,55 @@
 
 
-## Add internal notes to conversations
+## Fix Intercom webhook inbox matching and import missing conversation
 
-### What it does
-Adds an "Internal notes" section below the messages on every conversation detail page. Team members can leave timestamped notes visible only to internal users — useful for tracking context, decisions, or handoff info.
+### Problem
+Two issues:
 
-### Changes
+1. **Conversation `215473824213503` never received a webhook event** — it doesn't appear in any logs. Likely assigned before the webhook was active, or via a bulk action that didn't fire events.
 
-**Database migration** — create `conversation_notes` table:
-```sql
-CREATE TABLE conversation_notes (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  conversation_id uuid NOT NULL,
-  conversation_source text NOT NULL DEFAULT 'slack',
-  author text NOT NULL DEFAULT '',
-  note_text text NOT NULL DEFAULT '',
-  created_at timestamptz NOT NULL DEFAULT now()
-);
+2. **Inbox matching bug** — The webhook uses `team_assignee_id || admin_assignee_id` to check if a conversation belongs to the enterprise inbox. But when a conversation is assigned to an individual admin within the enterprise inbox, `team_assignee_id` contains the admin's personal team ID (e.g., `9520895`), not the enterprise inbox ID (`8484447`). This causes legitimate enterprise conversations to be rejected. The logs confirm: `Assignment not to enterprise inbox (9520895 vs 8484447), ignoring`.
 
-ALTER TABLE conversation_notes ENABLE ROW LEVEL SECURITY;
+### Solution
 
-CREATE POLICY "Allow public read conversation_notes" ON conversation_notes FOR SELECT TO public USING (true);
-CREATE POLICY "Allow public insert conversation_notes" ON conversation_notes FOR INSERT TO public WITH CHECK (true);
-CREATE POLICY "Allow public delete conversation_notes" ON conversation_notes FOR DELETE TO public USING (true);
+**1. Fix inbox matching logic** (`supabase/functions/intercom-webhook/index.ts`):
+- Check `team_assignee_id` first; if it doesn't match, also check if the Intercom API shows the conversation is in the enterprise inbox
+- Specifically: extract both `team_assignee_id` and check it against the enterprise inbox ID. If that fails, also check `admin_assignee_id` separately and use the Intercom API to verify the conversation's inbox
+- Simpler approach: check if **either** `team_assignee_id` matches OR the topic is `ticket.team.assigned` (which only fires for team assignments), and for `conversation.admin.assigned`/`conversation.admin.open.assigned`, fetch the conversation from the Intercom API to verify its team inbox
 
-CREATE INDEX idx_conversation_notes_lookup ON conversation_notes (conversation_id, conversation_source);
+Actually, the cleanest fix: separate `team_assignee_id` from `admin_assignee_id`. Only compare `team_assignee_id` against the enterprise inbox when it exists. When only `admin_assignee_id` is present (no team), fetch the conversation details from the Intercom API to confirm which inbox it's in.
+
+```typescript
+const teamId = body.data?.item?.team_assignee_id
+  ? String(body.data.item.team_assignee_id)
+  : null;
+
+let isEnterpriseInbox = teamId === enterpriseInboxId;
+
+// If no team_assignee_id, check via Intercom API
+if (!isEnterpriseInbox && !teamId && INTERCOM_API_TOKEN) {
+  const convResp = await fetch(
+    `https://api.intercom.io/conversations/${intercomConvId}`,
+    { headers: { Authorization: `Bearer ${INTERCOM_API_TOKEN}`, Accept: "application/json" } }
+  );
+  if (convResp.ok) {
+    const convData = await convResp.json();
+    isEnterpriseInbox = String(convData.team_assignee_id || "") === enterpriseInboxId;
+  }
+}
+
+if (!enterpriseInboxId || !isEnterpriseInbox) {
+  // ignore
+}
 ```
 
-**`src/pages/ConversationDetail.tsx`**
-- Add state for notes list, new note text, and author name
-- On load, fetch notes from `conversation_notes` where `conversation_id` and `conversation_source` match
-- Render an "Internal notes" card below the messages section (left panel) with:
-  - List of existing notes showing author, timestamp, and text
-  - Delete button (x) on each note
-  - Input area at the bottom: author text field + note textarea + "Add note" button
-- Insert new notes into `conversation_notes` on submit
+**2. Import the missing conversation now** — manually trigger the import for conversation `215473824213503` using the existing `import-intercom-ticket` edge function.
 
-**`src/pages/FlowDiagram.tsx`** — note that internal notes are available on conversation detail pages
-
-### Technical details
-- `conversation_source` stores "slack", "gmail", or "manual" to scope notes correctly since IDs aren't globally unique across tables
-- No authentication required — matches existing app pattern (public RLS)
-- Notes are ordered by `created_at` ascending
-- Author field remembers last used value via localStorage
+**3. Update flow diagram** (`src/pages/FlowDiagram.tsx`) — note the improved inbox matching logic.
 
 ### Files to edit
-- Database migration — new `conversation_notes` table
-- `src/pages/ConversationDetail.tsx` — notes UI
+- `supabase/functions/intercom-webhook/index.ts` — fix inbox matching to handle admin-only assignments
 - `src/pages/FlowDiagram.tsx` — update flow notes
+
+### Post-deploy action
+- Call `import-intercom-ticket` edge function to import conversation `215473824213503`
 
