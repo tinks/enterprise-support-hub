@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { channelNameOverrides } from "@/lib/channelOverrides";
 import { Calendar } from "@/components/ui/calendar";
-import { format, startOfDay, endOfDay } from "date-fns";
+import { format, startOfDay, endOfDay, differenceInMinutes, parseISO } from "date-fns";
 
 interface ConversationMapping {
   id: string;
@@ -27,6 +27,7 @@ interface ConversationMapping {
   intercom_ticket_id: string | null;
   status: string;
   created_at: string;
+  resolved_at: string | null;
   is_test: boolean;
   original_message_text: string;
   product_area: string | null;
@@ -183,6 +184,9 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const paramDay = searchParams.get("day");
   const paramHour = searchParams.get("hour") !== null ? parseInt(searchParams.get("hour")!) : null;
   const paramSource = searchParams.get("source") as SourceFilter | null;
+  const resolutionMin = searchParams.get("resolutionMin") !== null ? parseInt(searchParams.get("resolutionMin")!) : null;
+  const resolutionMax = searchParams.get("resolutionMax") !== null ? parseInt(searchParams.get("resolutionMax")!) : null;
+  const isResolutionMode = resolutionMin !== null && resolutionMax !== null;
 
   const [mappings, setMappings] = useState<ConversationMapping[]>([]);
   const [gmailRows, setGmailRows] = useState<GmailConversation[]>([]);
