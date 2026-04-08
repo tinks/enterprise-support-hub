@@ -868,12 +868,14 @@ const ConversationDetail = () => {
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Input
-                    placeholder="Your name"
-                    value={noteAuthor}
-                    onChange={(e) => setNoteAuthor(e.target.value)}
-                    className="h-8 text-sm"
-                  />
+                  {!noteAuthor.trim() && (
+                    <Input
+                      placeholder="Your name"
+                      value={noteAuthor}
+                      onChange={(e) => setNoteAuthor(e.target.value)}
+                      className="h-8 text-sm"
+                    />
+                  )}
                   <Textarea
                     placeholder="Add a note…"
                     value={newNoteText}
