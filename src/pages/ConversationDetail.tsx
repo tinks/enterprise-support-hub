@@ -94,6 +94,13 @@ interface ManualMessage {
   created_at: string;
 }
 
+interface ConversationNote {
+  id: string;
+  author: string;
+  note_text: string;
+  created_at: string;
+}
+
 interface ThreadMessage {
   text: string;
   user_name: string;
