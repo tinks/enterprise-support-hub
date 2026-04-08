@@ -157,17 +157,45 @@ Deno.serve(async (req) => {
 
     // --- Handle assignment topics: auto-import to manual_conversations ---
     if (ASSIGNMENT_TOPICS.includes(topic)) {
-      const assignedTeamId = String(body.data?.item?.team_assignee_id || body.data?.item?.admin_assignee_id || "");
+      const rawTeamId = body.data?.item?.team_assignee_id;
+      const teamId = rawTeamId ? String(rawTeamId) : null;
       const enterpriseInboxId = appSettings?.intercom_inbox_id;
       const intercomConvId = String(body.data?.item?.ticket?.id || body.data?.item?.id || "");
 
       // Resolve owner from admin_assignee_id
       const adminAssigneeId = String(body.data?.item?.admin_assignee_id || "");
       const resolvedOwner = adminOwnerMap[adminAssigneeId] || null;
-      console.log(`Assignment event: team=${assignedTeamId}, enterpriseInbox=${enterpriseInboxId}, convId=${intercomConvId}, adminAssignee=${adminAssigneeId}, resolvedOwner=${resolvedOwner}`);
+      console.log(`Assignment event: team=${teamId}, enterpriseInbox=${enterpriseInboxId}, convId=${intercomConvId}, adminAssignee=${adminAssigneeId}, resolvedOwner=${resolvedOwner}`);
 
-      if (!enterpriseInboxId || assignedTeamId !== enterpriseInboxId) {
-        console.log(`Assignment not to enterprise inbox (${assignedTeamId} vs ${enterpriseInboxId}), ignoring`);
+      // Check if this is the enterprise inbox — direct match first
+      let isEnterpriseInbox = teamId === enterpriseInboxId;
+
+      // If team_assignee_id doesn't match (admin-only assignment), verify via Intercom API
+      if (!isEnterpriseInbox && INTERCOM_API_TOKEN && intercomConvId) {
+        try {
+          const convResp = await fetch(
+            `https://api.intercom.io/conversations/${intercomConvId}`,
+            {
+              headers: {
+                Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                Accept: "application/json",
+                "Intercom-Version": "2.11",
+              },
+            }
+          );
+          if (convResp.ok) {
+            const convData = await convResp.json();
+            const actualTeamId = String(convData.team_assignee_id || "");
+            console.log(`Intercom API fallback: conversation ${intercomConvId} actual team_assignee_id=${actualTeamId}`);
+            isEnterpriseInbox = actualTeamId === enterpriseInboxId;
+          }
+        } catch (e) {
+          console.error("Intercom API fallback check failed:", e);
+        }
+      }
+
+      if (!enterpriseInboxId || !isEnterpriseInbox) {
+        console.log(`Assignment not to enterprise inbox (team=${teamId} vs ${enterpriseInboxId}), ignoring`);
         return new Response(JSON.stringify({ ok: true, message: "Not enterprise inbox" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
