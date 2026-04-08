@@ -133,6 +133,10 @@ const ROW_H = 380;
 /*  created_at instead of the import time, so analytics reflect when   */
 /*  the conversation actually started.                                  */
 /* ------------------------------------------------------------------ */
+/*  Intercom dedup: unique partial index on intercom_conversation_id   */
+/*  prevents duplicate manual_conversations from concurrent webhooks.  */
+/*  Webhook uses upsert (onConflict) so second event gracefully no-ops.*/
+/* ------------------------------------------------------------------ */
 /*  Bulk import: /import/bulk page accepts Intercom CSV exports,        */
 /*  parses client-side, matches against all 3 conversation tables       */
 /*  (exact intercom_conversation_id + fuzzy subject). Rows marked       */

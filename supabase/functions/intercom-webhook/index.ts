@@ -159,7 +159,7 @@ Deno.serve(async (req) => {
     if (ASSIGNMENT_TOPICS.includes(topic)) {
       const assignedTeamId = String(body.data?.item?.team_assignee_id || body.data?.item?.admin_assignee_id || "");
       const enterpriseInboxId = appSettings?.intercom_inbox_id;
-      const intercomConvId = String(body.data?.item?.id || body.data?.item?.ticket?.id || "");
+      const intercomConvId = String(body.data?.item?.ticket?.id || body.data?.item?.id || "");
 
       // Resolve owner from admin_assignee_id
       const adminAssigneeId = String(body.data?.item?.admin_assignee_id || "");
@@ -268,7 +268,7 @@ Deno.serve(async (req) => {
 
       const { data: inserted, error: insertErr } = await supabase
         .from("manual_conversations")
-        .insert(insertPayload)
+        .upsert(insertPayload, { onConflict: "intercom_conversation_id" })
         .select("id")
         .single();
 
