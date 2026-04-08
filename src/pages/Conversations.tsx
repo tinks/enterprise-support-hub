@@ -921,7 +921,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     }
 
     return classFiltered;
-  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter]);
+  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter, isResolutionMode, resolutionMin, resolutionMax]);
 
   const canLoadMore =
     !isHeatmapMode && !searchResults && (
