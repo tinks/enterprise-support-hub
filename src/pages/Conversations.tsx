@@ -874,6 +874,17 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       });
     }
 
+    // Apply resolution time filter from query params
+    if (isResolutionMode) {
+      return rows.filter((r) => {
+        if (r.source !== "slack") return false;
+        const m = r.data as ConversationMapping;
+        if (!m.resolved_at) return false;
+        const mins = differenceInMinutes(parseISO(m.resolved_at), parseISO(m.created_at));
+        return mins >= resolutionMin! && mins < resolutionMax!;
+      });
+    }
+
     // Apply owner filter
     const ownerFiltered = ownerFilter === "all"
       ? rows
