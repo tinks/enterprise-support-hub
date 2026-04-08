@@ -645,7 +645,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       setGmailOffset(0);
     }
 
-    const pageSize = isHeatmapMode ? 1000 : 50;
+    const pageSize = (isHeatmapMode || isResolutionMode) ? 1000 : 50;
 
     let slackQuery = supabase
       .from("conversation_mappings")
