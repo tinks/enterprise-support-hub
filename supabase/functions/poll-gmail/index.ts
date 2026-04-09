@@ -226,7 +226,30 @@ Deno.serve(async (req) => {
         ? new Date().toISOString()
         : dateCandidate.toISOString();
 
+      // Inherit metadata from existing sibling in same thread
+      let inherited: Record<string, any> = {};
+      if (msg.threadId) {
+        const { data: sibling } = await supabase
+          .from("gmail_conversations")
+          .select("owner, classification, product_area, is_bug, is_feature_request, intercom_conversation_id")
+          .eq("gmail_thread_id", msg.threadId)
+          .not("owner", "is", null)
+          .order("received_at", { ascending: false })
+          .limit(1);
+        if (sibling?.length) {
+          inherited = {
+            owner: sibling[0].owner,
+            classification: sibling[0].classification,
+            product_area: sibling[0].product_area,
+            is_bug: sibling[0].is_bug,
+            is_feature_request: sibling[0].is_feature_request,
+            intercom_conversation_id: sibling[0].intercom_conversation_id,
+          };
+        }
+      }
+
       const { error } = await supabase.from("gmail_conversations").insert({
+        ...inherited,
         gmail_message_id: msgId,
         gmail_thread_id: msg.threadId || null,
         from_email: fromEmail,
