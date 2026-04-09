@@ -493,6 +493,14 @@ Deno.serve(async (req) => {
                 console.error("Failed to insert live reply for manual conv:", msgErr);
               } else {
                 console.log(`Appended live reply to manual conversation ${manualConv.id}`);
+                // Auto-update status based on who replied
+                const newStatus = role === "admin" ? "awaiting_customer" : "awaiting_support";
+                await supabase
+                  .from("manual_conversations")
+                  .update({ status: newStatus } as any)
+                  .eq("id", manualConv.id)
+                  .neq("status", "resolved");
+                console.log(`Updated manual_conversation ${manualConv.id} status to ${newStatus}`);
               }
               return new Response(JSON.stringify({ ok: true, message: "Appended to manual conversation", id: manualConv.id }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -1259,6 +1267,29 @@ Deno.serve(async (req) => {
         .from("conversation_mappings")
         .update({ status: "escalated" })
         .eq("id", mapping.id);
+    }
+
+    // Auto-update conversation status based on who replied (applies after escalation/pending logic)
+    // isHumanAdmin covers Joel/Kristina; also check for Sam (AI agent, author.type=admin but isKnownAiAgent)
+    const isAdminReply = isHumanAdmin || (lastCommentPart?.author as any)?.type === "admin";
+    if (mapping && mapping.status !== "resolved") {
+      if (isAdminReply) {
+        // Admin (Joel, Kristina) or AI agent (Sam) replied → awaiting customer
+        await supabase
+          .from("conversation_mappings")
+          .update({ status: "awaiting_customer" })
+          .eq("id", mapping.id)
+          .neq("status", "resolved");
+        console.log(`Set conversation ${conversationId} status to awaiting_customer (admin/AI reply)`);
+      } else {
+        // Customer replied → awaiting support
+        await supabase
+          .from("conversation_mappings")
+          .update({ status: "awaiting_support" })
+          .eq("id", mapping.id)
+          .neq("status", "resolved");
+        console.log(`Set conversation ${conversationId} status to awaiting_support (customer reply)`);
+      }
     }
 
     return new Response(JSON.stringify({ ok: true }), {

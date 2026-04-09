@@ -155,6 +155,14 @@ const ROW_H = 380;
 /*  on every assignment event and auto-sets the conversation owner.     */
 /*  Editable from the Settings page Admin mapping card.                 */
 /* ------------------------------------------------------------------ */
+/*  Auto-status transitions: on every reply, the system automatically  */
+/*  updates the conversation status:                                   */
+/*  - Admin reply (Joel, Kristina, or Sam) → status = awaiting_customer*/
+/*  - Customer reply → status = awaiting_support                       */
+/*  This applies across all sources: Slack (slack-events), Intercom    */
+/*  (intercom-webhook for both conversation_mappings and               */
+/*  manual_conversations), and Gmail (via Intercom webhook path).      */
+/* ------------------------------------------------------------------ */
 /*  Owner dashboards: /my/joel and /my/kristina show personal views    */
 /*  with KPI cards (open, resolved, bugs, feature requests) and a     */
 /*  focused conversation table scoped to the owner. Accessible from   */
