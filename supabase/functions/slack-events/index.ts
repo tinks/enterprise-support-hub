@@ -733,6 +733,15 @@ Deno.serve(async (req) => {
                 });
               } else {
                 console.log(`Forwarded Slack reply to Intercom ${targetId} (type: ${replyPayload.type})`);
+
+                // Auto-update status based on who replied
+                const newStatus = isEmployee ? "awaiting_customer" : "awaiting_support";
+                await supabase
+                  .from("conversation_mappings")
+                  .update({ status: newStatus })
+                  .eq("id", mapping.id)
+                  .neq("status", "resolved");
+                console.log(`Set conversation ${mapping.id} status to ${newStatus} (Slack reply from ${isEmployee ? "employee" : "customer"})`);
               }
             }
           }
