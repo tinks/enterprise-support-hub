@@ -620,6 +620,7 @@ function buildNodes(
           "Auto-close: pg_cron runs hourly — threads with no new messages for 24h are auto-resolved",
           "Resolution time = resolved_at minus earliest received_at in the thread",
           "Stats page shows Gmail resolved/open counts and median/avg resolution time — both are deduplicated by subject (same thread = 1 count), matching the 'Email total' dedup logic",
+           "Thread metadata inheritance: new messages in an existing thread automatically inherit owner, classification, product area, incident/feature flags, and Intercom link from the most recent sibling",
            "Read-only: no replies from dashboard",
            "Auto-Intercom lookup: when a Gmail thread detail page loads without an intercom_conversation_id, the system searches Intercom by customer email (auto-detects customer vs support DL) AND by email subject, deduplicates results, strips HTML from titles — user can link with one click, syncs to sibling threads",
            "Import tab: paste a Slack thread URL to manually import it as a conversation — the edge function parses the URL, fetches the thread parent from Slack, and inserts a conversation_mappings row with status 'active'",
