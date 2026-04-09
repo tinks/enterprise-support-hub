@@ -1002,7 +1002,7 @@ const ConversationDetail = () => {
                   <Badge variant="secondary" className="text-xs capitalize">{source}</Badge>
                 </div>
                 <Select value={current.status} onValueChange={updateStatus} disabled={updating}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="w-full text-left">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
