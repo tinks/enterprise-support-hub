@@ -1,55 +1,45 @@
 
 
-## Post customer-facing replies from the Lovable app
+## Inherit metadata for new Gmail messages in existing threads
 
-### What it does
-Adds a "Reply" composer to the conversation detail page. When you type a message and hit send, the app publishes it to the original platform:
+### Problem
+When `poll-gmail` inserts a new message belonging to an existing Gmail thread, it doesn't carry over `owner`, `classification`, or `product_area` from sibling messages already in the database.
 
-- **Intercom**: Posts an admin reply to the linked Intercom conversation
-- **Slack**: Posts a message to the Slack thread
-- **Gmail**: Sends a reply email to the Gmail thread
+### Solution
+In `supabase/functions/poll-gmail/index.ts`, after building the insert payload but before inserting, look up existing messages in the same thread and copy their metadata.
 
-The reply also appears inline in the thread view immediately.
+### Changes
 
-### How it works
+**`supabase/functions/poll-gmail/index.ts`** — After extracting `msg.threadId`, query `gmail_conversations` for an existing sibling row with that `gmail_thread_id`. If found, copy `owner`, `classification`, `product_area`, `is_bug`, `is_feature_request`, `status`, and `intercom_conversation_id` into the insert payload.
 
-**1. New edge function: `post-reply`** (`supabase/functions/post-reply/index.ts`)
+```typescript
+// After line 231 (gmail_thread_id extraction), before insert:
+let inherited: Record<string, any> = {};
+if (msg.threadId) {
+  const { data: sibling } = await supabase
+    .from("gmail_conversations")
+    .select("owner, classification, product_area, is_bug, is_feature_request, intercom_conversation_id")
+    .eq("gmail_thread_id", msg.threadId)
+    .not("owner", "is", null)
+    .order("received_at", { ascending: false })
+    .limit(1);
+  if (sibling?.length) {
+    inherited = {
+      owner: sibling[0].owner,
+      classification: sibling[0].classification,
+      product_area: sibling[0].product_area,
+      is_bug: sibling[0].is_bug,
+      is_feature_request: sibling[0].is_feature_request,
+      intercom_conversation_id: sibling[0].intercom_conversation_id,
+    };
+  }
+}
+// Then spread into insert: { ...inherited, gmail_message_id: msgId, ... }
+```
 
-A single edge function that accepts `{ conversationId, source, message }` and routes to the correct platform API:
+**`src/pages/FlowDiagram.tsx`** — Document that new Gmail messages inherit metadata from existing thread siblings.
 
-- **Intercom path**: Uses `INTERCOM_API_TOKEN` to call `POST /conversations/{intercomId}/reply` as admin (using `intercom_assignee_id` from settings). Requires the conversation to have an `intercom_conversation_id`.
-- **Slack path**: Uses `SLACK_BOT_TOKEN` to call `chat.postMessage` with `channel` and `thread_ts` from the conversation mapping.
-- **Gmail path**: Uses stored OAuth tokens from `gmail_oauth_tokens` to call `POST /gmail/v1/users/me/messages/send` with proper `In-Reply-To` and `References` headers to keep it in the same thread.
-
-After posting, the function also updates the conversation status to `awaiting_customer` (since an admin just replied) and optionally inserts the message into `manual_messages` for manual-source conversations.
-
-**2. UI: Reply composer on ConversationDetail** (`src/pages/ConversationDetail.tsx`)
-
-- Add a textarea + send button below the thread/messages section
-- On submit, call `supabase.functions.invoke("post-reply", { body: { conversationId, source, message } })`
-- Show a loading spinner while sending
-- On success, refresh the thread and show a toast
-- The composer is visible for all sources but shows a helpful message if the required link is missing (e.g. "No Intercom ticket linked — create one first")
-
-**3. Config** (`supabase/config.toml`)
-
-Add `[functions.post-reply]` with `verify_jwt = false`.
-
-**4. Flow diagram update** (`src/pages/FlowDiagram.tsx`)
-
-Document the new outbound reply capability.
-
-### Platform-specific details
-
-| Source | API used | Auth | Thread linking |
-|--------|----------|------|----------------|
-| Intercom | `POST /conversations/{id}/reply` (v2.11) | `INTERCOM_API_TOKEN` | `intercom_conversation_id` |
-| Slack | `chat.postMessage` | `SLACK_BOT_TOKEN` | `slack_channel_id` + `slack_thread_ts` |
-| Gmail | `messages.send` with RFC 2822 reply headers | OAuth tokens from `gmail_oauth_tokens` | `gmail_thread_id` + `In-Reply-To` header |
-
-### Files to create/edit
-- `supabase/functions/post-reply/index.ts` — new edge function
-- `supabase/config.toml` — add function config
-- `src/pages/ConversationDetail.tsx` — add reply composer UI
-- `src/pages/FlowDiagram.tsx` — document outbound replies
+### Files to edit
+- `supabase/functions/poll-gmail/index.ts` — add sibling lookup and metadata inheritance
+- `src/pages/FlowDiagram.tsx` — update flow notes
 
