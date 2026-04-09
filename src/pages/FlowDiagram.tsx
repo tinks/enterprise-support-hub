@@ -163,6 +163,16 @@ const ROW_H = 380;
 /*  (intercom-webhook for both conversation_mappings and               */
 /*  manual_conversations), and Gmail (via Intercom webhook path).      */
 /* ------------------------------------------------------------------ */
+/*  Outbound replies: the ConversationDetail page has a "Reply to      */
+/*  customer" composer that sends messages via the post-reply edge     */
+/*  function. Routes to the correct platform:                           */
+/*  - Intercom: POST /conversations/{id}/reply as admin                */
+/*  - Slack: chat.postMessage to the thread                            */
+/*  - Gmail: messages.send with In-Reply-To/References headers         */
+/*  After sending, status is set to awaiting_customer. For Slack and    */
+/*  Gmail conversations with a linked Intercom ticket, the reply is    */
+/*  also forwarded to Intercom to keep both channels in sync.           */
+/* ------------------------------------------------------------------ */
 /*  Owner dashboards: /my/joel and /my/kristina show personal views    */
 /*  with KPI cards (open, resolved, bugs, feature requests) and a     */
 /*  focused conversation table scoped to the owner. Accessible from   */
