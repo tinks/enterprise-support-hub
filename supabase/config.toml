@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.parse-thread]
 verify_jwt = false
+
+[functions.post-reply]
+verify_jwt = false
