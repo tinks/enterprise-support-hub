@@ -886,6 +886,45 @@ const ConversationDetail = () => {
             {source === "gmail" && renderGmailContent()}
             {source === "manual" && renderManualContent()}
 
+            {/* Reply composer */}
+            <Card>
+              <CardHeader className="flex flex-row items-center gap-2 pb-3">
+                <Send className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm">Reply to customer</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {(() => {
+                  const canReply =
+                    (source === "slack" && conv) ||
+                    (source === "gmail" && gmailConv) ||
+                    ((source === "manual") && manualConv?.intercom_conversation_id);
+                  if (!canReply && source === "manual") {
+                    return <p className="text-sm text-muted-foreground">No Intercom ticket linked — create one first to reply.</p>;
+                  }
+                  return (
+                    <>
+                      <Textarea
+                        placeholder={`Type your reply (sends via ${source === "manual" ? "Intercom" : source})…`}
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        className="min-h-[80px] text-sm"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendReply();
+                        }}
+                      />
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">⌘+Enter to send</span>
+                        <Button size="sm" onClick={sendReply} disabled={sendingReply || !replyText.trim()}>
+                          {sendingReply ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Send className="h-3.5 w-3.5 mr-1" />}
+                          Send
+                        </Button>
+                      </div>
+                    </>
+                  );
+                })()}
+              </CardContent>
+            </Card>
+
             {/* Internal notes */}
             <Card>
               <CardHeader className="flex flex-row items-center gap-2 pb-3">
