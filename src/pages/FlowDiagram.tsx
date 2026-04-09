@@ -149,6 +149,11 @@ const ROW_H = 380;
 /*  from the Conversations table and the detail view Classification    */
 /*  card. Owner filter dropdown lets users filter by owner or          */
 /*  unassigned. CSM is used for non-technical-support questions.        */
+/*  Admin→owner mapping: settings.admin_owner_map stores a JSON map    */
+/*  of Intercom admin IDs to owner names (e.g. 9985999→Kristina,       */
+/*  9852095→Joel, 9520895→Sam). The intercom-webhook reads this map    */
+/*  on every assignment event and auto-sets the conversation owner.     */
+/*  Editable from the Settings page Admin mapping card.                 */
 /* ------------------------------------------------------------------ */
 /*  Owner dashboards: /my/joel and /my/kristina show personal views    */
 /*  with KPI cards (open, resolved, bugs, feature requests) and a     */

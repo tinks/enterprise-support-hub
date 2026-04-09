@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Settings, RefreshCw, Save, Link, Search, Hash, X, Plus, Mail, CheckCircle2, AlertCircle } from "lucide-react";
 import BotIdentityCard from "@/components/BotIdentityCard";
 import ProductAreasCard from "@/components/ProductAreasCard";
+import AdminMappingCard from "@/components/AdminMappingCard";
 import lovableLogo from "@/assets/lovable-logo.png";
 
 interface SettingsData {
@@ -145,6 +146,7 @@ const Index = () => {
         test_intercom_inbox_id: settings.test_intercom_inbox_id,
         auto_mark_employee_test: settings.auto_mark_employee_test,
         product_areas: settings.product_areas,
+        admin_owner_map: (settings as any).admin_owner_map,
       })
       .eq("id", settings.id);
 
@@ -385,6 +387,9 @@ const Index = () => {
 
         {/* Product Areas Card */}
         <ProductAreasCard settings={settings} setSettings={setSettings} onSave={saveSettings} />
+
+        {/* Admin Mapping Card */}
+        <AdminMappingCard settings={settings} setSettings={setSettings} onSave={saveSettings} />
 
         {/* Bot Identity Card */}
         <BotIdentityCard />
