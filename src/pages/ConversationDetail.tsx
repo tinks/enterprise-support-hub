@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket, Mail, Trash2, Link, Search, StickyNote, X, Plus } from "lucide-react";
+import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket, Mail, Trash2, Link, Search, StickyNote, X, Plus, Send } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -190,6 +190,55 @@ const ConversationDetail = () => {
   const [newNoteText, setNewNoteText] = useState("");
   const [noteAuthor, setNoteAuthor] = useState(() => localStorage.getItem("note_author") || "");
   const [addingNote, setAddingNote] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
+
+  const sendReply = async () => {
+    if (!replyText.trim() || !id) return;
+    setSendingReply(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("post-reply", {
+        body: { conversationId: id, source, message: replyText.trim() },
+      });
+      if (error || data?.error) {
+        toast.error(data?.error || error?.message || "Failed to send reply");
+        return;
+      }
+      toast.success(`Reply sent via ${data?.platform || source}`);
+      setReplyText("");
+      // Refresh thread / messages
+      if (source === "slack" && conv) {
+        fetchThread(conv.slack_channel_id, conv.slack_thread_ts);
+      } else if (source === "gmail" && gmailConv?.gmail_thread_id) {
+        const res = await supabase.functions.invoke("fetch-gmail-thread", {
+          body: { threadId: gmailConv.gmail_thread_id },
+        });
+        if (res.data?.messages) setGmailThreadMessages(res.data.messages);
+      } else if (source === "manual" && manualConv) {
+        const { data: msgs } = await supabase
+          .from("manual_messages")
+          .select("*")
+          .eq("conversation_id", id)
+          .order("created_at", { ascending: true });
+        if (msgs) setManualMessages(msgs);
+      }
+      // Reload status
+      if (source === "slack") {
+        const { data: updated } = await supabase.from("conversation_mappings").select("*").eq("id", id).single();
+        if (updated) setConv(updated as unknown as ConversationMapping);
+      } else if (source === "gmail") {
+        const { data: updated } = await supabase.from("gmail_conversations").select("*").eq("id", id).single();
+        if (updated) setGmailConv(updated as unknown as GmailConv);
+      } else if (source === "manual") {
+        const { data: updated } = await supabase.from("manual_conversations").select("*").eq("id", id).single();
+        if (updated) setManualConv(updated as unknown as ManualConv);
+      }
+    } catch {
+      toast.error("Failed to send reply");
+    } finally {
+      setSendingReply(false);
+    }
+  };
 
   const fetchThread = async (channelId: string, threadTs: string) => {
     setThreadLoading(true);
