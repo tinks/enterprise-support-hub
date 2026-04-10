@@ -145,7 +145,13 @@ Deno.serve(async (req) => {
     const itemId = body.data?.item?.id || body.data?.item?.ticket?.id;
     console.log(`Intercom webhook topic: ${topic}, conversation_id: ${itemId}`);
 
-    const REPLY_TOPICS = ["conversation.admin.replied", "conversation.admin.single.reply", "ticket.admin.replied"];
+    const REPLY_TOPICS = [
+      "conversation.admin.replied",
+      "conversation.admin.single.reply",
+      "ticket.admin.replied",
+      "conversation.user.replied",
+      "conversation.user.created",
+    ];
     const CLOSED_TOPICS = ["conversation.admin.closed", "ticket.state.updated"];
 
     if (!REPLY_TOPICS.includes(topic) && !CLOSED_TOPICS.includes(topic) && !ASSIGNMENT_TOPICS.includes(topic)) {
