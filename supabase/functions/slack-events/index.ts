@@ -559,16 +559,11 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (mapping && mapping.intercom_conversation_id && mapping.status !== "resolved") {
-        // Atomic dedup: set last_processed_event_ts only if it differs
-        const { data: claimed } = await supabase
-          .from("conversation_mappings")
-          .update({ last_processed_event_ts: eventTs })
-          .eq("id", mapping.id)
-          .or(`last_processed_event_ts.is.null,last_processed_event_ts.neq.${eventTs}`)
-          .select("id");
+        // Atomic dedup: use DB function with FOR UPDATE to prevent race conditions
+        const { data: claimResult } = await supabase
+          .rpc("claim_slack_event", { p_mapping_id: mapping.id, p_event_ts: eventTs });
 
-        // If no rows were claimed, another request already processed this event
-        if (!claimed || claimed.length === 0) {
+        if (claimResult === false) {
           console.log(`[DEDUP] Event ${eventTs} already claimed for thread ${threadTs} in ${channelId}`);
           return new Response(JSON.stringify({ ok: true }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
