@@ -443,6 +443,10 @@ export type Database = {
         Args: { p_mapping_id: string; p_part_id: string }
         Returns: boolean
       }
+      claim_slack_event: {
+        Args: { p_event_ts: string; p_mapping_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       [_ in never]: never
