@@ -585,7 +585,7 @@ function buildNodes(
           "Extracts messages: skips bots, notes, system events (open/close); assignment parts with body are included",
           "Inserts into manual_conversations (source='intercom') + manual_messages",
           "Conversations from other channels (web, mobile, non-enterprise email) get tracked automatically",
-          "Live reply tracking: subsequent replies in Intercom are appended to manual_messages via webhook fallback (no Slack forwarding needed)",
+          "Live reply tracking: subsequent replies (admin AND customer) in Intercom are appended to manual_messages via webhook — listens for conversation.user.replied and conversation.user.created in addition to admin reply topics",
           "Auto-owner: resolves admin_assignee_id via settings.admin_owner_map (JSON) to set owner at import time; also updates owner on already-tracked conversations (conversation_mappings, gmail_conversations, manual_conversations) when reassigned in Intercom",
         ],
         accent: "orange",
