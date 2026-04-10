@@ -155,6 +155,12 @@ const ROW_H = 380;
 /*  on every assignment event and auto-sets the conversation owner.     */
 /*  Editable from the Settings page Admin mapping card.                 */
 /* ------------------------------------------------------------------ */
+/*  Inbox row color-coding (Conversations table):                      */
+/*  1. Coral left border + bg  → no owner assigned (highest priority)  */
+/*  2. Amber left border + bg  → status is awaiting_support (customer  */
+/*     replied and team needs to act)                                   */
+/*  3. No highlight            → all other rows                        */
+/* ------------------------------------------------------------------ */
 /*  Auto-status transitions: on every reply, the system automatically  */
 /*  updates the conversation status:                                   */
 /*  - Admin reply (Joel, Kristina, or Sam) → status = awaiting_customer*/
