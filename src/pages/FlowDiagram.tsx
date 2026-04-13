@@ -186,6 +186,12 @@ const ROW_H = 380;
 /*  Gmail conversations with a linked Intercom ticket, the reply is    */
 /*  also forwarded to Intercom to keep both channels in sync.           */
 /* ------------------------------------------------------------------ */
+/*  Audit logs: every field change on ConversationDetail (status,      */
+/*  owner, product area, classification, test/incident toggles,        */
+/*  Intercom linking, replies) is recorded in conversation_audit_logs  */
+/*  with who made the change and when. A collapsible "Activity log"    */
+/*  card in the detail sidebar shows the full history newest-first.    */
+/* ------------------------------------------------------------------ */
 /*  Owner dashboards: /my/joel and /my/kristina show personal views    */
 /*  with KPI cards (open, resolved, bugs, feature requests) and a     */
 /*  focused conversation table scoped to the owner. Accessible from   */
