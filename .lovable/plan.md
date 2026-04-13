@@ -1,39 +1,20 @@
 
 
-## Combine reply, notes, and activity log into tabbed interface
+## Fix: search doesn't find conversations by Intercom ID
 
-### What changes
-Replace the three separate cards (Reply to customer, Internal notes, Activity log) below the conversation thread with a single `<Tabs>` component. The default tab is "Reply to customer".
+### Problem
+Searching "215473859684381" in the inbox finds nothing because the Gmail and manual conversation search queries don't include the `intercom_conversation_id` field. Only the Slack query searches that field.
 
-### Layout
+The conversation exists in `gmail_conversations` with `intercom_conversation_id = '215473859684381'`, but the search misses it.
 
-```text
-┌─────────────────────────────────────────────────┐
-│  [Messages / thread content]                    │
-│                                                 │
-├─────────────────────────────────────────────────┤
-│  Reply to customer │ Internal notes │ Activity  │
-│  ─────────────────                              │
-│  [Tab content here]                             │
-└─────────────────────────────────────────────────┘
-```
+### Fix
 
-### Technical details
+**File: `src/pages/Conversations.tsx`**
 
-**File: `src/pages/ConversationDetail.tsx`**
-- Import `Tabs, TabsList, TabsTrigger, TabsContent` from `@/components/ui/tabs`
-- Replace lines ~922–1014 (the three separate Card sections for reply, notes, and activity log) and lines ~1183–1220 (activity log in sidebar — move it here) with a single `<Tabs defaultValue="reply">` block containing:
-  - `TabsTrigger value="reply"` → "Reply to customer"
-  - `TabsTrigger value="notes"` → "Internal notes"  
-  - `TabsTrigger value="activity"` → "Activity log" (with badge count)
-- Each `TabsContent` contains the existing card body content (no outer `<Card>` wrapper needed — the tabs container replaces it)
-- Remove the Activity log `<Collapsible>` from the right sidebar (lines ~1183–1220) since it moves into the tabs
-- Remove the now-unused `auditOpen`/`setAuditOpen` state and `Collapsible` import if no longer used elsewhere
+Add `intercom_conversation_id.ilike.${ilike}` to the `.or()` filters for both the Gmail query (~line 769) and the manual conversations query (~line 781).
 
-**File: `src/pages/FlowDiagram.tsx`**
-- Update documentation to reflect the new tabbed UI layout
+- Gmail: add `intercom_conversation_id.ilike.${ilike}` alongside the existing fields
+- Manual: add `intercom_conversation_id.ilike.${ilike}` alongside the existing fields
 
-### Files to edit
-- `src/pages/ConversationDetail.tsx`
-- `src/pages/FlowDiagram.tsx`
+This is a two-line change — just appending one field to each `.or()` string.
 
