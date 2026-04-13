@@ -1,42 +1,28 @@
 
 
-## Preserve per-message timestamps when parsing threads
+## Add channel name combobox with suggestions
 
-### Problem
-The parser extracts timestamps from pasted thread text to split messages, but discards them. All messages are inserted with `created_at = now()`, losing the actual send times.
+### What changes
+Replace the plain text `<Input>` for channel name (line 238) with a combobox that shows a short list of commonly used channels not covered by the bot, while still allowing free-text entry.
 
-### Solution
-1. Add a `sent_at` field to `ParsedMessage`
-2. Update all four regex formats (A–D) and the AI parser to capture and return the timestamp
-3. Combine the user-picked thread date with each message's parsed time to produce a full datetime
-4. Pass `created_at` when inserting into `manual_messages`
+### Channel suggestions
+A small hardcoded list of channels the bot is not part of:
+- `ext-lovable-control-tower`
+- `ext-bts-lovable`
+- `ext-lovable-tool-support-remote`
+- `it-lovable-support`
+- `workday-lovable`
 
-### Changes
-
-**`src/lib/parseThread.ts`**
-- Add `sent_at?: string` to `ParsedMessage` interface
-- Update `parts` array to also store the parsed time string (e.g. `"1:47 PM"`)
-- For Format A (`Name [1:47 PM]`): already captures time in group 2 — store it
-- For Format B (`Name\n  Mar 26th at 11:03 AM`): captures full date+time — store both
-- For Format C (`Name  5:43 AM`): captures time in group 2 — store it
-- For Format D (`Name  3/26/2025 11:03 AM`): captures date+time — store full datetime
-- Add a helper `combineDateTime(date: Date, timeStr: string): string` that merges the thread date with the parsed time into an ISO string
-- In `parseThreadWithAI`, update the AI tool schema to also request `sent_at` for each message
-
-**`supabase/functions/parse-thread/index.ts`**
-- Add `sent_at` (optional string, the raw timestamp text) to the tool function schema so the AI returns timestamps too
+### Implementation
 
 **`src/components/ManualLogTab.tsx`**
-- After parsing, call `combineDateTime(threadDate, msg.sent_at)` for each message
-- When inserting into `manual_messages`, include `created_at` per message
-- For Format B/D where full date is embedded in the timestamp, use that date directly (no need for the date picker)
-
-### Technical detail: combining date + time
-Formats A and C only have time (e.g. `1:47 PM`), so they need the user-picked thread date. Formats B and D include the date, so the full datetime can be constructed directly. A helper function will handle both cases.
+- Import `Command`, `CommandInput`, `CommandList`, `CommandEmpty`, `CommandGroup`, `CommandItem` from `@/components/ui/command`
+- Replace the channel name `<Input>` with a `Popover` + `Command` combobox:
+  - Typing filters the suggestion list
+  - Clicking a suggestion fills the field
+  - Custom text is accepted (not locked to suggestions)
+  - Displays with `#` prefix
 
 ### Files to edit
-- `src/lib/parseThread.ts` — capture and return timestamps
-- `supabase/functions/parse-thread/index.ts` — add `sent_at` to AI schema
-- `src/components/ManualLogTab.tsx` — pass `created_at` per message on insert
-- `src/pages/FlowDiagram.tsx` — document that manual imports preserve per-message timestamps
+- `src/components/ManualLogTab.tsx`
 
