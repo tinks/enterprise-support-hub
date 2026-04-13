@@ -1,41 +1,44 @@
 
 
-## Show user names instead of Slack IDs in the inbox
+## Show names instead of Slack IDs everywhere
 
 ### Problem
-The "Sent by" column for Slack bot conversations shows raw Slack user IDs (e.g. `U07JWU8692B`) when the user isn't found in the lookup. This happens because the `list-slack-users` call doesn't include deactivated or guest users.
+1. The **ConversationDetail** page calls `list-slack-users` without `include_deactivated: true`, so guest and deactivated users still show as raw IDs.
+2. Both pages rely on the Slack API at runtime to resolve names. If a user is fully removed from the workspace, their name can never be resolved.
 
-### Change
+### Changes
 
-**File: `src/pages/Conversations.tsx`** (~line 606)
+**1. Fix ConversationDetail lookup** (`src/pages/ConversationDetail.tsx` ~line 339)
+- Pass `{ body: { include_deactivated: true } }` to the `list-slack-users` invoke call, matching what `Conversations.tsx` already does.
 
-Update the `list-slack-users` invocation in `loadLookups` to pass `include_deactivated=true` as a query parameter, so deactivated and guest users are resolved to display names.
+**2. Cache Slack user names on import** (`supabase/functions/import-slack-thread/index.ts`)
+- After fetching the parent message, resolve the Slack user's display name via `users.info` API call.
+- Store it in a new `slack_user_name` column on `conversation_mappings` during insert/update.
 
-Current:
-```typescript
-const usersRes = await supabase.functions.invoke("list-slack-users");
+**3. Add `slack_user_name` column** (migration)
+```sql
+ALTER TABLE conversation_mappings
+  ADD COLUMN slack_user_name text DEFAULT NULL;
 ```
 
-Updated:
-```typescript
-const usersRes = await supabase.functions.invoke("list-slack-users", {
-  body: { include_deactivated: true },
-});
-```
+**4. Backfill existing records** (one-time edge function or script)
+- Create a temporary script that:
+  - Fetches all distinct `slack_user_id` values from `conversation_mappings`
+  - Calls Slack `users.info` for each to get `display_name` / `real_name`
+  - Updates `conversation_mappings` rows with the resolved name
 
-Wait — `list-slack-users` reads `include_deactivated` from URL search params, not the body. Since `supabase.functions.invoke` doesn't support query params natively, we need to pass it in the function name path:
+**5. Update display logic** (`src/pages/Conversations.tsx` ~line 972, `src/pages/ConversationDetail.tsx` ~line 625)
+- Prefer `m.slack_user_name` from the DB, fall back to `userNames[m.slack_user_id]` (runtime lookup), then fall back to the raw ID.
 
-```typescript
-const usersRes = await supabase.functions.invoke("list-slack-users?include_deactivated=true");
-```
+**6. Update the `slack-events` function** to also store the user name when creating new mappings (if it creates mappings).
 
-Or alternatively, update the edge function to also accept the flag from the JSON body. The simpler fix is to update the edge function to check both the query param and the request body.
-
-**File: `supabase/functions/list-slack-users/index.ts`**
-
-Add a fallback to read `include_deactivated` from the request body (for POST requests) in addition to query params, so the existing `supabase.functions.invoke` call can pass it as body.
+**7. Update Flow diagram** to reflect that `import-slack-thread` and `slack-events` now cache user display names.
 
 ### Files to edit
-- `supabase/functions/list-slack-users/index.ts` — accept `include_deactivated` from body
-- `src/pages/Conversations.tsx` — pass `{ include_deactivated: true }` in the invoke body
+- `supabase/functions/import-slack-thread/index.ts` — resolve + store user name
+- `src/pages/Conversations.tsx` — prefer cached name
+- `src/pages/ConversationDetail.tsx` — pass `include_deactivated: true` + prefer cached name
+- `src/pages/FlowDiagram.tsx` — update relevant node descriptions
+- New migration — add `slack_user_name` column
+- Backfill script (run once via edge function invocation)
 
