@@ -534,6 +534,7 @@ const ConversationDetail = () => {
         return;
       }
       toast.success("Intercom ticket created");
+      await logAudit("intercom_linked", null, data?.intercomId || "created");
       // Reload
       if (source === "slack") {
         const { data: updated } = await supabase.from("conversation_mappings").select("*").eq("id", current.id).single();
