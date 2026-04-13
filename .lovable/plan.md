@@ -1,63 +1,37 @@
 
 
-## Fix manual conversation date mismatches
+## Add audit logs to conversations
 
-### Problem
-27 conversations (20 `slack_thread`, 7 `intercom`) have `created_at` drifting 1+ hours from their earliest message. The root causes differ by source:
+### What it does
+Every time someone changes a conversation field (status, owner, product area, classification, incident toggle, test toggle, or links an Intercom ticket), an audit log entry is recorded with who made the change and when. A collapsible "Activity log" section on the conversation detail page shows the full history.
 
-- **Paste mode (`slack_thread`)**: `created_at` is set to the thread date picker value (midnight CET → 22:00 or 23:00 UTC), but individual messages get timestamps from the parsed text (e.g. "1:47 PM" on the *next* day). The conversation isn't updated afterward.
-- **Intercom imports**: Already covered in the previous plan — race condition with two-step insert/update.
+### Database
 
-### Fix plan
+**New table: `conversation_audit_logs`**
+- `id` (uuid, PK, default `gen_random_uuid()`)
+- `conversation_id` (uuid, not null)
+- `conversation_source` (text, not null) — `slack`, `gmail`, `manual`
+- `action` (text, not null) — e.g. `status_changed`, `owner_changed`, `product_area_changed`, `classification_changed`, `is_bug_toggled`, `is_test_toggled`, `intercom_linked`, `reply_sent`
+- `old_value` (text, nullable)
+- `new_value` (text, nullable)
+- `performed_by` (text, not null, default `''`) — reuses the `note_author` from localStorage
+- `created_at` (timestamptz, default `now()`)
 
-**Step 1 — Fix all 27 existing rows (SQL migration)**
+RLS: public SELECT and INSERT allowed (matches existing pattern). No UPDATE or DELETE.
 
-```sql
-UPDATE manual_conversations mc
-SET created_at = sub.earliest
-FROM (
-  SELECT conversation_id, MIN(created_at) AS earliest
-  FROM manual_messages GROUP BY conversation_id
-) sub
-WHERE mc.id = sub.conversation_id
-  AND ABS(EXTRACT(EPOCH FROM mc.created_at - sub.earliest)) > 3600;
-```
+### Code changes
 
-**Step 2 — Fix paste mode in `src/components/ManualLogTab.tsx`**
+**`src/pages/ConversationDetail.tsx`**
+- Add a helper `logAudit(action, oldValue, newValue)` that inserts into `conversation_audit_logs` using the conversation id, source, and `localStorage.getItem("note_author")` as `performed_by`.
+- Call `logAudit` from `updateStatus`, `updateOwner`, `updateProductArea`, `updateClassification`, `toggleField`, `linkIntercomConversation`, `createIntercom`, and `sendReply`.
+- Add an "Activity log" collapsible card in the right sidebar (below the existing metadata cards) that loads and displays audit entries sorted newest-first, showing action description, old→new values, who, and when.
+- If `performed_by` is empty (no name set), prompt or use "Unknown" — same pattern as notes.
 
-After inserting messages (~line 173), compute the earliest `created_at` from `messagesToInsert` and update the conversation row to match. This handles cases where the parsed message timestamps don't align with the date picker value.
-
-```tsx
-// After message insert succeeds:
-const timestamps = messagesToInsert
-  .filter(m => m.created_at)
-  .map(m => new Date(m.created_at!).getTime());
-if (timestamps.length) {
-  const earliest = new Date(Math.min(...timestamps)).toISOString();
-  await supabase
-    .from("manual_conversations")
-    .update({ created_at: earliest })
-    .eq("id", convo.id);
-}
-```
-
-**Step 3 — Fix Intercom import edge functions**
-
-In each of these three functions, compute the earliest message timestamp *before* the conversation INSERT and include it as `created_at` in the insert payload. Remove the separate post-insert UPDATE.
-
-- `supabase/functions/intercom-webhook/index.ts`
-- `supabase/functions/import-intercom-ticket/index.ts`
-- `supabase/functions/bulk-import-intercom/index.ts`
-
-**Step 4 — Update flow diagram**
-
-Document in `src/pages/FlowDiagram.tsx` that all import paths now derive `created_at` from the earliest message timestamp.
+**`src/pages/FlowDiagram.tsx`**
+- Document the new audit log table and its integration.
 
 ### Files to edit
-- SQL migration (fix 27 rows)
-- `src/components/ManualLogTab.tsx`
-- `supabase/functions/intercom-webhook/index.ts`
-- `supabase/functions/import-intercom-ticket/index.ts`
-- `supabase/functions/bulk-import-intercom/index.ts`
+- SQL migration (create `conversation_audit_logs` table + RLS)
+- `src/pages/ConversationDetail.tsx`
 - `src/pages/FlowDiagram.tsx`
 
