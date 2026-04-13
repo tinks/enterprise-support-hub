@@ -289,44 +289,19 @@ Deno.serve(async (req) => {
       const subject = strip(icData.source?.subject || icData.title || `Intercom #${intercomConvId}`);
       const convUrl = `https://app.intercom.com/a/inbox/wq44gprj/inbox/conversation/${intercomConvId}`;
 
-      // Insert conversation (with owner if resolved from admin map)
-      const insertPayload: Record<string, unknown> = {
-        source: "intercom",
-        contact_name: contactName,
-        subject,
-        link: convUrl,
-        intercom_conversation_id: intercomConvId,
-        status: "active",
-      };
-      if (resolvedOwner) insertPayload.owner = resolvedOwner;
-
-      const { data: inserted, error: insertErr } = await supabase
-        .from("manual_conversations")
-        .upsert(insertPayload, { onConflict: "intercom_conversation_id" })
-        .select("id")
-        .single();
-
-      if (insertErr) {
-        console.error("Auto-import insert error:", insertErr);
-        return new Response(JSON.stringify({ ok: true, message: "Insert failed" }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Extract messages
+      // Extract messages FIRST to compute earliest timestamp
       const mapRole = (type: string) => (type === "user" || type === "lead") ? "user" : "admin";
       const toIso = (ts: number) => new Date(ts * 1000).toISOString();
       const SKIP_PART_TYPES = new Set(["note", "open", "close", "away_mode_assignment"]);
 
-      const messages: Array<{ conversation_id: string; message_text: string; sender_name: string; role: string; created_at: string }> = [];
+      const preMessages: Array<{ message_text: string; sender_name: string; role: string; created_at: string }> = [];
 
       // Source message
       const src = icData.source;
       if (src?.body) {
         const text = strip(src.body);
         if (text) {
-          messages.push({
-            conversation_id: inserted.id,
+          preMessages.push({
             message_text: text,
             sender_name: src.author?.name || src.author?.email || src.author?.type || "Unknown",
             role: mapRole(src.author?.type || "user"),
@@ -359,8 +334,7 @@ Deno.serve(async (req) => {
         if (part.author?.type === "bot") continue;
         const text = strip(part.body);
         if (!text) continue;
-        messages.push({
-          conversation_id: inserted.id,
+        preMessages.push({
           message_text: text,
           sender_name: part.author?.name || part.author?.email || part.author?.type || "Unknown",
           role: mapRole(part.author?.type || "admin"),
@@ -368,14 +342,40 @@ Deno.serve(async (req) => {
         });
       }
 
-      messages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      preMessages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
-      // Set conversation created_at to the earliest message timestamp (or Intercom creation time)
-      const conversationCreatedAt = messages.length > 0
-        ? messages[0].created_at
+      // Compute earliest timestamp for created_at
+      const conversationCreatedAt = preMessages.length > 0
+        ? preMessages[0].created_at
         : (icData.created_at ? toIso(icData.created_at) : new Date().toISOString());
 
-      await supabase.from("manual_conversations").update({ created_at: conversationCreatedAt }).eq("id", inserted.id);
+      // Insert conversation with correct created_at upfront
+      const insertPayload: Record<string, unknown> = {
+        source: "intercom",
+        contact_name: contactName,
+        subject,
+        link: convUrl,
+        intercom_conversation_id: intercomConvId,
+        status: "active",
+        created_at: conversationCreatedAt,
+      };
+      if (resolvedOwner) insertPayload.owner = resolvedOwner;
+
+      const { data: inserted, error: insertErr } = await supabase
+        .from("manual_conversations")
+        .upsert(insertPayload, { onConflict: "intercom_conversation_id" })
+        .select("id")
+        .single();
+
+      if (insertErr) {
+        console.error("Auto-import insert error:", insertErr);
+        return new Response(JSON.stringify({ ok: true, message: "Insert failed" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Add conversation_id to pre-extracted messages and insert
+      const messages = preMessages.map(m => ({ ...m, conversation_id: inserted.id }));
 
       if (messages.length > 0) {
         const { error: msgErr } = await supabase.from("manual_messages").insert(messages);
