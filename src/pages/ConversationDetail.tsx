@@ -444,6 +444,7 @@ const ConversationDetail = () => {
       }
       setGmailConv({ ...gmailConv, intercom_conversation_id: intercomConvId });
       setIntercomSuggestions([]);
+      await logAudit("intercom_linked", null, intercomConvId);
       toast.success("Intercom conversation linked");
     } catch {
       toast.error("Failed to link Intercom conversation");
