@@ -12,10 +12,19 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Plus, Trash2, Save, ExternalLink, CalendarIcon, ClipboardPaste } from "lucide-react";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
+import { Plus, Trash2, Save, ExternalLink, CalendarIcon, ClipboardPaste, Check } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { parseThread, parseThreadWithAI, combineDateTime, ADMIN_OPTIONS, type ParsedMessage } from "@/lib/parseThread";
+
+const CHANNEL_SUGGESTIONS = [
+  "ext-lovable-control-tower",
+  "ext-bts-lovable",
+  "ext-lovable-tool-support-remote",
+  "it-lovable-support",
+  "workday-lovable",
+];
 
 type ManualMessage = ParsedMessage;
 
