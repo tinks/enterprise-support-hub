@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a Slack thread parser. Given raw copied text from a Slack thread, extract each individual message with its sender name and message text. Ignore timestamps, reply counts, reactions, emoji status lines, and metadata. Preserve the full message text for each sender.`,
+            content: `You are a Slack thread parser. Given raw copied text from a Slack thread, extract each individual message with its sender name, message text, and the timestamp as it appears in the text. Ignore reply counts, reactions, emoji status lines, and metadata. Preserve the full message text for each sender. For sent_at, return the raw timestamp string exactly as it appears (e.g. "1:47 PM", "Mar 26th at 11:03 AM", "3/26/2025 11:03 AM"). If no timestamp is visible for a message, omit sent_at.`,
           },
           {
             role: "user",
@@ -62,6 +62,7 @@ Deno.serve(async (req) => {
                       properties: {
                         sender_name: { type: "string", description: "Full name of the message sender" },
                         message_text: { type: "string", description: "The full message text content" },
+                        sent_at: { type: "string", description: "Raw timestamp string as it appears in the text, e.g. '1:47 PM' or 'Mar 26th at 11:03 AM'" },
                       },
                       required: ["sender_name", "message_text"],
                       additionalProperties: false,
