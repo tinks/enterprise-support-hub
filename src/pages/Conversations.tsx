@@ -603,7 +603,9 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   };
 
   const loadLookups = async (rows: ConversationMapping[]) => {
-    const usersRes = await supabase.functions.invoke("list-slack-users");
+    const usersRes = await supabase.functions.invoke("list-slack-users", {
+      body: { include_deactivated: true },
+    });
     if (usersRes.data?.users) {
       const map: NameMap = {};
       for (const u of usersRes.data.users) {

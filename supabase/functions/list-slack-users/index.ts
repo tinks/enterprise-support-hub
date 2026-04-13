@@ -20,7 +20,15 @@ Deno.serve(async (req) => {
   }
 
   const url = new URL(req.url);
-  const includeDeactivated = url.searchParams.get("include_deactivated") === "true";
+  let includeDeactivated = url.searchParams.get("include_deactivated") === "true";
+
+  // Also accept from JSON body (for supabase.functions.invoke calls)
+  if (!includeDeactivated && req.method === "POST") {
+    try {
+      const body = await req.json();
+      if (body?.include_deactivated === true) includeDeactivated = true;
+    } catch { /* no body or not JSON */ }
+  }
 
   try {
     const allUsers: {
