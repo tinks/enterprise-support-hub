@@ -633,6 +633,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   };
 
   const isHeatmapMode = paramDay !== null && paramHour !== null;
+  const isDayOnlyMode = paramDay !== null && paramHour === null && !isResolutionMode;
 
   const loadData = async (append = false) => {
     const currentOffset = append ? offset : 0;
@@ -645,7 +646,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       setGmailOffset(0);
     }
 
-    const pageSize = (isHeatmapMode || isResolutionMode) ? 1000 : 50;
+    const pageSize = (isHeatmapMode || isResolutionMode || isDayOnlyMode) ? 1000 : 50;
 
     let slackQuery = supabase
       .from("conversation_mappings")
@@ -874,6 +875,15 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       });
     }
 
+    // Apply day-only filter (from volume chart click-through)
+    if (paramDay !== null && paramHour === null && !isResolutionMode) {
+      return rows.filter((r) => {
+        const d = new Date(r.sortDate);
+        const cetStr = d.toLocaleDateString("en-CA", { timeZone: "Europe/Berlin" });
+        return cetStr === paramDay;
+      });
+    }
+
     // Apply resolution time filter from query params
     if (isResolutionMode) {
       return rows.filter((r) => {
@@ -924,7 +934,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter, isResolutionMode, resolutionMin, resolutionMax]);
 
   const canLoadMore =
-    !isHeatmapMode && !isResolutionMode && !searchResults && (
+    !isHeatmapMode && !isResolutionMode && !isDayOnlyMode && !searchResults && (
       ((sourceFilter === "all" || sourceFilter === "slack" || sourceFilter === "slack_import") && hasMore) ||
       ((sourceFilter === "all" || sourceFilter === "gmail") && hasMoreGmail)
     );
@@ -1373,20 +1383,25 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                 Showing activity for <strong>{paramDay} {String(paramHour).padStart(2, "0")}:00–{String(paramHour).padStart(2, "0")}:59 CET</strong>
               </span>
               <div className="ml-auto flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2"
-                  onClick={() => navigate("/")}
-                >
+                <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => navigate("/")}>
                   <ArrowLeft className="mr-1 h-3 w-3" /> Back to stats
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2"
-                  onClick={() => setSearchParams({})}
-                >
+                <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setSearchParams({})}>
+                  <X className="mr-1 h-3 w-3" /> Clear filter
+                </Button>
+              </div>
+            </div>
+          )}
+          {isDayOnlyMode && (
+            <div className="mb-4 flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-4 py-2 text-sm">
+              <span className="text-foreground">
+                Showing conversations for <strong>{format(parseISO(paramDay!), "MMM dd, yyyy")}</strong>
+              </span>
+              <div className="ml-auto flex items-center gap-1">
+                <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => navigate("/")}>
+                  <ArrowLeft className="mr-1 h-3 w-3" /> Back to analytics
+                </Button>
+                <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setSearchParams({})}>
                   <X className="mr-1 h-3 w-3" /> Clear filter
                 </Button>
               </div>

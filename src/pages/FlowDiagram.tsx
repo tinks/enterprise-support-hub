@@ -216,6 +216,13 @@ const ROW_H = 380;
 /*  edge function with a `table` param for slack/gmail (RLS blocks     */
 /*  public DELETE). Manual uses client-side delete.                     */
 /* ------------------------------------------------------------------ */
+/*  Analytics drill-down: clicking a data point on the conversation    */
+/*  volume chart navigates to /conversations?day=YYYY-MM-DD (and      */
+/*  optionally &source=slack|gmail|manual). The Inbox filters to show  */
+/*  only conversations from that CET date with a banner and back link. */
+/*  The heatmap (day+hour) and resolution-time bar click-throughs      */
+/*  continue to work as before.                                        */
+/* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
 /*  Default messages (fallback if DB unavailable)                      */

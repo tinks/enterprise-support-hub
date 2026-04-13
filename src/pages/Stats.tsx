@@ -972,7 +972,18 @@ const Stats = () => {
                 <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
               ) : (
                 <ChartContainer config={chartConfig} className="h-[280px] w-full">
-                  <AreaChart data={mergedVolumeData}>
+                  <AreaChart
+                    data={mergedVolumeData}
+                    onClick={(state) => {
+                      if (state?.activePayload?.[0]) {
+                        const date = state.activePayload[0].payload.date;
+                        const params = new URLSearchParams({ day: date });
+                        if (sourceFilter !== "all") params.set("source", sourceFilter);
+                        navigate(`/conversations?${params.toString()}`);
+                      }
+                    }}
+                    style={{ cursor: "pointer" }}
+                  >
                     <defs>
                       <linearGradient id="gradSlack" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
