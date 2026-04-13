@@ -146,17 +146,17 @@ const ManualLogTab = () => {
     const messagesToInsert = messages
       .filter((m) => m.message_text.trim())
       .map((m) => {
-        const row: Record<string, unknown> = {
+        const base = {
           conversation_id: convo.id,
           role: m.role,
           sender_name: m.sender_name.trim(),
           message_text: m.message_text.trim(),
-        };
+        } as { conversation_id: string; role: string; sender_name: string; message_text: string; created_at?: string };
         if (mode === "paste" && threadDate && m.sent_at) {
           const ts = combineDateTime(threadDate, m.sent_at);
-          if (ts) row.created_at = ts;
+          if (ts) base.created_at = ts;
         }
-        return row;
+        return base;
       });
 
     const { error: msgErr } = await supabase
