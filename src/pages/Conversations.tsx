@@ -633,6 +633,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   };
 
   const isHeatmapMode = paramDay !== null && paramHour !== null;
+  const isDayOnlyMode = paramDay !== null && paramHour === null && !isResolutionMode;
 
   const loadData = async (append = false) => {
     const currentOffset = append ? offset : 0;
@@ -645,7 +646,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       setGmailOffset(0);
     }
 
-    const pageSize = (isHeatmapMode || isResolutionMode) ? 1000 : 50;
+    const pageSize = (isHeatmapMode || isResolutionMode || isDayOnlyMode) ? 1000 : 50;
 
     let slackQuery = supabase
       .from("conversation_mappings")
@@ -871,6 +872,15 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       return rows.filter((r) => {
         const { day, hour } = getCET(r.sortDate);
         return day === paramDay && hour === paramHour;
+      });
+    }
+
+    // Apply day-only filter (from volume chart click-through)
+    if (paramDay !== null && paramHour === null && !isResolutionMode) {
+      return rows.filter((r) => {
+        const d = new Date(r.sortDate);
+        const cetStr = d.toLocaleDateString("en-CA", { timeZone: "Europe/Berlin" });
+        return cetStr === paramDay;
       });
     }
 
