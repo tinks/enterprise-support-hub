@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket, Mail, Trash2, Link, Search, StickyNote, X, Plus, Send } from "lucide-react";
+import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket, Mail, Trash2, Link, Search, StickyNote, X, Plus, Send, History } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -192,6 +192,16 @@ const ConversationDetail = () => {
   const [addingNote, setAddingNote] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<{ id: string; action: string; old_value: string | null; new_value: string | null; performed_by: string; created_at: string }[]>([]);
+  const [auditOpen, setAuditOpen] = useState(false);
+
+  const logAudit = async (action: string, oldValue: string | null, newValue: string | null) => {
+    if (!id) return;
+    const author = localStorage.getItem("note_author") || "Unknown";
+    const entry = { conversation_id: id, conversation_source: source, action, old_value: oldValue, new_value: newValue, performed_by: author };
+    const { data } = await supabase.from("conversation_audit_logs").insert(entry as any).select().single();
+    if (data) setAuditLogs((prev) => [data as any, ...prev]);
+  };
 
   const sendReply = async () => {
     if (!replyText.trim() || !id) return;
@@ -206,6 +216,7 @@ const ConversationDetail = () => {
       }
       toast.success(`Reply sent via ${data?.platform || source}`);
       setReplyText("");
+      await logAudit("reply_sent", null, `via ${data?.platform || source}`);
       // Refresh thread / messages
       if (source === "slack" && conv) {
         fetchThread(conv.slack_channel_id, conv.slack_thread_ts);
@@ -360,6 +371,21 @@ const ConversationDetail = () => {
     fetchNotes();
   }, [id, source]);
 
+  // Fetch audit logs
+  useEffect(() => {
+    if (!id) return;
+    const fetchAuditLogs = async () => {
+      const { data } = await supabase
+        .from("conversation_audit_logs")
+        .select("*")
+        .eq("conversation_id", id)
+        .eq("conversation_source", source)
+        .order("created_at", { ascending: false });
+      setAuditLogs((data ?? []) as any);
+    };
+    fetchAuditLogs();
+  }, [id, source]);
+
   const addNote = async () => {
     if (!id || !newNoteText.trim()) return;
     setAddingNote(true);
@@ -433,6 +459,7 @@ const ConversationDetail = () => {
       }
       setGmailConv({ ...gmailConv, intercom_conversation_id: intercomConvId });
       setIntercomSuggestions([]);
+      await logAudit("intercom_linked", null, intercomConvId);
       toast.success("Intercom conversation linked");
     } catch {
       toast.error("Failed to link Intercom conversation");
@@ -457,6 +484,7 @@ const ConversationDetail = () => {
     if (source === "slack") setConv({ ...conv!, ...updates });
     else if (source === "gmail") setGmailConv({ ...gmailConv!, ...updates });
     else setManualConv({ ...manualConv!, ...updates });
+    await logAudit("status_changed", current.status, newStatus);
     toast.success(`Status updated to ${newStatus}`);
     setUpdating(false);
   };
@@ -469,6 +497,7 @@ const ConversationDetail = () => {
     if (source === "slack") setConv({ ...conv!, [field]: newVal });
     else if (source === "gmail") setGmailConv({ ...gmailConv!, [field]: newVal });
     else setManualConv({ ...manualConv!, [field]: newVal });
+    await logAudit(field === "is_test" ? "is_test_toggled" : "is_bug_toggled", String(!newVal), String(newVal));
   };
 
   const updateProductArea = async (value: string) => {
@@ -479,6 +508,7 @@ const ConversationDetail = () => {
     if (source === "slack") setConv({ ...conv!, product_area: newVal });
     else if (source === "gmail") setGmailConv({ ...gmailConv!, product_area: newVal });
     else setManualConv({ ...manualConv!, product_area: newVal });
+    await logAudit("product_area_changed", current.product_area, newVal);
     toast.success(`Product area updated`);
   };
 
@@ -490,6 +520,7 @@ const ConversationDetail = () => {
     if (source === "slack") setConv({ ...conv!, owner: newVal });
     else if (source === "gmail") setGmailConv({ ...gmailConv!, owner: newVal });
     else setManualConv({ ...manualConv!, owner: newVal });
+    await logAudit("owner_changed", current.owner, newVal);
     toast.success(`Owner updated`);
   };
 
@@ -501,6 +532,7 @@ const ConversationDetail = () => {
     if (source === "slack") setConv({ ...conv!, classification: newVal });
     else if (source === "gmail") setGmailConv({ ...gmailConv!, classification: newVal });
     else setManualConv({ ...manualConv!, classification: newVal });
+    await logAudit("classification_changed", current.classification, newVal);
     toast.success(`Classification updated`);
   };
 
@@ -517,6 +549,7 @@ const ConversationDetail = () => {
         return;
       }
       toast.success("Intercom ticket created");
+      await logAudit("intercom_linked", null, data?.intercomId || "created");
       // Reload
       if (source === "slack") {
         const { data: updated } = await supabase.from("conversation_mappings").select("*").eq("id", current.id).single();
@@ -1146,6 +1179,45 @@ const ConversationDetail = () => {
                 ))}
               </CardContent>
             </Card>
+
+            {/* Activity log */}
+            <Collapsible open={auditOpen} onOpenChange={setAuditOpen}>
+              <Card>
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm inline-flex items-center gap-1.5">
+                        <History className="h-3.5 w-3.5" /> Activity log
+                        {auditLogs.length > 0 && <Badge variant="secondary" className="text-xs ml-1">{auditLogs.length}</Badge>}
+                      </CardTitle>
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${auditOpen ? "rotate-180" : ""}`} />
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="space-y-2">
+                    {auditLogs.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No activity yet.</p>
+                    ) : (
+                      auditLogs.map((log) => (
+                        <div key={log.id} className="text-xs border-b last:border-0 pb-2 last:pb-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-foreground">{log.performed_by || "Unknown"}</span>
+                            <span className="text-muted-foreground shrink-0">
+                              {new Date(log.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                            </span>
+                          </div>
+                          <p className="text-muted-foreground mt-0.5">
+                            {log.action.replace(/_/g, " ")}
+                            {log.old_value && log.new_value ? `: ${log.old_value} → ${log.new_value}` : log.new_value ? `: ${log.new_value}` : ""}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
 
             {/* Delete conversation */}
             <Card>

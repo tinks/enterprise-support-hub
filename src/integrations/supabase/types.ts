@@ -41,6 +41,39 @@ export type Database = {
         }
         Relationships: []
       }
+      conversation_audit_logs: {
+        Row: {
+          action: string
+          conversation_id: string
+          conversation_source: string
+          created_at: string
+          id: string
+          new_value: string | null
+          old_value: string | null
+          performed_by: string
+        }
+        Insert: {
+          action: string
+          conversation_id: string
+          conversation_source: string
+          created_at?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          performed_by?: string
+        }
+        Update: {
+          action?: string
+          conversation_id?: string
+          conversation_source?: string
+          created_at?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          performed_by?: string
+        }
+        Relationships: []
+      }
       conversation_mappings: {
         Row: {
           classification: string | null
