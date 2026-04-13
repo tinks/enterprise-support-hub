@@ -1180,6 +1180,45 @@ const ConversationDetail = () => {
               </CardContent>
             </Card>
 
+            {/* Activity log */}
+            <Collapsible open={auditOpen} onOpenChange={setAuditOpen}>
+              <Card>
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm inline-flex items-center gap-1.5">
+                        <History className="h-3.5 w-3.5" /> Activity log
+                        {auditLogs.length > 0 && <Badge variant="secondary" className="text-xs ml-1">{auditLogs.length}</Badge>}
+                      </CardTitle>
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${auditOpen ? "rotate-180" : ""}`} />
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="space-y-2">
+                    {auditLogs.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No activity yet.</p>
+                    ) : (
+                      auditLogs.map((log) => (
+                        <div key={log.id} className="text-xs border-b last:border-0 pb-2 last:pb-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-foreground">{log.performed_by || "Unknown"}</span>
+                            <span className="text-muted-foreground shrink-0">
+                              {new Date(log.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                            </span>
+                          </div>
+                          <p className="text-muted-foreground mt-0.5">
+                            {log.action.replace(/_/g, " ")}
+                            {log.old_value && log.new_value ? `: ${log.old_value} → ${log.new_value}` : log.new_value ? `: ${log.new_value}` : ""}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+
             {/* Delete conversation */}
             <Card>
               <CardContent className="pt-4">
