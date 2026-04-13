@@ -371,6 +371,21 @@ const ConversationDetail = () => {
     fetchNotes();
   }, [id, source]);
 
+  // Fetch audit logs
+  useEffect(() => {
+    if (!id) return;
+    const fetchAuditLogs = async () => {
+      const { data } = await supabase
+        .from("conversation_audit_logs")
+        .select("*")
+        .eq("conversation_id", id)
+        .eq("conversation_source", source)
+        .order("created_at", { ascending: false });
+      setAuditLogs((data ?? []) as any);
+    };
+    fetchAuditLogs();
+  }, [id, source]);
+
   const addNote = async () => {
     if (!id || !newNoteText.trim()) return;
     setAddingNote(true);
