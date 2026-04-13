@@ -115,44 +115,20 @@ Deno.serve(async (req) => {
       contactName = sourceContact.name || sourceContact.email || "";
     }
 
-    // Extract subject/title (strip HTML tags)
     const subject = stripHtml(icData.source?.subject || icData.title || `Intercom #${intercomConvId}`);
 
-    // Insert into manual_conversations
-    const { data: inserted, error: insertErr } = await sb
-      .from("manual_conversations")
-      .insert({
-        source: "intercom",
-        contact_name: contactName,
-        subject,
-        link: url,
-        intercom_conversation_id: intercomConvId,
-        status: "active",
-      })
-      .select("id")
-      .single();
-
-    if (insertErr) {
-      console.error("Insert error:", insertErr);
-      return new Response(
-        JSON.stringify({ error: "Failed to save conversation" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // --- Extract and insert messages ---
+    // --- Extract messages FIRST to compute earliest timestamp ---
     const mapRole = (type: string) => (type === "user" || type === "lead") ? "user" : "admin";
     const toIso = (ts: number) => new Date(ts * 1000).toISOString();
+    const SKIP_PART_TYPES = new Set(["note", "open", "close", "away_mode_assignment"]);
 
-    const messages: Array<{ conversation_id: string; message_text: string; sender_name: string; role: string; created_at: string }> = [];
+    const preMessages: Array<{ message_text: string; sender_name: string; role: string; created_at: string }> = [];
 
-    // Initial source message
     const src = icData.source;
     if (src?.body) {
       const text = stripHtml(src.body);
       if (text) {
-        messages.push({
-          conversation_id: inserted.id,
+        preMessages.push({
           message_text: text,
           sender_name: src.author?.name || src.author?.email || src.author?.type || "Unknown",
           role: mapRole(src.author?.type || "user"),
@@ -161,8 +137,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Conversation parts — paginate to get ALL parts
-    const SKIP_PART_TYPES = new Set(["note", "open", "close", "away_mode_assignment"]);
     let allParts = icData.conversation_parts?.conversation_parts || [];
     let nextPageUrl = icData.conversation_parts?.pages?.next;
 
@@ -179,8 +153,7 @@ Deno.serve(async (req) => {
         break;
       }
       const pageData = await pageRes.json();
-      const pageParts = pageData.conversation_parts || [];
-      allParts = [...allParts, ...pageParts];
+      allParts = [...allParts, ...(pageData.conversation_parts || [])];
       nextPageUrl = pageData.pages?.next;
     }
 
@@ -191,8 +164,7 @@ Deno.serve(async (req) => {
       if (part.author?.type === "bot") continue;
       const text = stripHtml(part.body);
       if (!text) continue;
-      messages.push({
-        conversation_id: inserted.id,
+      preMessages.push({
         message_text: text,
         sender_name: part.author?.name || part.author?.email || part.author?.type || "Unknown",
         role: mapRole(part.author?.type || "admin"),
@@ -200,15 +172,37 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Sort all messages chronologically (oldest first)
-    messages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    preMessages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
-    // Set conversation created_at to the earliest message timestamp (or Intercom creation time)
-    const conversationCreatedAt = messages.length > 0
-      ? messages[0].created_at
+    const conversationCreatedAt = preMessages.length > 0
+      ? preMessages[0].created_at
       : (icData.created_at ? toIso(icData.created_at) : new Date().toISOString());
 
-    await sb.from("manual_conversations").update({ created_at: conversationCreatedAt }).eq("id", inserted.id);
+    // Insert conversation with correct created_at
+    const { data: inserted, error: insertErr } = await sb
+      .from("manual_conversations")
+      .insert({
+        source: "intercom",
+        contact_name: contactName,
+        subject,
+        link: url,
+        intercom_conversation_id: intercomConvId,
+        status: "active",
+        created_at: conversationCreatedAt,
+      })
+      .select("id")
+      .single();
+
+    if (insertErr) {
+      console.error("Insert error:", insertErr);
+      return new Response(
+        JSON.stringify({ error: "Failed to save conversation" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Add conversation_id and insert messages
+    const messages = preMessages.map(m => ({ ...m, conversation_id: inserted.id }));
 
     if (messages.length > 0) {
       const { error: msgErr } = await sb.from("manual_messages").insert(messages);

@@ -96,37 +96,14 @@ Deno.serve(async (req) => {
         const icState = icData.state || "open";
         const appStatus = icState === "closed" ? "resolved" : "active";
 
-        // Insert conversation
-        const { data: inserted, error: insertErr } = await sb
-          .from("manual_conversations")
-          .insert({
-            source: "intercom",
-            contact_name: contactName,
-            subject,
-            link: `https://app.intercom.com/a/apps/teb21d17/inbox/inbox/conversation/${intercomConvId}`,
-            intercom_conversation_id: String(intercomConvId),
-            status: appStatus,
-            owner: owner || null,
-            resolved_at: appStatus === "resolved" ? new Date().toISOString() : null,
-          })
-          .select("id")
-          .single();
-
-        if (insertErr) {
-          console.error(`Insert error for ${intercomConvId}:`, insertErr);
-          results.push({ id: String(intercomConvId), status: "failed", error: "DB insert failed" });
-          continue;
-        }
-
-        // Extract messages
-        const messages: Array<{ conversation_id: string; message_text: string; sender_name: string; role: string; created_at: string }> = [];
+        // Extract messages FIRST to compute earliest timestamp
+        const messages: Array<{ message_text: string; sender_name: string; role: string; created_at: string }> = [];
 
         const src = icData.source;
         if (src?.body) {
           const text = stripHtml(src.body);
           if (text) {
             messages.push({
-              conversation_id: inserted.id,
               message_text: text,
               sender_name: src.author?.name || src.author?.email || src.author?.type || "Unknown",
               role: mapRole(src.author?.type || "user"),
@@ -161,7 +138,6 @@ Deno.serve(async (req) => {
           const text = stripHtml(part.body);
           if (!text) continue;
           messages.push({
-            conversation_id: inserted.id,
             message_text: text,
             sender_name: part.author?.name || part.author?.email || part.author?.type || "Unknown",
             role: mapRole(part.author?.type || "admin"),
@@ -171,15 +147,39 @@ Deno.serve(async (req) => {
 
         messages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
-        // Set created_at to earliest message
+        // Compute earliest timestamp
         const conversationCreatedAt = messages.length > 0
           ? messages[0].created_at
           : (icData.created_at ? toIso(icData.created_at) : new Date().toISOString());
 
-        await sb.from("manual_conversations").update({ created_at: conversationCreatedAt }).eq("id", inserted.id);
+        // Insert conversation with correct created_at
+        const { data: inserted, error: insertErr } = await sb
+          .from("manual_conversations")
+          .insert({
+            source: "intercom",
+            contact_name: contactName,
+            subject,
+            link: `https://app.intercom.com/a/apps/teb21d17/inbox/inbox/conversation/${intercomConvId}`,
+            intercom_conversation_id: String(intercomConvId),
+            status: appStatus,
+            owner: owner || null,
+            resolved_at: appStatus === "resolved" ? new Date().toISOString() : null,
+            created_at: conversationCreatedAt,
+          })
+          .select("id")
+          .single();
 
+        if (insertErr) {
+          console.error(`Insert error for ${intercomConvId}:`, insertErr);
+          results.push({ id: String(intercomConvId), status: "failed", error: "DB insert failed" });
+          continue;
+        }
+
+        // Add conversation_id and insert messages
         if (messages.length > 0) {
-          await sb.from("manual_messages").insert(messages);
+          await sb.from("manual_messages").insert(
+            messages.map(m => ({ ...m, conversation_id: inserted.id }))
+          );
         }
 
         results.push({ id: String(intercomConvId), status: "imported", dbId: inserted.id });
