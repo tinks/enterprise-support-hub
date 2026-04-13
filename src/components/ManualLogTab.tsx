@@ -12,10 +12,19 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Plus, Trash2, Save, ExternalLink, CalendarIcon, ClipboardPaste } from "lucide-react";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
+import { Plus, Trash2, Save, ExternalLink, CalendarIcon, ClipboardPaste, Check } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { parseThread, parseThreadWithAI, combineDateTime, ADMIN_OPTIONS, type ParsedMessage } from "@/lib/parseThread";
+
+const CHANNEL_SUGGESTIONS = [
+  "ext-lovable-control-tower",
+  "ext-bts-lovable",
+  "ext-lovable-tool-support-remote",
+  "it-lovable-support",
+  "workday-lovable",
+];
 
 type ManualMessage = ParsedMessage;
 
@@ -235,7 +244,31 @@ const ManualLogTab = () => {
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Channel name</label>
-                  <Input value={channelName} onChange={(e) => setChannelName(e.target.value)} placeholder="#ai-days-march" />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal h-10", !channelName && "text-muted-foreground")}>
+                        {channelName ? `#${channelName}` : "Select channel…"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[260px] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Search or type channel…" value={channelName} onValueChange={setChannelName} />
+                        <CommandList>
+                          <CommandEmpty className="py-2 px-3 text-xs text-muted-foreground">
+                            {channelName ? `Use "${channelName}"` : "Type a channel name"}
+                          </CommandEmpty>
+                          <CommandGroup heading="Suggestions">
+                            {CHANNEL_SUGGESTIONS.filter(ch => ch.includes(channelName.toLowerCase())).map(ch => (
+                              <CommandItem key={ch} value={ch} onSelect={(val) => setChannelName(val)}>
+                                <Check className={cn("mr-2 h-3.5 w-3.5", channelName === ch ? "opacity-100" : "opacity-0")} />
+                                #{ch}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Thread date</label>
