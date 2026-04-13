@@ -72,7 +72,9 @@ const ROW_H = 380;
 /*  Responsive: stacks vertically on small screens.                    */
 /* ------------------------------------------------------------------ */
 /*  Imported Slack threads: import-slack-thread fetches ALL replies    */
-/*  and computes first-response-time + thread duration. A "Create     */
+/*  and computes first-response-time + thread duration. It also       */
+/*  resolves the Slack user's display name via users.info and caches  */
+/*  it in the slack_user_name column for permanent display. A "Create */
 /*  Intercom ticket" button on ConversationDetail calls               */
 /*  create-intercom-from-import to create a ticket with full          */
 /*  transcript, assign to Sam + inbox, and link back to mapping.      */
