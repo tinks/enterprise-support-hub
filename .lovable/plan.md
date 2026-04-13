@@ -1,29 +1,41 @@
 
 
-## Include guest users in list-slack-users
+## Show user names instead of Slack IDs in the inbox
 
 ### Problem
-The `list-slack-users` edge function filters out guest users (single-channel and multi-channel guests) because it skips anyone where `is_bot` is true or `deleted` is true. However, Slack guest users have `is_restricted` or `is_ultra_restricted` set — they aren't bots, so they pass the bot check but may still be missed if other filtering is too aggressive. The real issue found earlier was that the user wasn't in the results at all, suggesting they may be a deactivated guest or the filter is dropping them.
+The "Sent by" column for Slack bot conversations shows raw Slack user IDs (e.g. `U07JWU8692B`) when the user isn't found in the lookup. This happens because the `list-slack-users` call doesn't include deactivated or guest users.
 
 ### Change
 
-**File: `supabase/functions/list-slack-users/index.ts`**
+**File: `src/pages/Conversations.tsx`** (~line 606)
 
-Update the filter on ~line 44 to only skip deleted users, bots, and USLACKBOT — but explicitly **include** guest users (`is_restricted` and `is_ultra_restricted`). Add a `is_guest` boolean field to the output so callers can distinguish guests from full members.
+Update the `list-slack-users` invocation in `loadLookups` to pass `include_deactivated=true` as a query parameter, so deactivated and guest users are resolved to display names.
 
-Current filter:
+Current:
 ```typescript
-if (member.deleted || member.is_bot || member.id === "USLACKBOT") continue;
+const usersRes = await supabase.functions.invoke("list-slack-users");
 ```
 
-No change needed to this line — guests already pass it. The function already includes guests. But to make guest status visible and to also optionally include deactivated users for lookup purposes, add:
+Updated:
+```typescript
+const usersRes = await supabase.functions.invoke("list-slack-users", {
+  body: { include_deactivated: true },
+});
+```
 
-1. Add an optional `include_deactivated` query parameter (default false)
-2. When `include_deactivated` is true, don't skip `member.deleted`
-3. Add `is_guest` and `is_deactivated` fields to the response objects
+Wait — `list-slack-users` reads `include_deactivated` from URL search params, not the body. Since `supabase.functions.invoke` doesn't support query params natively, we need to pass it in the function name path:
 
-This ensures users like Emily Ann Clemons (a guest) appear and are identifiable.
+```typescript
+const usersRes = await supabase.functions.invoke("list-slack-users?include_deactivated=true");
+```
+
+Or alternatively, update the edge function to also accept the flag from the JSON body. The simpler fix is to update the edge function to check both the query param and the request body.
+
+**File: `supabase/functions/list-slack-users/index.ts`**
+
+Add a fallback to read `include_deactivated` from the request body (for POST requests) in addition to query params, so the existing `supabase.functions.invoke` call can pass it as body.
 
 ### Files to edit
-- `supabase/functions/list-slack-users/index.ts`
+- `supabase/functions/list-slack-users/index.ts` — accept `include_deactivated` from body
+- `src/pages/Conversations.tsx` — pass `{ include_deactivated: true }` in the invoke body
 
