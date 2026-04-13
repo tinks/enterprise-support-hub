@@ -374,69 +374,8 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Extract messages
-      const mapRole = (type: string) => (type === "user" || type === "lead") ? "user" : "admin";
-      const toIso = (ts: number) => new Date(ts * 1000).toISOString();
-      const SKIP_PART_TYPES = new Set(["note", "open", "close", "away_mode_assignment"]);
-
-      const messages: Array<{ conversation_id: string; message_text: string; sender_name: string; role: string; created_at: string }> = [];
-
-      // Source message
-      const src = icData.source;
-      if (src?.body) {
-        const text = strip(src.body);
-        if (text) {
-          messages.push({
-            conversation_id: inserted.id,
-            message_text: text,
-            sender_name: src.author?.name || src.author?.email || src.author?.type || "Unknown",
-            role: mapRole(src.author?.type || "user"),
-            created_at: src.created_at ? toIso(src.created_at) : (icData.created_at ? toIso(icData.created_at) : new Date().toISOString()),
-          });
-        }
-      }
-
-      // Paginate conversation parts
-      let allParts = icData.conversation_parts?.conversation_parts || [];
-      let nextPageUrl = icData.conversation_parts?.pages?.next;
-
-      while (nextPageUrl) {
-        const pageRes = await fetch(nextPageUrl, {
-          headers: {
-            Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
-            Accept: "application/json",
-            "Intercom-Version": "2.11",
-          },
-        });
-        if (!pageRes.ok) break;
-        const pageData = await pageRes.json();
-        allParts = [...allParts, ...(pageData.conversation_parts || [])];
-        nextPageUrl = pageData.pages?.next;
-      }
-
-      for (const part of allParts) {
-        if (!part.body) continue;
-        if (SKIP_PART_TYPES.has(part.part_type)) continue;
-        if (part.author?.type === "bot") continue;
-        const text = strip(part.body);
-        if (!text) continue;
-        messages.push({
-          conversation_id: inserted.id,
-          message_text: text,
-          sender_name: part.author?.name || part.author?.email || part.author?.type || "Unknown",
-          role: mapRole(part.author?.type || "admin"),
-          created_at: part.created_at ? toIso(part.created_at) : new Date().toISOString(),
-        });
-      }
-
-      messages.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-
-      // Set conversation created_at to the earliest message timestamp (or Intercom creation time)
-      const conversationCreatedAt = messages.length > 0
-        ? messages[0].created_at
-        : (icData.created_at ? toIso(icData.created_at) : new Date().toISOString());
-
-      await supabase.from("manual_conversations").update({ created_at: conversationCreatedAt }).eq("id", inserted.id);
+      // Add conversation_id to pre-extracted messages and insert
+      const messages = preMessages.map(m => ({ ...m, conversation_id: inserted.id }));
 
       if (messages.length > 0) {
         const { error: msgErr } = await supabase.from("manual_messages").insert(messages);
