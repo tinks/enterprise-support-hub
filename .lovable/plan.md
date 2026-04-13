@@ -1,37 +1,39 @@
 
 
-## Add audit logs to conversations
+## Combine reply, notes, and activity log into tabbed interface
 
-### What it does
-Every time someone changes a conversation field (status, owner, product area, classification, incident toggle, test toggle, or links an Intercom ticket), an audit log entry is recorded with who made the change and when. A collapsible "Activity log" section on the conversation detail page shows the full history.
+### What changes
+Replace the three separate cards (Reply to customer, Internal notes, Activity log) below the conversation thread with a single `<Tabs>` component. The default tab is "Reply to customer".
 
-### Database
+### Layout
 
-**New table: `conversation_audit_logs`**
-- `id` (uuid, PK, default `gen_random_uuid()`)
-- `conversation_id` (uuid, not null)
-- `conversation_source` (text, not null) — `slack`, `gmail`, `manual`
-- `action` (text, not null) — e.g. `status_changed`, `owner_changed`, `product_area_changed`, `classification_changed`, `is_bug_toggled`, `is_test_toggled`, `intercom_linked`, `reply_sent`
-- `old_value` (text, nullable)
-- `new_value` (text, nullable)
-- `performed_by` (text, not null, default `''`) — reuses the `note_author` from localStorage
-- `created_at` (timestamptz, default `now()`)
+```text
+┌─────────────────────────────────────────────────┐
+│  [Messages / thread content]                    │
+│                                                 │
+├─────────────────────────────────────────────────┤
+│  Reply to customer │ Internal notes │ Activity  │
+│  ─────────────────                              │
+│  [Tab content here]                             │
+└─────────────────────────────────────────────────┘
+```
 
-RLS: public SELECT and INSERT allowed (matches existing pattern). No UPDATE or DELETE.
+### Technical details
 
-### Code changes
+**File: `src/pages/ConversationDetail.tsx`**
+- Import `Tabs, TabsList, TabsTrigger, TabsContent` from `@/components/ui/tabs`
+- Replace lines ~922–1014 (the three separate Card sections for reply, notes, and activity log) and lines ~1183–1220 (activity log in sidebar — move it here) with a single `<Tabs defaultValue="reply">` block containing:
+  - `TabsTrigger value="reply"` → "Reply to customer"
+  - `TabsTrigger value="notes"` → "Internal notes"  
+  - `TabsTrigger value="activity"` → "Activity log" (with badge count)
+- Each `TabsContent` contains the existing card body content (no outer `<Card>` wrapper needed — the tabs container replaces it)
+- Remove the Activity log `<Collapsible>` from the right sidebar (lines ~1183–1220) since it moves into the tabs
+- Remove the now-unused `auditOpen`/`setAuditOpen` state and `Collapsible` import if no longer used elsewhere
 
-**`src/pages/ConversationDetail.tsx`**
-- Add a helper `logAudit(action, oldValue, newValue)` that inserts into `conversation_audit_logs` using the conversation id, source, and `localStorage.getItem("note_author")` as `performed_by`.
-- Call `logAudit` from `updateStatus`, `updateOwner`, `updateProductArea`, `updateClassification`, `toggleField`, `linkIntercomConversation`, `createIntercom`, and `sendReply`.
-- Add an "Activity log" collapsible card in the right sidebar (below the existing metadata cards) that loads and displays audit entries sorted newest-first, showing action description, old→new values, who, and when.
-- If `performed_by` is empty (no name set), prompt or use "Unknown" — same pattern as notes.
-
-**`src/pages/FlowDiagram.tsx`**
-- Document the new audit log table and its integration.
+**File: `src/pages/FlowDiagram.tsx`**
+- Update documentation to reflect the new tabbed UI layout
 
 ### Files to edit
-- SQL migration (create `conversation_audit_logs` table + RLS)
 - `src/pages/ConversationDetail.tsx`
 - `src/pages/FlowDiagram.tsx`
 
