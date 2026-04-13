@@ -766,8 +766,8 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
               .select("*")
               .or(
                 isUuid
-                  ? `id.eq.${q},from_email.ilike.${ilike},from_name.ilike.${ilike},subject.ilike.${ilike},snippet.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike}`
-                  : `from_email.ilike.${ilike},from_name.ilike.${ilike},subject.ilike.${ilike},snippet.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike}`
+                  ? `id.eq.${q},from_email.ilike.${ilike},from_name.ilike.${ilike},subject.ilike.${ilike},snippet.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},intercom_conversation_id.ilike.${ilike}`
+                  : `from_email.ilike.${ilike},from_name.ilike.${ilike},subject.ilike.${ilike},snippet.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},intercom_conversation_id.ilike.${ilike}`
               )
               .order("received_at", { ascending: false })
               .limit(200)
@@ -778,8 +778,8 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
               .select("*")
               .or(
                 isUuid
-                  ? `id.eq.${q},contact_name.ilike.${ilike},subject.ilike.${ilike},source.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike}`
-                  : `contact_name.ilike.${ilike},subject.ilike.${ilike},source.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike}`
+                  ? `id.eq.${q},contact_name.ilike.${ilike},subject.ilike.${ilike},source.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},intercom_conversation_id.ilike.${ilike}`
+                  : `contact_name.ilike.${ilike},subject.ilike.${ilike},source.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},intercom_conversation_id.ilike.${ilike}`
               )
               .order("created_at", { ascending: false })
               .limit(200)
