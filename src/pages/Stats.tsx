@@ -421,7 +421,7 @@ const Stats = () => {
     const gmailResolvedCount = gmailResolvedSubjects.size + gmailResolvedOrphans;
     const gmailOpen = gmailOpenSubjects.size + gmailOpenOrphans;
 
-    return { total, gmailTotal, gmailDeduped, emailTotal: gmailUniqueEmails, resolved, escalated, active, awaiting, processing, cancelled, open, resolvedPct, avgPerDay, gmailResolved: gmailResolvedCount, gmailOpen, manualTotal, manualActive, manualResolved };
+    return { total, gmailTotal, gmailDeduped, emailTotal: gmailUniqueEmails, resolved, escalated, active, awaiting, processing, open, resolvedPct, avgPerDay, gmailResolved: gmailResolvedCount, gmailOpen, manualTotal, manualActive, manualResolved };
   }, [filtered, filteredGmail, filteredManual, range, sourceFilter, gmailUniqueEmails]);
 
   // Manual entries by source breakdown
