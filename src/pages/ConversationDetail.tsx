@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket, Mail, Trash2, Link, Search, StickyNote, X, Plus, Send } from "lucide-react";
+import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket, Mail, Trash2, Link, Search, StickyNote, X, Plus, Send, History } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -192,6 +192,16 @@ const ConversationDetail = () => {
   const [addingNote, setAddingNote] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<{ id: string; action: string; old_value: string | null; new_value: string | null; performed_by: string; created_at: string }[]>([]);
+  const [auditOpen, setAuditOpen] = useState(false);
+
+  const logAudit = async (action: string, oldValue: string | null, newValue: string | null) => {
+    if (!id) return;
+    const author = localStorage.getItem("note_author") || "Unknown";
+    const entry = { conversation_id: id, conversation_source: source, action, old_value: oldValue, new_value: newValue, performed_by: author };
+    const { data } = await supabase.from("conversation_audit_logs").insert(entry as any).select().single();
+    if (data) setAuditLogs((prev) => [data as any, ...prev]);
+  };
 
   const sendReply = async () => {
     if (!replyText.trim() || !id) return;
