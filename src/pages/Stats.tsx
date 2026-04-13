@@ -59,7 +59,7 @@ type TimeRange = "this_month" | "7d" | "30d" | "90d" | "all" | "custom";
 const chartConfig = {
   resolved: { label: "Resolved", color: "#9B87F5" },
   escalated: { label: "Escalated to human", color: "hsl(var(--destructive))" },
-  cancelled: { label: "Cancelled", color: "hsl(var(--muted-foreground))" },
+  
   open: { label: "Open", color: "#FF6B6B" },
   active: { label: "Active", color: "#FF6B6B" },
   awaiting_context: { label: "Awaiting customer", color: "hsl(var(--muted-foreground))" },
@@ -198,7 +198,7 @@ const Stats = () => {
         matchRange = cutoff ? isAfter(parsed, cutoff) : true;
       }
       const matchChannel = selectedChannels.length === 0 || selectedChannels.includes(m.slack_channel_id);
-      return matchView && matchRange && matchChannel;
+      return matchView && matchRange && matchChannel && m.status !== "cancelled";
     });
   }, [data, view, range, customFrom, customTo, selectedChannels]);
 
@@ -218,7 +218,7 @@ const Stats = () => {
       } else {
         matchRange = cutoff ? isAfter(parsed, cutoff) : true;
       }
-      if (!matchView || !matchRange) return false;
+      if (!matchView || !matchRange || g.status === "cancelled") return false;
       // Exclude internal-only threads (all participants @lovable.dev)
       const raw = [g.from_email, g.to_emails, g.cc_emails].filter(Boolean).join(",");
       const emails = raw.split(",").map(e => {
@@ -246,7 +246,7 @@ const Stats = () => {
       } else {
         matchRange = cutoff ? isAfter(parsed, cutoff) : true;
       }
-      return matchView && matchRange;
+      return matchView && matchRange && m.status !== "cancelled";
     });
   }, [manualData, view, range, customFrom, customTo]);
 
@@ -371,10 +371,8 @@ const Stats = () => {
     const active = filtered.filter((m) => m.status === "active" || m.status === "active_pending").length;
     const awaiting = filtered.filter((m) => m.status === "awaiting_context" || m.status === "awaiting_support" || m.status === "awaiting_engineering").length;
     const processing = filtered.filter((m) => m.status === "processing").length;
-    const cancelled = filtered.filter((m) => m.status === "cancelled").length;
-    const open = total - resolved - cancelled;
-    const feedbackTotal = total - cancelled;
-    const resolvedPct = feedbackTotal ? Math.round((resolved / feedbackTotal) * 100) : 0;
+    const open = total - resolved;
+    const resolvedPct = total ? Math.round((resolved / total) * 100) : 0;
 
     const manualActive = filteredManual.filter((m) => m.status === "active").length;
     const manualResolved = filteredManual.filter((m) => m.status === "resolved").length;
@@ -452,14 +450,13 @@ const Stats = () => {
 
   // Daily volume line chart
   const volumeData = useMemo(() => {
-    const byDay: Record<string, { date: string; total: number; resolved: number; open: number; cancelled: number; escalated: number }> = {};
+    const byDay: Record<string, { date: string; total: number; resolved: number; open: number; escalated: number }> = {};
     filtered.forEach((m) => {
       const day = format(parseISO(m.created_at), "yyyy-MM-dd");
-      if (!byDay[day]) byDay[day] = { date: day, total: 0, resolved: 0, open: 0, cancelled: 0, escalated: 0 };
+      if (!byDay[day]) byDay[day] = { date: day, total: 0, resolved: 0, open: 0, escalated: 0 };
       byDay[day].total++;
       const isEscalated = m.status === "escalated" || m.status === "escalated_pending";
       if (m.status === "resolved") byDay[day].resolved++;
-      else if (m.status === "cancelled") byDay[day].cancelled++;
       else byDay[day].open++;
       if (isEscalated) byDay[day].escalated++;
     });
@@ -501,8 +498,8 @@ const Stats = () => {
   // Daily outcomes bar chart
   const dailyOutcomes = useMemo(() => {
     return volumeData
-      .filter((d) => d.resolved > 0 || d.open > 0 || d.cancelled > 0 || d.escalated > 0)
-      .map((d) => ({ date: d.label, resolved: d.resolved, open: d.open, cancelled: d.cancelled, escalated: d.escalated }));
+      .filter((d) => d.resolved > 0 || d.open > 0 || d.escalated > 0)
+      .map((d) => ({ date: d.label, resolved: d.resolved, open: d.open, escalated: d.escalated }));
   }, [volumeData]);
 
   const pieData = useMemo(() => {
@@ -510,7 +507,6 @@ const Stats = () => {
       { name: "Resolved", value: stats.resolved, fill: chartConfig.resolved.color },
       { name: "Open", value: stats.open - stats.escalated, fill: chartConfig.open.color },
       { name: "Escalated to human", value: stats.escalated, fill: chartConfig.escalated.color },
-      { name: "Cancelled", value: stats.cancelled, fill: chartConfig.cancelled.color },
     ].filter((d) => d.value > 0);
   }, [stats]);
 
@@ -1131,13 +1127,6 @@ const Stats = () => {
               </Card>
               <Card>
                 <CardContent className="flex flex-col items-center justify-center p-5">
-                  <XCircle className="mb-2 h-5 w-5 text-muted-foreground" />
-                  <p className="text-3xl font-bold text-foreground">{stats.cancelled}</p>
-                  <p className="text-xs text-muted-foreground">Cancelled</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center p-5">
                   <AlertCircle className="mb-2 h-5 w-5 text-orange-500" />
                   <p className="text-3xl font-bold text-foreground">{stats.open}</p>
                   <p className="text-xs text-muted-foreground">Open</p>
@@ -1268,7 +1257,7 @@ const Stats = () => {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Daily outcomes</CardTitle>
-                  <CardDescription>Resolved vs open vs escalated vs cancelled per day</CardDescription>
+                  <CardDescription>Resolved vs open vs escalated per day</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {dailyOutcomes.length === 0 ? (
@@ -1283,7 +1272,6 @@ const Stats = () => {
                         <Bar dataKey="resolved" fill={chartConfig.resolved.color} radius={[4, 4, 0, 0]} />
                         <Bar dataKey="open" fill={chartConfig.open.color} radius={[4, 4, 0, 0]} />
                         <Bar dataKey="escalated" fill={chartConfig.escalated.color} radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="cancelled" fill={chartConfig.cancelled.color} radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ChartContainer>
                   )}
