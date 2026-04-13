@@ -41,6 +41,7 @@ interface ConversationMapping {
   updated_at: string;
   owner: string | null;
   classification: string | null;
+  slack_user_name: string | null;
 }
 
 interface GmailConv {
@@ -336,10 +337,17 @@ const ConversationDetail = () => {
       if (row) {
         fetchThread(row.slack_channel_id, row.slack_thread_ts);
 
-        const usersRes = await supabase.functions.invoke("list-slack-users");
-        if (usersRes.data?.users) {
-          const u = usersRes.data.users.find((u: any) => u.id === row.slack_user_id);
-          if (u) setUserName(u.display_name || u.real_name || u.name);
+        // Prefer cached name from DB, fall back to runtime Slack API lookup
+        if (row.slack_user_name) {
+          setUserName(row.slack_user_name);
+        } else {
+          const usersRes = await supabase.functions.invoke("list-slack-users", {
+            body: { include_deactivated: true },
+          });
+          if (usersRes.data?.users) {
+            const u = usersRes.data.users.find((u: any) => u.id === row.slack_user_id);
+            if (u) setUserName(u.display_name || u.real_name || u.name);
+          }
         }
 
         const channelsRes = await supabase.functions.invoke("list-slack-channels", {
