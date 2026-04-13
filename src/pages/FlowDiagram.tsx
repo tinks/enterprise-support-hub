@@ -286,6 +286,7 @@ function buildNodes(
           "If thread reply → fetches full transcript",
           "Collects file attachments (photos, videos, docs)",
           "Auto-detects @lovable.dev employees and marks conversations as test when 'auto_mark_employee_test' setting is enabled (routed to Slack Test inbox)",
+          "Resolves Slack user display name via users.info and caches it in slack_user_name column for permanent display (both app_mention and DM paths)",
           "Conversations tab resolves channel IDs to names via list-slack-channels (bot token first, connector fallback)",
            "Conversations tab has 'Product area' dropdown (SSO, SCIM, Credits, Account access, Remix/transfer, Cloud/AI), 'Bug' toggle, and 'Feature request' toggle per row, persisted to DB",
            "Conversations tab has multi-select status filter (popover with checkboxes) to hide/show: active, awaiting_context (labelled 'Awaiting customer'), awaiting_support, escalated, resolved, cancelled, test — defaults to hiding test, cancelled, resolved",
