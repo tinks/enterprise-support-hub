@@ -1,28 +1,37 @@
 
 
-## Add channel name combobox with suggestions
+## Click-through from conversation volume chart to inbox
 
 ### What changes
-Replace the plain text `<Input>` for channel name (line 238) with a combobox that shows a short list of commonly used channels not covered by the bot, while still allowing free-text entry.
 
-### Channel suggestions
-A small hardcoded list of channels the bot is not part of:
-- `ext-lovable-control-tower`
-- `ext-bts-lovable`
-- `ext-lovable-tool-support-remote`
-- `it-lovable-support`
-- `workday-lovable`
+**1. `src/pages/Stats.tsx`** — Make the volume chart clickable
 
-### Implementation
+Add an `onClick` handler to the `<AreaChart>` that navigates to `/conversations?day=YYYY-MM-DD&source=<current source filter>` when a data point is clicked. The `mergedVolumeData` already contains a `date` field (e.g. `2025-04-07`) which maps directly to the query param.
 
-**`src/components/ManualLogTab.tsx`**
-- Import `Command`, `CommandInput`, `CommandList`, `CommandEmpty`, `CommandGroup`, `CommandItem` from `@/components/ui/command`
-- Replace the channel name `<Input>` with a `Popover` + `Command` combobox:
-  - Typing filters the suggestion list
-  - Clicking a suggestion fills the field
-  - Custom text is accepted (not locked to suggestions)
-  - Displays with `#` prefix
+```tsx
+<AreaChart
+  data={mergedVolumeData}
+  onClick={(state) => {
+    if (state?.activePayload?.[0]) {
+      const date = state.activePayload[0].payload.date;
+      navigate(`/conversations?day=${date}&source=${sourceFilter}`);
+    }
+  }}
+  style={{ cursor: "pointer" }}
+>
+```
+
+**2. `src/pages/Conversations.tsx`** — Support day-only filtering (no hour required)
+
+Currently the heatmap filter requires both `day` and `hour` params. Add support for day-only:
+
+- Around line 870, add a branch: if `paramDay !== null && paramHour === null`, filter rows where the date portion of `sortDate` matches `paramDay` (simple `startsWith` or `format` check).
+- Around line 1370, add a banner for the day-only filter mode showing "Showing conversations for **Apr 07, 2025**" with "Back to stats" and "Clear filter" buttons.
+
+**3. `src/pages/FlowDiagram.tsx`** — Document the new drill-down from volume chart.
 
 ### Files to edit
-- `src/components/ManualLogTab.tsx`
+- `src/pages/Stats.tsx` — add onClick to AreaChart
+- `src/pages/Conversations.tsx` — support day-only param filtering + banner
+- `src/pages/FlowDiagram.tsx` — document the feature
 
