@@ -280,6 +280,24 @@ Deno.serve(async (req) => {
       const threadTs = event.thread_ts || event.ts;
       let slackUserId = event.user;
 
+      // Resolve Slack user display name
+      let slackUserName: string | null = null;
+      if (slackUserId) {
+        try {
+          const userRes = await fetch(
+            `${SLACK_API_URL}/users.info?user=${slackUserId}`,
+            { headers: { Authorization: `Bearer ${slackBotToken}` } }
+          );
+          const userData = await userRes.json();
+          if (userData.ok && userData.user) {
+            const u = userData.user;
+            slackUserName = u.profile?.display_name || u.real_name || u.name || null;
+          }
+        } catch (e) {
+          console.error("Failed to resolve Slack user name:", e);
+        }
+      }
+
       // Atomic claim: INSERT first, send message second (prevents TOCTOU race)
       const { data: claimed } = await supabase
         .from("conversation_mappings")
@@ -291,6 +309,7 @@ Deno.serve(async (req) => {
             status: "awaiting_context",
             original_message_text: cleanSlackMarkup(event.text || ""),
             slack_user_id: slackUserId,
+            slack_user_name: slackUserName,
             is_test: settings.testing_mode ?? false,
           },
           { onConflict: "slack_channel_id,slack_thread_ts", ignoreDuplicates: true }
@@ -435,6 +454,24 @@ Deno.serve(async (req) => {
       const threadTs = event.ts; // DM message itself becomes the thread root
       const slackUserId = event.user;
 
+      // Resolve Slack user display name for DM
+      let slackUserNameDm: string | null = null;
+      if (slackUserId) {
+        try {
+          const userRes = await fetch(
+            `${SLACK_API_URL}/users.info?user=${slackUserId}`,
+            { headers: { Authorization: `Bearer ${slackBotToken}` } }
+          );
+          const userData = await userRes.json();
+          if (userData.ok && userData.user) {
+            const u = userData.user;
+            slackUserNameDm = u.profile?.display_name || u.real_name || u.name || null;
+          }
+        } catch (e) {
+          console.error("Failed to resolve Slack user name:", e);
+        }
+      }
+
       // Atomic claim (same pattern as app_mention)
       const { data: claimed } = await supabase
         .from("conversation_mappings")
@@ -446,6 +483,7 @@ Deno.serve(async (req) => {
             status: "awaiting_context",
             original_message_text: cleanSlackMarkup(event.text || ""),
             slack_user_id: slackUserId,
+            slack_user_name: slackUserNameDm,
             is_test: settings.testing_mode ?? false,
           },
           { onConflict: "slack_channel_id,slack_thread_ts", ignoreDuplicates: true }

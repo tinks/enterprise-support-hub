@@ -1,0 +1,1 @@
+ALTER TABLE conversation_mappings ADD COLUMN slack_user_name text DEFAULT NULL;

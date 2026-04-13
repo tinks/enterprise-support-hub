@@ -35,6 +35,7 @@ interface ConversationMapping {
   is_feature_request: boolean;
   owner: string | null;
   classification: string | null;
+  slack_user_name: string | null;
 }
 
 interface GmailConversation {
@@ -969,7 +970,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       case "sent_by": return (
         <span className="inline-flex items-center gap-1.5 text-sm text-foreground">
           <User className="h-3.5 w-3.5 text-muted-foreground" />
-          {userNames[m.slack_user_id] || m.slack_user_id || "—"}
+          {m.slack_user_name || userNames[m.slack_user_id] || m.slack_user_id || "—"}
         </span>
       );
       case "message": return m.original_message_text ? (

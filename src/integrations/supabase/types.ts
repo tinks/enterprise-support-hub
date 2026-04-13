@@ -96,6 +96,7 @@ export type Database = {
           slack_channel_id: string
           slack_thread_ts: string
           slack_user_id: string
+          slack_user_name: string | null
           status: string
           updated_at: string
         }
@@ -120,6 +121,7 @@ export type Database = {
           slack_channel_id: string
           slack_thread_ts: string
           slack_user_id?: string
+          slack_user_name?: string | null
           status?: string
           updated_at?: string
         }
@@ -144,6 +146,7 @@ export type Database = {
           slack_channel_id?: string
           slack_thread_ts?: string
           slack_user_id?: string
+          slack_user_name?: string | null
           status?: string
           updated_at?: string
         }

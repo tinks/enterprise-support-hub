@@ -178,6 +178,24 @@ Deno.serve(async (req) => {
     const slackUserId = parentMsg.user || "";
     const messageText = parentMsg.text || "";
 
+    // Resolve Slack user display name
+    let slackUserName: string | null = null;
+    if (slackUserId) {
+      try {
+        const userRes = await fetch(
+          `https://slack.com/api/users.info?user=${slackUserId}`,
+          { headers: { Authorization: `Bearer ${slackToken}` } }
+        );
+        const userData = await userRes.json();
+        if (userData.ok && userData.user) {
+          const u = userData.user;
+          slackUserName = u.profile?.display_name || u.real_name || u.name || null;
+        }
+      } catch (e) {
+        console.error("Failed to resolve Slack user name:", e);
+      }
+    }
+
     // Fetch bot user ID from settings to identify admin vs user
     const { data: settingsRow } = await supabase
       .from("settings")
@@ -240,6 +258,7 @@ Deno.serve(async (req) => {
           slack_channel_id: channelId,
           slack_thread_ts: threadTs,
           slack_user_id: slackUserId,
+          slack_user_name: slackUserName,
           original_message_text: messageText,
           created_at: threadCreatedAt,
         })
@@ -256,6 +275,7 @@ Deno.serve(async (req) => {
           slack_channel_id: channelId,
           slack_thread_ts: threadTs,
           slack_user_id: slackUserId,
+          slack_user_name: slackUserName,
           original_message_text: messageText,
           status: "active",
           created_at: threadCreatedAt,
