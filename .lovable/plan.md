@@ -1,20 +1,29 @@
 
 
-## Fix: search doesn't find conversations by Intercom ID
+## Include guest users in list-slack-users
 
 ### Problem
-Searching "215473859684381" in the inbox finds nothing because the Gmail and manual conversation search queries don't include the `intercom_conversation_id` field. Only the Slack query searches that field.
+The `list-slack-users` edge function filters out guest users (single-channel and multi-channel guests) because it skips anyone where `is_bot` is true or `deleted` is true. However, Slack guest users have `is_restricted` or `is_ultra_restricted` set — they aren't bots, so they pass the bot check but may still be missed if other filtering is too aggressive. The real issue found earlier was that the user wasn't in the results at all, suggesting they may be a deactivated guest or the filter is dropping them.
 
-The conversation exists in `gmail_conversations` with `intercom_conversation_id = '215473859684381'`, but the search misses it.
+### Change
 
-### Fix
+**File: `supabase/functions/list-slack-users/index.ts`**
 
-**File: `src/pages/Conversations.tsx`**
+Update the filter on ~line 44 to only skip deleted users, bots, and USLACKBOT — but explicitly **include** guest users (`is_restricted` and `is_ultra_restricted`). Add a `is_guest` boolean field to the output so callers can distinguish guests from full members.
 
-Add `intercom_conversation_id.ilike.${ilike}` to the `.or()` filters for both the Gmail query (~line 769) and the manual conversations query (~line 781).
+Current filter:
+```typescript
+if (member.deleted || member.is_bot || member.id === "USLACKBOT") continue;
+```
 
-- Gmail: add `intercom_conversation_id.ilike.${ilike}` alongside the existing fields
-- Manual: add `intercom_conversation_id.ilike.${ilike}` alongside the existing fields
+No change needed to this line — guests already pass it. The function already includes guests. But to make guest status visible and to also optionally include deactivated users for lookup purposes, add:
 
-This is a two-line change — just appending one field to each `.or()` string.
+1. Add an optional `include_deactivated` query parameter (default false)
+2. When `include_deactivated` is true, don't skip `member.deleted`
+3. Add `is_guest` and `is_deactivated` fields to the response objects
+
+This ensures users like Emily Ann Clemons (a guest) appear and are identifiable.
+
+### Files to edit
+- `supabase/functions/list-slack-users/index.ts`
 
