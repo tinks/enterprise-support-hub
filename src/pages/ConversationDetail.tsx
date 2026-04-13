@@ -468,6 +468,7 @@ const ConversationDetail = () => {
     if (source === "slack") setConv({ ...conv!, ...updates });
     else if (source === "gmail") setGmailConv({ ...gmailConv!, ...updates });
     else setManualConv({ ...manualConv!, ...updates });
+    await logAudit("status_changed", current.status, newStatus);
     toast.success(`Status updated to ${newStatus}`);
     setUpdating(false);
   };
@@ -480,6 +481,7 @@ const ConversationDetail = () => {
     if (source === "slack") setConv({ ...conv!, [field]: newVal });
     else if (source === "gmail") setGmailConv({ ...gmailConv!, [field]: newVal });
     else setManualConv({ ...manualConv!, [field]: newVal });
+    await logAudit(field === "is_test" ? "is_test_toggled" : "is_bug_toggled", String(!newVal), String(newVal));
   };
 
   const updateProductArea = async (value: string) => {
@@ -490,6 +492,7 @@ const ConversationDetail = () => {
     if (source === "slack") setConv({ ...conv!, product_area: newVal });
     else if (source === "gmail") setGmailConv({ ...gmailConv!, product_area: newVal });
     else setManualConv({ ...manualConv!, product_area: newVal });
+    await logAudit("product_area_changed", current.product_area, newVal);
     toast.success(`Product area updated`);
   };
 
@@ -501,6 +504,7 @@ const ConversationDetail = () => {
     if (source === "slack") setConv({ ...conv!, owner: newVal });
     else if (source === "gmail") setGmailConv({ ...gmailConv!, owner: newVal });
     else setManualConv({ ...manualConv!, owner: newVal });
+    await logAudit("owner_changed", current.owner, newVal);
     toast.success(`Owner updated`);
   };
 
@@ -512,6 +516,7 @@ const ConversationDetail = () => {
     if (source === "slack") setConv({ ...conv!, classification: newVal });
     else if (source === "gmail") setGmailConv({ ...gmailConv!, classification: newVal });
     else setManualConv({ ...manualConv!, classification: newVal });
+    await logAudit("classification_changed", current.classification, newVal);
     toast.success(`Classification updated`);
   };
 
