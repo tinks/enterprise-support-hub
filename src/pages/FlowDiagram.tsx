@@ -169,6 +169,13 @@ const ROW_H = 380;
 /*  (intercom-webhook for both conversation_mappings and               */
 /*  manual_conversations), and Gmail (via Intercom webhook path).      */
 /* ------------------------------------------------------------------ */
+/*  Manual thread timestamps: when pasting a Slack/Teams thread, the   */
+/*  parser captures per-message timestamps (e.g. "1:47 PM", "Mar 26th */
+/*  at 11:03 AM", "3/26/2025 11:03 AM"). These are combined with the  */
+/*  user-picked thread date to set each manual_message.created_at to   */
+/*  the actual send time instead of the import time. The AI fallback   */
+/*  parser also returns sent_at timestamps when visible in the text.   */
+/* ------------------------------------------------------------------ */
 /*  Outbound replies: the ConversationDetail page has a "Reply to      */
 /*  customer" composer that sends messages via the post-reply edge     */
 /*  function. Routes to the correct platform:                           */

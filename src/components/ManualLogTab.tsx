@@ -15,7 +15,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Plus, Trash2, Save, ExternalLink, CalendarIcon, ClipboardPaste } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { parseThread, parseThreadWithAI, ADMIN_OPTIONS, type ParsedMessage } from "@/lib/parseThread";
+import { parseThread, parseThreadWithAI, combineDateTime, ADMIN_OPTIONS, type ParsedMessage } from "@/lib/parseThread";
 
 type ManualMessage = ParsedMessage;
 
@@ -145,12 +145,19 @@ const ManualLogTab = () => {
 
     const messagesToInsert = messages
       .filter((m) => m.message_text.trim())
-      .map((m) => ({
-        conversation_id: convo.id,
-        role: m.role,
-        sender_name: m.sender_name.trim(),
-        message_text: m.message_text.trim(),
-      }));
+      .map((m) => {
+        const row: Record<string, unknown> = {
+          conversation_id: convo.id,
+          role: m.role,
+          sender_name: m.sender_name.trim(),
+          message_text: m.message_text.trim(),
+        };
+        if (mode === "paste" && threadDate && m.sent_at) {
+          const ts = combineDateTime(threadDate, m.sent_at);
+          if (ts) row.created_at = ts;
+        }
+        return row;
+      });
 
     const { error: msgErr } = await supabase
       .from("manual_messages")
