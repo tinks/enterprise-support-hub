@@ -19,8 +19,18 @@ Deno.serve(async (req) => {
     });
   }
 
+  const url = new URL(req.url);
+  const includeDeactivated = url.searchParams.get("include_deactivated") === "true";
+
   try {
-    const allUsers: { id: string; name: string; real_name: string; display_name: string }[] = [];
+    const allUsers: {
+      id: string;
+      name: string;
+      real_name: string;
+      display_name: string;
+      is_guest: boolean;
+      is_deactivated: boolean;
+    }[] = [];
     let cursor = "";
 
     do {
@@ -39,12 +49,15 @@ Deno.serve(async (req) => {
       }
 
       for (const member of data.members || []) {
-        if (member.deleted || member.is_bot || member.id === "USLACKBOT") continue;
+        if (member.is_bot || member.id === "USLACKBOT") continue;
+        if (member.deleted && !includeDeactivated) continue;
         allUsers.push({
           id: member.id,
           name: member.name,
           real_name: member.real_name || member.name,
           display_name: member.profile?.display_name || member.real_name || member.name,
+          is_guest: !!(member.is_restricted || member.is_ultra_restricted),
+          is_deactivated: !!member.deleted,
         });
       }
 
