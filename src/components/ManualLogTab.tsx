@@ -175,6 +175,17 @@ const ManualLogTab = () => {
     if (msgErr) {
       toast.error("Conversation saved but messages failed");
     } else {
+      // Backdate conversation to earliest message timestamp
+      const timestamps = messagesToInsert
+        .filter((m) => m.created_at)
+        .map((m) => new Date(m.created_at!).getTime());
+      if (timestamps.length) {
+        const earliest = new Date(Math.min(...timestamps)).toISOString();
+        await supabase
+          .from("manual_conversations")
+          .update({ created_at: earliest })
+          .eq("id", convo.id);
+      }
       toast.success("Conversation logged");
     }
 
