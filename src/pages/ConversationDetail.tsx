@@ -920,99 +920,130 @@ const ConversationDetail = () => {
             {source === "gmail" && renderGmailContent()}
             {source === "manual" && renderManualContent()}
 
-            {/* Reply composer */}
-            <Card>
-              <CardHeader className="flex flex-row items-center gap-2 pb-3">
-                <Send className="h-4 w-4 text-muted-foreground" />
-                <CardTitle className="text-sm">Reply to customer</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {(() => {
-                  const canReply =
-                    (source === "slack" && conv) ||
-                    (source === "gmail" && gmailConv) ||
-                    ((source === "manual") && manualConv?.intercom_conversation_id);
-                  if (!canReply && source === "manual") {
-                    return <p className="text-sm text-muted-foreground">No Intercom ticket linked — create one first to reply.</p>;
-                  }
-                  return (
-                    <>
+            {/* Reply / Notes / Activity tabs */}
+            <Tabs defaultValue="reply" className="w-full">
+              <TabsList className="w-full justify-start">
+                <TabsTrigger value="reply" className="gap-1.5"><Send className="h-3.5 w-3.5" /> Reply to customer</TabsTrigger>
+                <TabsTrigger value="notes" className="gap-1.5"><StickyNote className="h-3.5 w-3.5" /> Internal notes</TabsTrigger>
+                <TabsTrigger value="activity" className="gap-1.5">
+                  <History className="h-3.5 w-3.5" /> Activity log
+                  {auditLogs.length > 0 && <Badge variant="secondary" className="text-xs ml-1 h-5 min-w-[20px] px-1">{auditLogs.length}</Badge>}
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="reply">
+                <Card>
+                  <CardContent className="pt-4 space-y-2">
+                    {(() => {
+                      const canReply =
+                        (source === "slack" && conv) ||
+                        (source === "gmail" && gmailConv) ||
+                        ((source === "manual") && manualConv?.intercom_conversation_id);
+                      if (!canReply && source === "manual") {
+                        return <p className="text-sm text-muted-foreground">No Intercom ticket linked — create one first to reply.</p>;
+                      }
+                      return (
+                        <>
+                          <Textarea
+                            placeholder={`Type your reply (sends via ${source === "manual" ? "Intercom" : source})…`}
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            className="min-h-[80px] text-sm"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendReply();
+                            }}
+                          />
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">⌘+Enter to send</span>
+                            <Button size="sm" onClick={sendReply} disabled={sendingReply || !replyText.trim()}>
+                              {sendingReply ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Send className="h-3.5 w-3.5 mr-1" />}
+                              Send
+                            </Button>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="notes">
+                <Card>
+                  <CardContent className="pt-4 space-y-4">
+                    {notes.length > 0 && (
+                      <div className="space-y-3">
+                        {notes.map((note) => (
+                          <div key={note.id} className="group relative bg-muted/50 rounded-md p-3">
+                            <div className="flex items-baseline justify-between gap-2">
+                              <span className="text-xs font-medium text-foreground">{note.author}</span>
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(note.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                                </span>
+                                <button
+                                  onClick={() => deleteNote(note.id)}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                            <p className="mt-1 text-sm text-foreground whitespace-pre-wrap">{note.note_text}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      {!noteAuthor.trim() && (
+                        <Input
+                          placeholder="Your name"
+                          value={noteAuthor}
+                          onChange={(e) => setNoteAuthor(e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                      )}
                       <Textarea
-                        placeholder={`Type your reply (sends via ${source === "manual" ? "Intercom" : source})…`}
-                        value={replyText}
-                        onChange={(e) => setReplyText(e.target.value)}
-                        className="min-h-[80px] text-sm"
+                        placeholder="Add a note…"
+                        value={newNoteText}
+                        onChange={(e) => setNewNoteText(e.target.value)}
+                        className="min-h-[60px] text-sm"
                         onKeyDown={(e) => {
-                          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) sendReply();
+                          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addNote();
                         }}
                       />
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">⌘+Enter to send</span>
-                        <Button size="sm" onClick={sendReply} disabled={sendingReply || !replyText.trim()}>
-                          {sendingReply ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Send className="h-3.5 w-3.5 mr-1" />}
-                          Send
-                        </Button>
-                      </div>
-                    </>
-                  );
-                })()}
-              </CardContent>
-            </Card>
+                      <Button size="sm" onClick={addNote} disabled={addingNote || !newNoteText.trim()}>
+                        <Plus className="h-3.5 w-3.5 mr-1" /> Add note
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-            {/* Internal notes */}
-            <Card>
-              <CardHeader className="flex flex-row items-center gap-2 pb-3">
-                <StickyNote className="h-4 w-4 text-muted-foreground" />
-                <CardTitle className="text-sm">Internal notes</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {notes.length > 0 && (
-                  <div className="space-y-3">
-                    {notes.map((note) => (
-                      <div key={note.id} className="group relative bg-muted/50 rounded-md p-3">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="text-xs font-medium text-foreground">{note.author}</span>
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(note.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+              <TabsContent value="activity">
+                <Card>
+                  <CardContent className="pt-4 space-y-2">
+                    {auditLogs.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No activity yet.</p>
+                    ) : (
+                      auditLogs.map((log) => (
+                        <div key={log.id} className="text-xs border-b last:border-0 pb-2 last:pb-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-foreground">{log.performed_by || "Unknown"}</span>
+                            <span className="text-muted-foreground shrink-0">
+                              {new Date(log.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                             </span>
-                            <button
-                              onClick={() => deleteNote(note.id)}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
                           </div>
+                          <p className="text-muted-foreground mt-0.5">
+                            {log.action.replace(/_/g, " ")}
+                            {log.old_value && log.new_value ? `: ${log.old_value} → ${log.new_value}` : log.new_value ? `: ${log.new_value}` : ""}
+                          </p>
                         </div>
-                        <p className="mt-1 text-sm text-foreground whitespace-pre-wrap">{note.note_text}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="space-y-2">
-                  {!noteAuthor.trim() && (
-                    <Input
-                      placeholder="Your name"
-                      value={noteAuthor}
-                      onChange={(e) => setNoteAuthor(e.target.value)}
-                      className="h-8 text-sm"
-                    />
-                  )}
-                  <Textarea
-                    placeholder="Add a note…"
-                    value={newNoteText}
-                    onChange={(e) => setNewNoteText(e.target.value)}
-                    className="min-h-[60px] text-sm"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addNote();
-                    }}
-                  />
-                  <Button size="sm" onClick={addNote} disabled={addingNote || !newNoteText.trim()}>
-                    <Plus className="h-3.5 w-3.5 mr-1" /> Add note
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
           </div>
 
           {/* Right: 30% — metadata sidebar */}
