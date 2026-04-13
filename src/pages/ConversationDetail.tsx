@@ -216,6 +216,7 @@ const ConversationDetail = () => {
       }
       toast.success(`Reply sent via ${data?.platform || source}`);
       setReplyText("");
+      await logAudit("reply_sent", null, `via ${data?.platform || source}`);
       // Refresh thread / messages
       if (source === "slack" && conv) {
         fetchThread(conv.slack_channel_id, conv.slack_thread_ts);
