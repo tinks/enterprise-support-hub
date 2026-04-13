@@ -189,8 +189,8 @@ const ROW_H = 380;
 /*  Audit logs: every field change on ConversationDetail (status,      */
 /*  owner, product area, classification, test/incident toggles,        */
 /*  Intercom linking, replies) is recorded in conversation_audit_logs  */
-/*  with who made the change and when. A collapsible "Activity log"    */
-/*  card in the detail sidebar shows the full history newest-first.    */
+/*  with who made the change and when. A tabbed interface below the    */
+/*  thread (Reply / Notes / Activity) shows the full history.          */
 /* ------------------------------------------------------------------ */
 /*  Owner dashboards: /my/joel and /my/kristina show personal views    */
 /*  with KPI cards (open, resolved, bugs, feature requests) and a     */
