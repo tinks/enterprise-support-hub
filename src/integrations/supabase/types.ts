@@ -427,6 +427,7 @@ export type Database = {
           id: string
           intercom_assignee_id: string
           intercom_inbox_id: string
+          last_polled_intercom_at: string | null
           last_polled_ts: string
           monitored_channels: string
           product_areas: string
@@ -443,6 +444,7 @@ export type Database = {
           id?: string
           intercom_assignee_id?: string
           intercom_inbox_id?: string
+          last_polled_intercom_at?: string | null
           last_polled_ts?: string
           monitored_channels?: string
           product_areas?: string
@@ -459,6 +461,7 @@ export type Database = {
           id?: string
           intercom_assignee_id?: string
           intercom_inbox_id?: string
+          last_polled_intercom_at?: string | null
           last_polled_ts?: string
           monitored_channels?: string
           product_areas?: string

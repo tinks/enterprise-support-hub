@@ -1,0 +1,1 @@
+ALTER TABLE settings ADD COLUMN last_polled_intercom_at timestamptz DEFAULT NULL;
