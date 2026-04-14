@@ -52,6 +52,8 @@ const Index = () => {
 
   const [gmailConnected, setGmailConnected] = useState<string | null>(null);
   const [gmailLoading, setGmailLoading] = useState(false);
+  const [intercomPolling, setIntercomPolling] = useState(false);
+  const [lastPolledIntercom, setLastPolledIntercom] = useState<string | null>(null);
 
   const edgeFunctionBaseUrl = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1`;
 
@@ -91,6 +93,30 @@ const Index = () => {
       toast.error("Request failed: " + (err instanceof Error ? err.message : "Unknown"));
     }
     setGmailLoading(false);
+  };
+
+  const pollIntercomInbox = async () => {
+    setIntercomPolling(true);
+    try {
+      const res = await fetch(`${edgeFunctionBaseUrl}/poll-intercom-inbox`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (data.error) {
+        toast.error("Poll failed: " + data.error);
+      } else {
+        const parts = [];
+        if (data.imported > 0) parts.push(`${data.imported} imported`);
+        if (data.linkedGmail > 0) parts.push(`${data.linkedGmail} linked to Gmail`);
+        if (data.alreadyTracked > 0) parts.push(`${data.alreadyTracked} already tracked`);
+        toast.success(`Intercom poll complete: ${parts.join(", ") || "no new conversations"}`);
+        setLastPolledIntercom(new Date().toISOString());
+      }
+    } catch (err) {
+      toast.error("Poll request failed: " + (err instanceof Error ? err.message : "Unknown"));
+    }
+    setIntercomPolling(false);
   };
 
   useEffect(() => {
