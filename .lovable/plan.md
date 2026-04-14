@@ -1,41 +1,61 @@
 
 
-## Auto-link Intercom tickets to existing Gmail conversations
+## Poll Intercom enterprise inbox for missed conversations
 
 ### Problem
-When an Intercom conversation is assigned to the enterprise inbox, the webhook auto-imports it as a new `manual_conversations` record. But if the same customer already has a `gmail_conversations` record (from Gmail polling), the two are never linked. This creates duplicates and means the Gmail record never shows its Intercom ticket.
+Intercom webhook delivery is not 100% reliable. Conversation `215473900654421` was assigned to the enterprise inbox by the "Routing Enterprise" workflow, but no webhook was ever received. The system only tracks conversations reactively via webhooks, so dropped deliveries create gaps.
 
 ### Solution
-In the intercom-webhook's assignment handler, after confirming the conversation isn't already tracked, extract the contact's email from the Intercom conversation data and check if a matching `gmail_conversations` record exists. If found, update that Gmail record with the `intercom_conversation_id` instead of creating a new `manual_conversations` row.
+Create a periodic **Intercom inbox poller** edge function (similar to how `poll-gmail` works) that:
+
+1. Queries the Intercom Search API for recent conversations assigned to the enterprise inbox
+2. Checks each against the three conversation tables (`conversation_mappings`, `gmail_conversations`, `manual_conversations`)
+3. Auto-imports any untracked conversations using the same logic as the webhook assignment handler (including Gmail cross-referencing)
+
+This function can be invoked manually from the app or scheduled via a cron trigger.
 
 ### Changes
 
-**File: `supabase/functions/intercom-webhook/index.ts`** (~line 268-389, assignment auto-import block)
+**New file: `supabase/functions/poll-intercom-inbox/index.ts`**
+- Use the Intercom Search Conversations API (`POST /conversations/search`) to find conversations where `team_assignee_id` matches the enterprise inbox, ordered by `updated_at` descending, limited to the last 24-48 hours
+- For each conversation, check if `intercom_conversation_id` already exists in any of the three tables
+- If not tracked: extract contact email, cross-reference Gmail, then create a `manual_conversations` entry (same logic as the webhook handler)
+- Log how many new conversations were imported
+- Store a `last_polled_intercom_at` timestamp in settings to avoid re-processing
 
-After the existing duplicate check (lines 218-243) and Intercom API fetch (line 268), add logic to:
-
-1. Extract the contact's email from the Intercom conversation data (from `icData.source.author.email` or by fetching the contact via the contacts API using the contact ID in the conversation)
-2. If an email is found, query `gmail_conversations` for unlinked records (`intercom_conversation_id IS NULL`) matching that email via `from_email`, `to_emails`, or `cc_emails`
-3. If a match is found, update the Gmail record(s) in that thread with the `intercom_conversation_id` and owner, then return early — skip creating a `manual_conversations` entry
-4. If no Gmail match, proceed with the existing `manual_conversations` insert as before
+**Migration: add `last_polled_intercom_at` to settings**
+```sql
+ALTER TABLE settings ADD COLUMN last_polled_intercom_at timestamptz DEFAULT NULL;
+```
 
 **File: `src/pages/FlowDiagram.tsx`**
-Update the relevant node to document that the assignment handler now cross-references Gmail records before creating manual entries.
+- Add a node documenting the Intercom inbox poller as a catch-all for missed webhooks
+
+**File: `src/pages/Index.tsx` or relevant admin page**
+- Add a "Poll Intercom inbox" button (similar to existing Gmail poll trigger) so it can be run on-demand
 
 ### Technical detail
 
 ```text
-Intercom webhook (assignment) flow:
-  1. Check enterprise inbox ✓
-  2. Check if intercom_conversation_id already tracked ✓
-  3. Fetch conversation from Intercom API ✓
-  4. [NEW] Extract contact email from conversation
-  5. [NEW] Search gmail_conversations for matching email (unlinked)
-  6. [NEW] If found → UPDATE gmail thread with intercom_conversation_id + owner → return
-  7. Otherwise → create manual_conversations entry (existing behavior)
+Intercom Search API request:
+POST https://api.intercom.io/conversations/search
+{
+  "query": {
+    "operator": "AND",
+    "value": [
+      { "field": "team_assignee_id", "operator": "=", "value": "<enterprise_inbox_id>" },
+      { "field": "updated_at", "operator": ">", "value": <unix_timestamp_24h_ago> }
+    ]
+  },
+  "pagination": { "per_page": 50 }
+}
 ```
 
+The poller reuses the same Gmail cross-reference and manual import logic from the webhook handler, ensuring consistency.
+
 ### Files to edit
-- `supabase/functions/intercom-webhook/index.ts` — add Gmail cross-reference before manual insert
-- `src/pages/FlowDiagram.tsx` — update flow documentation
+- New: `supabase/functions/poll-intercom-inbox/index.ts`
+- New migration: add `last_polled_intercom_at` column to settings
+- `src/pages/FlowDiagram.tsx` — add poller node
+- Admin UI page — add poll trigger button
 
