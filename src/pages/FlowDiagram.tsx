@@ -603,7 +603,7 @@ function buildNodes(
       position: { x: COL_W * -0.6, y: 0 },
       data: {
         label: "Auto-import on Intercom assignment",
-        desc: "When a conversation is assigned to the enterprise inbox in Intercom, the webhook auto-imports it into manual_conversations if it's not already tracked via Slack or Gmail.",
+        desc: "When a conversation is assigned to the enterprise inbox in Intercom, the webhook cross-references Gmail records by contact email before creating a manual entry.",
         icon: Ticket,
         edgeFunction: "intercom-webhook",
         details: [
@@ -611,8 +611,8 @@ function buildNodes(
           "Checks team_assignee_id matches settings.intercom_inbox_id (enterprise inbox)",
           "Deduplicates across conversation_mappings, gmail_conversations, and manual_conversations",
           "Fetches full conversation from Intercom API with pagination",
-          "Extracts messages: skips bots, notes, system events (open/close); assignment parts with body are included",
-          "Inserts into manual_conversations (source='intercom') + manual_messages",
+          "Gmail cross-reference: extracts contact email from conversation source or contacts API, searches gmail_conversations for unlinked records matching from_email/to_emails/cc_emails — if found, links the Gmail thread with intercom_conversation_id and skips manual_conversations insert",
+          "Fallback: if no Gmail match, extracts messages (skips bots, notes, system events) and inserts into manual_conversations (source='intercom') + manual_messages",
           "Conversations from other channels (web, mobile, non-enterprise email) get tracked automatically",
           "Live reply tracking: subsequent replies (admin AND customer) in Intercom are appended to manual_messages via webhook — listens for conversation.user.replied and conversation.user.created in addition to admin reply topics",
           "Auto-owner: resolves admin_assignee_id via settings.admin_owner_map (JSON) to set owner at import time; also updates owner on already-tracked conversations (conversation_mappings, gmail_conversations, manual_conversations) when reassigned in Intercom",
