@@ -154,7 +154,10 @@ const Index = () => {
   const loadData = async () => {
     setLoading(true);
     const settingsRes = await supabase.from("settings").select("*").limit(1).single();
-    if (settingsRes.data) setSettings(settingsRes.data as unknown as SettingsData);
+    if (settingsRes.data) {
+      setSettings(settingsRes.data as unknown as SettingsData);
+      setLastPolledIntercom((settingsRes.data as any).last_polled_intercom_at || null);
+    }
     setLoading(false);
   };
 
