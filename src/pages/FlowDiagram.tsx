@@ -657,6 +657,28 @@ function buildNodes(
         accent: "orange",
       },
     },
+    {
+      id: "intercom-poller",
+      type: "flowNode",
+      position: { x: COL_W * -0.6, y: ROW_H },
+      data: {
+        label: "Intercom inbox poller",
+        desc: "Catch-all poller that searches Intercom's enterprise inbox for conversations missed by webhooks. Runs on-demand from the settings page.",
+        icon: Ticket,
+        edgeFunction: "poll-intercom-inbox",
+        details: [
+          "Queries Intercom Search API for conversations assigned to enterprise inbox (team_assignee_id) updated in the last 48 hours",
+          "Paginates through all results (50 per page)",
+          "Deduplicates against conversation_mappings, gmail_conversations, and manual_conversations",
+          "Gmail cross-reference: extracts contact email and links to unlinked Gmail threads (same logic as webhook handler)",
+          "Fallback: creates manual_conversations entry with full message history if no Gmail match",
+          "Auto-owner: resolves admin_assignee_id via settings.admin_owner_map",
+          "Updates last_polled_intercom_at in settings for tracking",
+          "Triggered manually from settings page 'Poll now' button",
+        ],
+        accent: "orange",
+      },
+    },
   ];
 }
 
