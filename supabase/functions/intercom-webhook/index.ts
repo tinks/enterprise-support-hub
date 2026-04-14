@@ -267,11 +267,81 @@ Deno.serve(async (req) => {
 
       const icData = await icRes.json();
 
-      // Extract contact name
+      // Extract contact name and email
       let contactName = "";
+      let contactEmail = "";
       const sourceContact = icData.source?.author;
       if (sourceContact) {
         contactName = sourceContact.name || sourceContact.email || "";
+        contactEmail = sourceContact.email || "";
+      }
+
+      // If no email from source, try fetching the contact from Intercom API
+      if (!contactEmail && icData.contacts?.contacts?.length > 0) {
+        const contactId = icData.contacts.contacts[0].id;
+        try {
+          const contactRes = await fetch(`https://api.intercom.io/contacts/${contactId}`, {
+            headers: {
+              Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+              Accept: "application/json",
+              "Intercom-Version": "2.11",
+            },
+          });
+          if (contactRes.ok) {
+            const contactData = await contactRes.json();
+            contactEmail = contactData.email || "";
+            if (!contactName) contactName = contactData.name || contactEmail;
+          }
+        } catch (e) {
+          console.log("Failed to fetch contact email:", e);
+        }
+      }
+
+      // Cross-reference with gmail_conversations before creating manual entry
+      if (contactEmail) {
+        const emailLower = contactEmail.toLowerCase();
+        const { data: gmailMatches } = await supabase
+          .from("gmail_conversations")
+          .select("id, gmail_thread_id")
+          .is("intercom_conversation_id", null)
+          .or(`from_email.ilike.%${emailLower}%,to_emails.ilike.%${emailLower}%,cc_emails.ilike.%${emailLower}%`)
+          .order("received_at", { ascending: false })
+          .limit(10);
+
+        if (gmailMatches && gmailMatches.length > 0) {
+          const updatePayload: Record<string, unknown> = { intercom_conversation_id: intercomConvId };
+          if (resolvedOwner) updatePayload.owner = resolvedOwner;
+
+          const threadId = gmailMatches[0].gmail_thread_id;
+          if (threadId) {
+            const { error: gmailErr } = await supabase
+              .from("gmail_conversations")
+              .update(updatePayload)
+              .eq("gmail_thread_id", threadId);
+            if (gmailErr) {
+              console.error("Gmail thread link error:", gmailErr);
+            } else {
+              console.log(`Linked Intercom ${intercomConvId} to Gmail thread ${threadId} via email ${emailLower}`);
+              return new Response(JSON.stringify({ ok: true, message: "Linked to Gmail thread", gmailThreadId: threadId }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+          } else {
+            const ids = gmailMatches.map(r => r.id);
+            const { error: gmailErr } = await supabase
+              .from("gmail_conversations")
+              .update(updatePayload)
+              .in("id", ids);
+            if (gmailErr) {
+              console.error("Gmail row link error:", gmailErr);
+            } else {
+              console.log(`Linked Intercom ${intercomConvId} to ${ids.length} Gmail rows via email ${emailLower}`);
+              return new Response(JSON.stringify({ ok: true, message: "Linked to Gmail records", gmailIds: ids }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+          }
+        }
       }
 
       // Strip HTML helper
