@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Settings, RefreshCw, Save, Link, Search, Hash, X, Plus, Mail, CheckCircle2, AlertCircle } from "lucide-react";
+import { Settings, RefreshCw, Save, Link, Search, Hash, X, Plus, Mail, CheckCircle2, AlertCircle, Ticket } from "lucide-react";
 import BotIdentityCard from "@/components/BotIdentityCard";
 import ProductAreasCard from "@/components/ProductAreasCard";
 import AdminMappingCard from "@/components/AdminMappingCard";
@@ -467,7 +467,40 @@ const Index = () => {
           </CardContent>
         </Card>
 
+        {/* Intercom Inbox Poller Card */}
         <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Ticket className="h-5 w-5" />
+              Intercom inbox poller
+            </CardTitle>
+            <CardDescription>
+              Poll Intercom for conversations assigned to the enterprise inbox that were missed by webhooks
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3 rounded-lg border p-4">
+              <div className="flex-1">
+                <p className="text-sm font-medium">Last polled</p>
+                <p className="text-xs text-muted-foreground">
+                  {lastPolledIntercom
+                    ? new Date(lastPolledIntercom).toLocaleString()
+                    : "Never"}
+                </p>
+              </div>
+              <Button size="sm" onClick={pollIntercomInbox} disabled={intercomPolling}>
+                {intercomPolling ? (
+                  <><RefreshCw className="mr-2 h-3 w-3 animate-spin" /> Polling...</>
+                ) : (
+                  <><RefreshCw className="mr-2 h-3 w-3" /> Poll now</>
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Searches the last 48 hours of enterprise inbox assignments. New conversations are auto-imported or linked to existing Gmail threads.
+            </p>
+          </CardContent>
+        </Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Link className="h-5 w-5" />
