@@ -1,98 +1,59 @@
 
 
-## Fix: Create a database function for robust multi-table search
+## Root cause analysis
 
-### Problem
-PostgREST does not support column type casting (`id::text`) inside `.or()` filter strings. The `id::text.ilike.%q%` syntax either returns a 400 error or silently returns no results. This is why partial UUID searches like `312d14c3` keep failing despite multiple attempts.
+The `awaiting_context` database value serves **two completely different purposes**:
 
-### Solution
-Create a Postgres RPC function `search_conversations` that performs the search server-side with proper SQL casting, then call it from the frontend.
+1. **Bot flow state** — Set automatically when the Ask Lovable bot posts its "Add Details / Proceed / Cancel" buttons. These conversations have a `prompt_message_ts` (the timestamp of the button message). The `context-reminder` cron is designed for THIS case only.
 
-### Step 1: Database migration — create `search_conversations` function
+2. **Manual UI status** — When you select "Awaiting customer" in the status dropdown, it saves `awaiting_context` to the database. These conversations do NOT have a `prompt_message_ts` from the bot flow.
 
-```sql
-CREATE OR REPLACE FUNCTION public.search_conversations(search_term text)
-RETURNS TABLE (
-  result_id uuid,
-  result_source text
-)
-LANGUAGE plpgsql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  ilike_term text := '%' || search_term || '%';
-BEGIN
-  -- Slack conversations
-  RETURN QUERY
-  SELECT id, 'slack'::text FROM conversation_mappings
-  WHERE id::text ILIKE ilike_term
-     OR original_message_text ILIKE ilike_term
-     OR status ILIKE ilike_term
-     OR product_area ILIKE ilike_term
-     OR slack_user_id ILIKE ilike_term
-     OR slack_channel_id ILIKE ilike_term
-     OR intercom_conversation_id ILIKE ilike_term
-     OR slack_user_name ILIKE ilike_term
-     OR owner ILIKE ilike_term
-     OR classification ILIKE ilike_term;
+The `context-reminder` cron has NO guard to distinguish between these two cases. It just queries `WHERE status = 'awaiting_context' AND created_at < 15min ago` — so ANY conversation with that status gets picked up, including ones you manually set via the UI.
 
-  -- Gmail conversations
-  RETURN QUERY
-  SELECT id, 'gmail'::text FROM gmail_conversations
-  WHERE id::text ILIKE ilike_term
-     OR from_email ILIKE ilike_term
-     OR from_name ILIKE ilike_term
-     OR subject ILIKE ilike_term
-     OR snippet ILIKE ilike_term
-     OR status ILIKE ilike_term
-     OR product_area ILIKE ilike_term
-     OR intercom_conversation_id ILIKE ilike_term
-     OR owner ILIKE ilike_term
-     OR classification ILIKE ilike_term;
+**Timeline for bfa6d5d0:**
+1. At 11:44, you changed status from `active` → `awaiting_context` (via "Awaiting customer" dropdown)
+2. Conversation was created yesterday, so `created_at < 15min ago` is immediately true
+3. Next cron run picks it up, auto-proceeds, creates a NEW Intercom ticket, assigns to Sam
+4. Sam responds, intercom-webhook forwards to Slack
+5. At 12:21, you changed status again → `awaiting_context`, triggering it AGAIN
 
-  -- Manual conversations
-  RETURN QUERY
-  SELECT id, 'manual'::text FROM manual_conversations
-  WHERE id::text ILIKE ilike_term
-     OR contact_name ILIKE ilike_term
-     OR subject ILIKE ilike_term
-     OR source ILIKE ilike_term
-     OR status ILIKE ilike_term
-     OR product_area ILIKE ilike_term
-     OR intercom_conversation_id ILIKE ilike_term
-     OR owner ILIKE ilike_term
-     OR classification ILIKE ilike_term
-     OR link ILIKE ilike_term;
+### The fix
 
-  -- Manual message content match
-  RETURN QUERY
-  SELECT DISTINCT mm.conversation_id, 'manual'::text
-  FROM manual_messages mm
-  WHERE mm.message_text ILIKE ilike_term;
-END;
-$$;
+**The cron should only target conversations from the bot's context-gathering flow** — those always have a `prompt_message_ts`. Manually-set "Awaiting customer" statuses never have one.
+
+### Changes
+
+**1. `supabase/functions/context-reminder/index.ts`** — Add guard for bot-flow conversations only
+
+Change the stale query to require `prompt_message_ts IS NOT NULL`:
+
+```typescript
+const { data: staleRows, error } = await supabase
+  .from("conversation_mappings")
+  .select("*")
+  .eq("status", "awaiting_context")
+  .lt("created_at", fifteenMinAgo)
+  .not("prompt_message_ts", "is", null);  // Only bot-flow conversations
 ```
 
-### Step 2: Update `src/pages/Conversations.tsx` — replace `doSearch`
+This is the correct semantic guard: the cron should only auto-proceed conversations where the bot actually posted buttons and is waiting for a response.
 
-Replace the current `doSearch` function (lines 750-820) with:
+Also add `.is("intercom_conversation_id", null)` as a secondary safety net — even bot-flow conversations shouldn't get a second ticket:
 
-1. Call `supabase.rpc('search_conversations', { search_term: q })` to get matching IDs and sources
-2. Group IDs by source (slack, gmail, manual)
-3. Fetch full rows for each source using `.in('id', ids)` (which works perfectly on UUID columns)
-4. Keep existing source filter logic — only fetch sources that match `sourceFilter`
+```typescript
+  .not("prompt_message_ts", "is", null)
+  .is("intercom_conversation_id", null);
+```
 
-This eliminates all `.or()` filter strings and the `id::text` casting problem entirely.
+**2. `src/pages/FlowDiagram.tsx`** — Update the context-reminder node details to document the `prompt_message_ts` guard.
 
-### Why this works
-- SQL natively supports `id::text ILIKE '%312d14c3%'` — no PostgREST limitations
-- Single RPC call replaces 4 parallel queries for the ID/text matching phase
-- Full row fetches use simple `.in('id', [...])` which is reliable
-- Searches all fields including partial UUIDs, owner names, classifications, message content
+**3. Update memory** — Record this distinction for future reference.
+
+### Why previous proposals were wrong
+
+Adding only `.is("intercom_conversation_id", null)` would prevent duplicates but would still allow the cron to process manually-set statuses on new conversations that don't have a ticket yet. The `prompt_message_ts` guard is the correct primary filter because it targets the actual intended use case.
 
 ### Files to change
-- **Database**: New migration with `search_conversations` function
-- **`src/pages/Conversations.tsx`**: Rewrite `doSearch` to use the RPC + `.in()` pattern (~30 lines changed)
+- `supabase/functions/context-reminder/index.ts` — 2 lines added to query
+- `src/pages/FlowDiagram.tsx` — update context-reminder node documentation
 
