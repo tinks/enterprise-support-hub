@@ -608,8 +608,8 @@ function buildNodes(
         edgeFunction: "intercom-webhook",
         details: [
 "Listens for assignment webhook topics: conversation.admin.assigned, conversation.admin.open.assigned, ticket.admin.assigned, ticket.team.assigned",
-          "Checks team_assignee_id matches settings.intercom_inbox_id (enterprise inbox)",
-          "Deduplicates across conversation_mappings, gmail_conversations, and manual_conversations",
+           "Enterprise inbox detection (3-step fallback): 1) team_assignee_id matches enterprise inbox → proceed, 2) API fallback: fetch conversation and recheck team_assignee_id → proceed, 3) admin_assignee_id found in admin_owner_map → treat as enterprise inbox (handles Intercom routing that assigns to individual admins without setting team)",
+           "Deduplicates across conversation_mappings, gmail_conversations, and manual_conversations",
           "Fetches full conversation from Intercom API with pagination",
           "Gmail cross-reference: extracts contact email from conversation source or contacts API, searches gmail_conversations for unlinked records matching from_email/to_emails/cc_emails — if found, links the Gmail thread with intercom_conversation_id and skips manual_conversations insert",
           "Fallback: if no Gmail match, extracts messages (skips bots, notes, system events) and inserts into manual_conversations (source='intercom') + manual_messages",
@@ -667,7 +667,7 @@ function buildNodes(
         icon: Ticket,
         edgeFunction: "poll-intercom-inbox",
         details: [
-          "Queries Intercom Search API for conversations assigned to enterprise inbox (team_assignee_id) updated in the last 48 hours",
+          "Queries Intercom Search API with multiple strategies: 1) team_assignee_id matches enterprise inbox, 2) admin_assignee_id matches each admin in admin_owner_map — deduplicates across all queries; covers last 48 hours",
           "Paginates through all results (50 per page)",
           "Deduplicates against conversation_mappings, gmail_conversations, and manual_conversations",
           "Gmail cross-reference: extracts contact email and links to unlinked Gmail threads (same logic as webhook handler)",

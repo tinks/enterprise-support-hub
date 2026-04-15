@@ -61,11 +61,12 @@ Deno.serve(async (req) => {
   const sinceTs = Math.floor((Date.now() - 48 * 60 * 60 * 1000) / 1000);
 
   const results: Array<{ intercomId: string; action: string; id?: string }> = [];
-  let hasMore = true;
-  let startingAfter: string | null = null;
 
-  while (hasMore) {
-    const searchBody: Record<string, unknown> = {
+  // Build search queries: one for team_assignee_id + one per admin in admin_owner_map
+  const adminIds = Object.keys(adminOwnerMap);
+  const searchQueries: Array<{ label: string; query: Record<string, unknown> }> = [
+    {
+      label: `team_assignee_id=${enterpriseInboxId}`,
       query: {
         operator: "AND",
         value: [
@@ -73,37 +74,80 @@ Deno.serve(async (req) => {
           { field: "updated_at", operator: ">", value: sinceTs },
         ],
       },
-      pagination: { per_page: 50 },
-    };
-    if (startingAfter) {
-      (searchBody.pagination as Record<string, unknown>).starting_after = startingAfter;
-    }
-
-    const searchRes = await fetch("https://api.intercom.io/conversations/search", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        "Intercom-Version": "2.11",
+    },
+    ...adminIds.map((adminId) => ({
+      label: `admin_assignee_id=${adminId}`,
+      query: {
+        operator: "AND",
+        value: [
+          { field: "admin_assignee_id", operator: "=", value: parseInt(adminId) },
+          { field: "updated_at", operator: ">", value: sinceTs },
+        ],
       },
-      body: JSON.stringify(searchBody),
-    });
+    })),
+  ];
 
-    if (!searchRes.ok) {
-      const errText = await searchRes.text();
-      console.error("Intercom search failed:", searchRes.status, errText);
-      return new Response(JSON.stringify({ error: "Intercom search failed", status: searchRes.status }), {
-        status: 502,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+  console.log(`Running ${searchQueries.length} search queries (1 team + ${adminIds.length} admins)`);
+
+  // Collect all conversations across all queries, deduplicate by ID
+  const seenConvIds = new Set<string>();
+  const allConversations: Array<Record<string, unknown>> = [];
+
+  for (const sq of searchQueries) {
+    let hasMore = true;
+    let startingAfter: string | null = null;
+
+    while (hasMore) {
+      const searchBody: Record<string, unknown> = {
+        query: sq.query,
+        pagination: { per_page: 50 },
+      };
+      if (startingAfter) {
+        (searchBody.pagination as Record<string, unknown>).starting_after = startingAfter;
+      }
+
+      const searchRes = await fetch("https://api.intercom.io/conversations/search", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "Intercom-Version": "2.11",
+        },
+        body: JSON.stringify(searchBody),
       });
+
+      if (!searchRes.ok) {
+        const errText = await searchRes.text();
+        console.error(`Intercom search failed for ${sq.label}:`, searchRes.status, errText);
+        // Continue with other queries instead of failing entirely
+        break;
+      }
+
+      const searchData = await searchRes.json();
+      const conversations = searchData.conversations || searchData.data || [];
+      console.log(`Fetched ${conversations.length} conversations for ${sq.label}`);
+
+      for (const conv of conversations) {
+        const convId = String(conv.id);
+        if (!seenConvIds.has(convId)) {
+          seenConvIds.add(convId);
+          allConversations.push(conv);
+        }
+      }
+
+      const pages = searchData.pages;
+      if (pages?.next?.starting_after) {
+        startingAfter = pages.next.starting_after;
+      } else {
+        hasMore = false;
+      }
     }
+  }
 
-    const searchData = await searchRes.json();
-    const conversations = searchData.conversations || searchData.data || [];
-    console.log(`Fetched ${conversations.length} conversations from Intercom search (page)`);
+  console.log(`Total unique conversations across all queries: ${allConversations.length}`);
 
-    for (const conv of conversations) {
+    for (const conv of allConversations) {
       const intercomConvId = String(conv.id);
 
       // Check if already tracked in any table
@@ -293,15 +337,6 @@ Deno.serve(async (req) => {
       console.log(`Imported Intercom ${intercomConvId} as ${inserted.id} with ${messages.length} messages`);
       results.push({ intercomId: intercomConvId, action: "imported", id: inserted.id });
     }
-
-    // Pagination
-    const pages = searchData.pages;
-    if (pages?.next?.starting_after) {
-      startingAfter = pages.next.starting_after;
-    } else {
-      hasMore = false;
-    }
-  }
 
   // Update last_polled_intercom_at
   await supabase.from("settings").update({ last_polled_intercom_at: new Date().toISOString() }).eq("id", settings.id);
