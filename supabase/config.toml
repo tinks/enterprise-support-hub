@@ -65,3 +65,6 @@ verify_jwt = false
 
 [functions.backfill-intercom-replies]
 verify_jwt = false
+
+[functions.delete-slack-message]
+verify_jwt = false
