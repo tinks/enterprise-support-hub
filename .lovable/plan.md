@@ -1,45 +1,25 @@
 
 
-## Add authentication to fix broken app
+## Add editable date picker to conversation detail timeline
 
 ### Problem
-The security migration locked all tables to `authenticated`-only RLS policies, but the app has no login flow. Every query returns empty results because the anon key can't read anything.
+The Timeline card in the sidebar (lines 1229-1242) displays dates as read-only text. You want to be able to change the `created_at` date for a conversation.
 
 ### Solution
-Add a login page with Google sign-in (managed by Lovable Cloud, no API keys needed) and email+password. Wrap all routes in a protected route component that redirects unauthenticated users to `/login`.
+Make the "Created" date in the Timeline card clickable, opening a date+time picker popover. On selection, update the `created_at` field in the appropriate table (`conversation_mappings`, `gmail_conversations`, or `manual_conversations`) and log an audit entry.
 
 ### Changes
 
-**1. Configure social auth**
-- Use the Configure Social Auth tool to set up Google sign-in with the Lovable managed OAuth flow
-- Enable auto-confirm for email signups (this is an internal team tool, not public-facing)
+**1. Edit: `src/pages/ConversationDetail.tsx`**
 
-**2. New file: `src/pages/Login.tsx`**
-- Simple login page with email+password form and "Sign in with Google" button
-- Uses `supabase.auth.signInWithPassword()` for email and `lovable.auth.signInWithOAuth("google")` for Google
-- Styled to match the app's brand (coral/pink/purple gradient)
-- No signup form needed initially — team members can be invited or sign up via Google
+- Add imports for `Calendar`, `Popover`/`PopoverContent`/`PopoverTrigger`, `format` from date-fns, and `CalendarIcon`
+- Update `renderDates()` to return a richer structure indicating which dates are editable (only `created_at`)
+- Replace the "Created" date row with a Popover containing a Calendar picker and a time input
+- On date selection: update the correct table's `created_at`, refresh local state, log an audit entry with old/new values, and show a toast
 
-**3. New file: `src/components/ProtectedRoute.tsx`**
-- Listens to `supabase.auth.onAuthStateChange()` and checks `getSession()`
-- If no session, redirects to `/login`
-- Shows a loading spinner while checking auth state
+### Technical detail
 
-**4. Edit: `src/App.tsx`**
-- Add `/login` route pointing to `Login.tsx`
-- Wrap all other routes in `<ProtectedRoute>`
-
-**5. Edit: `src/components/AppLayout.tsx`**
-- Add a sign-out button to the sidebar (calls `supabase.auth.signOut()`)
-
-### What this fixes
-Once users sign in, their requests use the `authenticated` role, so all the existing RLS policies work correctly. Analytics, conversations, settings — everything loads again.
-
-### Files to create/edit
-- **New**: `src/pages/Login.tsx`
-- **New**: `src/components/ProtectedRoute.tsx`
-- **Edit**: `src/App.tsx` — add login route + protect other routes
-- **Edit**: `src/components/AppLayout.tsx` — add sign-out button
-- **Tool**: Configure Social Auth for Google
-- **Tool**: Configure Auth to enable auto-confirm
+- The table to update is determined by the `source` query param: `conversation_mappings` (slack), `gmail_conversations` (gmail), `manual_conversations` (manual)
+- Time input uses a standard `<Input type="time">` alongside the Calendar for full datetime editing
+- Audit log entry: action `"updated_created_at"`, old value → new value
 
