@@ -1,40 +1,48 @@
 
 
-## Fix: Exclude Sam from poller admin searches to prevent timeout
+## Fix: Track Intercom replies for Gmail-linked conversations
 
 ### Problem
-The poller searches by `admin_assignee_id` for every admin in the `admin_owner_map`, including Sam (9520895). Sam is the AI agent who assigns conversations to the enterprise inbox and then unassigns himself — he has hundreds of conversations in a 48-hour window. Paginating through all of them causes the edge function to time out before it can process anything.
+When you reply in Intercom to a conversation linked to a `gmail_conversations` row, the webhook handler doesn't recognize it. The reply handler only checks `conversation_mappings` and `manual_conversations` — it never looks up `gmail_conversations`. This means:
+- Status never updates (stays "open" instead of "awaiting_customer")
+- No reply tracking or logging happens
+- The webhook logs "No mapping found" and exits silently
+
+### Root cause
+Lines 532-592 of `intercom-webhook/index.ts` handle `REPLY_TOPICS` for non-Slack conversations. They search `manual_conversations` by `intercom_conversation_id` but skip `gmail_conversations` entirely. Gmail conversations are metadata-only rows (no `manual_messages`-style message table), so the handler was never built to track replies for them.
 
 ### Solution
-Exclude Sam's admin ID from the poller's per-admin search queries. Sam's conversations reach the enterprise inbox via `team_assignee_id`, which is already covered by the first search query. Only Joel and Kristina need the `admin_assignee_id` fallback.
+Add a Gmail fallback in the reply handler: after the `manual_conversations` check fails, also check `gmail_conversations`. For Gmail rows, update the status based on who replied (`awaiting_customer` for admin, `awaiting_support` for user). No message insertion is needed since Gmail conversations don't store individual messages.
 
-Two approaches — I recommend option B:
-
-**Option A — Hardcode Sam's exclusion**: Skip `9520895` in the poller. Fragile if admin IDs change.
-
-**Option B — Add an "exclude from polling" flag**: Instead of searching by every admin in the map, add a setting or convention. The simplest approach: in the poller, filter the admin list to exclude the `intercom_assignee_id` (which is already configured as Sam's ID in settings). This is already available — no new columns needed.
+Also add the same fallback to the close handler (lines 595-637), which already handles Gmail but only if `manual_conversations` fails first — this part works correctly.
 
 ### Changes
 
-**File: `supabase/functions/poll-intercom-inbox/index.ts`**
-- After building `adminIds` from `adminOwnerMap`, filter out `settings.intercom_assignee_id` (Sam's ID) since his conversations are captured via `team_assignee_id`
-- Add a log line noting which admins are being searched
-- Also add `MAX_PAGES_PER_QUERY = 3` as a safety cap on pagination to prevent future timeouts
+**File: `supabase/functions/intercom-webhook/index.ts`** (~lines 532-593)
+- After the `manual_conversations` reply handler block (line 592), add a new block that:
+  1. Searches `gmail_conversations` by `intercom_conversation_id` for all candidate IDs
+  2. If found, updates the status to `awaiting_customer` (admin reply) or `awaiting_support` (user reply) based on `latestPart.author.type`
+  3. Logs the status update
+  4. Returns success
 
 **File: `src/pages/FlowDiagram.tsx`**
-- Update poller node description to note that the bot admin is excluded from per-admin searches
+- Update the relevant webhook handler node to document that Gmail conversations now get status updates from Intercom replies
 
 ### Technical detail
 ```text
-Current: search by admin_assignee_id for [9520895, 9852095, 9985999]
-  → 9520895 (Sam) returns 300+ results → timeout
+Current reply handler flow:
+  1. Check conversation_mappings → not found
+  2. Check manual_conversations → not found
+  3. "No mapping found" → exit
 
-Fixed: filter out intercom_assignee_id (9520895)
-  → search by admin_assignee_id for [9852095, 9985999] only
-  → Sam's conversations found via team_assignee_id search
+Fixed flow:
+  1. Check conversation_mappings → not found
+  2. Check manual_conversations → not found
+  3. [NEW] Check gmail_conversations → found → update status
+  4. "No mapping found" → exit (only if all 3 miss)
 ```
 
 ### Files to edit
-- `supabase/functions/poll-intercom-inbox/index.ts` — filter out bot admin + add pagination cap
+- `supabase/functions/intercom-webhook/index.ts` — add gmail_conversations reply tracking
 - `src/pages/FlowDiagram.tsx` — update documentation
 
