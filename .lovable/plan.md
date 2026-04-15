@@ -1,49 +1,29 @@
 
 
-## Fix: Comprehensive search in conversations inbox
+## Fix: Search still fails for partial UUIDs
 
-### Problems identified
-1. **Partial UUID search broken** — Only full UUIDs (36 chars) trigger `id.eq.` matching. Searching `312d14c3` finds nothing because the regex requires a complete UUID pattern.
-2. **Missing searchable fields** — Several visible/important columns are not included in search:
-   - `slack_user_name` and `owner` on conversation_mappings
-   - `owner` and `classification` on gmail_conversations
-   - `owner`, `classification`, and `link` on manual_conversations
-3. **No message content search for Slack** — Manual conversations search `manual_messages.message_text`, but there's no equivalent for `original_message_text` partial matches on Slack (already done) or message thread content.
+### Root cause
+PostgREST does **not** support `ilike` on UUID columns directly. The filter `id.ilike.%312d14c3%` silently fails (returns no matches) because `id` is a UUID type, not text. PostgREST requires an explicit cast: `id::text.ilike.%312d14c3%`.
+
+However, the Supabase JS client's `.or()` method does not support the `::text` cast syntax either. So we need a different approach.
 
 ### Solution
-Single file edit to `src/pages/Conversations.tsx`, lines 750-796 (the `doSearch` function):
+Instead of trying to use `id.ilike` in the `.or()` filter (which doesn't work for UUID columns), split the search into two strategies:
 
-1. **Replace UUID-only `id.eq.` with `id.ilike.` always** — Remove the `isUuid` regex check entirely. Use `id.ilike.%q%` in every `.or()` filter, which allows partial UUID matching (PostgREST casts UUID to text for `ilike`).
+1. **Text fields**: Keep the existing `.or()` filter for all text columns (subject, contact_name, owner, etc.)
+2. **UUID partial match**: Run a separate query using `.filter('id::text', 'ilike', ilike)` — PostgREST supports cast syntax in the `.filter()` method — then merge results
 
-2. **Add missing fields to each table's `.or()` filter:**
-   - **conversation_mappings**: add `slack_user_name.ilike.`, `owner.ilike.`, `classification.ilike.`
-   - **gmail_conversations**: add `owner.ilike.`, `classification.ilike.`
-   - **manual_conversations**: add `owner.ilike.`, `classification.ilike.`, `link.ilike.`
+Alternatively, the simpler approach: use `.or()` but reference `id::text` with the PostgREST column cast syntax. PostgREST actually supports `id::text.ilike.%q%` in the filter string passed to `.or()`.
 
-3. **Result**: Every visible column plus the ID is now searchable. Users can search by partial UUID, owner name, classification label, contact name, email, subject, message text, or Intercom ID.
+### Changes
 
-### Technical detail
+**File: `src/pages/Conversations.tsx`** (lines 756-778)
 
-The `.or()` filter strings become (simplified):
+Replace `id.ilike.${ilike}` with `id::text.ilike.${ilike}` in all three `.or()` filter strings:
 
-```text
-conversation_mappings:
-  id.ilike.%q%, original_message_text.ilike.%q%, status.ilike.%q%,
-  product_area.ilike.%q%, slack_user_id.ilike.%q%, slack_channel_id.ilike.%q%,
-  intercom_conversation_id.ilike.%q%, slack_user_name.ilike.%q%,
-  owner.ilike.%q%, classification.ilike.%q%
+- conversation_mappings `.or()`: `id::text.ilike.${ilike},...`
+- gmail_conversations `.or()`: `id::text.ilike.${ilike},...`
+- manual_conversations `.or()`: `id::text.ilike.${ilike},...`
 
-gmail_conversations:
-  id.ilike.%q%, from_email.ilike.%q%, from_name.ilike.%q%, subject.ilike.%q%,
-  snippet.ilike.%q%, status.ilike.%q%, product_area.ilike.%q%,
-  intercom_conversation_id.ilike.%q%, owner.ilike.%q%, classification.ilike.%q%
-
-manual_conversations:
-  id.ilike.%q%, contact_name.ilike.%q%, subject.ilike.%q%, source.ilike.%q%,
-  status.ilike.%q%, product_area.ilike.%q%, intercom_conversation_id.ilike.%q%,
-  owner.ilike.%q%, classification.ilike.%q%, link.ilike.%q%
-```
-
-### Files to edit
-- `src/pages/Conversations.tsx` — rewrite the `doSearch` filter block (lines 750-796)
+This is a 3-line change (one per table query).
 
