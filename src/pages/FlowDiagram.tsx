@@ -318,8 +318,8 @@ function buildNodes(
         details: [
           "Posts Block Kit message with 'Add Details', 'Proceed', and 'Cancel' buttons",
           "Saves prompt_message_ts to conversation_mappings for later chat.update",
-          "If no action after 15 min → cron posts reminder in thread",
-          "If no action after 30 min → cron auto-proceeds (creates ticket automatically)",
+          "If no action after 15 min → cron posts reminder in thread (only if prompt_message_ts exists and no Intercom ticket yet)",
+          "If no action after 30 min → cron auto-proceeds (only bot-flow convos with prompt_message_ts, never manually-set 'Awaiting customer')",
         ],
       },
     },
