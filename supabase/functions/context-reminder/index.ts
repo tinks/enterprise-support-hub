@@ -48,7 +48,9 @@ Deno.serve(async (req) => {
     .from("conversation_mappings")
     .select("*")
     .eq("status", "awaiting_context")
-    .lt("created_at", fifteenMinAgo);
+    .lt("created_at", fifteenMinAgo)
+    .not("prompt_message_ts", "is", null)
+    .is("intercom_conversation_id", null);
 
   if (error) {
     console.error("Failed to query stale conversations:", error);
