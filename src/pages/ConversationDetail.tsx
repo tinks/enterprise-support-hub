@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -934,20 +934,19 @@ const ConversationDetail = () => {
     return dates;
   };
 
-  const handleDateChange = useCallback(async (oldRaw: string, newDate: Date) => {
+  const handleDateChange = async (oldRaw: string, newDate: Date) => {
     const current = conv || gmailConv || manualConv;
     if (!current) return;
     const table = source === "slack" ? "conversation_mappings" : source === "gmail" ? "gmail_conversations" : "manual_conversations";
     const newIso = newDate.toISOString();
     const { error } = await supabase.from(table).update({ created_at: newIso } as any).eq("id", current.id);
     if (error) { toast.error("Failed to update date"); return; }
-    // Update local state
     if (source === "slack" && conv) setConv({ ...conv, created_at: newIso });
     else if (source === "gmail" && gmailConv) setGmailConv({ ...gmailConv, created_at: newIso });
     else if (source === "manual" && manualConv) setManualConv({ ...manualConv, created_at: newIso });
     await logAudit("updated_created_at", new Date(oldRaw).toLocaleString(), newDate.toLocaleString());
     toast.success("Date updated");
-  }, [conv, gmailConv, manualConv, source]);
+  };
 
   return (
     <AppLayout>
