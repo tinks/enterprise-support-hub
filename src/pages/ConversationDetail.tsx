@@ -670,7 +670,7 @@ const ConversationDetail = () => {
                         </AvatarFallback>
                       )}
                     </Avatar>
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 group/msg">
                       <div className="flex items-baseline gap-2">
                         <span className={`text-sm font-medium ${msg.is_bot ? "text-primary" : "text-foreground"}`}>
                           {msg.user_name}
@@ -678,6 +678,27 @@ const ConversationDetail = () => {
                         <span className="text-xs text-muted-foreground">
                           {formatSlackTs(msg.ts)}
                         </span>
+                        {msg.is_bot && (
+                          <button
+                            className="opacity-0 group-hover/msg:opacity-100 transition-opacity ml-auto text-muted-foreground hover:text-destructive"
+                            title="Delete from Slack"
+                            onClick={async () => {
+                              try {
+                                const { data, error } = await supabase.functions.invoke("delete-slack-message", {
+                                  body: { channelId: conv.slack_channel_id, messageTs: msg.ts },
+                                });
+                                if (error) throw error;
+                                if (data?.error) throw new Error(data.error);
+                                setThreadMessages((prev) => prev.filter((m) => m.ts !== msg.ts));
+                                toast.success("Message deleted from Slack");
+                              } catch (err: any) {
+                                toast.error(err.message || "Failed to delete message");
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                       <p className={`mt-0.5 text-sm whitespace-pre-wrap break-words ${
                         msg.is_bot
