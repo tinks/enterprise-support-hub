@@ -486,6 +486,13 @@ export type Database = {
         Args: { p_event_ts: string; p_mapping_id: string }
         Returns: boolean
       }
+      search_conversations: {
+        Args: { search_term: string }
+        Returns: {
+          result_id: string
+          result_source: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
