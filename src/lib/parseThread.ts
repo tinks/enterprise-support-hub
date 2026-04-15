@@ -64,10 +64,10 @@ export function combineDateTime(baseDate: Date, timeStr?: string): string | unde
 export function parseThread(raw: string): ParsedMessage[] {
   // Format A: "Name  [1:47 PM]" or "Name [1:47 PM]" — single line
   const regexA = /^(.+?)\s{1,}\[(\d{1,2}:\d{2}\s?(?:AM|PM))\]\s*$/gm;
-  let parts: { name: string; startIdx: number; timeStr: string }[] = [];
+  let parts: { name: string; startIdx: number; timeStr: string; headerIdx: number }[] = [];
   let match: RegExpExecArray | null;
   while ((match = regexA.exec(raw)) !== null) {
-    parts.push({ name: match[1].trim(), startIdx: match.index + match[0].length, timeStr: match[2].trim() });
+    parts.push({ name: match[1].trim(), startIdx: match.index + match[0].length, timeStr: match[2].trim(), headerIdx: match.index });
   }
 
   // Format B: Name on one line, then "  Mar 26th at 11:03 AM" on the next
@@ -77,7 +77,7 @@ export function parseThread(raw: string): ParsedMessage[] {
       // Capture the full date+time portion for Format B
       const fullLine = match[0];
       const dateTimePart = fullLine.slice(fullLine.indexOf("\n")).trim();
-      parts.push({ name: match[1].trim(), startIdx: match.index + match[0].length, timeStr: dateTimePart });
+      parts.push({ name: match[1].trim(), startIdx: match.index + match[0].length, timeStr: dateTimePart, headerIdx: match.index });
     }
   }
 
@@ -85,7 +85,7 @@ export function parseThread(raw: string): ParsedMessage[] {
   if (parts.length === 0) {
     const regexC = /^(.+?)\s{2,}(\d{1,2}:\d{2}\s?(?:AM|PM))\s*$/gm;
     while ((match = regexC.exec(raw)) !== null) {
-      parts.push({ name: match[1].trim(), startIdx: match.index + match[0].length, timeStr: match[2].trim() });
+      parts.push({ name: match[1].trim(), startIdx: match.index + match[0].length, timeStr: match[2].trim(), headerIdx: match.index });
     }
   }
 
@@ -93,7 +93,7 @@ export function parseThread(raw: string): ParsedMessage[] {
   if (parts.length === 0) {
     const regexD = /^(.+?)\s{2,}(\d{1,2}\/\d{1,2}\/\d{2,4})\s+(\d{1,2}:\d{2}\s?(?:AM|PM))\s*$/gm;
     while ((match = regexD.exec(raw)) !== null) {
-      parts.push({ name: match[1].trim(), startIdx: match.index + match[0].length, timeStr: `${match[2].trim()} ${match[3].trim()}` });
+      parts.push({ name: match[1].trim(), startIdx: match.index + match[0].length, timeStr: `${match[2].trim()} ${match[3].trim()}`, headerIdx: match.index });
     }
   }
 
@@ -101,7 +101,7 @@ export function parseThread(raw: string): ParsedMessage[] {
 
   const messages: ParsedMessage[] = [];
   for (let i = 0; i < parts.length; i++) {
-    const endIdx = i + 1 < parts.length ? raw.lastIndexOf("\n", raw.indexOf(parts[i + 1].name, parts[i].startIdx)) : raw.length;
+    const endIdx = i + 1 < parts.length ? parts[i + 1].headerIdx : raw.length;
     let body = cleanBody(raw.slice(parts[i].startIdx, endIdx));
     if (!body) continue;
     const isAdmin = ADMIN_NAMES.some((n) => parts[i].name.toLowerCase().includes(n));
