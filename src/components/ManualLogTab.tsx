@@ -187,6 +187,7 @@ const ManualLogTab = () => {
           .eq("id", convo.id);
       }
       toast.success("Conversation logged");
+      navigate(`/conversations/${convo.id}?source=manual`);
     }
 
     // Reset form
