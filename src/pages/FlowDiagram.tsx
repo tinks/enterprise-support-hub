@@ -614,7 +614,7 @@ function buildNodes(
           "Gmail cross-reference: extracts contact email from conversation source or contacts API, searches gmail_conversations for unlinked records matching from_email/to_emails/cc_emails — if found, links the Gmail thread with intercom_conversation_id and skips manual_conversations insert",
           "Fallback: if no Gmail match, extracts messages (skips bots, notes, system events) and inserts into manual_conversations (source='intercom') + manual_messages",
           "Conversations from other channels (web, mobile, non-enterprise email) get tracked automatically",
-          "Live reply tracking: subsequent replies (admin AND customer) in Intercom are appended to manual_messages via webhook — listens for conversation.user.replied and conversation.user.created in addition to admin reply topics",
+          "Live reply tracking: subsequent replies (admin AND customer) in Intercom are appended to manual_messages via webhook — listens for conversation.user.replied and conversation.user.created in addition to admin reply topics. Gmail-linked conversations also get status updates (awaiting_customer/awaiting_support) from Intercom replies",
           "Auto-owner: resolves admin_assignee_id via settings.admin_owner_map (JSON) to set owner at import time; also updates owner on already-tracked conversations (conversation_mappings, gmail_conversations, manual_conversations) when reassigned in Intercom",
         ],
         accent: "orange",

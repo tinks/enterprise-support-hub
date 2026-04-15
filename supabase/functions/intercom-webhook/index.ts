@@ -590,6 +590,33 @@ Deno.serve(async (req) => {
             }
           }
         }
+
+        // Gmail fallback: update status for Gmail-linked conversations
+        let gmailConv = null;
+        for (const cid of allConvIds) {
+          const { data } = await supabase
+            .from("gmail_conversations")
+            .select("id")
+            .eq("intercom_conversation_id", cid)
+            .maybeSingle();
+          if (data) { gmailConv = data; break; }
+        }
+
+        if (gmailConv) {
+          const parts = body.data?.item?.conversation_parts?.conversation_parts || [];
+          const latestPart = parts[parts.length - 1] || parts[0];
+          const authorType = latestPart?.author?.type || "admin";
+          const newStatus = (authorType === "user" || authorType === "lead") ? "awaiting_support" : "awaiting_customer";
+          await supabase
+            .from("gmail_conversations")
+            .update({ status: newStatus })
+            .eq("id", gmailConv.id)
+            .neq("status", "resolved");
+          console.log(`Updated gmail_conversation ${gmailConv.id} status to ${newStatus} via Intercom reply`);
+          return new Response(JSON.stringify({ ok: true, message: "Updated Gmail conversation status", id: gmailConv.id }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
       }
 
       // Fallback: resolve manual_conversations or gmail_conversations on Intercom close
