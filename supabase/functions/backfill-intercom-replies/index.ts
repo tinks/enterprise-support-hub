@@ -40,6 +40,7 @@ Deno.serve(async (req) => {
     const dry = url.searchParams.get("dry") === "true";
     const offset = parseInt(url.searchParams.get("offset") || "0", 10);
     const limit = parseInt(url.searchParams.get("limit") || "20", 10);
+    const syncMappings = url.searchParams.get("sync_mappings") === "true";
 
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -201,7 +202,7 @@ Deno.serve(async (req) => {
 
     // ── Phase 2: Status sync for conversation_mappings ──
     const mappingStatusUpdates: Array<{ id: string; change: string }> = [];
-    if (!dry) {
+    if (!dry && syncMappings) {
       const { data: mappings } = await sb
         .from("conversation_mappings")
         .select("id, intercom_conversation_id, status")
@@ -232,7 +233,7 @@ Deno.serve(async (req) => {
 
     // ── Phase 3: Status sync for gmail_conversations ──
     const gmailStatusUpdates: Array<{ id: string; change: string }> = [];
-    if (!dry) {
+    if (!dry && syncMappings) {
       const { data: gmails } = await sb
         .from("gmail_conversations")
         .select("id, intercom_conversation_id, status")
