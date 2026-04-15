@@ -748,17 +748,13 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     setSearchLoading(true);
 
     const doSearch = async () => {
-      const isUuid = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i.test(q);
-
       const [slackRes, gmailRes, manualRes, msgRes] = await Promise.all([
         (sourceFilter === "all" || sourceFilter === "slack" || sourceFilter === "slack_import")
           ? supabase
               .from("conversation_mappings")
               .select("*")
               .or(
-                isUuid
-                  ? `id.eq.${q},original_message_text.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},slack_user_id.ilike.${ilike},slack_channel_id.ilike.${ilike},intercom_conversation_id.ilike.${ilike}`
-                  : `original_message_text.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},slack_user_id.ilike.${ilike},slack_channel_id.ilike.${ilike},intercom_conversation_id.ilike.${ilike}`
+                `id.ilike.${ilike},original_message_text.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},slack_user_id.ilike.${ilike},slack_channel_id.ilike.${ilike},intercom_conversation_id.ilike.${ilike},slack_user_name.ilike.${ilike},owner.ilike.${ilike},classification.ilike.${ilike}`
               )
               .order("created_at", { ascending: false })
               .limit(200)
@@ -768,9 +764,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
               .from("gmail_conversations")
               .select("*")
               .or(
-                isUuid
-                  ? `id.eq.${q},from_email.ilike.${ilike},from_name.ilike.${ilike},subject.ilike.${ilike},snippet.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},intercom_conversation_id.ilike.${ilike}`
-                  : `from_email.ilike.${ilike},from_name.ilike.${ilike},subject.ilike.${ilike},snippet.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},intercom_conversation_id.ilike.${ilike}`
+                `id.ilike.${ilike},from_email.ilike.${ilike},from_name.ilike.${ilike},subject.ilike.${ilike},snippet.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},intercom_conversation_id.ilike.${ilike},owner.ilike.${ilike},classification.ilike.${ilike}`
               )
               .order("received_at", { ascending: false })
               .limit(200)
@@ -780,9 +774,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
               .from("manual_conversations")
               .select("*")
               .or(
-                isUuid
-                  ? `id.eq.${q},contact_name.ilike.${ilike},subject.ilike.${ilike},source.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},intercom_conversation_id.ilike.${ilike}`
-                  : `contact_name.ilike.${ilike},subject.ilike.${ilike},source.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},intercom_conversation_id.ilike.${ilike}`
+                `id.ilike.${ilike},contact_name.ilike.${ilike},subject.ilike.${ilike},source.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},intercom_conversation_id.ilike.${ilike},owner.ilike.${ilike},classification.ilike.${ilike},link.ilike.${ilike}`
               )
               .order("created_at", { ascending: false })
               .limit(200)
