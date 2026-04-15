@@ -748,68 +748,42 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     setSearchLoading(true);
 
     const doSearch = async () => {
-      const [slackRes, gmailRes, manualRes, msgRes] = await Promise.all([
-        (sourceFilter === "all" || sourceFilter === "slack" || sourceFilter === "slack_import")
-          ? supabase
-              .from("conversation_mappings")
-              .select("*")
-              .or(
-                `id::text.ilike.${ilike},original_message_text.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},slack_user_id.ilike.${ilike},slack_channel_id.ilike.${ilike},intercom_conversation_id.ilike.${ilike},slack_user_name.ilike.${ilike},owner.ilike.${ilike},classification.ilike.${ilike}`
-              )
-              .order("created_at", { ascending: false })
-              .limit(200)
+      // Step 1: Server-side search via RPC to get matching IDs
+      const { data: hits, error: rpcError } = await supabase.rpc("search_conversations", { search_term: q });
+      if (rpcError) { console.error("search_conversations RPC error", rpcError); setSearchLoading(false); return; }
+
+      // Group IDs by source
+      const slackIds: string[] = [];
+      const gmailIds: string[] = [];
+      const manualIds: string[] = [];
+      for (const h of (hits ?? []) as { result_id: string; result_source: string }[]) {
+        if (h.result_source === "slack") slackIds.push(h.result_id);
+        else if (h.result_source === "gmail") gmailIds.push(h.result_id);
+        else if (h.result_source === "manual") manualIds.push(h.result_id);
+      }
+
+      // Deduplicate
+      const uniqSlack = [...new Set(slackIds)];
+      const uniqGmail = [...new Set(gmailIds)];
+      const uniqManual = [...new Set(manualIds)];
+
+      // Step 2: Fetch full rows for matching IDs (respecting source filter)
+      const [slackRes, gmailRes, manualRes] = await Promise.all([
+        (sourceFilter === "all" || sourceFilter === "slack" || sourceFilter === "slack_import") && uniqSlack.length > 0
+          ? supabase.from("conversation_mappings").select("*").in("id", uniqSlack).order("created_at", { ascending: false })
           : Promise.resolve({ data: [] }),
-        (sourceFilter === "all" || sourceFilter === "gmail")
-          ? supabase
-              .from("gmail_conversations")
-              .select("*")
-              .or(
-                `id::text.ilike.${ilike},from_email.ilike.${ilike},from_name.ilike.${ilike},subject.ilike.${ilike},snippet.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},intercom_conversation_id.ilike.${ilike},owner.ilike.${ilike},classification.ilike.${ilike}`
-              )
-              .order("received_at", { ascending: false })
-              .limit(200)
+        (sourceFilter === "all" || sourceFilter === "gmail") && uniqGmail.length > 0
+          ? supabase.from("gmail_conversations").select("*").in("id", uniqGmail).order("received_at", { ascending: false })
           : Promise.resolve({ data: [] }),
-        (sourceFilter === "all" || sourceFilter === "manual")
-          ? supabase
-              .from("manual_conversations")
-              .select("*")
-              .or(
-                `id::text.ilike.${ilike},contact_name.ilike.${ilike},subject.ilike.${ilike},source.ilike.${ilike},status.ilike.${ilike},product_area.ilike.${ilike},intercom_conversation_id.ilike.${ilike},owner.ilike.${ilike},classification.ilike.${ilike},link.ilike.${ilike}`
-              )
-              .order("created_at", { ascending: false })
-              .limit(200)
-          : Promise.resolve({ data: [] }),
-        (sourceFilter === "all" || sourceFilter === "manual")
-          ? supabase
-              .from("manual_messages")
-              .select("conversation_id")
-              .ilike("message_text", ilike)
-              .limit(200)
+        (sourceFilter === "all" || sourceFilter === "manual") && uniqManual.length > 0
+          ? supabase.from("manual_conversations").select("*").in("id", uniqManual).order("created_at", { ascending: false })
           : Promise.resolve({ data: [] }),
       ]);
-
-      const manualData = (manualRes.data ?? []) as unknown as ManualConversation[];
-      const manualIds = new Set(manualData.map(m => m.id));
-
-      const extraIds = [...new Set((msgRes.data ?? []).map((r: any) => r.conversation_id as string))]
-        .filter(id => !manualIds.has(id));
-
-      let mergedManual = manualData;
-      if (extraIds.length > 0) {
-        const { data: extraConvos } = await supabase
-          .from("manual_conversations")
-          .select("*")
-          .in("id", extraIds)
-          .order("created_at", { ascending: false });
-        if (extraConvos && extraConvos.length > 0) {
-          mergedManual = [...manualData, ...(extraConvos as unknown as ManualConversation[])];
-        }
-      }
 
       setSearchResults({
         slack: (slackRes.data ?? []) as unknown as ConversationMapping[],
         gmail: (gmailRes.data ?? []) as unknown as GmailConversation[],
-        manual: mergedManual,
+        manual: (manualRes.data ?? []) as unknown as ManualConversation[],
       });
       setSearchLoading(false);
     };
