@@ -88,7 +88,7 @@ awaiting_context → processing → active ⇄ active_pending → resolved
 
 | Status | Meaning |
 |---|---|
-| `awaiting_context` | Bot posted context prompt, waiting for user to click "Add Details" or "Proceed" |
+| `awaiting_context` | Bot posted context prompt, waiting for user to click "Add Details" or "Proceed". Also used as the UI "Awaiting customer" label for manual status changes — but the cron only targets bot-flow instances (see §14b) |
 | `processing` | User clicked a button, ticket creation in progress |
 | `active` | Intercom conversation created, AI agent handling |
 | `active_pending` | User sent a thread reply while active, waiting for Sam's response |
@@ -365,6 +365,8 @@ When detected:
 
 A cron function (`context-reminder`) runs every 5 minutes and checks for conversations stuck in `awaiting_context`:
 
+- **Only targets bot-flow conversations** — requires `prompt_message_ts IS NOT NULL` (set when the bot posts its "Add Details / Proceed / Cancel" buttons). Conversations where "Awaiting customer" was set manually via the UI are never processed.
+- **Safety net:** Also requires `intercom_conversation_id IS NULL` — never auto-proceeds a conversation that already has an Intercom ticket.
 - **15 minutes:** Posts a reminder in the Slack thread nudging the user to click "Add Details" or "Proceed"
 - **30 minutes:** Automatically creates the Intercom ticket (same as clicking "Proceed") — looks up user email, creates contact + conversation, assigns to Sam
 
