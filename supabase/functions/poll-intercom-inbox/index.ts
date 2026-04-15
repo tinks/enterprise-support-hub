@@ -63,7 +63,14 @@ Deno.serve(async (req) => {
   const results: Array<{ intercomId: string; action: string; id?: string }> = [];
 
   // Build search queries: one for team_assignee_id + one per admin in admin_owner_map
-  const adminIds = Object.keys(adminOwnerMap);
+  // Exclude the bot admin (intercom_assignee_id) from per-admin searches — their
+  // conversations reach the inbox via team_assignee_id and searching them causes timeouts
+  const botAdminId = settings.intercom_assignee_id || "";
+  const adminIds = Object.keys(adminOwnerMap).filter(id => id !== botAdminId);
+  console.log(`Admin IDs to search (excluding bot ${botAdminId}): [${adminIds.join(", ")}]`);
+
+  const MAX_PAGES_PER_QUERY = 3; // Safety cap: 150 conversations max per query
+
   const searchQueries: Array<{ label: string; query: Record<string, unknown> }> = [
     {
       label: `team_assignee_id=${enterpriseInboxId}`,
@@ -97,6 +104,7 @@ Deno.serve(async (req) => {
     let hasMore = true;
     let startingAfter: string | null = null;
 
+    let pageCount = 0;
     while (hasMore) {
       const searchBody: Record<string, unknown> = {
         query: sq.query,
@@ -136,10 +144,14 @@ Deno.serve(async (req) => {
         }
       }
 
+      pageCount++;
       const pages = searchData.pages;
-      if (pages?.next?.starting_after) {
+      if (pages?.next?.starting_after && pageCount < MAX_PAGES_PER_QUERY) {
         startingAfter = pages.next.starting_after;
       } else {
+        if (pageCount >= MAX_PAGES_PER_QUERY && pages?.next?.starting_after) {
+          console.log(`Capped pagination for ${sq.label} at ${MAX_PAGES_PER_QUERY} pages`);
+        }
         hasMore = false;
       }
     }

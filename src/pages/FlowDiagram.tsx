@@ -667,8 +667,8 @@ function buildNodes(
         icon: Ticket,
         edgeFunction: "poll-intercom-inbox",
         details: [
-          "Queries Intercom Search API with multiple strategies: 1) team_assignee_id matches enterprise inbox, 2) admin_assignee_id matches each admin in admin_owner_map — deduplicates across all queries; covers last 48 hours",
-          "Paginates through all results (50 per page)",
+          "Queries Intercom Search API with multiple strategies: 1) team_assignee_id matches enterprise inbox, 2) admin_assignee_id for each admin in admin_owner_map (excludes the bot admin / intercom_assignee_id to prevent timeout from high-volume results) — deduplicates across all queries; covers last 48 hours",
+          "Paginates through results (50 per page, capped at 3 pages / 150 results per query to prevent timeouts)",
           "Deduplicates against conversation_mappings, gmail_conversations, and manual_conversations",
           "Gmail cross-reference: extracts contact email and links to unlinked Gmail threads (same logic as webhook handler)",
           "Fallback: creates manual_conversations entry with full message history if no Gmail match",
