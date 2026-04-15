@@ -202,7 +202,7 @@ Deno.serve(async (req) => {
 
     // ── Phase 2: Status sync for conversation_mappings ──
     const mappingStatusUpdates: Array<{ id: string; change: string }> = [];
-    if (!dry) {
+    if (!dry && syncMappings) {
       const { data: mappings } = await sb
         .from("conversation_mappings")
         .select("id, intercom_conversation_id, status")
