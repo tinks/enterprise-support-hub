@@ -1,57 +1,49 @@
 
 
-## One-time backfill: sync missed Intercom replies into manual_messages
+## Fix: Comprehensive search in conversations inbox
 
-### Problem
-Many `manual_conversations` (imported from Intercom) only have their initial messages but are missing subsequent replies. The webhook wasn't tracking replies for these conversations until recently. Status fields are also stale.
-
-### Scope
-- **98 manual conversations** with `source = 'intercom'` that have an `intercom_conversation_id`
-- **~197 Slack conversation_mappings** with Intercom links (status-only, no message backfill needed)
-- **~63 Gmail conversations** with Intercom links (status-only, no message backfill needed)
+### Problems identified
+1. **Partial UUID search broken** — Only full UUIDs (36 chars) trigger `id.eq.` matching. Searching `312d14c3` finds nothing because the regex requires a complete UUID pattern.
+2. **Missing searchable fields** — Several visible/important columns are not included in search:
+   - `slack_user_name` and `owner` on conversation_mappings
+   - `owner` and `classification` on gmail_conversations
+   - `owner`, `classification`, and `link` on manual_conversations
+3. **No message content search for Slack** — Manual conversations search `manual_messages.message_text`, but there's no equivalent for `original_message_text` partial matches on Slack (already done) or message thread content.
 
 ### Solution
-Create a one-time edge function `backfill-intercom-replies` that:
+Single file edit to `src/pages/Conversations.tsx`, lines 750-796 (the `doSearch` function):
 
-1. Fetches all `manual_conversations` where `intercom_conversation_id IS NOT NULL`
-2. For each conversation:
-   - Fetches the full Intercom conversation (with paginated parts)
-   - Extracts all non-bot, non-note, non-open/close parts with body text
-   - Fetches existing `manual_messages` for that conversation
-   - Compares by `created_at` timestamp (rounded to second) to find missing messages
-   - Inserts missing messages with correct `sender_name`, `role`, and `created_at`
-   - Updates conversation `status` based on the latest reply author (admin → `awaiting_customer`, user → `awaiting_support`)
-   - If the Intercom conversation is closed and our status isn't `resolved`, marks it resolved
-3. Returns a summary of what was backfilled
+1. **Replace UUID-only `id.eq.` with `id.ilike.` always** — Remove the `isUuid` regex check entirely. Use `id.ilike.%q%` in every `.or()` filter, which allows partial UUID matching (PostgREST casts UUID to text for `ilike`).
 
-Also updates `gmail_conversations` and `conversation_mappings` statuses based on current Intercom state (open/closed/snoozed).
+2. **Add missing fields to each table's `.or()` filter:**
+   - **conversation_mappings**: add `slack_user_name.ilike.`, `owner.ilike.`, `classification.ilike.`
+   - **gmail_conversations**: add `owner.ilike.`, `classification.ilike.`
+   - **manual_conversations**: add `owner.ilike.`, `classification.ilike.`, `link.ilike.`
 
-### Changes
-
-**New file: `supabase/functions/backfill-intercom-replies/index.ts`**
-- Reuses the same Intercom fetch + pagination logic from `import-intercom-ticket`
-- Processes conversations in batches to avoid timeout (configurable limit, default 20)
-- Accepts optional `?offset=N` query param for manual pagination
-- Dry-run mode with `?dry=true` to preview changes without writing
-- Logs each conversation processed with counts of new messages found
-
-**File: `src/pages/FlowDiagram.tsx`**
-- No changes needed (this is a one-time script, not a permanent flow change)
+3. **Result**: Every visible column plus the ID is now searchable. Users can search by partial UUID, owner name, classification label, contact name, email, subject, message text, or Intercom ID.
 
 ### Technical detail
-```text
-For each manual_conversation with intercom_conversation_id:
-  1. GET /conversations/{id} (paginate parts)
-  2. Extract parts: skip bot, note, open, close, away_mode_assignment
-  3. SELECT existing manual_messages by conversation_id
-  4. Diff by created_at (epoch second match) to find missing
-  5. INSERT missing messages
-  6. UPDATE status if Intercom state differs
 
-Rate limiting: ~1 Intercom API call per conversation + pagination
-Timeout safety: process max 20 per invocation, use offset for batches
+The `.or()` filter strings become (simplified):
+
+```text
+conversation_mappings:
+  id.ilike.%q%, original_message_text.ilike.%q%, status.ilike.%q%,
+  product_area.ilike.%q%, slack_user_id.ilike.%q%, slack_channel_id.ilike.%q%,
+  intercom_conversation_id.ilike.%q%, slack_user_name.ilike.%q%,
+  owner.ilike.%q%, classification.ilike.%q%
+
+gmail_conversations:
+  id.ilike.%q%, from_email.ilike.%q%, from_name.ilike.%q%, subject.ilike.%q%,
+  snippet.ilike.%q%, status.ilike.%q%, product_area.ilike.%q%,
+  intercom_conversation_id.ilike.%q%, owner.ilike.%q%, classification.ilike.%q%
+
+manual_conversations:
+  id.ilike.%q%, contact_name.ilike.%q%, subject.ilike.%q%, source.ilike.%q%,
+  status.ilike.%q%, product_area.ilike.%q%, intercom_conversation_id.ilike.%q%,
+  owner.ilike.%q%, classification.ilike.%q%, link.ilike.%q%
 ```
 
-### Files to create/edit
-- `supabase/functions/backfill-intercom-replies/index.ts` — new one-time backfill script
+### Files to edit
+- `src/pages/Conversations.tsx` — rewrite the `doSearch` filter block (lines 750-796)
 
