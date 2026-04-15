@@ -747,13 +747,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Skip if conversation is already resolved — UNLESS no reply was ever posted
-    // (e.g. Sam merged/closed before the reply webhook arrived)
-    if (mapping.status === "resolved" && mapping.last_intercom_part_id !== null) {
-      console.log(`Ignoring reply for ${conversationId} — status is already resolved and a reply was previously posted`);
+    // Skip if conversation is already resolved — UNLESS:
+    // 1. No reply was ever posted (e.g. Sam merged/closed before the reply webhook arrived)
+    // 2. An admin is following up (e.g. Sam's snooze→reply→close workflow)
+    const isAdminReplyTopic = topic === "conversation.admin.replied" || topic === "conversation.admin.single.reply" || topic === "ticket.admin.replied";
+    if (mapping.status === "resolved" && mapping.last_intercom_part_id !== null && !isAdminReplyTopic) {
+      console.log(`Ignoring reply for ${conversationId} — status is already resolved and a reply was previously posted (non-admin topic: ${topic})`);
       return new Response(JSON.stringify({ ok: true, message: "Already closed" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+    if (mapping.status === "resolved" && mapping.last_intercom_part_id !== null && isAdminReplyTopic) {
+      console.log(`Processing admin follow-up on resolved conversation ${conversationId} — reopening for tracking`);
     }
     if (mapping.status === "resolved" && mapping.last_intercom_part_id === null) {
       console.log(`Processing reply for resolved conversation ${conversationId} — no reply was ever posted`);
@@ -1381,15 +1386,15 @@ Deno.serve(async (req) => {
     // Auto-update conversation status based on who replied (applies after escalation/pending logic)
     // isHumanAdmin covers Joel/Kristina; also check for Sam (AI agent, author.type=admin but isKnownAiAgent)
     const isAdminReply = isHumanAdmin || (lastCommentPart?.author as any)?.type === "admin";
-    if (mapping && mapping.status !== "resolved") {
+    if (mapping && (mapping.status !== "resolved" || isAdminReply)) {
       if (isAdminReply) {
         // Admin (Joel, Kristina) or AI agent (Sam) replied → awaiting customer
+        // This also reopens resolved conversations for follow-up tracking
         await supabase
           .from("conversation_mappings")
-          .update({ status: "awaiting_customer" })
-          .eq("id", mapping.id)
-          .neq("status", "resolved");
-        console.log(`Set conversation ${conversationId} status to awaiting_customer (admin/AI reply)`);
+          .update({ status: "awaiting_customer", resolved_at: null })
+          .eq("id", mapping.id);
+        console.log(`Set conversation ${conversationId} status to awaiting_customer (admin/AI reply${mapping.status === "resolved" ? ", reopened from resolved" : ""})`);
       } else {
         // Customer replied → awaiting support
         await supabase
