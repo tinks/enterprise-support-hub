@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
-import { Settings, BarChart3, GitBranch, MessageSquare, BookOpen, Import, Users } from "lucide-react";
+import { Settings, BarChart3, GitBranch, MessageSquare, BookOpen, Import, Users, LogOut } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { supabase } from "@/integrations/supabase/client";
 
 const navItems = [
   { to: "/", icon: BarChart3, label: "Analytics", end: true },
@@ -80,7 +81,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         </div>
 
         {/* Nav links */}
-        <nav className="flex-1 flex flex-col">
+        <nav className="flex-1 flex flex-col justify-between">
           <div className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto overflow-x-hidden">
               {navItems.slice(0, 2).map((item) => (
                 <TooltipProvider key={item.to} delayDuration={0}>
@@ -142,6 +143,15 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                   </Tooltip>
                 </TooltipProvider>
               ))}
+          </div>
+          <div className="p-2 border-t border-border">
+            <button
+              onClick={() => supabase.auth.signOut().then(() => navigate("/login"))}
+              className={`${linkBase} w-full`}
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+              <span className={labelClass}>Sign out</span>
+            </button>
           </div>
         </nav>
       </aside>
