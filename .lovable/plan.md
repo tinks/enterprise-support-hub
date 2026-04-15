@@ -1,61 +1,44 @@
 
 
-## Poll Intercom enterprise inbox for missed conversations
+## Fix: use admin_assignee_id as fallback for enterprise inbox detection
 
 ### Problem
-Intercom webhook delivery is not 100% reliable. Conversation `215473900654421` was assigned to the enterprise inbox by the "Routing Enterprise" workflow, but no webhook was ever received. The system only tracks conversations reactively via webhooks, so dropped deliveries create gaps.
+Intercom's routing workflow assigns conversations to individual admins within the enterprise inbox, but the API never sets `team_assignee_id`. Both the webhook and poller only check `team_assignee_id`, so they reject/miss these conversations. The logs confirm: every recent assignment shows `team=null` with a valid `admin_assignee_id` that maps to a known owner (Sam, Joel, Kristina).
 
 ### Solution
-Create a periodic **Intercom inbox poller** edge function (similar to how `poll-gmail` works) that:
-
-1. Queries the Intercom Search API for recent conversations assigned to the enterprise inbox
-2. Checks each against the three conversation tables (`conversation_mappings`, `gmail_conversations`, `manual_conversations`)
-3. Auto-imports any untracked conversations using the same logic as the webhook assignment handler (including Gmail cross-referencing)
-
-This function can be invoked manually from the app or scheduled via a cron trigger.
+If `team_assignee_id` is null but `admin_assignee_id` exists in the `admin_owner_map`, treat it as an enterprise inbox assignment. This applies to both the webhook handler and the poller.
 
 ### Changes
 
-**New file: `supabase/functions/poll-intercom-inbox/index.ts`**
-- Use the Intercom Search Conversations API (`POST /conversations/search`) to find conversations where `team_assignee_id` matches the enterprise inbox, ordered by `updated_at` descending, limited to the last 24-48 hours
-- For each conversation, check if `intercom_conversation_id` already exists in any of the three tables
-- If not tracked: extract contact email, cross-reference Gmail, then create a `manual_conversations` entry (same logic as the webhook handler)
-- Log how many new conversations were imported
-- Store a `last_polled_intercom_at` timestamp in settings to avoid re-processing
+**File: `supabase/functions/intercom-webhook/index.ts`** (~line 177-201)
+- After the API fallback still returns empty `team_assignee_id`, add a third check: if `resolvedOwner` is not null (meaning `admin_assignee_id` is in the owner map), set `isEnterpriseInbox = true`
+- Log this fallback path for observability
 
-**Migration: add `last_polled_intercom_at` to settings**
-```sql
-ALTER TABLE settings ADD COLUMN last_polled_intercom_at timestamptz DEFAULT NULL;
-```
+**File: `supabase/functions/poll-intercom-inbox/index.ts`** (~line 67-80)
+- Change the search strategy: instead of only searching by `team_assignee_id`, also search by `admin_assignee_id` for each admin ID in the `admin_owner_map`
+- Run a search query per admin ID with `{ field: "admin_assignee_id", operator: "=", value: adminId }` combined with the time filter
+- Deduplicate results across searches to avoid processing the same conversation twice
 
 **File: `src/pages/FlowDiagram.tsx`**
-- Add a node documenting the Intercom inbox poller as a catch-all for missed webhooks
-
-**File: `src/pages/Index.tsx` or relevant admin page**
-- Add a "Poll Intercom inbox" button (similar to existing Gmail poll trigger) so it can be run on-demand
+- Update relevant nodes to document the admin_assignee_id fallback logic
 
 ### Technical detail
 
 ```text
-Intercom Search API request:
-POST https://api.intercom.io/conversations/search
-{
-  "query": {
-    "operator": "AND",
-    "value": [
-      { "field": "team_assignee_id", "operator": "=", "value": "<enterprise_inbox_id>" },
-      { "field": "updated_at", "operator": ">", "value": <unix_timestamp_24h_ago> }
-    ]
-  },
-  "pagination": { "per_page": 50 }
-}
+Webhook fallback chain:
+  1. team_assignee_id matches enterprise inbox? → yes → proceed
+  2. API fallback: fetch conversation, check team_assignee_id → match? → proceed
+  3. [NEW] admin_assignee_id in admin_owner_map? → yes → proceed
+  4. Otherwise → ignore
+
+Poller search strategy (new):
+  Search 1: team_assignee_id = enterprise_inbox_id (existing)
+  Search 2: admin_assignee_id IN [9520895, 9852095, 9985999] (one query per admin)
+  Deduplicate by conversation ID before processing
 ```
 
-The poller reuses the same Gmail cross-reference and manual import logic from the webhook handler, ensuring consistency.
-
 ### Files to edit
-- New: `supabase/functions/poll-intercom-inbox/index.ts`
-- New migration: add `last_polled_intercom_at` column to settings
-- `src/pages/FlowDiagram.tsx` — add poller node
-- Admin UI page — add poll trigger button
+- `supabase/functions/intercom-webhook/index.ts` — add admin_assignee_id fallback
+- `supabase/functions/poll-intercom-inbox/index.ts` — add admin-based search queries
+- `src/pages/FlowDiagram.tsx` — update documentation nodes
 
