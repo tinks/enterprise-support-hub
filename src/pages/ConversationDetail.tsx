@@ -1339,6 +1339,46 @@ const ConversationDetail = () => {
   );
 };
 
+const EditableDateCell = ({ rawDate, onSave }: { rawDate: string; onSave: (d: Date) => void }) => {
+  const [open, setOpen] = useState(false);
+  const current = new Date(rawDate);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(current);
+  const [time, setTime] = useState(format(current, "HH:mm"));
+
+  const handleSave = () => {
+    if (!selectedDate) return;
+    const [h, m] = time.split(":").map(Number);
+    const final = new Date(selectedDate);
+    final.setHours(h, m, 0, 0);
+    onSave(final);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button className="inline-flex items-center gap-1 text-xs text-foreground hover:text-primary transition-colors cursor-pointer">
+          <CalendarIcon className="h-3 w-3" />
+          {current.toLocaleString()}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="end">
+        <Calendar
+          mode="single"
+          selected={selectedDate}
+          onSelect={setSelectedDate}
+          initialFocus
+          className="p-3 pointer-events-auto"
+        />
+        <div className="px-3 pb-3 flex items-center gap-2">
+          <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-28 h-8 text-xs" />
+          <Button size="sm" onClick={handleSave} className="h-8">Save</Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 const DetailRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div className="flex items-start justify-between gap-4">
     <span className="text-sm text-muted-foreground shrink-0">{label}</span>
