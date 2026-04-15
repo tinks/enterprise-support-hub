@@ -1,44 +1,40 @@
 
 
-## Fix: use admin_assignee_id as fallback for enterprise inbox detection
+## Fix: Exclude Sam from poller admin searches to prevent timeout
 
 ### Problem
-Intercom's routing workflow assigns conversations to individual admins within the enterprise inbox, but the API never sets `team_assignee_id`. Both the webhook and poller only check `team_assignee_id`, so they reject/miss these conversations. The logs confirm: every recent assignment shows `team=null` with a valid `admin_assignee_id` that maps to a known owner (Sam, Joel, Kristina).
+The poller searches by `admin_assignee_id` for every admin in the `admin_owner_map`, including Sam (9520895). Sam is the AI agent who assigns conversations to the enterprise inbox and then unassigns himself — he has hundreds of conversations in a 48-hour window. Paginating through all of them causes the edge function to time out before it can process anything.
 
 ### Solution
-If `team_assignee_id` is null but `admin_assignee_id` exists in the `admin_owner_map`, treat it as an enterprise inbox assignment. This applies to both the webhook handler and the poller.
+Exclude Sam's admin ID from the poller's per-admin search queries. Sam's conversations reach the enterprise inbox via `team_assignee_id`, which is already covered by the first search query. Only Joel and Kristina need the `admin_assignee_id` fallback.
+
+Two approaches — I recommend option B:
+
+**Option A — Hardcode Sam's exclusion**: Skip `9520895` in the poller. Fragile if admin IDs change.
+
+**Option B — Add an "exclude from polling" flag**: Instead of searching by every admin in the map, add a setting or convention. The simplest approach: in the poller, filter the admin list to exclude the `intercom_assignee_id` (which is already configured as Sam's ID in settings). This is already available — no new columns needed.
 
 ### Changes
 
-**File: `supabase/functions/intercom-webhook/index.ts`** (~line 177-201)
-- After the API fallback still returns empty `team_assignee_id`, add a third check: if `resolvedOwner` is not null (meaning `admin_assignee_id` is in the owner map), set `isEnterpriseInbox = true`
-- Log this fallback path for observability
-
-**File: `supabase/functions/poll-intercom-inbox/index.ts`** (~line 67-80)
-- Change the search strategy: instead of only searching by `team_assignee_id`, also search by `admin_assignee_id` for each admin ID in the `admin_owner_map`
-- Run a search query per admin ID with `{ field: "admin_assignee_id", operator: "=", value: adminId }` combined with the time filter
-- Deduplicate results across searches to avoid processing the same conversation twice
+**File: `supabase/functions/poll-intercom-inbox/index.ts`**
+- After building `adminIds` from `adminOwnerMap`, filter out `settings.intercom_assignee_id` (Sam's ID) since his conversations are captured via `team_assignee_id`
+- Add a log line noting which admins are being searched
+- Also add `MAX_PAGES_PER_QUERY = 3` as a safety cap on pagination to prevent future timeouts
 
 **File: `src/pages/FlowDiagram.tsx`**
-- Update relevant nodes to document the admin_assignee_id fallback logic
+- Update poller node description to note that the bot admin is excluded from per-admin searches
 
 ### Technical detail
-
 ```text
-Webhook fallback chain:
-  1. team_assignee_id matches enterprise inbox? → yes → proceed
-  2. API fallback: fetch conversation, check team_assignee_id → match? → proceed
-  3. [NEW] admin_assignee_id in admin_owner_map? → yes → proceed
-  4. Otherwise → ignore
+Current: search by admin_assignee_id for [9520895, 9852095, 9985999]
+  → 9520895 (Sam) returns 300+ results → timeout
 
-Poller search strategy (new):
-  Search 1: team_assignee_id = enterprise_inbox_id (existing)
-  Search 2: admin_assignee_id IN [9520895, 9852095, 9985999] (one query per admin)
-  Deduplicate by conversation ID before processing
+Fixed: filter out intercom_assignee_id (9520895)
+  → search by admin_assignee_id for [9852095, 9985999] only
+  → Sam's conversations found via team_assignee_id search
 ```
 
 ### Files to edit
-- `supabase/functions/intercom-webhook/index.ts` — add admin_assignee_id fallback
-- `supabase/functions/poll-intercom-inbox/index.ts` — add admin-based search queries
-- `src/pages/FlowDiagram.tsx` — update documentation nodes
+- `supabase/functions/poll-intercom-inbox/index.ts` — filter out bot admin + add pagination cap
+- `src/pages/FlowDiagram.tsx` — update documentation
 
