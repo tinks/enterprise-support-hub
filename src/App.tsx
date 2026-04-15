@@ -3,6 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Login from "./pages/Login";
+import ProtectedRoute from "./components/ProtectedRoute";
 import Index from "./pages/Index";
 import Stats from "./pages/Stats";
 import FlowDiagram from "./pages/FlowDiagram";
@@ -24,16 +26,17 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Stats />} />
-          <Route path="/conversations" element={<Conversations />} />
-          <Route path="/conversations/:id" element={<ConversationDetail />} />
-          <Route path="/my/:owner" element={<OwnerDashboard />} />
-          <Route path="/import" element={<ImportPage />} />
-          <Route path="/import/bulk" element={<BulkImportReview />} />
-          <Route path="/test-review" element={<TestChannelReview />} />
-          <Route path="/settings" element={<Index />} />
-          <Route path="/flow" element={<FlowDiagram />} />
-          <Route path="/knowledge" element={<ProjectKnowledge />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<ProtectedRoute><Stats /></ProtectedRoute>} />
+          <Route path="/conversations" element={<ProtectedRoute><Conversations /></ProtectedRoute>} />
+          <Route path="/conversations/:id" element={<ProtectedRoute><ConversationDetail /></ProtectedRoute>} />
+          <Route path="/my/:owner" element={<ProtectedRoute><OwnerDashboard /></ProtectedRoute>} />
+          <Route path="/import" element={<ProtectedRoute><ImportPage /></ProtectedRoute>} />
+          <Route path="/import/bulk" element={<ProtectedRoute><BulkImportReview /></ProtectedRoute>} />
+          <Route path="/test-review" element={<ProtectedRoute><TestChannelReview /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+          <Route path="/flow" element={<ProtectedRoute><FlowDiagram /></ProtectedRoute>} />
+          <Route path="/knowledge" element={<ProtectedRoute><ProjectKnowledge /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
