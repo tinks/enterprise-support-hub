@@ -747,13 +747,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Skip if conversation is already resolved — UNLESS no reply was ever posted
-    // (e.g. Sam merged/closed before the reply webhook arrived)
-    if (mapping.status === "resolved" && mapping.last_intercom_part_id !== null) {
-      console.log(`Ignoring reply for ${conversationId} — status is already resolved and a reply was previously posted`);
+    // Skip if conversation is already resolved — UNLESS:
+    // 1. No reply was ever posted (e.g. Sam merged/closed before the reply webhook arrived)
+    // 2. An admin is following up (e.g. Sam's snooze→reply→close workflow)
+    const isAdminReplyTopic = topic === "conversation.admin.replied" || topic === "conversation.admin.single.reply" || topic === "ticket.admin.replied";
+    if (mapping.status === "resolved" && mapping.last_intercom_part_id !== null && !isAdminReplyTopic) {
+      console.log(`Ignoring reply for ${conversationId} — status is already resolved and a reply was previously posted (non-admin topic: ${topic})`);
       return new Response(JSON.stringify({ ok: true, message: "Already closed" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+    if (mapping.status === "resolved" && mapping.last_intercom_part_id !== null && isAdminReplyTopic) {
+      console.log(`Processing admin follow-up on resolved conversation ${conversationId} — reopening for tracking`);
     }
     if (mapping.status === "resolved" && mapping.last_intercom_part_id === null) {
       console.log(`Processing reply for resolved conversation ${conversationId} — no reply was ever posted`);
