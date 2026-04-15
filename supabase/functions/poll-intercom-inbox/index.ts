@@ -338,15 +338,6 @@ Deno.serve(async (req) => {
       results.push({ intercomId: intercomConvId, action: "imported", id: inserted.id });
     }
 
-    // Pagination
-    const pages = searchData.pages;
-    if (pages?.next?.starting_after) {
-      startingAfter = pages.next.starting_after;
-    } else {
-      hasMore = false;
-    }
-  }
-
   // Update last_polled_intercom_at
   await supabase.from("settings").update({ last_polled_intercom_at: new Date().toISOString() }).eq("id", settings.id);
 
