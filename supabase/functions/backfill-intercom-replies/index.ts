@@ -233,7 +233,7 @@ Deno.serve(async (req) => {
 
     // ── Phase 3: Status sync for gmail_conversations ──
     const gmailStatusUpdates: Array<{ id: string; change: string }> = [];
-    if (!dry) {
+    if (!dry && syncMappings) {
       const { data: gmails } = await sb
         .from("gmail_conversations")
         .select("id, intercom_conversation_id, status")
