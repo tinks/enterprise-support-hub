@@ -12,7 +12,10 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket, Mail, Trash2, Link, Search, StickyNote, X, Plus, Send, History } from "lucide-react";
+import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket, Mail, Trash2, Link, Search, StickyNote, X, Plus, Send, History, CalendarIcon } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -914,21 +917,35 @@ const ConversationDetail = () => {
   };
 
   const renderDates = () => {
-    const dates: { label: string; value: string }[] = [];
+    const dates: { label: string; value: string; editable?: boolean; raw?: string }[] = [];
     if (source === "gmail" && gmailConv) {
       if (gmailConv.received_at) dates.push({ label: "Received", value: new Date(gmailConv.received_at).toLocaleString() });
-      dates.push({ label: "Created", value: new Date(gmailConv.created_at).toLocaleString() });
+      dates.push({ label: "Created", value: new Date(gmailConv.created_at).toLocaleString(), editable: true, raw: gmailConv.created_at });
       if (gmailConv.resolved_at) dates.push({ label: "Resolved", value: new Date(gmailConv.resolved_at).toLocaleString() });
     } else if (source === "manual" && manualConv) {
-      dates.push({ label: "Created", value: new Date(manualConv.created_at).toLocaleString() });
+      dates.push({ label: "Created", value: new Date(manualConv.created_at).toLocaleString(), editable: true, raw: manualConv.created_at });
       dates.push({ label: "Updated", value: new Date(manualConv.updated_at).toLocaleString() });
     } else if (conv) {
-      dates.push({ label: "Created", value: new Date(conv.created_at).toLocaleString() });
+      dates.push({ label: "Created", value: new Date(conv.created_at).toLocaleString(), editable: true, raw: conv.created_at });
       dates.push({ label: "Updated", value: new Date(conv.updated_at).toLocaleString() });
       if (conv.resolved_at) dates.push({ label: "Resolved", value: new Date(conv.resolved_at).toLocaleString() });
       if (conv.reminder_sent_at) dates.push({ label: "Reminder", value: new Date(conv.reminder_sent_at).toLocaleString() });
     }
     return dates;
+  };
+
+  const handleDateChange = async (oldRaw: string, newDate: Date) => {
+    const current = conv || gmailConv || manualConv;
+    if (!current) return;
+    const table = source === "slack" ? "conversation_mappings" : source === "gmail" ? "gmail_conversations" : "manual_conversations";
+    const newIso = newDate.toISOString();
+    const { error } = await supabase.from(table).update({ created_at: newIso } as any).eq("id", current.id);
+    if (error) { toast.error("Failed to update date"); return; }
+    if (source === "slack" && conv) setConv({ ...conv, created_at: newIso });
+    else if (source === "gmail" && gmailConv) setGmailConv({ ...gmailConv, created_at: newIso });
+    else if (source === "manual" && manualConv) setManualConv({ ...manualConv, created_at: newIso });
+    await logAudit("updated_created_at", new Date(oldRaw).toLocaleString(), newDate.toLocaleString());
+    toast.success("Date updated");
   };
 
   return (
@@ -1235,7 +1252,11 @@ const ConversationDetail = () => {
                 {renderDates().map((d) => (
                   <div key={d.label} className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">{d.label}</span>
-                    <span className="text-xs text-foreground">{d.value}</span>
+                    {d.editable && d.raw ? (
+                      <EditableDateCell rawDate={d.raw} onSave={(newDate) => handleDateChange(d.raw!, newDate)} />
+                    ) : (
+                      <span className="text-xs text-foreground">{d.value}</span>
+                    )}
                   </div>
                 ))}
               </CardContent>
@@ -1315,6 +1336,46 @@ const ConversationDetail = () => {
         </div>
       </div>
     </AppLayout>
+  );
+};
+
+const EditableDateCell = ({ rawDate, onSave }: { rawDate: string; onSave: (d: Date) => void }) => {
+  const [open, setOpen] = useState(false);
+  const current = new Date(rawDate);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(current);
+  const [time, setTime] = useState(format(current, "HH:mm"));
+
+  const handleSave = () => {
+    if (!selectedDate) return;
+    const [h, m] = time.split(":").map(Number);
+    const final = new Date(selectedDate);
+    final.setHours(h, m, 0, 0);
+    onSave(final);
+    setOpen(false);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button className="inline-flex items-center gap-1 text-xs text-foreground hover:text-primary transition-colors cursor-pointer">
+          <CalendarIcon className="h-3 w-3" />
+          {current.toLocaleString()}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="end">
+        <Calendar
+          mode="single"
+          selected={selectedDate}
+          onSelect={setSelectedDate}
+          initialFocus
+          className="p-3 pointer-events-auto"
+        />
+        <div className="px-3 pb-3 flex items-center gap-2">
+          <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-28 h-8 text-xs" />
+          <Button size="sm" onClick={handleSave} className="h-8">Save</Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 };
 
