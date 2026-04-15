@@ -1,48 +1,45 @@
 
 
-## Fix: Track Intercom replies for Gmail-linked conversations
+## Fix: Allow Intercom follow-ups to reopen resolved Slack conversations
 
 ### Problem
-When you reply in Intercom to a conversation linked to a `gmail_conversations` row, the webhook handler doesn't recognize it. The reply handler only checks `conversation_mappings` and `manual_conversations` — it never looks up `gmail_conversations`. This means:
-- Status never updates (stays "open" instead of "awaiting_customer")
-- No reply tracking or logging happens
-- The webhook logs "No mapping found" and exits silently
+When Sam's automated follow-up workflow runs on a resolved conversation (snooze → reply → close), the webhook guard at line 752 blocks everything because `status === "resolved"` and `last_intercom_part_id` is set. The screenshot shows three untracked follow-up messages from Sam sent over 6 days, none of which updated the conversation status.
+
+This affects ALL resolved Slack conversations that receive Intercom follow-ups — status never transitions back from "resolved."
 
 ### Root cause
-Lines 532-592 of `intercom-webhook/index.ts` handle `REPLY_TOPICS` for non-Slack conversations. They search `manual_conversations` by `intercom_conversation_id` but skip `gmail_conversations` entirely. Gmail conversations are metadata-only rows (no `manual_messages`-style message table), so the handler was never built to track replies for them.
+The resolved guard (lines 752-756) was designed to prevent duplicate close notifications, but it's too aggressive. It blocks legitimate follow-up replies that should reopen the conversation and track ongoing activity.
 
 ### Solution
-Add a Gmail fallback in the reply handler: after the `manual_conversations` check fails, also check `gmail_conversations`. For Gmail rows, update the status based on who replied (`awaiting_customer` for admin, `awaiting_support` for user). No message insertion is needed since Gmail conversations don't store individual messages.
+Modify the resolved guard to allow admin replies through when the conversation was resolved but is being actively followed up on. Specifically:
 
-Also add the same fallback to the close handler (lines 595-637), which already handles Gmail but only if `manual_conversations` fails first — this part works correctly.
+1. **Allow admin replies on resolved conversations** — when `status === "resolved"` and the incoming event is an admin reply (`conversation.admin.replied` or `conversation.admin.single.reply`), let it through and update the status to `awaiting_customer` (since Sam is following up waiting for the customer)
+2. **Keep blocking user replies on resolved conversations** — the existing behavior for user replies after resolution is fine (they should start new threads)
+3. **Allow close events on already-resolved conversations** — the close handler already handles this correctly (line 674 checks `status !== "resolved"`)
 
 ### Changes
 
-**File: `supabase/functions/intercom-webhook/index.ts`** (~lines 532-593)
-- After the `manual_conversations` reply handler block (line 592), add a new block that:
-  1. Searches `gmail_conversations` by `intercom_conversation_id` for all candidate IDs
-  2. If found, updates the status to `awaiting_customer` (admin reply) or `awaiting_support` (user reply) based on `latestPart.author.type`
-  3. Logs the status update
-  4. Returns success
+**File: `supabase/functions/intercom-webhook/index.ts`** (~lines 750-760)
+- Modify the resolved guard: instead of blocking all replies when resolved + has part ID, only block **user** replies. Allow **admin** replies through.
+- When an admin reply passes through on a resolved conversation, update status to `awaiting_customer` to reflect the follow-up state. This happens after the reply is posted to Slack.
 
 **File: `src/pages/FlowDiagram.tsx`**
-- Update the relevant webhook handler node to document that Gmail conversations now get status updates from Intercom replies
+- Update the webhook handler node to document that admin follow-ups can reopen resolved conversations.
 
 ### Technical detail
 ```text
-Current reply handler flow:
-  1. Check conversation_mappings → not found
-  2. Check manual_conversations → not found
-  3. "No mapping found" → exit
+Current guard (line 752):
+  if status=resolved AND last_intercom_part_id!=null → BLOCK ALL
 
-Fixed flow:
-  1. Check conversation_mappings → not found
-  2. Check manual_conversations → not found
-  3. [NEW] Check gmail_conversations → found → update status
-  4. "No mapping found" → exit (only if all 3 miss)
+New guard:
+  if status=resolved AND last_intercom_part_id!=null:
+    if topic is admin reply → ALLOW (let it through, update status after posting)
+    if topic is user reply → BLOCK (unchanged)
 ```
 
+After the reply is posted to Slack, the status update logic (which already exists further down in the file) will set the status to `awaiting_customer` for admin replies, effectively reopening the conversation for follow-up tracking.
+
 ### Files to edit
-- `supabase/functions/intercom-webhook/index.ts` — add gmail_conversations reply tracking
+- `supabase/functions/intercom-webhook/index.ts` — relax resolved guard for admin replies
 - `src/pages/FlowDiagram.tsx` — update documentation
 
