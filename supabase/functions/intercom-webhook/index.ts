@@ -1386,15 +1386,15 @@ Deno.serve(async (req) => {
     // Auto-update conversation status based on who replied (applies after escalation/pending logic)
     // isHumanAdmin covers Joel/Kristina; also check for Sam (AI agent, author.type=admin but isKnownAiAgent)
     const isAdminReply = isHumanAdmin || (lastCommentPart?.author as any)?.type === "admin";
-    if (mapping && mapping.status !== "resolved") {
+    if (mapping && (mapping.status !== "resolved" || isAdminReply)) {
       if (isAdminReply) {
         // Admin (Joel, Kristina) or AI agent (Sam) replied → awaiting customer
+        // This also reopens resolved conversations for follow-up tracking
         await supabase
           .from("conversation_mappings")
-          .update({ status: "awaiting_customer" })
-          .eq("id", mapping.id)
-          .neq("status", "resolved");
-        console.log(`Set conversation ${conversationId} status to awaiting_customer (admin/AI reply)`);
+          .update({ status: "awaiting_customer", resolved_at: null })
+          .eq("id", mapping.id);
+        console.log(`Set conversation ${conversationId} status to awaiting_customer (admin/AI reply${mapping.status === "resolved" ? ", reopened from resolved" : ""})`);
       } else {
         // Customer replied → awaiting support
         await supabase
