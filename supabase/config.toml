@@ -62,3 +62,6 @@ verify_jwt = false
 
 [functions.poll-intercom-inbox]
 verify_jwt = false
+
+[functions.backfill-intercom-replies]
+verify_jwt = false
