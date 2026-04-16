@@ -163,13 +163,43 @@ const ImportTab = () => {
 
         if (errorBody?.existingId) {
           const source = errorBody.existingSource || "manual";
-          toast.error("Already imported", {
-            description: "This Intercom conversation already exists.",
-            action: {
-              label: "Re-import",
-              onClick: () => handleIntercomImport(true),
-            },
-          });
+          const intercomId = errorBody.intercomConversationId || trimmed.match(/\/conversation\/(\d+)/)?.[1];
+          if (source === "manual") {
+            toast.error("Already imported", {
+              description: "This Intercom conversation already exists.",
+              action: {
+                label: "Re-import",
+                onClick: () => handleIntercomImport(true),
+              },
+            });
+          } else {
+            toast.error("Already imported", {
+              description: `This conversation is tracked via ${source}.`,
+              action: {
+                label: "View",
+                onClick: () => navigate(`/conversations/${errorBody.existingId}?source=${source}`),
+              },
+            });
+            if (intercomId) {
+              toast("Sync latest messages?", {
+                description: "Pull new Intercom replies into the existing conversation.",
+                action: {
+                  label: "Sync",
+                  onClick: async () => {
+                    const toastId = toast.loading("Syncing messages...");
+                    const { data: syncData, error: syncErr } = await supabase.functions.invoke("backfill-intercom-replies", {
+                      body: { intercom_conversation_id: intercomId },
+                    });
+                    if (syncErr) {
+                      toast.error("Sync failed", { id: toastId });
+                    } else {
+                      toast.success(`Synced ${syncData?.newMessages ?? 0} new messages`, { id: toastId });
+                    }
+                  },
+                },
+              });
+            }
+          }
         } else {
           toast.error(errorBody?.error || error.message || "Import failed");
         }
