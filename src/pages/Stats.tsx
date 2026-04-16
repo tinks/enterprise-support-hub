@@ -574,18 +574,13 @@ const Stats = () => {
     };
     filtered.forEach((m) => { buckets[getCETHour(m.created_at)].slack++; });
     const gmailSeenPerHour: Record<number, Set<string>> = {};
-    filteredGmail.forEach((g) => {
+    filteredGmailThreads.forEach((g) => {
       const h = getCETHour(g.received_at || g.created_at);
-      if (!gmailSeenPerHour[h]) gmailSeenPerHour[h] = new Set();
-      if (g.subject) {
-        if (gmailSeenPerHour[h].has(g.subject)) return;
-        gmailSeenPerHour[h].add(g.subject);
-      }
       buckets[h].gmail++;
     });
     filteredManual.forEach((m) => { buckets[getCETHour(m.created_at)].manual++; });
     return buckets;
-  }, [filtered, filteredGmail, filteredManual]);
+  }, [filtered, filteredGmailThreads, filteredManual]);
 
   const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
@@ -607,17 +602,9 @@ const Stats = () => {
       const { day, hour } = getCET(m.created_at);
       if (grid[day]) { grid[day][hour].slack++; grid[day][hour].total++; }
     });
-    const gmailSeenPerCell: Record<string, Set<string>> = {};
-    filteredGmail.forEach((g) => {
+    filteredGmailThreads.forEach((g) => {
       const { day, hour } = getCET(g.received_at || g.created_at);
-      if (!grid[day]) return;
-      const cellKey = `${day}-${hour}`;
-      if (!gmailSeenPerCell[cellKey]) gmailSeenPerCell[cellKey] = new Set();
-      if (g.subject) {
-        if (gmailSeenPerCell[cellKey].has(g.subject)) return;
-        gmailSeenPerCell[cellKey].add(g.subject);
-      }
-      grid[day][hour].gmail++; grid[day][hour].total++;
+      if (grid[day]) { grid[day][hour].gmail++; grid[day][hour].total++; }
     });
     filteredManual.forEach((m) => {
       const { day, hour } = getCET(m.created_at);
@@ -634,7 +621,7 @@ const Stats = () => {
     });
 
     return { grid, max };
-  }, [filtered, filteredGmail, filteredManual, sourceFilter]);
+  }, [filtered, filteredGmailThreads, filteredManual, sourceFilter]);
 
   const [exporting, setExporting] = useState(false);
 
