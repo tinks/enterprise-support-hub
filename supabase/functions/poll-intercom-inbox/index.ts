@@ -57,8 +57,11 @@ Deno.serve(async (req) => {
     adminOwnerMap = JSON.parse(settings.admin_owner_map || "{}");
   } catch { /* ignore */ }
 
-  // Search for conversations assigned to enterprise inbox in the last 48 hours
-  const sinceTs = Math.floor((Date.now() - 48 * 60 * 60 * 1000) / 1000);
+  // Use last_polled_intercom_at as lower bound; fall back to 48 hours if null (first run)
+  const sinceTs = settings.last_polled_intercom_at
+    ? Math.floor(new Date(settings.last_polled_intercom_at).getTime() / 1000)
+    : Math.floor((Date.now() - 48 * 60 * 60 * 1000) / 1000);
+  console.log(`Searching since ${new Date(sinceTs * 1000).toISOString()} (last_polled_intercom_at: ${settings.last_polled_intercom_at || "null, using 48h fallback"})`);
 
   const results: Array<{ intercomId: string; action: string; id?: string }> = [];
 
