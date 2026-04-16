@@ -38,9 +38,9 @@ const ImportTab = () => {
         .limit(5),
       supabase
         .from("gmail_conversations")
-        .select("id, subject, status, created_at")
+        .select("id, subject, status, created_at, gmail_thread_id")
         .order("created_at", { ascending: false })
-        .limit(5),
+        .limit(20),
       supabase
         .from("manual_conversations")
         .select("id, subject, status, created_at")
@@ -56,7 +56,13 @@ const ImportTab = () => {
       }
     }
     if (gmailRes.data) {
+      // Deduplicate by gmail_thread_id — keep only the latest row per thread
+      const seenThreads = new Set<string>();
       for (const r of gmailRes.data) {
+        if (r.gmail_thread_id) {
+          if (seenThreads.has(r.gmail_thread_id)) continue;
+          seenThreads.add(r.gmail_thread_id);
+        }
         items.push({ id: r.id, label: r.subject || "(no subject)", source: "gmail", status: r.status, created_at: r.created_at });
       }
     }
