@@ -1,0 +1,1 @@
+ALTER TABLE public.manual_conversations ADD CONSTRAINT manual_conversations_intercom_conversation_id_key UNIQUE (intercom_conversation_id);
