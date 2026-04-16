@@ -921,7 +921,7 @@ const Stats = () => {
               <CardDescription>Daily conversations over {activeRangeLabel.toLowerCase()}</CardDescription>
             </CardHeader>
             <CardContent>
-              {volumeData.length === 0 && filteredGmail.length === 0 ? (
+              {volumeData.length === 0 && filteredGmailThreads.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
               ) : (
                 <ChartContainer config={chartConfig} className="h-[280px] w-full">
