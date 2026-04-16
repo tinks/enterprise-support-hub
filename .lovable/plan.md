@@ -1,25 +1,27 @@
 
 
-## Add editable date picker to conversation detail timeline
+## Fix re-import UX and add message sync for linked conversations
 
 ### Problem
-The Timeline card in the sidebar (lines 1229-1242) displays dates as read-only text. You want to be able to change the `created_at` date for a conversation.
-
-### Solution
-Make the "Created" date in the Timeline card clickable, opening a date+time picker popover. On selection, update the `created_at` field in the appropriate table (`conversation_mappings`, `gmail_conversations`, or `manual_conversations`) and log an audit entry.
+Re-importing an Intercom conversation that's already tracked in `gmail_conversations` or `conversation_mappings` shows a "Re-import" button that loops back to the same 409 error. The `force` flag only works for `manual_conversations`.
 
 ### Changes
 
-**1. Edit: `src/pages/ConversationDetail.tsx`**
+**1. Edit `src/components/ImportTab.tsx`** — smarter "Already imported" toast
+- When `existingSource` is `gmail` or `slack`, show a **"View"** action button that navigates to the existing conversation instead of a "Re-import" button
+- Keep "Re-import" only when `existingSource` is `manual`
 
-- Add imports for `Calendar`, `Popover`/`PopoverContent`/`PopoverTrigger`, `format` from date-fns, and `CalendarIcon`
-- Update `renderDates()` to return a richer structure indicating which dates are editable (only `created_at`)
-- Replace the "Created" date row with a Popover containing a Calendar picker and a time input
-- On date selection: update the correct table's `created_at`, refresh local state, log an audit entry with old/new values, and show a toast
+**2. Edit `src/components/ImportTab.tsx`** — add "Sync messages" option
+- When `existingSource` is `gmail` or `slack`, add a second toast action **"Sync"** that calls `backfill-intercom-replies` for the specific `intercom_conversation_id` to pull latest messages without creating duplicates
+
+**3. Edit `supabase/functions/import-intercom-ticket/index.ts`** — ensure consistent response
+- Verify the 409 response always includes `existingSource` for all three table types (already mostly done, just confirm `manual` case includes it)
 
 ### Technical detail
+- The "Sync" action invokes `supabase.functions.invoke("backfill-intercom-replies", { body: { intercom_conversation_id } })` — this function already handles fetching new parts and inserting only missing messages
+- Navigation uses existing `navigateToConversation` pattern with correct `?source=` param
 
-- The table to update is determined by the `source` query param: `conversation_mappings` (slack), `gmail_conversations` (gmail), `manual_conversations` (manual)
-- Time input uses a standard `<Input type="time">` alongside the Calendar for full datetime editing
-- Audit log entry: action `"updated_created_at"`, old value → new value
+### Files
+- **Edit**: `src/components/ImportTab.tsx`
+- **Edit**: `supabase/functions/import-intercom-ticket/index.ts` (minor verification)
 
