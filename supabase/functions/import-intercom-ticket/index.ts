@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
     // If duplicate exists in non-manual tables, always block
     if (existingOtherId) {
       return new Response(
-        JSON.stringify({ error: "Already imported", existingId: existingOtherId, existingSource: existingOtherSource }),
+        JSON.stringify({ error: "Already imported", existingId: existingOtherId, existingSource: existingOtherSource, intercomConversationId: intercomConvId }),
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
