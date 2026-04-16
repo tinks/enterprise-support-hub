@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
         await sb.from("manual_conversations").delete().eq("id", existingManualId);
       } else {
         return new Response(
-          JSON.stringify({ error: "Already imported", existingId: existingManualId, existingSource: "manual" }),
+          JSON.stringify({ error: "Already imported", existingId: existingManualId, existingSource: "manual", intercomConversationId: intercomConvId }),
           { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
