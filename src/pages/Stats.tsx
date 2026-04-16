@@ -231,6 +231,24 @@ const Stats = () => {
     });
   }, [gmailData, view, range, customFrom, customTo]);
 
+  // Deduplicate Gmail rows by gmail_thread_id — keep only the latest row per thread
+  const filteredGmailThreads = useMemo(() => {
+    const threadMap = new Map<string, GmailRow>();
+    let orphanIdx = 0;
+    filteredGmail.forEach((g) => {
+      const key = g.gmail_thread_id || `__orphan_${orphanIdx++}`;
+      const existing = threadMap.get(key);
+      if (!existing) {
+        threadMap.set(key, g);
+      } else {
+        const existingDate = existing.received_at || existing.created_at;
+        const newDate = g.received_at || g.created_at;
+        if (newDate > existingDate) threadMap.set(key, g);
+      }
+    });
+    return [...threadMap.values()];
+  }, [filteredGmail]);
+
   const filteredManual = useMemo(() => {
     const cutoff = getCutoffDate(range);
     return manualData.filter((m) => {
@@ -251,14 +269,8 @@ const Stats = () => {
   }, [manualData, view, range, customFrom, customTo]);
 
   const gmailUniqueEmails = useMemo(() => {
-    const subjects = new Set<string>();
-    let nullCount = 0;
-    filteredGmail.forEach((g) => {
-      if (g.subject) subjects.add(g.subject);
-      else nullCount++;
-    });
-    return subjects.size + nullCount;
-  }, [filteredGmail]);
+    return filteredGmailThreads.length;
+  }, [filteredGmailThreads]);
 
   const gmailResolutionTimes = useMemo(() => {
     // Group by thread, compute resolution time per thread
@@ -289,48 +301,33 @@ const Stats = () => {
   }, [gmailResolutionTimes]);
 
   const customerDomainData = useMemo(() => {
-    // Group threads by subject (same dedup as email total), then extract customer domain
-    const threadDomains: Record<string, string | null> = {};
-    let orphanIdx = 0;
-    filteredGmail.forEach((g) => {
-      const threadKey = g.subject || `__orphan_${orphanIdx++}`;
-      if (threadDomains[threadKey] !== undefined) return; // already processed this thread
+    const domainCounts: Record<string, number> = {};
+    filteredGmailThreads.forEach((g) => {
       const allEmails = [g.from_email, g.to_emails, g.cc_emails]
         .filter(Boolean)
         .join(",")
         .split(",")
         .map((e) => {
-          // Extract email from RFC format like "Name <email@domain.com>" or bare "email@domain.com>"
           const match = e.match(/<([^>]+)>/);
           return (match ? match[1] : e).trim().toLowerCase();
         })
         .filter((e) => e.includes("@") && !e.endsWith("@lovable.dev"));
-      threadDomains[threadKey] = allEmails.length > 0 ? allEmails[0].split("@")[1] : null;
-    });
-    const domainCounts: Record<string, number> = {};
-    Object.values(threadDomains).forEach((domain) => {
-      if (!domain) return;
-      domainCounts[domain] = (domainCounts[domain] || 0) + 1;
+      const domain = allEmails.length > 0 ? allEmails[0].split("@")[1] : null;
+      if (domain) domainCounts[domain] = (domainCounts[domain] || 0) + 1;
     });
     return Object.entries(domainCounts)
       .map(([domain, count]) => ({ domain, threads: count }))
       .sort((a, b) => b.threads - a.threads);
-  }, [filteredGmail]);
+  }, [filteredGmailThreads]);
 
   const gmailVolumeData = useMemo(() => {
     const byDay: Record<string, number> = {};
-    const seenPerDay: Record<string, Set<string>> = {};
-    filteredGmail.forEach((g) => {
+    filteredGmailThreads.forEach((g) => {
       const day = format(parseISO(g.received_at || g.created_at), "yyyy-MM-dd");
-      if (!seenPerDay[day]) seenPerDay[day] = new Set();
-      if (g.subject) {
-        if (seenPerDay[day].has(g.subject)) return;
-        seenPerDay[day].add(g.subject);
-      }
       byDay[day] = (byDay[day] || 0) + 1;
     });
     return byDay;
-  }, [filteredGmail]);
+  }, [filteredGmailThreads]);
 
   const manualVolumeData = useMemo(() => {
     const byDay: Record<string, number> = {};
@@ -344,7 +341,7 @@ const Stats = () => {
   const mergedVolumeData = useMemo(() => {
     const allDays = new Set<string>();
     filtered.forEach((m) => allDays.add(format(parseISO(m.created_at), "yyyy-MM-dd")));
-    filteredGmail.forEach((g) => allDays.add(format(parseISO(g.received_at || g.created_at), "yyyy-MM-dd")));
+    filteredGmailThreads.forEach((g) => allDays.add(format(parseISO(g.received_at || g.created_at), "yyyy-MM-dd")));
     filteredManual.forEach((m) => allDays.add(format(parseISO(m.created_at), "yyyy-MM-dd")));
     
     const slackByDay: Record<string, number> = {};
@@ -360,11 +357,11 @@ const Stats = () => {
       gmail: gmailVolumeData[day] || 0,
       manual: manualVolumeData[day] || 0,
     }));
-  }, [filtered, filteredGmail, filteredManual, gmailVolumeData, manualVolumeData]);
+  }, [filtered, filteredGmailThreads, filteredManual, gmailVolumeData, manualVolumeData]);
 
   const stats = useMemo(() => {
     const total = filtered.length;
-    const gmailTotal = filteredGmail.length;
+    const gmailTotal = filteredGmailThreads.length;
     const manualTotal = filteredManual.length;
     const resolved = filtered.filter((m) => m.status === "resolved").length;
     const escalated = filtered.filter((m) => m.status === "escalated" || m.status === "escalated_pending").length;
@@ -378,17 +375,8 @@ const Stats = () => {
     const manualResolved = filteredManual.filter((m) => m.status === "resolved").length;
 
     const cutoff = getCutoffDate(range);
-    // gmailDeduped computed below; use gmailTotal as placeholder, overwritten after
-    // use gmailDeduped (computed below) — but we need it before the return,
-    // so compute a quick dedup count inline for avgPerDay
-    const gmailDedupedForAvg = (() => {
-      const subjs = new Set<string>();
-      let orphans = 0;
-      filteredGmail.forEach((g) => { if (g.subject) subjs.add(g.subject); else orphans++; });
-      return subjs.size + orphans;
-    })();
-    let combinedTotal = total + gmailDedupedForAvg + manualTotal;
-    if (sourceFilter === "gmail") combinedTotal = gmailDedupedForAvg;
+    let combinedTotal = total + gmailTotal + manualTotal;
+    if (sourceFilter === "gmail") combinedTotal = gmailTotal;
     else if (sourceFilter === "slack") combinedTotal = total;
     else if (sourceFilter === "manual") combinedTotal = manualTotal;
     const daySpan = range === "this_month"
@@ -400,29 +388,11 @@ const Stats = () => {
           : 1;
     const avgPerDay = +(combinedTotal / daySpan).toFixed(1);
 
-    const gmailAllSubjects = new Set<string>();
-    let gmailAllOrphans = 0;
-    const gmailResolvedSubjects = new Set<string>();
-    let gmailResolvedOrphans = 0;
-    const gmailOpenSubjects = new Set<string>();
-    let gmailOpenOrphans = 0;
-    filteredGmail.forEach((g) => {
-      if (g.subject) gmailAllSubjects.add(g.subject);
-      else gmailAllOrphans++;
-      if (g.status === "resolved") {
-        if (g.subject) gmailResolvedSubjects.add(g.subject);
-        else gmailResolvedOrphans++;
-      } else if (g.status === "open") {
-        if (g.subject) gmailOpenSubjects.add(g.subject);
-        else gmailOpenOrphans++;
-      }
-    });
-    const gmailDeduped = gmailAllSubjects.size + gmailAllOrphans;
-    const gmailResolvedCount = gmailResolvedSubjects.size + gmailResolvedOrphans;
-    const gmailOpen = gmailOpenSubjects.size + gmailOpenOrphans;
+    const gmailResolvedCount = filteredGmailThreads.filter((g) => g.status === "resolved").length;
+    const gmailOpen = filteredGmailThreads.filter((g) => g.status === "open").length;
 
-    return { total, gmailTotal, gmailDeduped, emailTotal: gmailUniqueEmails, resolved, escalated, active, awaiting, processing, open, resolvedPct, avgPerDay, gmailResolved: gmailResolvedCount, gmailOpen, manualTotal, manualActive, manualResolved };
-  }, [filtered, filteredGmail, filteredManual, range, sourceFilter, gmailUniqueEmails]);
+    return { total, gmailTotal, gmailDeduped: gmailTotal, emailTotal: gmailUniqueEmails, resolved, escalated, active, awaiting, processing, open, resolvedPct, avgPerDay, gmailResolved: gmailResolvedCount, gmailOpen, manualTotal, manualActive, manualResolved };
+  }, [filtered, filteredGmailThreads, filteredManual, range, sourceFilter, gmailUniqueEmails]);
 
   // Manual entries by source breakdown
   const manualBySource = useMemo(() => {
@@ -604,18 +574,13 @@ const Stats = () => {
     };
     filtered.forEach((m) => { buckets[getCETHour(m.created_at)].slack++; });
     const gmailSeenPerHour: Record<number, Set<string>> = {};
-    filteredGmail.forEach((g) => {
+    filteredGmailThreads.forEach((g) => {
       const h = getCETHour(g.received_at || g.created_at);
-      if (!gmailSeenPerHour[h]) gmailSeenPerHour[h] = new Set();
-      if (g.subject) {
-        if (gmailSeenPerHour[h].has(g.subject)) return;
-        gmailSeenPerHour[h].add(g.subject);
-      }
       buckets[h].gmail++;
     });
     filteredManual.forEach((m) => { buckets[getCETHour(m.created_at)].manual++; });
     return buckets;
-  }, [filtered, filteredGmail, filteredManual]);
+  }, [filtered, filteredGmailThreads, filteredManual]);
 
   const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
@@ -637,17 +602,9 @@ const Stats = () => {
       const { day, hour } = getCET(m.created_at);
       if (grid[day]) { grid[day][hour].slack++; grid[day][hour].total++; }
     });
-    const gmailSeenPerCell: Record<string, Set<string>> = {};
-    filteredGmail.forEach((g) => {
+    filteredGmailThreads.forEach((g) => {
       const { day, hour } = getCET(g.received_at || g.created_at);
-      if (!grid[day]) return;
-      const cellKey = `${day}-${hour}`;
-      if (!gmailSeenPerCell[cellKey]) gmailSeenPerCell[cellKey] = new Set();
-      if (g.subject) {
-        if (gmailSeenPerCell[cellKey].has(g.subject)) return;
-        gmailSeenPerCell[cellKey].add(g.subject);
-      }
-      grid[day][hour].gmail++; grid[day][hour].total++;
+      if (grid[day]) { grid[day][hour].gmail++; grid[day][hour].total++; }
     });
     filteredManual.forEach((m) => {
       const { day, hour } = getCET(m.created_at);
@@ -664,7 +621,7 @@ const Stats = () => {
     });
 
     return { grid, max };
-  }, [filtered, filteredGmail, filteredManual, sourceFilter]);
+  }, [filtered, filteredGmailThreads, filteredManual, sourceFilter]);
 
   const [exporting, setExporting] = useState(false);
 
@@ -964,7 +921,7 @@ const Stats = () => {
               <CardDescription>Daily conversations over {activeRangeLabel.toLowerCase()}</CardDescription>
             </CardHeader>
             <CardContent>
-              {volumeData.length === 0 && filteredGmail.length === 0 ? (
+              {volumeData.length === 0 && filteredGmailThreads.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
               ) : (
                 <ChartContainer config={chartConfig} className="h-[280px] w-full">
