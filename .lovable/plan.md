@@ -1,20 +1,35 @@
 
 
-## Add Intercom to "Activity by hour of day" heatmap
+## Make "Conversations by channel" bars clickable to drill down
 
 ### What I found
-In `src/pages/Stats.tsx`, the heatmap currently aggregates activity from Slack mappings, Gmail conversations, and `filteredManual` rows. Since `filteredManual` already contains both `manual` and `intercom` source rows (depending on filter), Intercom may already be partially counted — but if it's broken out as its own series (like the volume chart now does), it's missing.
+- The chart lives in `src/pages/Stats.tsx` (~line 1314), rendered as a `<BarChart>` with `<Bar dataKey="total">`.
+- `channelData` (line 593) is built from `filtered` Slack mappings, keyed by `slack_channel_id`. Currently it stores only `{ channel: name, total }` — the channel ID is lost.
+- Other charts (volume, heatmap, resolution) already drill down using `navigate('/conversations?...')` with query params.
+- `src/pages/Conversations.tsx` already reads query params (`day`, `hour`, `source`, `resolutionMin/Max`) at line 184–189 — but does **not** yet support a `channel` filter.
+
+### Why bug-hunting/ask-sso bars look weird
+These are valid Slack channel IDs that the bot was once mentioned in (or had a thread imported from). Letting the user click into them confirms which conversations they are, instead of leaving them as a mystery total.
 
 ### Plan
-1. Locate the heatmap data memo in `Stats.tsx` (the `useMemo` that builds hour-of-day aggregation).
-2. Add Intercom rows (`filteredManual.filter(m => m.source === 'intercom')`) as a contributing source, ensuring its `created_at` timestamps are bucketed into the correct hour.
-3. If the heatmap is rendered per-source (stacked or grouped), add an Intercom series with the amber `#F59E0B` color used elsewhere.
-4. If it's a single combined heatmap, just ensure Intercom rows are included in the totals (likely already the case via `filteredManual`).
-5. Respect the `sourceFilter` so Intercom is only shown when filter is `all` or `intercom`.
+
+1. **`src/pages/Stats.tsx`**
+   - Update `channelData` memo to also include the `channel_id` for each entry.
+   - Add `onClick` handler to the `<Bar>` (Recharts passes the clicked datum) that navigates to `/conversations?channel=<id>&source=slack` — reusing existing source filter when relevant.
+   - Add a subtle `cursor-pointer` style and update the `CardDescription` to hint "Click a bar to see conversations".
+
+2. **`src/pages/Conversations.tsx`**
+   - Read `channel` query param (alongside existing `day`, `hour`, etc.).
+   - In the `unified` filter pipeline, when `paramChannel` is set, only include Slack rows where `slack_channel_id === paramChannel` (and exclude Gmail/Manual rows).
+   - Show a small filter chip at the top (matching existing day/hour chip pattern) with the channel name and a clear "×" to remove it.
+
+3. **No backend changes** — pure UI + routing.
 
 ### Files
 - Edit: `src/pages/Stats.tsx`
+- Edit: `src/pages/Conversations.tsx`
 
-### Open question
-Is the heatmap currently a **single combined view** of all sources, or **per-source breakdown**? I'll inspect first to confirm whether this needs a new series or just an inclusion fix.
+### Out of scope
+- Adding clickable drilldown to the per-source channel charts inside the Slack analytics section (can be a follow-up if useful).
+- Updating the Flow page (this is a UI navigation change, no logic flow change).
 
