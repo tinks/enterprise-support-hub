@@ -212,7 +212,9 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const [hasMoreGmail, setHasMoreGmail] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const savedSource = localStorage.getItem("conv-source-filter") as SourceFilter | null;
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>(paramSource || savedSource || "all");
+  // When linked here from the manual-channel drilldown, force source=manual so manual rows actually load.
+  const initialSource: SourceFilter = paramManualChannel ? "manual" : (paramSource || savedSource || "all");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>(initialSource);
   const [searchQuery, setSearchQuery] = useState("");
   const savedOwner = localStorage.getItem("conv-owner-filter") as OwnerFilter | null;
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(forceOwner as OwnerFilter || savedOwner || "all");

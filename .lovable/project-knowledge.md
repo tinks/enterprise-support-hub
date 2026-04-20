@@ -450,7 +450,8 @@ The "Conversations by channel" bar chart on the analytics dashboard is interacti
 - Manual `slack_thread` rows with an empty/missing `link` are bucketed into a synthetic `#unknown` bar (`channel_id: "manual:__unknown__"`).
 - Regular channels (`C…`) deep-link via `/conversations?channel=<id>&source=slack` and filter by exact `slack_channel_id`.
 - The DM aggregate deep-links via `/conversations?channelGroup=dm&source=slack` and filters Slack rows where `slack_channel_id` starts with `D`.
-- Manual buckets deep-link via `/conversations?manualChannel=<normalized-name>&source=slack` and filter manual rows by `normalizeChannelName(link) === param`. The `__unknown__` bucket matches manual rows with empty `link`.
+- Manual buckets deep-link via `/conversations?manualChannel=<normalized-name>` (no `source=slack` — manual rows have `source='manual'` in DB) and filter manual rows by `normalizeChannelName(link) === param`. When `manualChannel` is present, the inbox forces `sourceFilter='manual'` so the manual loop runs. The `__unknown__` bucket matches manual rows with empty `link`.
+- Manual channel names are stored in `manual_conversations.link` **without** a leading `#`. The `ManualLogTab` save handler strips a single leading `#` and trims whitespace before insert; the `#` is added back only at display time.
 - The inbox shows a dismissible filter chip ("Showing conversations from channel #X", "Showing conversations from direct messages", or "Showing manually imported threads from #X") with a "Back to analytics" shortcut.
 - Manual buckets and real `C…` bars with the same display name are kept separate (different `channel_id`) until names are reconciled manually.
 - Legacy `G…` IDs (group DMs / old private channels) are intentionally **not** grouped — they keep their own bars since some are private channels with meaningful names.
