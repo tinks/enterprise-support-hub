@@ -1,69 +1,58 @@
 
 
-## Make manual Slack imports behave like normal Slack conversations in the inbox
+## Why the inbox shows zero — and the actual fix
 
-### What I found
-- The inbox search is not id-only. The database search already matches manual conversations by:
-  - `contact_name`
-  - `subject`
-  - `status`
-  - `owner`
-  - `classification`
-  - `link`
-  - `manual_messages.message_text`
-- The real mismatch is presentation and filtering behavior for manual Slack imports:
-  - In `Conversations.tsx`, manual rows show `mc.source` in the **Channel** column instead of the Slack channel name from `link`.
-  - The **Link** column treats `mc.link` as a URL, but for manual Slack imports it contains channel text like `ext_lovable-control-tower`, not a real URL.
-  - So manual Slack imports are not visually “treated like normal convos,” which makes search/drilldown look broken even when rows exist.
-- The analytics bar count of 10 is consistent with the current time range filter (“This month”). The database still has 14 canonical `ext_lovable-control-tower` rows total.
+### The two real bugs
 
-### Plan
+**Bug 1: page size ignores `paramManualChannel`**
+In `src/pages/Conversations.tsx` line 664:
+```ts
+const pageSize = (isHeatmapMode || isResolutionMode || isDayOnlyMode || paramChannel || paramChannelGroup) ? 1000 : 50;
+```
+`paramManualChannel` is missing from this list, so the manual query loads only the 50 most recent manual rows out of 314. Most control-tower rows (especially the older active one from 2026-04-01) never enter the dataset, so the channel filter at line 894 has nothing to match.
 
-**1. Update inbox rendering so manual Slack imports display as Slack channels**
-- In `src/pages/Conversations.tsx`, change manual row rendering:
-  - If `mc.source === "slack_thread"`:
-    - **Channel** column should display `#${normalizeChannelName(mc.link)}` (or `#unknown` if empty), with the same `Hash`-style treatment as Slack rows.
-    - **Link** column should no longer render `mc.link` as an external URL.
-  - If `mc.source === "slack_dm"`:
-    - **Channel** column should display `Direct message`.
-    - **Link** column should stay empty unless there is an actual external link.
-  - Non-Slack manual entries can keep the current behavior.
-- This makes manual Slack imports readable and searchable by humans in the same way as normal Slack conversations.
+**Bug 2: default status filter hides `resolved`**
+`DEFAULT_HIDDEN = {test, cancelled, resolved}` (line 374). 13 of the 14 control-tower rows are `resolved`, so even if they were loaded they'd be hidden. Clicking a chart bar means "show me everything in this channel" — hiding 13/14 by default defeats the drilldown.
 
-**2. Make manual drilldown rows easier to find and verify**
-- Keep the existing `manualChannel` query param filter, but improve the inbox view so the filtered rows visibly show the matching channel.
-- Update the empty state in `src/pages/Conversations.tsx`:
-  - When `manualChannel` is active, say the channel being filtered and suggest clearing other filters if no rows match.
-- This will make it clear whether the issue is “no matching rows” or “rows exist but other filters are narrowing them.”
+### About the `#` you keep seeing
+The hashtag is **not in the database** and **not in the URL param**. It's a literal prefix added at render time:
+- Chip: `#{paramManualChannel}` (line 1518)
+- Channel column: `` `#${normalizeChannelName(mc.link)}` ``
+That's just visual styling to mimic Slack channel naming. It's not the culprit.
 
-**3. Improve search UX for manual Slack imports**
-- Since server-side search already covers `manual_conversations.link`, no backend search rewrite is needed unless testing shows a real miss.
-- Instead, improve the inbox search experience in `src/pages/Conversations.tsx` by:
-  - making manual Slack rows visibly expose their channel name in the table
-  - optionally adjusting the search placeholder/help text to indicate users can search by channel name, subject, sender, or message text
-- If testing shows channel-name searches still miss rows, then add a follow-up migration/function update; for this pass, the primary fix is the inbox rendering mismatch.
+### Fix
 
-**4. Clarify analytics count behavior**
-- In `src/pages/Stats.tsx`, add a small note near the “Conversations by channel” chart or subtitle that channel counts respect the selected date range.
-- No change to the default date range is needed.
-- This prevents confusion like “there are 14 in the DB but only 10 in the bar.”
+**1. `src/pages/Conversations.tsx` — bump pageSize for manual drilldown**
+Add `paramManualChannel` to the line 664 condition so the manual query loads up to 1000 rows when drilling into a channel:
+```ts
+const pageSize = (isHeatmapMode || isResolutionMode || isDayOnlyMode || paramChannel || paramChannelGroup || paramManualChannel) ? 1000 : 50;
+```
 
-**5. Update the flow page and knowledge docs**
-- Update `.lovable/project-knowledge.md` to document:
-  - manual Slack imports use `manual_conversations.link` as the channel name
-  - manual Slack rows now display channel names in the inbox channel column instead of raw source labels
-  - search already includes `manual_conversations.link` and `manual_messages.message_text`
-  - analytics channel counts respect the active date range
-- Update `src/pages/FlowDiagram.tsx` comment block with the same logic change summary so the flow page stays current.
+**2. `src/pages/Conversations.tsx` — bypass status hiding when `paramManualChannel` is active**
+At line 927, change:
+```ts
+if (!searchResults) {
+```
+to:
+```ts
+if (!searchResults && !paramManualChannel) {
+```
+Same intent as the existing search-bypass: when the user explicitly drilled into a channel, show all statuses for that channel. (Owner, product-area, classification filters still apply — the user can still narrow.)
 
-### Files
-- Edit: `src/pages/Conversations.tsx`
-- Edit: `src/pages/Stats.tsx`
-- Edit: `src/pages/FlowDiagram.tsx`
-- Edit: `.lovable/project-knowledge.md`
+**3. `src/pages/Conversations.tsx` — make it discoverable that status hiding is off for this view**
+Update the chip at line 1518 to add a small muted suffix: "Showing all statuses." So the user knows resolved rows are intentionally included.
+
+**4. `.lovable/project-knowledge.md`**
+Document: when navigating to the inbox via a manual channel drilldown (`?manualChannel=...`), the page (a) loads up to 1000 manual rows so the full channel set is available, and (b) bypasses the default status hiding so resolved threads are visible. Owner / product-area / classification filters still apply.
+
+### Why this fixes it
+After this change, clicking `#ext_lovable-control-tower` in the chart will:
+- Load all 314 manual rows (well under the 1000 cap)
+- Match all 14 with `link = 'ext_lovable-control-tower'`
+- Show all 14 regardless of status (resolved rows included)
 
 ### Out of scope
-- Changing the default analytics range from “This month”
-- Merging manual and auto-tracked Slack bars with identical display names
-- Reworking the database search function unless manual channel-name searches still fail after the inbox rendering fix
+- Removing the cosmetic `#` prefix (it's intentional Slack-style labeling, not a bug).
+- Backfilling further channel-name variants (none exist for control-tower; the DB is clean).
+- Changing the default `DEFAULT_HIDDEN` for the normal inbox view — only the drilldown view bypasses it.
 
