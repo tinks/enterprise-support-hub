@@ -591,12 +591,12 @@ const Stats = () => {
 
   // Channel breakdown data
   const channelData = useMemo(() => {
-    const byChannel: Record<string, { channel: string; total: number }> = {};
+    const byChannel: Record<string, { channel: string; channel_id: string; total: number }> = {};
     filtered.forEach((m) => {
       const id = m.slack_channel_id;
       if (!id) return;
       const name = channelNames[id] || channelNameOverrides[id] || (id.startsWith("D") ? "Direct message" : id);
-      if (!byChannel[id]) byChannel[id] = { channel: name, total: 0 };
+      if (!byChannel[id]) byChannel[id] = { channel: name, channel_id: id, total: 0 };
       byChannel[id].total++;
     });
     return Object.values(byChannel).sort((a, b) => b.total - a.total);
@@ -1315,7 +1315,7 @@ const Stats = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Conversations by channel</CardTitle>
-                <CardDescription>Total conversations per Slack channel</CardDescription>
+                <CardDescription>Total conversations per Slack channel — click a bar to see conversations</CardDescription>
               </CardHeader>
               <CardContent>
                 {channelData.length === 0 ? (
@@ -1327,7 +1327,16 @@ const Stats = () => {
                       <XAxis type="number" allowDecimals={false} className="text-xs" />
                       <YAxis type="category" dataKey="channel" className="text-xs" width={160} tick={{ fontSize: 12 }} />
                       <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar dataKey="total" fill="#FF6B6B" radius={[0, 4, 4, 0]}>
+                      <Bar
+                        dataKey="total"
+                        fill="#FF6B6B"
+                        radius={[0, 4, 4, 0]}
+                        className="cursor-pointer"
+                        onClick={(data: any) => {
+                          const id = data?.channel_id || data?.payload?.channel_id;
+                          if (id) navigate(`/conversations?channel=${encodeURIComponent(id)}&source=slack`);
+                        }}
+                      >
                         <LabelList dataKey="total" position="right" className="text-xs fill-foreground" />
                       </Bar>
                     </BarChart>
