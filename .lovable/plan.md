@@ -1,40 +1,46 @@
 
 
-## Include manual Slack threads in "Conversations by channel"
+## Fix manual channel drilldown + normalize channel names
 
-### Scope (this pass)
-Just get manual `slack_thread` / `slack_dm` rows showing up in the analytics chart and clickable. No name normalization beyond the obvious (case + leading `#`) — you'll clean up channel names manually afterwards.
+### Three things to do
 
-### Plan
+**1. Backfill DB — collapse 3 variants into one canonical name**
 
-**1. `src/pages/Stats.tsx` — extend `channelData`**
-- Add a small helper: `normalizeChannelName(raw)` → lowercase, trim, strip a single leading `#`. Nothing else (no `_`/`-` collapsing — you'll handle naming manually).
-- After the existing loop over `filtered` (Slack mappings), loop over `filteredManual`:
-  - `source === 'slack_dm'` → bucket into the existing `__DM__` "Direct message" entry.
-  - `source === 'slack_thread'` with a non-empty `link` → bucket key `manual:${normalizeChannelName(link)}`, display name `#${normalized}`.
-  - `source === 'slack_thread'` with empty/missing `link` → bucket key `manual:__unknown__`, display name `#unknown`.
-- If a normalized manual name happens to match the resolved name of a real `C…` channel bar, keep them separate for now (different `channel_id`, so the bar stacks won't merge). You can collapse them after renaming.
+Run a migration that updates `manual_conversations.link` for the affected rows:
+- `#ext_lovable-control-tower` → `ext_lovable-control-tower` (2 rows)
+- `ext-lovable-control-tower` → `ext_lovable-control-tower` (6 rows)
+- `ext_lovable-control-tower` → unchanged (6 rows)
 
-**2. `src/pages/Stats.tsx` — bar click**
-- Existing `__DM__` and `C…` cases unchanged.
-- New `manual:<name>` bars → navigate to `/conversations?manualChannel=<name>&source=slack`.
-- `manual:__unknown__` → `/conversations?manualChannel=__unknown__&source=slack`.
+Result: all 14 rows share `link = 'ext_lovable-control-tower'`.
 
-**3. `src/pages/Conversations.tsx` — `manualChannel` filter**
-- Read `manualChannel` from query params alongside existing `channel` / `channelGroup`.
-- When set, show only `source === 'manual'` rows where `normalizeChannelName(link)` equals the param (or `link` is empty when param is `__unknown__`).
-- Add a dismissible chip "Showing manually imported threads from #<name>" matching the existing channel/DM chip style, with a "Back to analytics" shortcut.
+**2. Stop accepting `#` in new manual entries (`src/components/ManualLogTab.tsx`)**
 
-**4. `.lovable/project-knowledge.md`**
-- Update the "Analytics — channel drilldown" section: manual `slack_thread` rows are now counted, keyed by normalized `link` (lowercase, leading `#` stripped, no other transforms). `slack_dm` rows fold into the "Direct message" bucket. Drilldown URL: `?manualChannel=<name>&source=slack`.
+In `handleSave` (around line 137), strip a single leading `#` and trim before insert:
+```ts
+const cleanChannel = (raw: string) => raw.trim().replace(/^#/, "").trim();
+link: mode === "paste" ? (cleanChannel(channelName) || null) : (cleanChannel(link) || null),
+```
+Also add a tiny visual hint under the "Channel name" input: *"No # needed — added automatically in display."* No need to police mid-string `#`s.
+
+**3. Fix the empty-inbox bug (`src/pages/Conversations.tsx`)**
+
+Root cause: Stats links to `?manualChannel=...&source=slack`. That sets `sourceFilter = "slack"`, and the `manualData` loop at line 841 is gated to `"all" | "manual" | "intercom"` — so manual rows never enter `rows`, and the `paramManualChannel` filter at line 892 ends up filtering an empty set.
+
+Two coordinated changes:
+
+- **Stats.tsx** — when navigating for a manual bucket, drop the `&source=slack` (it's misleading anyway since manual rows have `source = 'manual'` in DB). Use just `?manualChannel=<name>`.
+- **Conversations.tsx** — when `paramManualChannel` is present on mount, force `sourceFilter` to `"manual"` (so the manual loop runs and the chip+filter dropdown stay consistent). This also fixes anyone with bookmarked `?manualChannel=...&source=slack` URLs from the previous version.
+
+After this, clicking `#ext_lovable-control-tower` in the chart shows all 14 conversations.
 
 ### Files
-- Edit: `src/pages/Stats.tsx`
-- Edit: `src/pages/Conversations.tsx`
-- Edit: `.lovable/project-knowledge.md`
+- New migration: backfill 3 link variants → canonical name
+- Edit: `src/components/ManualLogTab.tsx` (strip leading `#` on save)
+- Edit: `src/pages/Stats.tsx` (drop `source=slack` from manual drilldown URL)
+- Edit: `src/pages/Conversations.tsx` (force `sourceFilter = "manual"` when `manualChannel` param present)
+- Edit: `.lovable/project-knowledge.md` (note: manual channel names are stored without `#`; drilldown URL no longer carries `source=slack`)
 
 ### Out of scope
-- Backfilling/renaming `link` values in `manual_conversations` — you'll do this manually via the UI.
-- Adding manual rows to other Slack-only charts (volume, resolution time, escalation).
-- Flow page update — pure analytics presentation tweak.
+- Renaming/canonicalizing other manual channel link values (only `ext_lovable-control-tower` variants exist with this issue today; future imports won't accumulate `#` prefixes after fix #2).
+- Collapsing `_` ↔ `-` automatically in the matcher — the DB backfill makes this unnecessary for control-tower; future divergent names are a manual-rename problem.
 
