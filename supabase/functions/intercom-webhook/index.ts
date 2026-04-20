@@ -319,10 +319,25 @@ Deno.serve(async (req) => {
 
           const threadId = gmailMatches[0].gmail_thread_id;
           if (threadId) {
+            // Guard: never overwrite a sibling already linked to a different Intercom ticket
+            const { data: siblings } = await supabase
+              .from("gmail_conversations")
+              .select("intercom_conversation_id")
+              .eq("gmail_thread_id", threadId)
+              .not("intercom_conversation_id", "is", null);
+            const conflicting = (siblings || []).find(s => s.intercom_conversation_id && s.intercom_conversation_id !== intercomConvId);
+            if (conflicting) {
+              console.warn(`[email_link_conflict] Gmail thread ${threadId} already linked to ${conflicting.intercom_conversation_id}; refusing to overwrite with ${intercomConvId}. Treating as duplicate Intercom ticket.`);
+              return new Response(JSON.stringify({ ok: true, message: "Duplicate Intercom ticket for already-linked Gmail thread", existingIntercomId: conflicting.intercom_conversation_id }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+
             const { error: gmailErr } = await supabase
               .from("gmail_conversations")
               .update(updatePayload)
-              .eq("gmail_thread_id", threadId);
+              .eq("gmail_thread_id", threadId)
+              .or(`intercom_conversation_id.is.null,intercom_conversation_id.eq.${intercomConvId}`);
             if (gmailErr) {
               console.error("Gmail thread link error:", gmailErr);
             } else {
@@ -373,12 +388,28 @@ Deno.serve(async (req) => {
 
           if (distinctThreads.length === 1) {
             const threadId = distinctThreads[0]!;
+
+            // Guard: never overwrite a sibling already linked to a different Intercom ticket
+            const { data: siblings } = await supabase
+              .from("gmail_conversations")
+              .select("intercom_conversation_id")
+              .eq("gmail_thread_id", threadId)
+              .not("intercom_conversation_id", "is", null);
+            const conflicting = (siblings || []).find(s => s.intercom_conversation_id && s.intercom_conversation_id !== intercomConvId);
+            if (conflicting) {
+              console.warn(`[subject_link_conflict] Gmail thread ${threadId} already linked to ${conflicting.intercom_conversation_id}; refusing to overwrite with ${intercomConvId}. Treating as duplicate Intercom ticket.`);
+              return new Response(JSON.stringify({ ok: true, message: "Duplicate Intercom ticket for already-linked Gmail thread", existingIntercomId: conflicting.intercom_conversation_id }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+
             const updatePayload: Record<string, unknown> = { intercom_conversation_id: intercomConvId };
             if (resolvedOwner) updatePayload.owner = resolvedOwner;
             const { error: subjErr } = await supabase
               .from("gmail_conversations")
               .update(updatePayload)
-              .eq("gmail_thread_id", threadId);
+              .eq("gmail_thread_id", threadId)
+              .or(`intercom_conversation_id.is.null,intercom_conversation_id.eq.${intercomConvId}`);
             if (!subjErr) {
               console.log(`[subject-fallback] Linked Intercom ${intercomConvId} to Gmail thread ${threadId} via subject "${normSubject}"`);
               return new Response(JSON.stringify({ ok: true, message: "Linked via subject fallback", gmailThreadId: threadId }), {
@@ -388,6 +419,37 @@ Deno.serve(async (req) => {
             console.error("Subject-fallback link error:", subjErr);
           } else if (distinctThreads.length > 1) {
             console.warn(`[subject_link_ambiguous] ${distinctThreads.length} candidate Gmail threads for subject "${normSubject}", falling through to manual creation`);
+          }
+        }
+      }
+
+      // Manual-conversations subject lookup tier: prevents creating a duplicate
+      // manual row when an existing one already represents the same thread.
+      if (icSubject) {
+        const normalize = (s: string) =>
+          s.replace(/^(Re|Fwd|Fw):\s*/gi, "").replace(/\s+/g, " ").toLowerCase().trim();
+        const normSubject = normalize(icSubject);
+        if (normSubject.length > 5) {
+          const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+          const { data: manualMatches } = await supabase
+            .from("manual_conversations")
+            .select("id, intercom_conversation_id, subject")
+            .gte("created_at", since)
+            .order("created_at", { ascending: false })
+            .limit(100);
+
+          const matched = (manualMatches || []).filter(r => normalize(String(r.subject || "")) === normSubject);
+          if (matched.length === 1) {
+            const existing = matched[0];
+            console.log(`[subject_match_existing_manual] Intercom ${intercomConvId} matches existing manual row ${existing.id} (intercom ${existing.intercom_conversation_id || "none"}); skipping new manual creation.`);
+            return new Response(JSON.stringify({
+              ok: true,
+              message: "Duplicate Intercom ticket for existing manual conversation",
+              existingManualId: existing.id,
+              existingIntercomId: existing.intercom_conversation_id,
+            }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          } else if (matched.length > 1) {
+            console.warn(`[subject_match_existing_manual_ambiguous] ${matched.length} manual rows match subject "${normSubject}"; falling through to manual creation.`);
           }
         }
       }
