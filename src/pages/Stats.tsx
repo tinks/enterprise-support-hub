@@ -54,7 +54,15 @@ interface ManualRow {
   is_bug: boolean;
   product_area: string | null;
   resolved_at: string | null;
+  link: string | null;
 }
+
+// Normalize a free-text Slack channel name: lowercase, trim, strip a single leading "#".
+// Intentionally does NOT collapse "_" vs "-" — the user will rename channels manually.
+const normalizeChannelName = (raw: string | null | undefined): string => {
+  if (!raw) return "";
+  return raw.trim().toLowerCase().replace(/^#/, "");
+};
 
 type SourceFilter = "all" | "slack" | "gmail" | "manual" | "intercom";
 type TimeRange = "this_month" | "7d" | "30d" | "90d" | "all" | "custom";
