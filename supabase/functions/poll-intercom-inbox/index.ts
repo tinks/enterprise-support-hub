@@ -194,6 +194,16 @@ Deno.serve(async (req) => {
 
       const icData = await icRes.json();
 
+      // STRICT INBOX MEMBERSHIP GUARD: only import if currently in enterprise inbox.
+      // Search queries can return conversations that touched the inbox historically
+      // or are assigned to Sam (AI agent) but live in other inboxes.
+      const convTeamId = String(icData.team_assignee_id || "");
+      if (convTeamId !== String(enterpriseInboxId)) {
+        console.log(`Skipping ${intercomConvId}: team_assignee_id=${convTeamId} != ${enterpriseInboxId}`);
+        results.push({ intercomId: intercomConvId, action: "skipped_wrong_inbox" });
+        continue;
+      }
+
       // Extract contact name and email
       let contactName = "";
       let contactEmail = "";
@@ -359,8 +369,9 @@ Deno.serve(async (req) => {
   const imported = results.filter(r => r.action === "imported").length;
   const linkedGmail = results.filter(r => r.action === "linked_gmail").length;
   const alreadyTracked = results.filter(r => r.action === "already_tracked").length;
+  const skippedWrongInbox = results.filter(r => r.action === "skipped_wrong_inbox").length;
 
-  console.log(`Poll complete: ${imported} imported, ${linkedGmail} linked to Gmail, ${alreadyTracked} already tracked`);
+  console.log(`Poll complete: ${imported} imported, ${linkedGmail} linked to Gmail, ${alreadyTracked} already tracked, ${skippedWrongInbox} skipped (wrong inbox)`);
 
   return new Response(JSON.stringify({
     ok: true,
@@ -368,6 +379,7 @@ Deno.serve(async (req) => {
     imported,
     linkedGmail,
     alreadyTracked,
+    skippedWrongInbox,
     results,
   }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
