@@ -1,51 +1,42 @@
 
 
-## Always track Team Inbox Enterprise tickets going forward
+## Add "Intercom" as a source filter option
 
-### Current state
-- Real-time: `intercom-webhook` already imports on assignment to enterprise inbox ✅
-- Scheduled: `poll-intercom-inbox` exists but is **not on a cron** — only runs when triggered manually from the Settings page
+### Context
+Tickets imported via the Intercom backfill / poller / webhook are stored in `manual_conversations` with `source = 'intercom'`. Currently the Source filter dropdowns only expose Slack / Gmail / Manual, so Intercom-originated tickets are bucketed under "Manual" (since they live in `manual_conversations`), making them hard to isolate.
 
-### Gap
-No automatic schedule. If the webhook misses an event (subscription gap, transient failure, ticket created without assignment topic), nothing catches up unless someone clicks the button.
+### Pages with a Source menu
+1. **`src/pages/Conversations.tsx`** (Inbox) — `SOURCE_OPTIONS` filter + per-row source label logic
+2. **`src/pages/Stats.tsx`** (Analytics) — `SourceFilter` type + Select dropdown + filtering logic
+3. **`src/components/ManualLogTab.tsx`** — manual entry "Source" dropdown (already free-text-ish; verify if Intercom belongs here — likely **no**, since this tab is for manually logged conversations, not auto-imported ones)
 
-### Plan
+### Changes
 
-**1. Schedule `poll-intercom-inbox` via pg_cron**
-Run every 5 minutes. Uses the existing `last_polled_intercom_at` cursor so it only fetches conversations updated since the last run — cheap and idempotent.
+**1. Conversations.tsx**
+- Add `"intercom"` to `SOURCE_OPTIONS`.
+- In the unified row builder, detect manual rows where `source === 'intercom'` and label them as `"Intercom"` (separate from `"Manual"`).
+- Update source filter logic to match the new value.
+- Source badge/icon: reuse manual styling but with "Intercom" label.
 
-```sql
-select cron.schedule(
-  'poll-intercom-inbox-every-5min',
-  '*/5 * * * *',
-  $$
-  select net.http_post(
-    url := 'https://dzwcgqyznzrntkbobejo.supabase.co/functions/v1/poll-intercom-inbox',
-    headers := '{"Content-Type":"application/json","Authorization":"Bearer <ANON_KEY>"}'::jsonb,
-    body := '{}'::jsonb
-  );
-  $$
-);
-```
+**2. Stats.tsx**
+- Extend `SourceFilter` type: `"all" | "slack" | "gmail" | "manual" | "intercom"`.
+- Add Select option.
+- Split manual filtering: when source filter is `"manual"` show only `source !== 'intercom'` manual rows; when `"intercom"` show only `source === 'intercom'` manual rows.
+- Cards/charts that aggregate "Manual entries" get a parallel "Intercom" view (or Intercom rolls into manual visuals but is filterable — simpler: just filter, keep existing manual cards reused).
 
-**2. Enable `pg_cron` + `pg_net` extensions** (if not already on).
-
-**3. Show schedule status on Settings page**
-Small read-only line under the existing "Poll Intercom inbox" button: "Auto-runs every 5 minutes — last run: {last_polled_intercom_at}". Lets the user confirm it's alive without leaving the app.
-
-**4. Update Flow diagram**
-Add a note on the poll node: "Runs automatically every 5 minutes via pg_cron".
+**3. ManualLogTab.tsx**
+- **Skip.** This is for human-logged conversations; Intercom tickets arrive via webhook/poller/import, not manual logging. Adding it here would be misleading.
 
 ### Why this approach
-- The poller already has the strict enterprise-inbox guard, dedup checks, Gmail linking, and owner resolution. No new logic needed.
-- 5-minute cadence is a good balance: low API cost (one search per admin + team), short enough that missed webhooks are caught quickly.
-- pg_cron is the standard scheduling mechanism in this stack.
-
-### Files
-- New migration: schedule cron job (run via insert tool, not migration tool, since it contains the project URL + anon key)
-- Edit: `src/pages/Index.tsx` — display last-poll timestamp + "auto every 5 min" label
-- Edit: `src/pages/FlowDiagram.tsx` — annotate poll node
+- Intercom tickets already have a distinct `source` value in the DB — no schema change needed.
+- Filter-only change keeps the unified-table architecture intact.
+- Keeping ManualLogTab unchanged avoids confusing users into thinking they should manually log Intercom tickets (use Import tab instead).
 
 ### Open question
-Is **5 minutes** the right cadence, or do you want something different (1 min for near-real-time, 15 min to minimize API calls)?
+For Analytics: should Intercom get **its own dedicated section** (cards + charts like Slack/Gmail/Manual sections have), or just be a **filter option** that reuses the existing Manual section visuals? The simpler/faster choice is filter-only; a dedicated section is more work but gives Intercom-specific KPIs.
+
+### Files
+- Edit: `src/pages/Conversations.tsx`
+- Edit: `src/pages/Stats.tsx`
+- Edit: `src/pages/FlowDiagram.tsx` (note: Source filter now exposes Intercom)
 
