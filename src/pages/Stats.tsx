@@ -589,13 +589,18 @@ const Stats = () => {
     ].filter((d) => d.value > 0);
   }, [stats]);
 
-  // Channel breakdown data
+  // Channel breakdown data — group all DMs (D…) into one synthetic "Direct message" bucket
   const channelData = useMemo(() => {
     const byChannel: Record<string, { channel: string; channel_id: string; total: number }> = {};
     filtered.forEach((m) => {
       const id = m.slack_channel_id;
       if (!id) return;
-      const name = channelNames[id] || channelNameOverrides[id] || (id.startsWith("D") ? "Direct message" : id);
+      if (id.startsWith("D")) {
+        if (!byChannel["__DM__"]) byChannel["__DM__"] = { channel: "Direct message", channel_id: "__DM__", total: 0 };
+        byChannel["__DM__"].total++;
+        return;
+      }
+      const name = channelNames[id] || channelNameOverrides[id] || id;
       if (!byChannel[id]) byChannel[id] = { channel: name, channel_id: id, total: 0 };
       byChannel[id].total++;
     });
@@ -1334,7 +1339,12 @@ const Stats = () => {
                         className="cursor-pointer"
                         onClick={(data: any) => {
                           const id = data?.channel_id || data?.payload?.channel_id;
-                          if (id) navigate(`/conversations?channel=${encodeURIComponent(id)}&source=slack`);
+                          if (!id) return;
+                          if (id === "__DM__") {
+                            navigate(`/conversations?channelGroup=dm&source=slack`);
+                          } else {
+                            navigate(`/conversations?channel=${encodeURIComponent(id)}&source=slack`);
+                          }
                         }}
                       >
                         <LabelList dataKey="total" position="right" className="text-xs fill-foreground" />
