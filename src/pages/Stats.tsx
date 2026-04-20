@@ -1656,15 +1656,15 @@ const Stats = () => {
                     <AreaChart data={intercomVolumeData}>
                       <defs>
                         <linearGradient id="gradIntercom" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#9B87F5" stopOpacity={0.4} />
-                          <stop offset="95%" stopColor="#9B87F5" stopOpacity={0} />
+                          <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                       <XAxis dataKey="label" className="text-xs" />
                       <YAxis allowDecimals={false} className="text-xs" />
                       <ChartTooltip content={<ChartTooltipContent />} />
-                      <Area type="monotone" dataKey="count" stroke="#9B87F5" fill="url(#gradIntercom)" strokeWidth={2} />
+                      <Area type="monotone" dataKey="count" stroke="#F59E0B" fill="url(#gradIntercom)" strokeWidth={2} />
                     </AreaChart>
                   </ChartContainer>
                 )}
@@ -1687,7 +1687,7 @@ const Stats = () => {
                         <XAxis type="number" allowDecimals={false} className="text-xs" />
                         <YAxis type="category" dataKey="status" className="text-xs" width={120} tick={{ fontSize: 12 }} />
                         <ChartTooltip content={<ChartTooltipContent />} />
-                        <Bar dataKey="count" fill="#9B87F5" radius={[0, 4, 4, 0]}>
+                        <Bar dataKey="count" fill="#F59E0B" radius={[0, 4, 4, 0]}>
                           <LabelList dataKey="count" position="right" className="text-xs fill-foreground" />
                         </Bar>
                       </BarChart>
