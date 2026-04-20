@@ -64,8 +64,17 @@ Deno.serve(async (req) => {
   while (processed < maxBatch) {
     if (Date.now() - startTime > TIME_BUDGET_MS) break;
 
+    const queryClauses: Array<Record<string, unknown>> = [
+      { field: "team_assignee_id", operator: "=", value: parseInt(enterpriseInboxId) },
+    ];
+    if (typeof createdAfter === "number") {
+      queryClauses.push({ field: "created_at", operator: ">", value: createdAfter });
+    }
+    if (typeof createdBefore === "number") {
+      queryClauses.push({ field: "created_at", operator: "<", value: createdBefore });
+    }
     const searchBody: Record<string, unknown> = {
-      query: { field: "team_assignee_id", operator: "=", value: parseInt(enterpriseInboxId) },
+      query: queryClauses.length === 1 ? queryClauses[0] : { operator: "AND", value: queryClauses },
       pagination: { per_page: 25 },
     };
     if (nextStartingAfter) {
