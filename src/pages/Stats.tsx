@@ -676,28 +676,32 @@ const Stats = () => {
       slack: 0,
       gmail: 0,
       manual: 0,
+      intercom: 0,
     }));
     const getCETHour = (dateStr: string) => {
       const d = new Date(dateStr);
       return parseInt(d.toLocaleString("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false }));
     };
     filtered.forEach((m) => { buckets[getCETHour(m.created_at)].slack++; });
-    const gmailSeenPerHour: Record<number, Set<string>> = {};
     filteredGmailThreads.forEach((g) => {
       const h = getCETHour(g.received_at || g.created_at);
       buckets[h].gmail++;
     });
-    filteredManual.forEach((m) => { buckets[getCETHour(m.created_at)].manual++; });
+    filteredManual.forEach((m) => {
+      const h = getCETHour(m.created_at);
+      if (m.source === "intercom") buckets[h].intercom++;
+      else buckets[h].manual++;
+    });
     return buckets;
   }, [filtered, filteredGmailThreads, filteredManual]);
 
   const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
   const heatmapData = useMemo(() => {
-    const grid: Record<string, Record<number, { slack: number; gmail: number; manual: number; total: number }>> = {};
+    const grid: Record<string, Record<number, { slack: number; gmail: number; manual: number; intercom: number; total: number }>> = {};
     DAYS.forEach((d) => {
       grid[d] = {};
-      for (let h = 0; h < 24; h++) grid[d][h] = { slack: 0, gmail: 0, manual: 0, total: 0 };
+      for (let h = 0; h < 24; h++) grid[d][h] = { slack: 0, gmail: 0, manual: 0, intercom: 0, total: 0 };
     });
 
     const getCET = (dateStr: string) => {
@@ -717,14 +721,17 @@ const Stats = () => {
     });
     filteredManual.forEach((m) => {
       const { day, hour } = getCET(m.created_at);
-      if (grid[day]) { grid[day][hour].manual++; grid[day][hour].total++; }
+      if (!grid[day]) return;
+      if (m.source === "intercom") grid[day][hour].intercom++;
+      else grid[day][hour].manual++;
+      grid[day][hour].total++;
     });
 
     let max = 0;
     DAYS.forEach((d) => {
       for (let h = 0; h < 24; h++) {
         const cell = grid[d][h];
-        const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : (sourceFilter === "manual" || sourceFilter === "intercom") ? cell.manual : cell.total;
+        const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : sourceFilter === "intercom" ? cell.intercom : sourceFilter === "manual" ? cell.manual : cell.total;
         if (val > max) max = val;
       }
     });
@@ -1094,7 +1101,7 @@ const Stats = () => {
               <CardDescription>When conversations and emails arrive, bucketed by hour in CET timezone</CardDescription>
             </CardHeader>
             <CardContent>
-              {hourlyActivityData.every((b) => b.slack === 0 && b.gmail === 0 && b.manual === 0) ? (
+              {hourlyActivityData.every((b) => b.slack === 0 && b.gmail === 0 && b.manual === 0 && b.intercom === 0) ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
               ) : (
                 <ChartContainer config={chartConfig} className="h-[280px] w-full">
@@ -1109,8 +1116,11 @@ const Stats = () => {
                     {(sourceFilter === "all" || sourceFilter === "gmail") && (
                       <Bar dataKey="gmail" fill="#E66FD2" radius={[4, 4, 0, 0]} />
                     )}
-                    {(sourceFilter === "all" || sourceFilter === "manual" || sourceFilter === "intercom") && (
+                    {(sourceFilter === "all" || sourceFilter === "manual") && (
                       <Bar dataKey="manual" fill="#4ECDC4" radius={[4, 4, 0, 0]} />
+                    )}
+                    {(sourceFilter === "all" || sourceFilter === "intercom") && (
+                      <Bar dataKey="intercom" fill="#F59E0B" radius={[4, 4, 0, 0]} />
                     )}
                   </BarChart>
                 </ChartContainer>
@@ -1143,7 +1153,7 @@ const Stats = () => {
                         <div className="w-10 shrink-0 text-xs text-muted-foreground font-medium">{day}</div>
                         {Array.from({ length: 24 }, (_, h) => {
                           const cell = heatmapData.grid[day][h];
-                          const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : (sourceFilter === "manual" || sourceFilter === "intercom") ? cell.manual : cell.total;
+                          const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : sourceFilter === "intercom" ? cell.intercom : sourceFilter === "manual" ? cell.manual : cell.total;
                           const opacity = heatmapData.max > 0 ? Math.max(0.08, val / heatmapData.max) : 0;
                           return (
                             <div
@@ -1153,7 +1163,7 @@ const Stats = () => {
                                 val > 0 && "cursor-pointer hover:ring-2 hover:ring-primary/50"
                               )}
                               style={{ opacity: val > 0 ? opacity : 0.04 }}
-                              title={`${day} ${String(h).padStart(2, "0")}:00 — Slack: ${cell.slack}, Gmail: ${cell.gmail}, Manual: ${cell.manual}, Total: ${cell.total}`}
+                              title={`${day} ${String(h).padStart(2, "0")}:00 — Slack: ${cell.slack}, Gmail: ${cell.gmail}, Manual: ${cell.manual}, Intercom: ${cell.intercom}, Total: ${cell.total}`}
                               onClick={() => {
                                 if (val > 0) navigate(`/conversations?day=${day}&hour=${h}&source=${sourceFilter}`);
                               }}
