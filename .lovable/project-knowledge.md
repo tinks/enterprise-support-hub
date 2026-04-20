@@ -436,3 +436,16 @@ All Intercom API calls use `Intercom-Version: 2.11`.
 - The flyout uses a **150ms debounce** (`closeTimerRef`) so the menu stays mounted while the mouse crosses from the trigger to the submenu
 - Clicking Joel or Kristina navigates to `/my/joel` or `/my/kristina` and closes the flyout
 - When the mouse leaves both the sidebar and the flyout, everything collapses
+
+---
+
+## Analytics — channel drilldown
+
+The "Conversations by channel" bar chart on the analytics dashboard is interactive:
+
+- Each bar is clickable and navigates to the inbox with a pre-applied filter.
+- Slack channel IDs starting with `D` (1:1 direct messages) are aggregated into a single synthetic bar labelled **"Direct message"** (`channel_id: "__DM__"`) so individual DM partners do not pollute the chart.
+- Regular channels (`C…`) deep-link via `/conversations?channel=<id>&source=slack` and filter by exact `slack_channel_id`.
+- The DM aggregate deep-links via `/conversations?channelGroup=dm&source=slack` and filters Slack rows where `slack_channel_id` starts with `D`.
+- The inbox shows a dismissible filter chip ("Showing conversations from channel #X" or "Showing conversations from direct messages") with a "Back to analytics" shortcut.
+- Legacy `G…` IDs (group DMs / old private channels) are intentionally **not** grouped — they keep their own bars since some are private channels with meaningful names.
