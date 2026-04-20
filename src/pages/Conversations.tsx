@@ -88,6 +88,13 @@ const normalizeSubject = (subject: string | null): string => {
   return subject.replace(/^(re:|fwd?:)\s*/gi, "").trim().toLowerCase();
 };
 
+// Normalize a free-text Slack channel name: lowercase, trim, strip a single leading "#".
+// Keep in sync with src/pages/Stats.tsx — used for manualChannel drilldown matching.
+const normalizeChannelName = (raw: string | null | undefined): string => {
+  if (!raw) return "";
+  return raw.trim().toLowerCase().replace(/^#/, "");
+};
+
 type NameMap = Record<string, string>;
 
 const statusColor = (status: string) => {
@@ -187,6 +194,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const paramSource = searchParams.get("source") as SourceFilter | null;
   const paramChannel = searchParams.get("channel");
   const paramChannelGroup = searchParams.get("channelGroup");
+  const paramManualChannel = searchParams.get("manualChannel");
   const resolutionMin = searchParams.get("resolutionMin") !== null ? parseInt(searchParams.get("resolutionMin")!) : null;
   const resolutionMax = searchParams.get("resolutionMax") !== null ? parseInt(searchParams.get("resolutionMax")!) : null;
   const isResolutionMode = resolutionMin !== null && resolutionMax !== null;
@@ -881,6 +889,13 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         const id = (r.data as ConversationMapping).slack_channel_id;
         return !!id && id.startsWith("D");
       });
+    } else if (paramManualChannel) {
+      channelScoped = rows.filter((r) => {
+        if (r.source !== "manual") return false;
+        const link = (r.data as ManualConversation).link;
+        if (paramManualChannel === "__unknown__") return !normalizeChannelName(link);
+        return normalizeChannelName(link) === paramManualChannel.toLowerCase();
+      });
     }
 
     // Apply owner filter
@@ -919,7 +934,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     }
 
     return classFiltered;
-  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, paramChannel, paramChannelGroup, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter, isResolutionMode, resolutionMin, resolutionMax]);
+  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, paramChannel, paramChannelGroup, paramManualChannel, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter, isResolutionMode, resolutionMin, resolutionMax]);
 
   const canLoadMore =
     !isHeatmapMode && !isResolutionMode && !isDayOnlyMode && !searchResults && (
@@ -1460,6 +1475,30 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                   onClick={() => {
                     const next = new URLSearchParams(searchParams);
                     next.delete("channelGroup");
+                    setSearchParams(next);
+                  }}
+                >
+                  <X className="mr-1 h-3 w-3" /> Clear filter
+                </Button>
+              </div>
+            </div>
+          )}
+          {paramManualChannel && (
+            <div className="mb-4 flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-4 py-2 text-sm">
+              <span className="text-foreground">
+                Showing manually imported threads from <strong>#{paramManualChannel === "__unknown__" ? "unknown" : paramManualChannel}</strong>
+              </span>
+              <div className="ml-auto flex items-center gap-1">
+                <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => navigate("/")}>
+                  <ArrowLeft className="mr-1 h-3 w-3" /> Back to analytics
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => {
+                    const next = new URLSearchParams(searchParams);
+                    next.delete("manualChannel");
                     setSearchParams(next);
                   }}
                 >

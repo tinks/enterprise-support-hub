@@ -445,7 +445,12 @@ The "Conversations by channel" bar chart on the analytics dashboard is interacti
 
 - Each bar is clickable and navigates to the inbox with a pre-applied filter.
 - Slack channel IDs starting with `D` (1:1 direct messages) are aggregated into a single synthetic bar labelled **"Direct message"** (`channel_id: "__DM__"`) so individual DM partners do not pollute the chart.
+- Manually imported Slack threads (`manual_conversations.source = 'slack_thread'`) are also counted, keyed by the normalized `link` field. Normalization is intentionally minimal: lowercase, trim, and strip a single leading `#`. We do **not** collapse `_` ↔ `-` — channel name cleanup is done manually via the inbox UI.
+- Manual `slack_dm` rows fold into the same "Direct message" bucket as auto-tracked DMs.
+- Manual `slack_thread` rows with an empty/missing `link` are bucketed into a synthetic `#unknown` bar (`channel_id: "manual:__unknown__"`).
 - Regular channels (`C…`) deep-link via `/conversations?channel=<id>&source=slack` and filter by exact `slack_channel_id`.
 - The DM aggregate deep-links via `/conversations?channelGroup=dm&source=slack` and filters Slack rows where `slack_channel_id` starts with `D`.
-- The inbox shows a dismissible filter chip ("Showing conversations from channel #X" or "Showing conversations from direct messages") with a "Back to analytics" shortcut.
+- Manual buckets deep-link via `/conversations?manualChannel=<normalized-name>&source=slack` and filter manual rows by `normalizeChannelName(link) === param`. The `__unknown__` bucket matches manual rows with empty `link`.
+- The inbox shows a dismissible filter chip ("Showing conversations from channel #X", "Showing conversations from direct messages", or "Showing manually imported threads from #X") with a "Back to analytics" shortcut.
+- Manual buckets and real `C…` bars with the same display name are kept separate (different `channel_id`) until names are reconciled manually.
 - Legacy `G…` IDs (group DMs / old private channels) are intentionally **not** grouped — they keep their own bars since some are private channels with meaningful names.
