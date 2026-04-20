@@ -97,20 +97,37 @@ const Index = () => {
   };
 
   const cleanupBadIntercomImports = async () => {
-    if (!confirm("This will check every Intercom-sourced conversation against Intercom's API and delete any that aren't currently in the enterprise inbox. May take several minutes. Continue?")) return;
+    if (!confirm("This will check every Intercom-sourced conversation against Intercom's API and delete any that aren't currently in the enterprise inbox. Runs in batches; may take several minutes. Continue?")) return;
     setCleanupRunning(true);
+    let totalDeleted = 0;
+    let totalKept = 0;
+    let totalNotFound = 0;
+    let totalApiErrors = 0;
+    let offset = 0;
+    let batchNum = 0;
     try {
-      const res = await fetch(`${edgeFunctionBaseUrl}/cleanup-bad-intercom-imports`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dryRun: false }),
-      });
-      const data = await res.json();
-      if (data.error) {
-        toast.error("Cleanup failed: " + data.error);
-      } else {
-        toast.success(`Cleanup done: ${data.deleted} deleted, ${data.kept} kept, ${data.notFound} not found, ${data.apiErrors} API errors (of ${data.total} checked)`);
+      while (true) {
+        batchNum++;
+        const res = await fetch(`${edgeFunctionBaseUrl}/cleanup-bad-intercom-imports`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dryRun: false, batchSize: 80, offset }),
+        });
+        const data = await res.json();
+        if (data.error) {
+          toast.error("Cleanup failed: " + data.error);
+          break;
+        }
+        totalDeleted += data.deleted || 0;
+        totalKept += data.kept || 0;
+        totalNotFound += data.notFound || 0;
+        totalApiErrors += data.apiErrors || 0;
+        toast.info(`Batch ${batchNum}: ${data.deleted} deleted, ${data.kept} kept (${data.totalRemaining} remaining)`);
+        if (data.done || data.batchCount === 0) break;
+        offset = data.nextOffset || 0;
+        if (batchNum > 50) { toast.error("Stopped after 50 batches as a safety guard"); break; }
       }
+      toast.success(`Cleanup complete: ${totalDeleted} deleted, ${totalKept} kept, ${totalNotFound} not found, ${totalApiErrors} API errors`);
     } catch (err) {
       toast.error("Cleanup request failed: " + (err instanceof Error ? err.message : "Unknown"));
     }
