@@ -455,3 +455,13 @@ The "Conversations by channel" bar chart on the analytics dashboard is interacti
 - The inbox shows a dismissible filter chip ("Showing conversations from channel #X", "Showing conversations from direct messages", or "Showing manually imported threads from #X") with a "Back to analytics" shortcut.
 - Manual buckets and real `C…` bars with the same display name are kept separate (different `channel_id`) until names are reconciled manually.
 - Legacy `G…` IDs (group DMs / old private channels) are intentionally **not** grouped — they keep their own bars since some are private channels with meaningful names.
+- Channel chart counts respect the active date range filter at the top of analytics — a channel with 14 total rows in DB will show only those falling inside the selected window.
+
+## Inbox — manual Slack imports
+
+Manual rows with `source='slack_thread'` or `source='slack_dm'` are visually treated like normal Slack conversations in the inbox table:
+
+- **Channel** column shows `#<normalizeChannelName(link)>` (or `#unknown` when `link` is empty) for `slack_thread`, and `Direct message` for `slack_dm`. The raw `source` string is no longer shown for these rows.
+- **Link** column is suppressed for `slack_thread`/`slack_dm` (the `link` field holds a channel name, not a URL). For other manual sources, the link is rendered as an external link only when it matches `^https?://`.
+- Inbox search (server-side `search_conversations` RPC) already covers `manual_conversations.link`, `subject`, `contact_name`, `status`, `owner`, `classification`, and `manual_messages.message_text` — no separate channel-name search path is needed.
+- Empty-state message is channel-aware: when `?manualChannel=` is set and `unified` is empty, the message names the channel and suggests clearing status/owner/classification filters (rows are often hidden by the default `resolved` filter).
