@@ -998,7 +998,7 @@ const Stats = () => {
                     {(sourceFilter === "all" || sourceFilter === "gmail") && (
                       <Bar dataKey="gmail" fill="#E66FD2" radius={[4, 4, 0, 0]} />
                     )}
-                    {(sourceFilter === "all" || sourceFilter === "manual") && (
+                    {(sourceFilter === "all" || sourceFilter === "manual" || sourceFilter === "intercom") && (
                       <Bar dataKey="manual" fill="#4ECDC4" radius={[4, 4, 0, 0]} />
                     )}
                   </BarChart>
