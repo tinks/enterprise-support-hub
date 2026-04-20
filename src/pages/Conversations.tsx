@@ -76,7 +76,7 @@ interface ManualConversation {
   classification: string | null;
 }
 
-type SourceFilter = "all" | "slack" | "slack_import" | "gmail" | "manual";
+type SourceFilter = "all" | "slack" | "slack_import" | "gmail" | "manual" | "intercom";
 
 type UnifiedRow =
   | { source: "slack"; data: ConversationMapping; sortDate: string; groupedEmails?: undefined; groupCount?: undefined }
@@ -775,7 +775,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         (sourceFilter === "all" || sourceFilter === "gmail") && uniqGmail.length > 0
           ? supabase.from("gmail_conversations").select("*").in("id", uniqGmail).order("received_at", { ascending: false })
           : Promise.resolve({ data: [] }),
-        (sourceFilter === "all" || sourceFilter === "manual") && uniqManual.length > 0
+        (sourceFilter === "all" || sourceFilter === "manual" || sourceFilter === "intercom") && uniqManual.length > 0
           ? supabase.from("manual_conversations").select("*").in("id", uniqManual).order("created_at", { ascending: false })
           : Promise.resolve({ data: [] }),
       ]);
@@ -828,8 +828,10 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         });
       }
     }
-    if (sourceFilter === "all" || sourceFilter === "manual") {
+    if (sourceFilter === "all" || sourceFilter === "manual" || sourceFilter === "intercom") {
       for (const mc of manualData) {
+        if (sourceFilter === "manual" && mc.source === "intercom") continue;
+        if (sourceFilter === "intercom" && mc.source !== "intercom") continue;
         rows.push({ source: "manual", data: mc, sortDate: mc.created_at });
       }
     }
@@ -1437,6 +1439,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                       <SelectItem value="slack_import">Slack import</SelectItem>
                       <SelectItem value="gmail">Gmail</SelectItem>
                       <SelectItem value="manual">Manual entry</SelectItem>
+                      <SelectItem value="intercom">Intercom</SelectItem>
                     </SelectContent>
                   </Select>
                   <Popover>
