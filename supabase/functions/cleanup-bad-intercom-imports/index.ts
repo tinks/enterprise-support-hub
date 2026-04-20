@@ -31,19 +31,25 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Optional dryRun flag — defaults to false
+  // Optional flags
   let dryRun = false;
+  let batchSize = 80; // process ~80 per invocation to stay under 150s timeout
+  let offset = 0;
   try {
     const body = await req.json();
     if (body && body.dryRun === true) dryRun = true;
+    if (body && typeof body.batchSize === "number") batchSize = Math.min(200, Math.max(1, body.batchSize));
+    if (body && typeof body.offset === "number") offset = Math.max(0, body.offset);
   } catch { /* no body */ }
 
-  // Fetch all intercom-source rows that have an intercom_conversation_id
-  const { data: rows, error } = await supabase
+  // Fetch a batch of intercom-source rows
+  const { data: rows, error, count } = await supabase
     .from("manual_conversations")
-    .select("id, intercom_conversation_id, created_at")
+    .select("id, intercom_conversation_id, created_at", { count: "exact" })
     .eq("source", "intercom")
-    .not("intercom_conversation_id", "is", null);
+    .not("intercom_conversation_id", "is", null)
+    .order("created_at", { ascending: true })
+    .range(offset, offset + batchSize - 1);
 
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), {
@@ -52,7 +58,8 @@ Deno.serve(async (req) => {
     });
   }
 
-  const total = rows?.length || 0;
+  const totalRemaining = count || 0;
+  const batchCount = rows?.length || 0;
   let checked = 0;
   let kept = 0;
   let deleted = 0;
@@ -73,7 +80,6 @@ Deno.serve(async (req) => {
       });
 
       if (res.status === 404) {
-        // Conversation no longer exists in Intercom — also clean up
         notFound++;
         if (!dryRun) {
           await supabase.from("manual_messages").delete().eq("conversation_id", row.id);
@@ -108,21 +114,31 @@ Deno.serve(async (req) => {
       console.error(`Exception for ${intercomId}:`, e);
     }
 
-    // Light rate limit — Intercom allows ~1000/min
-    await new Promise((r) => setTimeout(r, 80));
+    // Light rate limit
+    await new Promise((r) => setTimeout(r, 50));
   }
+
+  // In dry-run mode, the row is still in the DB so totalRemaining doesn't shrink.
+  // Caller should advance offset by batchCount for dry-run; for real runs, deleted rows
+  // disappear so the next call with offset=0 naturally pulls the next un-checked rows
+  // (kept rows accumulate at the front — caller should advance offset by `kept`).
+  const nextOffset = dryRun ? offset + batchCount : kept;
+  const done = batchCount === 0 || (totalRemaining <= batchCount && deleted + kept === batchCount);
 
   return new Response(JSON.stringify({
     ok: true,
     dryRun,
     enterpriseInboxId,
-    total,
+    totalRemaining,
+    batchCount,
     checked,
     kept,
     deleted,
     notFound,
     apiErrors,
     deletedIds: deletedIds.slice(0, 50),
+    nextOffset,
+    done,
   }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
