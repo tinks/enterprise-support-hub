@@ -343,6 +343,94 @@ const Stats = () => {
     return byDay;
   }, [filteredManual]);
 
+  // Dedicated Intercom-only filter (ignores sourceFilter so the Intercom
+  // section always reflects intercom-imported tickets when visible).
+  const intercomFiltered = useMemo(() => {
+    const cutoff = getCutoffDate(range);
+    return manualData.filter((m) => {
+      if (m.source !== "intercom") return false;
+      const matchView = view === "test" ? m.is_test : !m.is_test;
+      const parsed = parseISO(m.created_at);
+      let matchRange: boolean;
+      if (range === "this_month") {
+        matchRange = (isAfter(parsed, startOfDay(startOfMonth(new Date()))) || parsed.getTime() === startOfDay(startOfMonth(new Date())).getTime()) &&
+                     (isBefore(parsed, endOfDay(endOfMonth(new Date()))) || parsed.getTime() === endOfDay(endOfMonth(new Date())).getTime());
+      } else if (range === "custom") {
+        matchRange = (!customFrom || isAfter(parsed, startOfDay(customFrom))) &&
+                     (!customTo || isBefore(parsed, endOfDay(customTo)));
+      } else {
+        matchRange = cutoff ? isAfter(parsed, cutoff) : true;
+      }
+      return matchView && matchRange && m.status !== "cancelled";
+    });
+  }, [manualData, view, range, customFrom, customTo]);
+
+  const intercomStats = useMemo(() => {
+    const total = intercomFiltered.length;
+    const resolved = intercomFiltered.filter((m) => m.status === "resolved").length;
+    const active = intercomFiltered.filter((m) => m.status === "active").length;
+    const escalated = intercomFiltered.filter((m) => m.status === "escalated" || m.status === "escalated_pending").length;
+    const bugs = intercomFiltered.filter((m) => m.is_bug).length;
+    const resolvedPct = total ? Math.round((resolved / total) * 100) : 0;
+    const escalationPct = total ? Math.round((escalated / total) * 100) : 0;
+    const bugPct = total ? Math.round((bugs / total) * 100) : 0;
+
+    // Avg resolution time (minutes)
+    const resolutionMins = intercomFiltered
+      .filter((m) => m.resolved_at)
+      .map((m) => differenceInMinutes(parseISO(m.resolved_at!), parseISO(m.created_at)))
+      .filter((n) => n >= 0);
+    const avgResolutionMins = resolutionMins.length
+      ? Math.round(resolutionMins.reduce((s, v) => s + v, 0) / resolutionMins.length)
+      : null;
+
+    // Top product area
+    const areaCounts: Record<string, number> = {};
+    intercomFiltered.forEach((m) => {
+      const a = m.product_area || "Unassigned";
+      areaCounts[a] = (areaCounts[a] || 0) + 1;
+    });
+    const topArea = Object.entries(areaCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
+
+    return { total, resolved, active, escalated, bugs, resolvedPct, escalationPct, bugPct, avgResolutionMins, topArea };
+  }, [intercomFiltered]);
+
+  const intercomVolumeData = useMemo(() => {
+    const byDay: Record<string, number> = {};
+    intercomFiltered.forEach((m) => {
+      const day = format(parseISO(m.created_at), "yyyy-MM-dd");
+      byDay[day] = (byDay[day] || 0) + 1;
+    });
+    return [...Object.entries(byDay)]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([day, count]) => ({ date: day, label: format(parseISO(day), "MMM dd"), count }));
+  }, [intercomFiltered]);
+
+  const intercomStatusData = useMemo(() => {
+    const buckets = { Resolved: 0, Active: 0, Escalated: 0, Awaiting: 0, Other: 0 };
+    intercomFiltered.forEach((m) => {
+      if (m.status === "resolved") buckets.Resolved++;
+      else if (m.status === "active" || m.status === "active_pending") buckets.Active++;
+      else if (m.status === "escalated" || m.status === "escalated_pending") buckets.Escalated++;
+      else if (m.status?.startsWith("awaiting")) buckets.Awaiting++;
+      else buckets.Other++;
+    });
+    return Object.entries(buckets)
+      .filter(([, v]) => v > 0)
+      .map(([status, count]) => ({ status, count }));
+  }, [intercomFiltered]);
+
+  const intercomByArea = useMemo(() => {
+    const counts: Record<string, number> = {};
+    intercomFiltered.forEach((m) => {
+      const a = m.product_area || "Unassigned";
+      counts[a] = (counts[a] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([area, count]) => ({ area, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [intercomFiltered]);
+
   const mergedVolumeData = useMemo(() => {
     const allDays = new Set<string>();
     filtered.forEach((m) => allDays.add(format(parseISO(m.created_at), "yyyy-MM-dd")));
