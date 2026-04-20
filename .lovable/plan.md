@@ -1,53 +1,65 @@
 
 
-## Status: not fixed yet
+## The fix isn't complete — same class of duplicate is still happening
 
-The previous turn (when you accidentally hit build mode) only did the data cleanup for the older case and shipped the original subject-fallback. The hardening guards proposed for the `574a56d9…` / `2f9cf42f…` case were never written. Current `intercom-webhook` lines 305–393:
+### What I found
 
-- Email linker (305–350): updates the entire Gmail thread without checking whether siblings are already linked to a *different* Intercom ID.
-- Subject fallback (352–393): only filters out rows where `intercom_conversation_id IS NULL`, never queries `manual_conversations`. So if a manual row already represents the same subject, it still creates a new manual row.
+Today, after my last fix, this duplicate was created:
+- Gmail thread `19dab3b3b122c2d3` ("Dragonpass x Lovable | Kick-off Call") was already linked to Intercom `215473947146973`.
+- Diana replied via Intercom → email looped back through the Google Group → Intercom created a **second ticket** `215473990768864`.
+- The webhook fired. My overwrite guard correctly refused to re-stamp the Gmail thread ✅
+- Then my "manual_conversations subject lookup" tier ran — but it only checks `manual_conversations`. The original record is in `gmail_conversations`, so it found nothing → fell through and **created a new manual row** `2c32a2ab…` ❌
 
-So the same class of duplicate can still happen.
+Same pattern hit 4 conversations in the last week (3 of them before the fix, 1 today). The miss is structural: I added a lookup against the wrong table.
+
+### Why my last fix only half-worked
+
+The "duplicate Intercom ticket" case has two flavors:
+1. **Original lives in `manual_conversations`** → my new tier handles it ✅
+2. **Original lives in `gmail_conversations`** → my new tier doesn't check there → still creates a manual duplicate ❌
+
+The overwrite guard catches (2) at the Gmail-stamp step but doesn't stop the manual-row creation that follows it.
 
 ### Fix — three changes
 
-**1. Data cleanup for `574a56d9…` / `2f9cf42f…`**
+**1. Extend the existing-record lookup to also check `gmail_conversations` by normalized subject**
 
-- `UPDATE gmail_conversations SET intercom_conversation_id = '215473963341741' WHERE gmail_thread_id = '19d9ce644175475b';` — re-stamp the 3 Gmail rows back to the original ticket (the manual row's ID).
-- Invoke `backfill-intercom-replies` for manual row `574a56d9…` so any Intercom-side replies on that ticket land on the surviving record.
-- Leave `2f9cf42f…` (the Gmail row) in place; it's now correctly linked. Manual row `574a56d9…` survives.
+In `intercom-webhook` after the Gmail subject linker hits a `subject_link_conflict` (or any time we'd otherwise fall through to manual creation), do one more lookup:
 
-**2. `intercom-webhook` — manual_conversations lookup tier**
+- Query `gmail_conversations` for rows in the last 14 days where normalized subject matches AND `intercom_conversation_id IS NOT NULL`.
+- If exactly one distinct existing `intercom_conversation_id` matches: log `subject_match_existing_gmail`, return `{ ok: true, message: "Duplicate Intercom ticket for existing Gmail thread", existingThreadId, existingIntercomId }`. Skip manual creation.
 
-In `supabase/functions/intercom-webhook/index.ts`, before the manual-row creation fallback (after line 393), add a third lookup:
+**2. Wire the conflict path into the same skip**
 
-- Query `manual_conversations` for rows in the last 7 days with normalized subject equal to the Intercom ticket's normalized subject (same `Re:`/`Fwd:`/`Fw:` strip + lowercase + collapse-whitespace logic already used).
-- If exactly one match: log `subject_match_existing_manual`, return `{ ok: true, message: "Duplicate Intercom ticket for existing manual conversation", existingManualId, existingIntercomId }`. Do NOT create a new manual row.
-- If 0 or >1: fall through to current behavior.
+When the overwrite guard fires (`subject_link_conflict` / `email_link_conflict`), today it returns early — good. But before this fix, that early return was never reached for the Dragonpass case because the subject linker found *no* unlinked thread to stamp (all siblings already had a different non-null intercom id), so it just fell through to manual creation. Make sure the "existing linked thread on this normalized subject" check runs **even when the subject linker finds nothing to stamp**, not only as a guard before stamping.
 
-**3. `intercom-webhook` — "do not overwrite different Intercom ID" guards**
+Concretely: replace today's two-step flow (subject linker → manual creation) with: subject linker → if any candidate thread on this normalized subject exists with a non-null intercom id different from ours → log `subject_match_existing_gmail` and return. Otherwise → manual_conversations lookup → manual creation.
 
-Apply to **both** the email linker (321–325) and the subject linker (378–381):
+**3. Data cleanup for the 4 known dupes**
 
-- Change the thread-level update from `.eq("gmail_thread_id", threadId)` to `.eq("gmail_thread_id", threadId).or("intercom_conversation_id.is.null,intercom_conversation_id.eq." + intercomConvId)` so we never overwrite a sibling that's already pointed at a different ticket.
-- Before doing the update, run a quick check: if any sibling on the thread already has a non-null `intercom_conversation_id` that's different from `intercomConvId`, log `subject_link_conflict` (or `email_link_conflict`) with both IDs and return `{ ok: true, message: "Duplicate Intercom ticket for already-linked Gmail thread", existingIntercomId }`. Skip linking and skip manual creation entirely — Intercom has a duplicate ticket, our DB already represents the conversation correctly.
+Delete the 4 duplicate manual rows since the originals already exist in `gmail_conversations`:
+- `2c32a2ab-2d82-4e85-ac88-63ad0a407412` (Dragonpass)
+- `1e44d53b-8f72-4eb3-bca6-5c71024816c4` (Preview reverting)
+- `2d6ca7d2-e282-4e19-b03c-6d60a6fc9b6e` (Lovable Settings Pane)
+- `73b8b9a6-fcb1-4f21-a30c-38f4cdd8f0e3` (Session Timeout)
+
+Each delete also removes their `manual_messages` and `conversation_audit_logs`. The Gmail rows already carry the original Intercom ticket; replies on the duplicate Intercom tickets won't surface in our DB, but that's acceptable (they're duplicates Intercom shouldn't have created).
 
 ### Files
 
-- Edit: `supabase/functions/intercom-webhook/index.ts` — manual-conversations subject lookup + thread-overwrite guards on both linkers
-- Data writes: 1 UPDATE on `gmail_conversations`, 1 invocation of `backfill-intercom-replies` for `574a56d9…`
-- Update `.lovable/project-knowledge.md` and the Flow page: linker priority order (email → subject in Gmail → subject in manual_conversations → create) and the "never overwrite a different Intercom ID" rule
-- Update `mem://logic/google-group-linking` to add the overwrite-guard rule
-- New memory: `mem://logic/duplicate-intercom-ticket-detection` documenting the manual-conversations subject lookup tier and the overwrite guards
+- Edit: `supabase/functions/intercom-webhook/index.ts` — add gmail_conversations subject lookup tier; restructure flow so the "existing linked record" check runs before manual creation regardless of whether the subject linker stamped anything.
+- Data: 4 DELETEs across `manual_conversations` + cascading `manual_messages` / `conversation_audit_logs`.
+- Update `mem://logic/duplicate-intercom-ticket-detection`: lookup tier covers BOTH `manual_conversations` and `gmail_conversations`.
+- Update `.lovable/project-knowledge.md` and FlowDiagram: linker priority order is now email → subject in Gmail → "is this thread/subject already represented anywhere with a different ticket?" → manual lookup → create.
 
 ### Out of scope
 
-- `conversation.merged` webhook handler (this case wasn't a merge; it was creation-time mis-linking).
-- Auto-merging Intercom tickets via API (Intercom doesn't expose a public merge endpoint).
-- Subject fuzzy matching beyond `Re:`/`Fwd:`/`Fw:` strip + lowercase + whitespace collapse.
+- Auto-merging the duplicate Intercom tickets in Intercom (no public API).
+- Subject fuzzy matching beyond Re/Fwd/Fw strip + lowercase + whitespace collapse.
+- A "duplicate detected" UI badge.
 
 ### Confirm before I run
 
-1. Survivor stays manual row `574a56d9…` (Intercom `215473963341741`); Gmail thread `19d9ce644175475b` re-stamped to that ID. ✅?
-2. Apply data fix + both code guards (manual-conversations lookup + overwrite guards on both linkers) in one pass?
+1. Delete the 4 duplicate manual rows listed above (originals stay in `gmail_conversations`)?
+2. Add the `gmail_conversations` subject lookup tier and restructure the fallthrough so future duplicates get blocked at the same step?
 
