@@ -194,6 +194,16 @@ Deno.serve(async (req) => {
 
       const icData = await icRes.json();
 
+      // STRICT INBOX MEMBERSHIP GUARD: only import if currently in enterprise inbox.
+      // Search queries can return conversations that touched the inbox historically
+      // or are assigned to Sam (AI agent) but live in other inboxes.
+      const convTeamId = String(icData.team_assignee_id || "");
+      if (convTeamId !== String(enterpriseInboxId)) {
+        console.log(`Skipping ${intercomConvId}: team_assignee_id=${convTeamId} != ${enterpriseInboxId}`);
+        results.push({ intercomId: intercomConvId, action: "skipped_wrong_inbox" });
+        continue;
+      }
+
       // Extract contact name and email
       let contactName = "";
       let contactEmail = "";
