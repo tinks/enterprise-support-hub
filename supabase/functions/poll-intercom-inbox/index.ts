@@ -369,8 +369,9 @@ Deno.serve(async (req) => {
   const imported = results.filter(r => r.action === "imported").length;
   const linkedGmail = results.filter(r => r.action === "linked_gmail").length;
   const alreadyTracked = results.filter(r => r.action === "already_tracked").length;
+  const skippedWrongInbox = results.filter(r => r.action === "skipped_wrong_inbox").length;
 
-  console.log(`Poll complete: ${imported} imported, ${linkedGmail} linked to Gmail, ${alreadyTracked} already tracked`);
+  console.log(`Poll complete: ${imported} imported, ${linkedGmail} linked to Gmail, ${alreadyTracked} already tracked, ${skippedWrongInbox} skipped (wrong inbox)`);
 
   return new Response(JSON.stringify({
     ok: true,
@@ -378,6 +379,7 @@ Deno.serve(async (req) => {
     imported,
     linkedGmail,
     alreadyTracked,
+    skippedWrongInbox,
     results,
   }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
