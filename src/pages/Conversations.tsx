@@ -889,6 +889,13 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         const id = (r.data as ConversationMapping).slack_channel_id;
         return !!id && id.startsWith("D");
       });
+    } else if (paramManualChannel) {
+      channelScoped = rows.filter((r) => {
+        if (r.source !== "manual") return false;
+        const link = (r.data as ManualConversation).link;
+        if (paramManualChannel === "__unknown__") return !normalizeChannelName(link);
+        return normalizeChannelName(link) === paramManualChannel.toLowerCase();
+      });
     }
 
     // Apply owner filter
@@ -927,7 +934,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     }
 
     return classFiltered;
-  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, paramChannel, paramChannelGroup, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter, isResolutionMode, resolutionMin, resolutionMax]);
+  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, paramChannel, paramChannelGroup, paramManualChannel, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter, isResolutionMode, resolutionMin, resolutionMax]);
 
   const canLoadMore =
     !isHeatmapMode && !isResolutionMode && !isDayOnlyMode && !searchResults && (
