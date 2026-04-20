@@ -867,6 +867,15 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       });
     }
 
+    // Apply channel filter from query params (Slack-only)
+    let channelScoped = rows;
+    if (paramChannel) {
+      channelScoped = rows.filter((r) => {
+        if (r.source !== "slack") return false;
+        return (r.data as ConversationMapping).slack_channel_id === paramChannel;
+      });
+    }
+
     // Apply owner filter
     const ownerFiltered = ownerFilter === "all"
       ? rows
