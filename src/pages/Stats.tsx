@@ -141,7 +141,7 @@ const Stats = () => {
         .order("received_at", { ascending: true }),
       supabase
         .from("manual_conversations")
-        .select("status, created_at, is_test, source, owner, classification, is_bug, product_area, resolved_at")
+        .select("status, created_at, is_test, source, owner, classification, is_bug, product_area, resolved_at, link")
         .order("created_at", { ascending: true }),
     ]);
     const rows = (slackRes.data as Mapping[]) || [];
@@ -597,7 +597,8 @@ const Stats = () => {
     ].filter((d) => d.value > 0);
   }, [stats]);
 
-  // Channel breakdown data — group all DMs (D…) into one synthetic "Direct message" bucket
+  // Channel breakdown data — group all DMs (D…) into one synthetic "Direct message" bucket.
+  // Includes manual Slack imports keyed by normalized link; slack_dm rows fold into "Direct message".
   const channelData = useMemo(() => {
     const byChannel: Record<string, { channel: string; channel_id: string; total: number }> = {};
     filtered.forEach((m) => {
@@ -612,8 +613,27 @@ const Stats = () => {
       if (!byChannel[id]) byChannel[id] = { channel: name, channel_id: id, total: 0 };
       byChannel[id].total++;
     });
+    // Manual Slack imports
+    filteredManual.forEach((m) => {
+      if (m.source === "slack_dm") {
+        if (!byChannel["__DM__"]) byChannel["__DM__"] = { channel: "Direct message", channel_id: "__DM__", total: 0 };
+        byChannel["__DM__"].total++;
+        return;
+      }
+      if (m.source !== "slack_thread") return;
+      const normalized = normalizeChannelName(m.link);
+      if (!normalized) {
+        const key = "manual:__unknown__";
+        if (!byChannel[key]) byChannel[key] = { channel: "#unknown", channel_id: key, total: 0 };
+        byChannel[key].total++;
+        return;
+      }
+      const key = `manual:${normalized}`;
+      if (!byChannel[key]) byChannel[key] = { channel: `#${normalized}`, channel_id: key, total: 0 };
+      byChannel[key].total++;
+    });
     return Object.values(byChannel).sort((a, b) => b.total - a.total);
-  }, [filtered, channelNames]);
+  }, [filtered, filteredManual, channelNames]);
 
   // Peak day
   const peakDay = useMemo(() => {
@@ -1350,6 +1370,9 @@ const Stats = () => {
                           if (!id) return;
                           if (id === "__DM__") {
                             navigate(`/conversations?channelGroup=dm&source=slack`);
+                          } else if (id.startsWith("manual:")) {
+                            const name = id.slice("manual:".length);
+                            navigate(`/conversations?manualChannel=${encodeURIComponent(name)}&source=slack`);
                           } else {
                             navigate(`/conversations?channel=${encodeURIComponent(id)}&source=slack`);
                           }
