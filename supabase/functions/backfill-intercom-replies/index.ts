@@ -220,12 +220,17 @@ Deno.serve(async (req) => {
 
     // ── Phase 2: Status sync for conversation_mappings ──
     const mappingStatusUpdates: Array<{ id: string; change: string }> = [];
-    if (!dry && syncMappings) {
-      const { data: mappings } = await sb
+    if (!dry && (syncMappings || recent)) {
+      let mappingsQuery = sb
         .from("conversation_mappings")
         .select("id, intercom_conversation_id, status")
         .not("intercom_conversation_id", "is", null)
         .neq("intercom_conversation_id", "");
+      if (recent) {
+        const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        mappingsQuery = mappingsQuery.gte("updated_at", since).limit(200);
+      }
+      const { data: mappings } = await mappingsQuery;
 
       for (const m of mappings || []) {
         try {
@@ -251,11 +256,16 @@ Deno.serve(async (req) => {
 
     // ── Phase 3: Status sync for gmail_conversations ──
     const gmailStatusUpdates: Array<{ id: string; change: string }> = [];
-    if (!dry && syncMappings) {
-      const { data: gmails } = await sb
+    if (!dry && (syncMappings || recent)) {
+      let gmailQuery = sb
         .from("gmail_conversations")
         .select("id, intercom_conversation_id, status")
         .not("intercom_conversation_id", "is", null);
+      if (recent) {
+        const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        gmailQuery = gmailQuery.gte("received_at", since).limit(200);
+      }
+      const { data: gmails } = await gmailQuery;
 
       for (const g of gmails || []) {
         try {
