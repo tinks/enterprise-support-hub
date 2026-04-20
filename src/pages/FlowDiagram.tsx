@@ -672,6 +672,7 @@ function buildNodes(
           "Scheduled: runs every hour via pg_cron (0 * * * *) using net.http_post; also manually triggerable from settings page",
           "Gap-free: uses last_polled_intercom_at as the search lower bound — each poll picks up exactly where the last one left off (48h fallback on first run)",
           "Queries Intercom Search API with multiple strategies: 1) team_assignee_id matches enterprise inbox, 2) admin_assignee_id for each admin in admin_owner_map (excludes the bot admin / intercom_assignee_id to prevent timeout from high-volume results) — deduplicates across all queries",
+          "STRICT INBOX GUARD: after fetching each conversation, skips it unless team_assignee_id currently equals the configured enterprise inbox ID — prevents over-import of conversations assigned to Sam from other inboxes",
           "Paginates through results (50 per page, capped at 3 pages / 150 results per query to prevent timeouts)",
           "Deduplicates against conversation_mappings, gmail_conversations, and manual_conversations",
           "Gmail cross-reference: extracts contact email and links to unlinked Gmail threads (same logic as webhook handler)",
