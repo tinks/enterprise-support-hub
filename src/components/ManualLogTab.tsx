@@ -130,11 +130,12 @@ const ManualLogTab = () => {
 
     setSaving(true);
 
+    const cleanChannel = (raw: string) => raw.trim().replace(/^#/, "").trim();
     const insertData: Record<string, unknown> = {
       source: mode === "paste" ? "slack_thread" : source,
       contact_name: contactName.trim(),
       subject: subject.trim(),
-      link: mode === "paste" ? (channelName.trim() || null) : (link.trim() || null),
+      link: mode === "paste" ? (cleanChannel(channelName) || null) : (cleanChannel(link) || null),
     };
     if (mode === "paste" && threadDate) {
       insertData.created_at = threadDate.toISOString();
@@ -281,6 +282,7 @@ const ManualLogTab = () => {
                       </Command>
                     </PopoverContent>
                   </Popover>
+                  <p className="text-xs text-muted-foreground">No # needed — added automatically in display.</p>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Thread date</label>

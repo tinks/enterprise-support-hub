@@ -1372,7 +1372,7 @@ const Stats = () => {
                             navigate(`/conversations?channelGroup=dm&source=slack`);
                           } else if (id.startsWith("manual:")) {
                             const name = id.slice("manual:".length);
-                            navigate(`/conversations?manualChannel=${encodeURIComponent(name)}&source=slack`);
+                            navigate(`/conversations?manualChannel=${encodeURIComponent(name)}`);
                           } else {
                             navigate(`/conversations?channel=${encodeURIComponent(id)}&source=slack`);
                           }
