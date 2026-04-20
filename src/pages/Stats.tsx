@@ -620,7 +620,7 @@ const Stats = () => {
     DAYS.forEach((d) => {
       for (let h = 0; h < 24; h++) {
         const cell = grid[d][h];
-        const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : sourceFilter === "manual" ? cell.manual : cell.total;
+        const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : (sourceFilter === "manual" || sourceFilter === "intercom") ? cell.manual : cell.total;
         if (val > max) max = val;
       }
     });
@@ -967,7 +967,7 @@ const Stats = () => {
                     {(sourceFilter === "all" || sourceFilter === "gmail") && (
                       <Area type="monotone" dataKey="gmail" stroke="#E66FD2" fill="url(#gradGmail)" strokeWidth={2} />
                     )}
-                    {(sourceFilter === "all" || sourceFilter === "manual") && (
+                    {(sourceFilter === "all" || sourceFilter === "manual" || sourceFilter === "intercom") && (
                       <Area type="monotone" dataKey="manual" stroke="#4ECDC4" fill="url(#gradManual)" strokeWidth={2} />
                     )}
                   </AreaChart>
@@ -1032,7 +1032,7 @@ const Stats = () => {
                         <div className="w-10 shrink-0 text-xs text-muted-foreground font-medium">{day}</div>
                         {Array.from({ length: 24 }, (_, h) => {
                           const cell = heatmapData.grid[day][h];
-                          const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : sourceFilter === "manual" ? cell.manual : cell.total;
+                          const val = sourceFilter === "slack" ? cell.slack : sourceFilter === "gmail" ? cell.gmail : (sourceFilter === "manual" || sourceFilter === "intercom") ? cell.manual : cell.total;
                           const opacity = heatmapData.max > 0 ? Math.max(0.08, val / heatmapData.max) : 0;
                           return (
                             <div
@@ -1401,7 +1401,7 @@ const Stats = () => {
         )}
 
         {/* ── Manual entries section ── */}
-        {(sourceFilter === "all" || sourceFilter === "manual") && (
+        {(sourceFilter === "all" || sourceFilter === "manual" || sourceFilter === "intercom") && (
           <div className="space-y-6">
             <div>
               <h2 className="text-lg font-semibold text-foreground">Manual entries</h2>
