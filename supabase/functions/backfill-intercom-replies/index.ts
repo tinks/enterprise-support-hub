@@ -41,17 +41,35 @@ Deno.serve(async (req) => {
     const offset = parseInt(url.searchParams.get("offset") || "0", 10);
     const limit = parseInt(url.searchParams.get("limit") || "20", 10);
     const syncMappings = url.searchParams.get("sync_mappings") === "true";
+    const recent = url.searchParams.get("recent") === "true";
 
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // ── Phase 1: Backfill manual_conversations messages ──
-    const { data: manualConvs, error: mcErr } = await sb
-      .from("manual_conversations")
-      .select("id, intercom_conversation_id, status")
-      .not("intercom_conversation_id", "is", null)
-      .eq("source", "intercom")
-      .order("created_at", { ascending: true })
-      .range(offset, offset + limit - 1);
+    let manualConvs: Array<{ id: string; intercom_conversation_id: string | null; status: string }> | null;
+    let mcErr: unknown = null;
+    if (recent) {
+      const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const res = await sb
+        .from("manual_conversations")
+        .select("id, intercom_conversation_id, status")
+        .not("intercom_conversation_id", "is", null)
+        .gte("updated_at", since)
+        .order("updated_at", { ascending: false })
+        .limit(Math.max(limit, 200));
+      manualConvs = res.data;
+      mcErr = res.error;
+    } else {
+      const res = await sb
+        .from("manual_conversations")
+        .select("id, intercom_conversation_id, status")
+        .not("intercom_conversation_id", "is", null)
+        .eq("source", "intercom")
+        .order("created_at", { ascending: true })
+        .range(offset, offset + limit - 1);
+      manualConvs = res.data;
+      mcErr = res.error;
+    }
 
     if (mcErr) {
       console.error("Failed to fetch manual_conversations:", mcErr);
@@ -202,12 +220,17 @@ Deno.serve(async (req) => {
 
     // ── Phase 2: Status sync for conversation_mappings ──
     const mappingStatusUpdates: Array<{ id: string; change: string }> = [];
-    if (!dry && syncMappings) {
-      const { data: mappings } = await sb
+    if (!dry && (syncMappings || recent)) {
+      let mappingsQuery = sb
         .from("conversation_mappings")
         .select("id, intercom_conversation_id, status")
         .not("intercom_conversation_id", "is", null)
         .neq("intercom_conversation_id", "");
+      if (recent) {
+        const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        mappingsQuery = mappingsQuery.gte("updated_at", since).limit(200);
+      }
+      const { data: mappings } = await mappingsQuery;
 
       for (const m of mappings || []) {
         try {
@@ -233,11 +256,16 @@ Deno.serve(async (req) => {
 
     // ── Phase 3: Status sync for gmail_conversations ──
     const gmailStatusUpdates: Array<{ id: string; change: string }> = [];
-    if (!dry && syncMappings) {
-      const { data: gmails } = await sb
+    if (!dry && (syncMappings || recent)) {
+      let gmailQuery = sb
         .from("gmail_conversations")
         .select("id, intercom_conversation_id, status")
         .not("intercom_conversation_id", "is", null);
+      if (recent) {
+        const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+        gmailQuery = gmailQuery.gte("received_at", since).limit(200);
+      }
+      const { data: gmails } = await gmailQuery;
 
       for (const g of gmails || []) {
         try {
