@@ -661,7 +661,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       setGmailOffset(0);
     }
 
-    const pageSize = (isHeatmapMode || isResolutionMode || isDayOnlyMode || paramChannel || paramChannelGroup) ? 1000 : 50;
+    const pageSize = (isHeatmapMode || isResolutionMode || isDayOnlyMode || paramChannel || paramChannelGroup || paramManualChannel) ? 1000 : 50;
 
     let slackQuery = supabase
       .from("conversation_mappings")
@@ -924,7 +924,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         : paFiltered.filter((r) => (r.data as any).classification === classificationFilter);
 
     // Apply status filter (skip when searching — show all matches)
-    if (!searchResults) {
+    if (!searchResults && !paramManualChannel) {
       const filtered = hiddenStatuses.size > 0
         ? classFiltered.filter((r) => {
             if (hiddenStatuses.has("test") && r.data.is_test) return false;
@@ -1516,6 +1516,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
             <div className="mb-4 flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-4 py-2 text-sm">
               <span className="text-foreground">
                 Showing manually imported threads from <strong>#{paramManualChannel === "__unknown__" ? "unknown" : paramManualChannel}</strong>
+                <span className="ml-2 text-xs text-muted-foreground">Showing all statuses.</span>
               </span>
               <div className="ml-auto flex items-center gap-1">
                 <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => navigate("/")}>
