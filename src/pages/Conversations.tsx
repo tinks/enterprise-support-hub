@@ -878,8 +878,8 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 
     // Apply owner filter
     const ownerFiltered = ownerFilter === "all"
-      ? rows
-      : rows.filter((r) => {
+      ? channelScoped
+      : channelScoped.filter((r) => {
           const o = (r.data as any).owner as string | null;
           if (ownerFilter === "unassigned") return !o;
           return o === ownerFilter;
@@ -912,7 +912,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     }
 
     return classFiltered;
-  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter, isResolutionMode, resolutionMin, resolutionMax]);
+  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, paramChannel, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter, isResolutionMode, resolutionMin, resolutionMax]);
 
   const canLoadMore =
     !isHeatmapMode && !isResolutionMode && !isDayOnlyMode && !searchResults && (
