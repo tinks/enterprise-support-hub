@@ -1348,7 +1348,7 @@ const Stats = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Conversations by channel</CardTitle>
-                <CardDescription>Total conversations per Slack channel — click a bar to see conversations</CardDescription>
+                <CardDescription>Total conversations per Slack channel — click a bar to see conversations. Counts respect the selected date range above.</CardDescription>
               </CardHeader>
               <CardContent>
                 {channelData.length === 0 ? (

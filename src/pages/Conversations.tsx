@@ -1242,18 +1242,45 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       case "message": return mc.subject ? (
         <span className="text-xs text-muted-foreground">{mc.subject.length > 60 ? mc.subject.slice(0, 60) + "…" : mc.subject}</span>
       ) : <span className="text-xs text-muted-foreground">—</span>;
-      case "channel": return <span className="text-xs text-muted-foreground capitalize">{mc.source}</span>;
-      case "link": return mc.link ? (
-        <a
-          href={mc.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-xs font-mono text-primary underline hover:text-primary/80 transition-colors"
-          onClick={(e) => e.stopPropagation()}
-        >
-          Link <ExternalLink className="h-3 w-3" />
-        </a>
-      ) : <span className="text-xs text-muted-foreground">—</span>;
+      case "channel": {
+        if (mc.source === "slack_thread") {
+          const name = normalizeChannelName(mc.link) || "unknown";
+          return (
+            <span className="inline-flex items-center gap-1 text-sm text-foreground">
+              <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+              {name}
+            </span>
+          );
+        }
+        if (mc.source === "slack_dm") {
+          return (
+            <span className="inline-flex items-center gap-1 text-sm text-foreground">
+              <Hash className="h-3.5 w-3.5 text-muted-foreground" />
+              Direct message
+            </span>
+          );
+        }
+        return <span className="text-xs text-muted-foreground capitalize">{mc.source}</span>;
+      }
+      case "link": {
+        // Manual Slack imports store the channel name in `link`, not a real URL.
+        const isSlackManual = mc.source === "slack_thread" || mc.source === "slack_dm";
+        const isUrl = mc.link && /^https?:\/\//i.test(mc.link);
+        if (mc.link && !isSlackManual && isUrl) {
+          return (
+            <a
+              href={mc.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-mono text-primary underline hover:text-primary/80 transition-colors"
+              onClick={(e) => e.stopPropagation()}
+            >
+              Link <ExternalLink className="h-3 w-3" />
+            </a>
+          );
+        }
+        return <span className="text-xs text-muted-foreground">—</span>;
+      }
       case "intercom": return renderIntercomCell(mc.id, mc.intercom_conversation_id, "manual", true, (e) => createIntercomTicket(e, mc.id, "manual"), creatingTicket.has(mc.id));
       case "status": return (
         <Select value={mc.status} onValueChange={(v) => updateStatus(mc.id, v, "manual")}>
@@ -1663,7 +1690,11 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
             <CardContent className="min-h-0 flex-1 flex flex-col overflow-hidden p-0 px-6 pb-6">
               {unified.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
-                  {loading ? "Loading…" : "No conversations found."}
+                  {loading
+                    ? "Loading…"
+                    : paramManualChannel
+                      ? `No conversations match the current filters for #${paramManualChannel === "__unknown__" ? "unknown" : paramManualChannel}. Try clearing status, owner, or classification filters.`
+                      : "No conversations found."}
                 </p>
               ) : (
               <div className="min-h-0 flex-1 overflow-auto pl-1">
