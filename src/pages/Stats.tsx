@@ -71,6 +71,7 @@ const chartConfig = {
   slack: { label: "Slack", color: "#FF6B6B" },
   gmail: { label: "Gmail", color: "#E66FD2" },
   manual: { label: "Manual entry", color: "#4ECDC4" },
+  intercom: { label: "Intercom", color: "#F59E0B" },
   cumulative: { label: "Cumulative", color: "#FF6B6B" },
   rate: { label: "Escalation rate", color: "hsl(var(--destructive))" },
   resolution: { label: "Resolution time", color: "#9B87F5" },
@@ -340,6 +341,17 @@ const Stats = () => {
   const manualVolumeData = useMemo(() => {
     const byDay: Record<string, number> = {};
     filteredManual.forEach((m) => {
+      if (m.source === "intercom") return;
+      const day = format(parseISO(m.created_at), "yyyy-MM-dd");
+      byDay[day] = (byDay[day] || 0) + 1;
+    });
+    return byDay;
+  }, [filteredManual]);
+
+  const intercomVolumeDataOverview = useMemo(() => {
+    const byDay: Record<string, number> = {};
+    filteredManual.forEach((m) => {
+      if (m.source !== "intercom") return;
       const day = format(parseISO(m.created_at), "yyyy-MM-dd");
       byDay[day] = (byDay[day] || 0) + 1;
     });
@@ -452,8 +464,9 @@ const Stats = () => {
       slack: slackByDay[day] || 0,
       gmail: gmailVolumeData[day] || 0,
       manual: manualVolumeData[day] || 0,
+      intercom: intercomVolumeDataOverview[day] || 0,
     }));
-  }, [filtered, filteredGmailThreads, filteredManual, gmailVolumeData, manualVolumeData]);
+  }, [filtered, filteredGmailThreads, filteredManual, gmailVolumeData, manualVolumeData, intercomVolumeDataOverview]);
 
   const stats = useMemo(() => {
     const total = filtered.length;
@@ -1047,6 +1060,10 @@ const Stats = () => {
                         <stop offset="5%" stopColor="#4ECDC4" stopOpacity={0.3} />
                         <stop offset="95%" stopColor="#4ECDC4" stopOpacity={0} />
                       </linearGradient>
+                      <linearGradient id="gradIntercomOverview" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
+                      </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="label" className="text-xs" />
@@ -1058,8 +1075,11 @@ const Stats = () => {
                     {(sourceFilter === "all" || sourceFilter === "gmail") && (
                       <Area type="monotone" dataKey="gmail" stroke="#E66FD2" fill="url(#gradGmail)" strokeWidth={2} />
                     )}
-                    {(sourceFilter === "all" || sourceFilter === "manual" || sourceFilter === "intercom") && (
+                    {(sourceFilter === "all" || sourceFilter === "manual") && (
                       <Area type="monotone" dataKey="manual" stroke="#4ECDC4" fill="url(#gradManual)" strokeWidth={2} />
+                    )}
+                    {(sourceFilter === "all" || sourceFilter === "intercom") && (
+                      <Area type="monotone" dataKey="intercom" stroke="#F59E0B" fill="url(#gradIntercomOverview)" strokeWidth={2} />
                     )}
                   </AreaChart>
                 </ChartContainer>
