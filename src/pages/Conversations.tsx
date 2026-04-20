@@ -88,6 +88,13 @@ const normalizeSubject = (subject: string | null): string => {
   return subject.replace(/^(re:|fwd?:)\s*/gi, "").trim().toLowerCase();
 };
 
+// Normalize a free-text Slack channel name: lowercase, trim, strip a single leading "#".
+// Keep in sync with src/pages/Stats.tsx — used for manualChannel drilldown matching.
+const normalizeChannelName = (raw: string | null | undefined): string => {
+  if (!raw) return "";
+  return raw.trim().toLowerCase().replace(/^#/, "");
+};
+
 type NameMap = Record<string, string>;
 
 const statusColor = (status: string) => {
@@ -187,6 +194,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const paramSource = searchParams.get("source") as SourceFilter | null;
   const paramChannel = searchParams.get("channel");
   const paramChannelGroup = searchParams.get("channelGroup");
+  const paramManualChannel = searchParams.get("manualChannel");
   const resolutionMin = searchParams.get("resolutionMin") !== null ? parseInt(searchParams.get("resolutionMin")!) : null;
   const resolutionMax = searchParams.get("resolutionMax") !== null ? parseInt(searchParams.get("resolutionMax")!) : null;
   const isResolutionMode = resolutionMin !== null && resolutionMax !== null;
