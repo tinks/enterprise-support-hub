@@ -1,58 +1,53 @@
 
 
-## Why the inbox shows zero — and the actual fix
+## Status: not fixed yet
 
-### The two real bugs
+The previous turn (when you accidentally hit build mode) only did the data cleanup for the older case and shipped the original subject-fallback. The hardening guards proposed for the `574a56d9…` / `2f9cf42f…` case were never written. Current `intercom-webhook` lines 305–393:
 
-**Bug 1: page size ignores `paramManualChannel`**
-In `src/pages/Conversations.tsx` line 664:
-```ts
-const pageSize = (isHeatmapMode || isResolutionMode || isDayOnlyMode || paramChannel || paramChannelGroup) ? 1000 : 50;
-```
-`paramManualChannel` is missing from this list, so the manual query loads only the 50 most recent manual rows out of 314. Most control-tower rows (especially the older active one from 2026-04-01) never enter the dataset, so the channel filter at line 894 has nothing to match.
+- Email linker (305–350): updates the entire Gmail thread without checking whether siblings are already linked to a *different* Intercom ID.
+- Subject fallback (352–393): only filters out rows where `intercom_conversation_id IS NULL`, never queries `manual_conversations`. So if a manual row already represents the same subject, it still creates a new manual row.
 
-**Bug 2: default status filter hides `resolved`**
-`DEFAULT_HIDDEN = {test, cancelled, resolved}` (line 374). 13 of the 14 control-tower rows are `resolved`, so even if they were loaded they'd be hidden. Clicking a chart bar means "show me everything in this channel" — hiding 13/14 by default defeats the drilldown.
+So the same class of duplicate can still happen.
 
-### About the `#` you keep seeing
-The hashtag is **not in the database** and **not in the URL param**. It's a literal prefix added at render time:
-- Chip: `#{paramManualChannel}` (line 1518)
-- Channel column: `` `#${normalizeChannelName(mc.link)}` ``
-That's just visual styling to mimic Slack channel naming. It's not the culprit.
+### Fix — three changes
 
-### Fix
+**1. Data cleanup for `574a56d9…` / `2f9cf42f…`**
 
-**1. `src/pages/Conversations.tsx` — bump pageSize for manual drilldown**
-Add `paramManualChannel` to the line 664 condition so the manual query loads up to 1000 rows when drilling into a channel:
-```ts
-const pageSize = (isHeatmapMode || isResolutionMode || isDayOnlyMode || paramChannel || paramChannelGroup || paramManualChannel) ? 1000 : 50;
-```
+- `UPDATE gmail_conversations SET intercom_conversation_id = '215473963341741' WHERE gmail_thread_id = '19d9ce644175475b';` — re-stamp the 3 Gmail rows back to the original ticket (the manual row's ID).
+- Invoke `backfill-intercom-replies` for manual row `574a56d9…` so any Intercom-side replies on that ticket land on the surviving record.
+- Leave `2f9cf42f…` (the Gmail row) in place; it's now correctly linked. Manual row `574a56d9…` survives.
 
-**2. `src/pages/Conversations.tsx` — bypass status hiding when `paramManualChannel` is active**
-At line 927, change:
-```ts
-if (!searchResults) {
-```
-to:
-```ts
-if (!searchResults && !paramManualChannel) {
-```
-Same intent as the existing search-bypass: when the user explicitly drilled into a channel, show all statuses for that channel. (Owner, product-area, classification filters still apply — the user can still narrow.)
+**2. `intercom-webhook` — manual_conversations lookup tier**
 
-**3. `src/pages/Conversations.tsx` — make it discoverable that status hiding is off for this view**
-Update the chip at line 1518 to add a small muted suffix: "Showing all statuses." So the user knows resolved rows are intentionally included.
+In `supabase/functions/intercom-webhook/index.ts`, before the manual-row creation fallback (after line 393), add a third lookup:
 
-**4. `.lovable/project-knowledge.md`**
-Document: when navigating to the inbox via a manual channel drilldown (`?manualChannel=...`), the page (a) loads up to 1000 manual rows so the full channel set is available, and (b) bypasses the default status hiding so resolved threads are visible. Owner / product-area / classification filters still apply.
+- Query `manual_conversations` for rows in the last 7 days with normalized subject equal to the Intercom ticket's normalized subject (same `Re:`/`Fwd:`/`Fw:` strip + lowercase + collapse-whitespace logic already used).
+- If exactly one match: log `subject_match_existing_manual`, return `{ ok: true, message: "Duplicate Intercom ticket for existing manual conversation", existingManualId, existingIntercomId }`. Do NOT create a new manual row.
+- If 0 or >1: fall through to current behavior.
 
-### Why this fixes it
-After this change, clicking `#ext_lovable-control-tower` in the chart will:
-- Load all 314 manual rows (well under the 1000 cap)
-- Match all 14 with `link = 'ext_lovable-control-tower'`
-- Show all 14 regardless of status (resolved rows included)
+**3. `intercom-webhook` — "do not overwrite different Intercom ID" guards**
+
+Apply to **both** the email linker (321–325) and the subject linker (378–381):
+
+- Change the thread-level update from `.eq("gmail_thread_id", threadId)` to `.eq("gmail_thread_id", threadId).or("intercom_conversation_id.is.null,intercom_conversation_id.eq." + intercomConvId)` so we never overwrite a sibling that's already pointed at a different ticket.
+- Before doing the update, run a quick check: if any sibling on the thread already has a non-null `intercom_conversation_id` that's different from `intercomConvId`, log `subject_link_conflict` (or `email_link_conflict`) with both IDs and return `{ ok: true, message: "Duplicate Intercom ticket for already-linked Gmail thread", existingIntercomId }`. Skip linking and skip manual creation entirely — Intercom has a duplicate ticket, our DB already represents the conversation correctly.
+
+### Files
+
+- Edit: `supabase/functions/intercom-webhook/index.ts` — manual-conversations subject lookup + thread-overwrite guards on both linkers
+- Data writes: 1 UPDATE on `gmail_conversations`, 1 invocation of `backfill-intercom-replies` for `574a56d9…`
+- Update `.lovable/project-knowledge.md` and the Flow page: linker priority order (email → subject in Gmail → subject in manual_conversations → create) and the "never overwrite a different Intercom ID" rule
+- Update `mem://logic/google-group-linking` to add the overwrite-guard rule
+- New memory: `mem://logic/duplicate-intercom-ticket-detection` documenting the manual-conversations subject lookup tier and the overwrite guards
 
 ### Out of scope
-- Removing the cosmetic `#` prefix (it's intentional Slack-style labeling, not a bug).
-- Backfilling further channel-name variants (none exist for control-tower; the DB is clean).
-- Changing the default `DEFAULT_HIDDEN` for the normal inbox view — only the drilldown view bypasses it.
+
+- `conversation.merged` webhook handler (this case wasn't a merge; it was creation-time mis-linking).
+- Auto-merging Intercom tickets via API (Intercom doesn't expose a public merge endpoint).
+- Subject fuzzy matching beyond `Re:`/`Fwd:`/`Fw:` strip + lowercase + whitespace collapse.
+
+### Confirm before I run
+
+1. Survivor stays manual row `574a56d9…` (Intercom `215473963341741`); Gmail thread `19d9ce644175475b` re-stamped to that ID. ✅?
+2. Apply data fix + both code guards (manual-conversations lookup + overwrite guards on both linkers) in one pass?
 
