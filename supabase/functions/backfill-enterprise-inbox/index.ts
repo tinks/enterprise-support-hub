@@ -46,10 +46,12 @@ Deno.serve(async (req) => {
   let adminOwnerMap: Record<string, string> = {};
   try { adminOwnerMap = JSON.parse(settings.admin_owner_map || "{}"); } catch { /* ignore */ }
 
-  // Body: { startingAfter?: string, maxBatch?: number }
-  let body: { startingAfter?: string; maxBatch?: number } = {};
+  // Body: { startingAfter?: string, maxBatch?: number, createdAfter?: number, createdBefore?: number }
+  let body: { startingAfter?: string; maxBatch?: number; createdAfter?: number; createdBefore?: number } = {};
   try { body = await req.json(); } catch { /* empty */ }
   const maxBatch = Math.min(body.maxBatch ?? 25, 50); // process up to N convs per call
+  const createdAfter = body.createdAfter;
+  const createdBefore = body.createdBefore;
 
   const results: Array<{ id: string; action: string }> = [];
   let nextStartingAfter: string | null = body.startingAfter ?? null;
