@@ -186,6 +186,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const paramHour = searchParams.get("hour") !== null ? parseInt(searchParams.get("hour")!) : null;
   const paramSource = searchParams.get("source") as SourceFilter | null;
   const paramChannel = searchParams.get("channel");
+  const paramChannelGroup = searchParams.get("channelGroup");
   const resolutionMin = searchParams.get("resolutionMin") !== null ? parseInt(searchParams.get("resolutionMin")!) : null;
   const resolutionMax = searchParams.get("resolutionMax") !== null ? parseInt(searchParams.get("resolutionMax")!) : null;
   const isResolutionMode = resolutionMin !== null && resolutionMax !== null;
@@ -650,7 +651,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       setGmailOffset(0);
     }
 
-    const pageSize = (isHeatmapMode || isResolutionMode || isDayOnlyMode || paramChannel) ? 1000 : 50;
+    const pageSize = (isHeatmapMode || isResolutionMode || isDayOnlyMode || paramChannel || paramChannelGroup) ? 1000 : 50;
 
     let slackQuery = supabase
       .from("conversation_mappings")
@@ -874,6 +875,12 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         if (r.source !== "slack") return false;
         return (r.data as ConversationMapping).slack_channel_id === paramChannel;
       });
+    } else if (paramChannelGroup === "dm") {
+      channelScoped = rows.filter((r) => {
+        if (r.source !== "slack") return false;
+        const id = (r.data as ConversationMapping).slack_channel_id;
+        return !!id && id.startsWith("D");
+      });
     }
 
     // Apply owner filter
@@ -912,7 +919,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     }
 
     return classFiltered;
-  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, paramChannel, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter, isResolutionMode, resolutionMin, resolutionMax]);
+  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, paramChannel, paramChannelGroup, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter, isResolutionMode, resolutionMin, resolutionMax]);
 
   const canLoadMore =
     !isHeatmapMode && !isResolutionMode && !isDayOnlyMode && !searchResults && (
@@ -1429,6 +1436,30 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                   onClick={() => {
                     const next = new URLSearchParams(searchParams);
                     next.delete("channel");
+                    setSearchParams(next);
+                  }}
+                >
+                  <X className="mr-1 h-3 w-3" /> Clear filter
+                </Button>
+              </div>
+            </div>
+          )}
+          {paramChannelGroup === "dm" && (
+            <div className="mb-4 flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-4 py-2 text-sm">
+              <span className="text-foreground">
+                Showing conversations from <strong>direct messages</strong>
+              </span>
+              <div className="ml-auto flex items-center gap-1">
+                <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => navigate("/")}>
+                  <ArrowLeft className="mr-1 h-3 w-3" /> Back to analytics
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => {
+                    const next = new URLSearchParams(searchParams);
+                    next.delete("channelGroup");
                     setSearchParams(next);
                   }}
                 >
