@@ -53,7 +53,7 @@ interface ManualRow {
   classification: string | null;
 }
 
-type SourceFilter = "all" | "slack" | "gmail" | "manual";
+type SourceFilter = "all" | "slack" | "gmail" | "manual" | "intercom";
 type TimeRange = "this_month" | "7d" | "30d" | "90d" | "all" | "custom";
 
 const chartConfig = {
@@ -264,9 +264,14 @@ const Stats = () => {
       } else {
         matchRange = cutoff ? isAfter(parsed, cutoff) : true;
       }
-      return matchView && matchRange && m.status !== "cancelled";
+      const matchSource = sourceFilter === "intercom"
+        ? m.source === "intercom"
+        : sourceFilter === "manual"
+          ? m.source !== "intercom"
+          : true;
+      return matchView && matchRange && matchSource && m.status !== "cancelled";
     });
-  }, [manualData, view, range, customFrom, customTo]);
+  }, [manualData, view, range, customFrom, customTo, sourceFilter]);
 
   const gmailUniqueEmails = useMemo(() => {
     return filteredGmailThreads.length;
@@ -378,7 +383,7 @@ const Stats = () => {
     let combinedTotal = total + gmailTotal + manualTotal;
     if (sourceFilter === "gmail") combinedTotal = gmailTotal;
     else if (sourceFilter === "slack") combinedTotal = total;
-    else if (sourceFilter === "manual") combinedTotal = manualTotal;
+    else if (sourceFilter === "manual" || sourceFilter === "intercom") combinedTotal = manualTotal;
     const daySpan = range === "this_month"
       ? differenceInDays(new Date(), startOfMonth(new Date())) || 1
       : cutoff
@@ -756,6 +761,7 @@ const Stats = () => {
                 <SelectItem value="slack">Slack</SelectItem>
                 <SelectItem value="gmail">Gmail</SelectItem>
                 <SelectItem value="manual">Manual entry</SelectItem>
+                <SelectItem value="intercom">Intercom</SelectItem>
               </SelectContent>
             </Select>
           </div>
