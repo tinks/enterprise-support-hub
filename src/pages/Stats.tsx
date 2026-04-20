@@ -132,7 +132,7 @@ const Stats = () => {
         .order("received_at", { ascending: true }),
       supabase
         .from("manual_conversations")
-        .select("status, created_at, is_test, source, owner, classification")
+        .select("status, created_at, is_test, source, owner, classification, is_bug, product_area, resolved_at")
         .order("created_at", { ascending: true }),
     ]);
     const rows = (slackRes.data as Mapping[]) || [];
