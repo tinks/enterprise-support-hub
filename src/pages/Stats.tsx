@@ -1576,7 +1576,154 @@ const Stats = () => {
         )}
 
 
-        {/* Insights footer */}
+        {/* ── Intercom section ── */}
+        {(sourceFilter === "all" || sourceFilter === "intercom") && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Intercom</h2>
+              <p className="mt-1 text-xs text-muted-foreground">Tickets imported from Intercom (webhook, poller, and backfill)</p>
+              <div className="mt-2 h-px w-full bg-border" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <MessageSquare className="mb-2 h-5 w-5 text-[#9B87F5]" />
+                  <p className="text-3xl font-bold text-foreground">{intercomStats.total}</p>
+                  <p className="text-xs text-muted-foreground">Total</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <Activity className="mb-2 h-5 w-5 text-[#9B87F5]" />
+                  <p className="text-3xl font-bold text-foreground">{intercomStats.active}</p>
+                  <p className="text-xs text-muted-foreground">Active / open</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <ThumbsUp className="mb-2 h-5 w-5 text-[#9B87F5]" />
+                  <p className="text-3xl font-bold text-foreground">{intercomStats.resolved}</p>
+                  <p className="text-xs text-muted-foreground">Resolved ({intercomStats.resolvedPct}%)</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <TrendingUp className="mb-2 h-5 w-5 text-[#9B87F5]" />
+                  <p className="text-3xl font-bold text-foreground">
+                    {intercomStats.avgResolutionMins == null
+                      ? "—"
+                      : intercomStats.avgResolutionMins < 60
+                        ? `${intercomStats.avgResolutionMins}m`
+                        : `${(intercomStats.avgResolutionMins / 60).toFixed(1)}h`}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Avg resolution time</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <AlertTriangle className="mb-2 h-5 w-5 text-[#FF6B6B]" />
+                  <p className="text-3xl font-bold text-foreground">{intercomStats.escalationPct}%</p>
+                  <p className="text-xs text-muted-foreground">Escalation rate</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <AlertTriangle className="mb-2 h-5 w-5 text-[#FF6B6B]" />
+                  <p className="text-3xl font-bold text-foreground">{intercomStats.bugPct}%</p>
+                  <p className="text-xs text-muted-foreground">Bug rate ({intercomStats.bugs})</p>
+                </CardContent>
+              </Card>
+              <Card className="md:col-span-2">
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <MessageSquare className="mb-2 h-5 w-5 text-[#9B87F5]" />
+                  <p className="text-2xl font-bold text-foreground">{intercomStats.topArea}</p>
+                  <p className="text-xs text-muted-foreground">Top product area</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Volume over time</CardTitle>
+                <CardDescription>Intercom tickets per day</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {intercomVolumeData.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+                ) : (
+                  <ChartContainer config={chartConfig} className="h-[260px] w-full">
+                    <AreaChart data={intercomVolumeData}>
+                      <defs>
+                        <linearGradient id="gradIntercom" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#9B87F5" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#9B87F5" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="label" className="text-xs" />
+                      <YAxis allowDecimals={false} className="text-xs" />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Area type="monotone" dataKey="count" stroke="#9B87F5" fill="url(#gradIntercom)" strokeWidth={2} />
+                    </AreaChart>
+                  </ChartContainer>
+                )}
+              </CardContent>
+            </Card>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Status breakdown</CardTitle>
+                  <CardDescription>Intercom tickets by status</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {intercomStatusData.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+                  ) : (
+                    <ChartContainer config={chartConfig} className="w-full" style={{ height: Math.max(200, intercomStatusData.length * 48) }}>
+                      <BarChart data={intercomStatusData} layout="vertical" margin={{ left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                        <XAxis type="number" allowDecimals={false} className="text-xs" />
+                        <YAxis type="category" dataKey="status" className="text-xs" width={120} tick={{ fontSize: 12 }} />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="count" fill="#9B87F5" radius={[0, 4, 4, 0]}>
+                          <LabelList dataKey="count" position="right" className="text-xs fill-foreground" />
+                        </Bar>
+                      </BarChart>
+                    </ChartContainer>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">By product area</CardTitle>
+                  <CardDescription>Intercom tickets grouped by product area</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {intercomByArea.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+                  ) : (
+                    <ChartContainer config={chartConfig} className="w-full" style={{ height: Math.max(200, intercomByArea.length * 48) }}>
+                      <BarChart data={intercomByArea} layout="vertical" margin={{ left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                        <XAxis type="number" allowDecimals={false} className="text-xs" />
+                        <YAxis type="category" dataKey="area" className="text-xs" width={140} tick={{ fontSize: 12 }} />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="count" fill="#E66FD2" radius={[0, 4, 4, 0]}>
+                          <LabelList dataKey="count" position="right" className="text-xs fill-foreground" />
+                        </Bar>
+                      </BarChart>
+                    </ChartContainer>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+
+
         {peakDay && (
           <Card>
             <CardContent className="flex flex-wrap items-center gap-6 p-5">
