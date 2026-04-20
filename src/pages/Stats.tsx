@@ -1101,7 +1101,7 @@ const Stats = () => {
               <CardDescription>When conversations and emails arrive, bucketed by hour in CET timezone</CardDescription>
             </CardHeader>
             <CardContent>
-              {hourlyActivityData.every((b) => b.slack === 0 && b.gmail === 0 && b.manual === 0) ? (
+              {hourlyActivityData.every((b) => b.slack === 0 && b.gmail === 0 && b.manual === 0 && b.intercom === 0) ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
               ) : (
                 <ChartContainer config={chartConfig} className="h-[280px] w-full">
@@ -1116,8 +1116,11 @@ const Stats = () => {
                     {(sourceFilter === "all" || sourceFilter === "gmail") && (
                       <Bar dataKey="gmail" fill="#E66FD2" radius={[4, 4, 0, 0]} />
                     )}
-                    {(sourceFilter === "all" || sourceFilter === "manual" || sourceFilter === "intercom") && (
+                    {(sourceFilter === "all" || sourceFilter === "manual") && (
                       <Bar dataKey="manual" fill="#4ECDC4" radius={[4, 4, 0, 0]} />
+                    )}
+                    {(sourceFilter === "all" || sourceFilter === "intercom") && (
+                      <Bar dataKey="intercom" fill="#F59E0B" radius={[4, 4, 0, 0]} />
                     )}
                   </BarChart>
                 </ChartContainer>
