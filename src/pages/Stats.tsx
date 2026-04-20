@@ -51,6 +51,9 @@ interface ManualRow {
   source: string;
   owner: string | null;
   classification: string | null;
+  is_bug: boolean;
+  product_area: string | null;
+  resolved_at: string | null;
 }
 
 type SourceFilter = "all" | "slack" | "gmail" | "manual" | "intercom";
