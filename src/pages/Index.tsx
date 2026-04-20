@@ -563,6 +563,9 @@ const Index = () => {
                     ? new Date(lastPolledIntercom).toLocaleString()
                     : "Never"}
                 </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Auto-runs every 5 minutes via scheduled job
+                </p>
               </div>
               <Button size="sm" onClick={pollIntercomInbox} disabled={intercomPolling}>
                 {intercomPolling ? (

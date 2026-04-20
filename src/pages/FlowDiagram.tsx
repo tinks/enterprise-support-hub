@@ -665,11 +665,11 @@ function buildNodes(
       position: { x: COL_W * -0.6, y: ROW_H },
       data: {
         label: "Intercom inbox poller",
-        desc: "Catch-all poller that searches Intercom's enterprise inbox for conversations missed by webhooks. Runs hourly via pg_cron and on-demand from settings.",
+        desc: "Catch-all poller that searches Intercom's enterprise inbox for conversations missed by webhooks. Runs every 5 minutes via pg_cron and on-demand from settings.",
         icon: Ticket,
         edgeFunction: "poll-intercom-inbox",
         details: [
-          "Scheduled: runs every hour via pg_cron (0 * * * *) using net.http_post; also manually triggerable from settings page",
+          "Scheduled: runs every 5 minutes via pg_cron (*/5 * * * *) using net.http_post; also manually triggerable from settings page",
           "Gap-free: uses last_polled_intercom_at as the search lower bound — each poll picks up exactly where the last one left off (48h fallback on first run)",
           "Queries Intercom Search API with multiple strategies: 1) team_assignee_id matches enterprise inbox, 2) admin_assignee_id for each admin in admin_owner_map (excludes the bot admin / intercom_assignee_id to prevent timeout from high-volume results) — deduplicates across all queries",
           "STRICT INBOX GUARD: after fetching each conversation, skips it unless team_assignee_id currently equals the configured enterprise inbox ID — prevents over-import of conversations assigned to Sam from other inboxes",
