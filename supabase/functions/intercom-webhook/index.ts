@@ -151,6 +151,8 @@ Deno.serve(async (req) => {
       "ticket.admin.replied",
       "conversation.user.replied",
       "conversation.user.created",
+      "conversation.operator.replied",
+      "ticket.contact.replied",
     ];
     const CLOSED_TOPICS = ["conversation.admin.closed", "ticket.state.updated"];
 
@@ -343,6 +345,49 @@ Deno.serve(async (req) => {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
               });
             }
+          }
+        }
+      }
+
+      // Subject-based fallback: catches Google-Group-relayed mail where the
+      // customer's email never appears on the Gmail row (from_email is the
+      // group alias, not the customer). Match within last 24h to avoid
+      // cross-conversation collisions on common subjects.
+      const icSubject: string = String(icData.source?.subject || icData.subject || "").trim();
+      if (icSubject) {
+        const normalize = (s: string) =>
+          s.replace(/^(Re|Fwd|Fw):\s*/gi, "").replace(/\s+/g, " ").toLowerCase().trim();
+        const normSubject = normalize(icSubject);
+        if (normSubject.length > 5) {
+          const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+          const { data: subjMatches } = await supabase
+            .from("gmail_conversations")
+            .select("id, gmail_thread_id, subject, intercom_conversation_id")
+            .is("intercom_conversation_id", null)
+            .gte("received_at", since)
+            .order("received_at", { ascending: false })
+            .limit(50);
+
+          const matched = (subjMatches || []).filter(r => normalize(String(r.subject || "")) === normSubject);
+          const distinctThreads = Array.from(new Set(matched.map(r => r.gmail_thread_id).filter(Boolean)));
+
+          if (distinctThreads.length === 1) {
+            const threadId = distinctThreads[0]!;
+            const updatePayload: Record<string, unknown> = { intercom_conversation_id: intercomConvId };
+            if (resolvedOwner) updatePayload.owner = resolvedOwner;
+            const { error: subjErr } = await supabase
+              .from("gmail_conversations")
+              .update(updatePayload)
+              .eq("gmail_thread_id", threadId);
+            if (!subjErr) {
+              console.log(`[subject-fallback] Linked Intercom ${intercomConvId} to Gmail thread ${threadId} via subject "${normSubject}"`);
+              return new Response(JSON.stringify({ ok: true, message: "Linked via subject fallback", gmailThreadId: threadId }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+              });
+            }
+            console.error("Subject-fallback link error:", subjErr);
+          } else if (distinctThreads.length > 1) {
+            console.warn(`[subject_link_ambiguous] ${distinctThreads.length} candidate Gmail threads for subject "${normSubject}", falling through to manual creation`);
           }
         }
       }
