@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
-import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon, ChevronDown, Timer, AlertCircle, ArrowUpRight, Mail, FileDown } from "lucide-react";
+import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon, ChevronDown, Timer, AlertCircle, AlertTriangle, ArrowUpRight, Mail, FileDown } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -51,6 +51,9 @@ interface ManualRow {
   source: string;
   owner: string | null;
   classification: string | null;
+  is_bug: boolean;
+  product_area: string | null;
+  resolved_at: string | null;
 }
 
 type SourceFilter = "all" | "slack" | "gmail" | "manual" | "intercom";
@@ -129,7 +132,7 @@ const Stats = () => {
         .order("received_at", { ascending: true }),
       supabase
         .from("manual_conversations")
-        .select("status, created_at, is_test, source, owner, classification")
+        .select("status, created_at, is_test, source, owner, classification, is_bug, product_area, resolved_at")
         .order("created_at", { ascending: true }),
     ]);
     const rows = (slackRes.data as Mapping[]) || [];
@@ -342,6 +345,94 @@ const Stats = () => {
     });
     return byDay;
   }, [filteredManual]);
+
+  // Dedicated Intercom-only filter (ignores sourceFilter so the Intercom
+  // section always reflects intercom-imported tickets when visible).
+  const intercomFiltered = useMemo(() => {
+    const cutoff = getCutoffDate(range);
+    return manualData.filter((m) => {
+      if (m.source !== "intercom") return false;
+      const matchView = view === "test" ? m.is_test : !m.is_test;
+      const parsed = parseISO(m.created_at);
+      let matchRange: boolean;
+      if (range === "this_month") {
+        matchRange = (isAfter(parsed, startOfDay(startOfMonth(new Date()))) || parsed.getTime() === startOfDay(startOfMonth(new Date())).getTime()) &&
+                     (isBefore(parsed, endOfDay(endOfMonth(new Date()))) || parsed.getTime() === endOfDay(endOfMonth(new Date())).getTime());
+      } else if (range === "custom") {
+        matchRange = (!customFrom || isAfter(parsed, startOfDay(customFrom))) &&
+                     (!customTo || isBefore(parsed, endOfDay(customTo)));
+      } else {
+        matchRange = cutoff ? isAfter(parsed, cutoff) : true;
+      }
+      return matchView && matchRange && m.status !== "cancelled";
+    });
+  }, [manualData, view, range, customFrom, customTo]);
+
+  const intercomStats = useMemo(() => {
+    const total = intercomFiltered.length;
+    const resolved = intercomFiltered.filter((m) => m.status === "resolved").length;
+    const active = intercomFiltered.filter((m) => m.status === "active").length;
+    const escalated = intercomFiltered.filter((m) => m.status === "escalated" || m.status === "escalated_pending").length;
+    const bugs = intercomFiltered.filter((m) => m.is_bug).length;
+    const resolvedPct = total ? Math.round((resolved / total) * 100) : 0;
+    const escalationPct = total ? Math.round((escalated / total) * 100) : 0;
+    const bugPct = total ? Math.round((bugs / total) * 100) : 0;
+
+    // Avg resolution time (minutes)
+    const resolutionMins = intercomFiltered
+      .filter((m) => m.resolved_at)
+      .map((m) => differenceInMinutes(parseISO(m.resolved_at!), parseISO(m.created_at)))
+      .filter((n) => n >= 0);
+    const avgResolutionMins = resolutionMins.length
+      ? Math.round(resolutionMins.reduce((s, v) => s + v, 0) / resolutionMins.length)
+      : null;
+
+    // Top product area
+    const areaCounts: Record<string, number> = {};
+    intercomFiltered.forEach((m) => {
+      const a = m.product_area || "Unassigned";
+      areaCounts[a] = (areaCounts[a] || 0) + 1;
+    });
+    const topArea = Object.entries(areaCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
+
+    return { total, resolved, active, escalated, bugs, resolvedPct, escalationPct, bugPct, avgResolutionMins, topArea };
+  }, [intercomFiltered]);
+
+  const intercomVolumeData = useMemo(() => {
+    const byDay: Record<string, number> = {};
+    intercomFiltered.forEach((m) => {
+      const day = format(parseISO(m.created_at), "yyyy-MM-dd");
+      byDay[day] = (byDay[day] || 0) + 1;
+    });
+    return [...Object.entries(byDay)]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([day, count]) => ({ date: day, label: format(parseISO(day), "MMM dd"), count }));
+  }, [intercomFiltered]);
+
+  const intercomStatusData = useMemo(() => {
+    const buckets = { Resolved: 0, Active: 0, Escalated: 0, Awaiting: 0, Other: 0 };
+    intercomFiltered.forEach((m) => {
+      if (m.status === "resolved") buckets.Resolved++;
+      else if (m.status === "active" || m.status === "active_pending") buckets.Active++;
+      else if (m.status === "escalated" || m.status === "escalated_pending") buckets.Escalated++;
+      else if (m.status?.startsWith("awaiting")) buckets.Awaiting++;
+      else buckets.Other++;
+    });
+    return Object.entries(buckets)
+      .filter(([, v]) => v > 0)
+      .map(([status, count]) => ({ status, count }));
+  }, [intercomFiltered]);
+
+  const intercomByArea = useMemo(() => {
+    const counts: Record<string, number> = {};
+    intercomFiltered.forEach((m) => {
+      const a = m.product_area || "Unassigned";
+      counts[a] = (counts[a] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([area, count]) => ({ area, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [intercomFiltered]);
 
   const mergedVolumeData = useMemo(() => {
     const allDays = new Set<string>();
@@ -1485,7 +1576,154 @@ const Stats = () => {
         )}
 
 
-        {/* Insights footer */}
+        {/* ── Intercom section ── */}
+        {(sourceFilter === "all" || sourceFilter === "intercom") && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Intercom</h2>
+              <p className="mt-1 text-xs text-muted-foreground">Tickets imported from Intercom (webhook, poller, and backfill)</p>
+              <div className="mt-2 h-px w-full bg-border" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <MessageSquare className="mb-2 h-5 w-5 text-[#9B87F5]" />
+                  <p className="text-3xl font-bold text-foreground">{intercomStats.total}</p>
+                  <p className="text-xs text-muted-foreground">Total</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <Activity className="mb-2 h-5 w-5 text-[#9B87F5]" />
+                  <p className="text-3xl font-bold text-foreground">{intercomStats.active}</p>
+                  <p className="text-xs text-muted-foreground">Active / open</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <ThumbsUp className="mb-2 h-5 w-5 text-[#9B87F5]" />
+                  <p className="text-3xl font-bold text-foreground">{intercomStats.resolved}</p>
+                  <p className="text-xs text-muted-foreground">Resolved ({intercomStats.resolvedPct}%)</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <TrendingUp className="mb-2 h-5 w-5 text-[#9B87F5]" />
+                  <p className="text-3xl font-bold text-foreground">
+                    {intercomStats.avgResolutionMins == null
+                      ? "—"
+                      : intercomStats.avgResolutionMins < 60
+                        ? `${intercomStats.avgResolutionMins}m`
+                        : `${(intercomStats.avgResolutionMins / 60).toFixed(1)}h`}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Avg resolution time</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <AlertTriangle className="mb-2 h-5 w-5 text-[#FF6B6B]" />
+                  <p className="text-3xl font-bold text-foreground">{intercomStats.escalationPct}%</p>
+                  <p className="text-xs text-muted-foreground">Escalation rate</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <AlertTriangle className="mb-2 h-5 w-5 text-[#FF6B6B]" />
+                  <p className="text-3xl font-bold text-foreground">{intercomStats.bugPct}%</p>
+                  <p className="text-xs text-muted-foreground">Bug rate ({intercomStats.bugs})</p>
+                </CardContent>
+              </Card>
+              <Card className="md:col-span-2">
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <MessageSquare className="mb-2 h-5 w-5 text-[#9B87F5]" />
+                  <p className="text-2xl font-bold text-foreground">{intercomStats.topArea}</p>
+                  <p className="text-xs text-muted-foreground">Top product area</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Volume over time</CardTitle>
+                <CardDescription>Intercom tickets per day</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {intercomVolumeData.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+                ) : (
+                  <ChartContainer config={chartConfig} className="h-[260px] w-full">
+                    <AreaChart data={intercomVolumeData}>
+                      <defs>
+                        <linearGradient id="gradIntercom" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#9B87F5" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#9B87F5" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="label" className="text-xs" />
+                      <YAxis allowDecimals={false} className="text-xs" />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Area type="monotone" dataKey="count" stroke="#9B87F5" fill="url(#gradIntercom)" strokeWidth={2} />
+                    </AreaChart>
+                  </ChartContainer>
+                )}
+              </CardContent>
+            </Card>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Status breakdown</CardTitle>
+                  <CardDescription>Intercom tickets by status</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {intercomStatusData.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+                  ) : (
+                    <ChartContainer config={chartConfig} className="w-full" style={{ height: Math.max(200, intercomStatusData.length * 48) }}>
+                      <BarChart data={intercomStatusData} layout="vertical" margin={{ left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                        <XAxis type="number" allowDecimals={false} className="text-xs" />
+                        <YAxis type="category" dataKey="status" className="text-xs" width={120} tick={{ fontSize: 12 }} />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="count" fill="#9B87F5" radius={[0, 4, 4, 0]}>
+                          <LabelList dataKey="count" position="right" className="text-xs fill-foreground" />
+                        </Bar>
+                      </BarChart>
+                    </ChartContainer>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">By product area</CardTitle>
+                  <CardDescription>Intercom tickets grouped by product area</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {intercomByArea.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">No data yet</p>
+                  ) : (
+                    <ChartContainer config={chartConfig} className="w-full" style={{ height: Math.max(200, intercomByArea.length * 48) }}>
+                      <BarChart data={intercomByArea} layout="vertical" margin={{ left: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                        <XAxis type="number" allowDecimals={false} className="text-xs" />
+                        <YAxis type="category" dataKey="area" className="text-xs" width={140} tick={{ fontSize: 12 }} />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Bar dataKey="count" fill="#E66FD2" radius={[0, 4, 4, 0]}>
+                          <LabelList dataKey="count" position="right" className="text-xs fill-foreground" />
+                        </Bar>
+                      </BarChart>
+                    </ChartContainer>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+
+
         {peakDay && (
           <Card>
             <CardContent className="flex flex-wrap items-center gap-6 p-5">
