@@ -185,6 +185,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const paramDay = searchParams.get("day");
   const paramHour = searchParams.get("hour") !== null ? parseInt(searchParams.get("hour")!) : null;
   const paramSource = searchParams.get("source") as SourceFilter | null;
+  const paramChannel = searchParams.get("channel");
   const resolutionMin = searchParams.get("resolutionMin") !== null ? parseInt(searchParams.get("resolutionMin")!) : null;
   const resolutionMax = searchParams.get("resolutionMax") !== null ? parseInt(searchParams.get("resolutionMax")!) : null;
   const isResolutionMode = resolutionMin !== null && resolutionMax !== null;
