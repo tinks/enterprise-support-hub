@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.delete-slack-message]
 verify_jwt = false
+
+[functions.cleanup-bad-intercom-imports]
+verify_jwt = false

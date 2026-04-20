@@ -609,7 +609,7 @@ function buildNodes(
         edgeFunction: "intercom-webhook",
         details: [
 "Listens for assignment webhook topics: conversation.admin.assigned, conversation.admin.open.assigned, ticket.admin.assigned, ticket.team.assigned",
-           "Enterprise inbox detection (3-step fallback): 1) team_assignee_id matches enterprise inbox → proceed, 2) API fallback: fetch conversation and recheck team_assignee_id → proceed, 3) admin_assignee_id found in admin_owner_map → treat as enterprise inbox (handles Intercom routing that assigns to individual admins without setting team)",
+           "STRICT inbox guard: 1) team_assignee_id matches enterprise inbox → proceed, 2) API fallback: fetch conversation and recheck team_assignee_id → proceed. The previous admin_owner_map fallback was REMOVED — conversations assigned to Joel/Kristina/Sam from other inboxes are no longer auto-imported.",
            "Deduplicates across conversation_mappings, gmail_conversations, and manual_conversations",
           "Fetches full conversation from Intercom API with pagination",
           "Gmail cross-reference: extracts contact email from conversation source or contacts API, searches gmail_conversations for unlinked records matching from_email/to_emails/cc_emails — if found, links the Gmail thread with intercom_conversation_id and skips manual_conversations insert",

@@ -200,11 +200,8 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Fallback 3: admin_assignee_id is in admin_owner_map (Intercom often sets team=null when routing to individual admins)
-      if (!isEnterpriseInbox && resolvedOwner) {
-        console.log(`Admin fallback: admin_assignee_id ${adminAssigneeId} maps to owner ${resolvedOwner}, treating as enterprise inbox`);
-        isEnterpriseInbox = true;
-      }
+      // Strict guard: do NOT fall back to admin_owner_map. Conversations assigned to
+      // Joel/Kristina/Sam from other inboxes must not be auto-imported.
 
       if (!enterpriseInboxId || !isEnterpriseInbox) {
         console.log(`Assignment not to enterprise inbox (team=${teamId} vs ${enterpriseInboxId}), ignoring`);
