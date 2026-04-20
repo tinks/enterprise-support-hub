@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
   const adminIds = Object.keys(adminOwnerMap).filter(id => id !== botAdminId);
   console.log(`Admin IDs to search (excluding bot ${botAdminId}): [${adminIds.join(", ")}]`);
 
-  const MAX_PAGES_PER_QUERY = 3; // Safety cap: 150 conversations max per query
+  const MAX_PAGES_PER_QUERY = 10; // Safety cap: 500 conversations max per query
 
   const searchQueries: Array<{ label: string; query: Record<string, unknown> }> = [
     {

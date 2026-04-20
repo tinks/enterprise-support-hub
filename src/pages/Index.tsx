@@ -55,6 +55,7 @@ const Index = () => {
   const [intercomPolling, setIntercomPolling] = useState(false);
   const [lastPolledIntercom, setLastPolledIntercom] = useState<string | null>(null);
   const [cleanupRunning, setCleanupRunning] = useState(false);
+  const [backfillRunning, setBackfillRunning] = useState(false);
 
   const edgeFunctionBaseUrl = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1`;
 
@@ -132,6 +133,42 @@ const Index = () => {
       toast.error("Cleanup request failed: " + (err instanceof Error ? err.message : "Unknown"));
     }
     setCleanupRunning(false);
+  };
+
+  const backfillEnterpriseInbox = async () => {
+    if (!confirm("This paginates through ALL Intercom tickets ever assigned to the enterprise inbox and imports any not already tracked. May take several minutes. Continue?")) return;
+    setBackfillRunning(true);
+    let totalImported = 0;
+    let totalSkipped = 0;
+    let totalProcessed = 0;
+    let startingAfter: string | undefined = undefined;
+    let batchNum = 0;
+    try {
+      while (true) {
+        batchNum++;
+        const res = await fetch(`${edgeFunctionBaseUrl}/backfill-enterprise-inbox`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ startingAfter, maxBatch: 25 }),
+        });
+        const data = await res.json();
+        if (data.error) {
+          toast.error("Backfill failed: " + data.error);
+          break;
+        }
+        totalImported += data.imported || 0;
+        totalSkipped += data.skipped || 0;
+        totalProcessed += data.processed || 0;
+        toast.info(`Batch ${batchNum}: +${data.imported} imported, ${data.skipped} skipped`);
+        if (data.done || !data.nextStartingAfter) break;
+        startingAfter = data.nextStartingAfter;
+        if (batchNum > 50) { toast.error("Stopped after 50 batches as a safety guard"); break; }
+      }
+      toast.success(`Backfill complete: ${totalImported} imported, ${totalSkipped} skipped (${totalProcessed} checked)`);
+    } catch (err) {
+      toast.error("Backfill request failed: " + (err instanceof Error ? err.message : "Unknown"));
+    }
+    setBackfillRunning(false);
   };
 
   const pollIntercomInbox = async () => {
@@ -551,6 +588,22 @@ const Index = () => {
                   <><RefreshCw className="mr-2 h-3 w-3 animate-spin" /> Cleaning...</>
                 ) : (
                   <>Run cleanup</>
+                )}
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-4">
+              <div className="flex-1">
+                <p className="text-sm font-medium">Backfill all enterprise inbox tickets</p>
+                <p className="text-xs text-muted-foreground">
+                  Paginates through every Intercom ticket assigned to the enterprise inbox (open + closed) and imports anything missing.
+                </p>
+              </div>
+              <Button size="sm" onClick={backfillEnterpriseInbox} disabled={backfillRunning}>
+                {backfillRunning ? (
+                  <><RefreshCw className="mr-2 h-3 w-3 animate-spin" /> Backfilling...</>
+                ) : (
+                  <>Run backfill</>
                 )}
               </Button>
             </div>
