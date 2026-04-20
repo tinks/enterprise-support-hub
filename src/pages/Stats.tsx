@@ -676,18 +676,22 @@ const Stats = () => {
       slack: 0,
       gmail: 0,
       manual: 0,
+      intercom: 0,
     }));
     const getCETHour = (dateStr: string) => {
       const d = new Date(dateStr);
       return parseInt(d.toLocaleString("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hour12: false }));
     };
     filtered.forEach((m) => { buckets[getCETHour(m.created_at)].slack++; });
-    const gmailSeenPerHour: Record<number, Set<string>> = {};
     filteredGmailThreads.forEach((g) => {
       const h = getCETHour(g.received_at || g.created_at);
       buckets[h].gmail++;
     });
-    filteredManual.forEach((m) => { buckets[getCETHour(m.created_at)].manual++; });
+    filteredManual.forEach((m) => {
+      const h = getCETHour(m.created_at);
+      if (m.source === "intercom") buckets[h].intercom++;
+      else buckets[h].manual++;
+    });
     return buckets;
   }, [filtered, filteredGmailThreads, filteredManual]);
 
