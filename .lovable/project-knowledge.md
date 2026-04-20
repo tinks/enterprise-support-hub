@@ -308,6 +308,10 @@ Stored in `bot_messages` table, editable from the Flow Diagram UI:
 | Intercom part dedup (webhook) | `intercom-webhook` | Atomic UPDATE on `last_intercom_part_id` with conditional WHERE |
 | Intercom part dedup (polling) | `slack-interactions` | Same atomic UPDATE pattern, `last_intercom_part_id` guard |
 | Status transition guards | All functions | UPDATE with `eq("status", expectedStatus)` — second writer gets empty result |
+| Intercom→Gmail subject fallback link | `intercom-webhook` | When email-based Gmail link lookup returns nothing (e.g. mail relayed via the `enterprise-support@lovable.dev` Google Group strips the customer's address), the webhook normalizes the Intercom ticket subject (strip `Re:`/`Fwd:`/`Fw:`, lowercase, collapse whitespace) and matches it against unlinked `gmail_conversations` from the last 24 h. Exactly-one match → link to the whole `gmail_thread_id`; 0 or >1 → log `subject_link_ambiguous` and fall through to manual creation |
+| Reply reconciliation cron | `pg_cron` → `backfill-intercom-replies?recent=true` | Runs every 5 min as a safety net for any Intercom reply webhooks that get dropped, raced, or arrive on topics outside the whitelist. Targets `manual_conversations` and `gmail_conversations` with non-null `intercom_conversation_id` updated/received in the last 7 days, capped at 200 rows. Inserts missing `manual_messages` and resolves status mismatches |
+
+Realtime reply topic whitelist in `intercom-webhook` (`REPLY_TOPICS`): `conversation.admin.replied`, `conversation.admin.single.reply`, `ticket.admin.replied`, `conversation.user.replied`, `conversation.user.created`, `conversation.operator.replied`, `ticket.contact.replied`. Any topic that should sync into our DB must be added here AND subscribed in the Intercom webhook console.
 
 ---
 
