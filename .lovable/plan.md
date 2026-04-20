@@ -1,49 +1,42 @@
 
-## Fix the conversation volume colors for Manual entry vs Intercom
 
-### What I found
-In `src/pages/Stats.tsx`, the top “Conversation volume” chart still groups both manual entries and Intercom tickets into a single `manual` series:
+## Update project knowledge file with missing knowledge
 
-- `filteredManual` includes both manual and Intercom depending on source filter
-- `manualVolumeData` is built from that combined set
-- `mergedVolumeData` only exposes `slack`, `gmail`, and `manual`
-- the chart renders one teal area for both manual and Intercom
+### Goal
+Sync `.lovable/project-knowledge.md` (and the DB-backed `knowledge_documents` row) with recent changes that aren't yet documented.
 
-That is why the visuals look the same there, even though the dedicated Intercom section already uses a different color.
+### What's missing (based on recent work)
+Recent unrecorded changes from this session and prior:
 
-### Plan
-1. Split the overview volume data into two separate series:
-   - `manualOnlyVolumeData` for rows where `source !== 'intercom'`
-   - `intercomVolumeData` for rows where `source === 'intercom'`
+1. **Intercom as a first-class source**
+   - `manual_conversations.source = 'intercom'` is now distinct from `'manual'`
+   - Filter dropdowns (Inbox, Analytics, Flow Diagram) expose Intercom as its own option
+   - Legacy data fix: rows with `intercom_conversation_id IS NOT NULL` were re-labeled from `manual` → `intercom`
+   - All Intercom import paths (`backfill-enterprise-inbox`, `poll-intercom-inbox`, `intercom-webhook`, `import-intercom-ticket`, `bulk-import-intercom`) write `source = 'intercom'`
 
-2. Update `mergedVolumeData` so each day includes:
-   - `slack`
-   - `gmail`
-   - `manual`
-   - `intercom`
+2. **Dedicated Intercom analytics section** in `Stats.tsx`
+   - Own KPI cards: total, resolved %, active, avg resolution time, escalation rate, top product area, bug rate
+   - Own charts: volume over time, status breakdown, product area breakdown
+   - Honors environment + date filters; visible when source filter is "all" or "intercom"
 
-3. Add a dedicated Intercom color to `chartConfig`
-   - keep Manual entry as teal
-   - keep Intercom as a clearly different color already used in its section, or another distinct hue if needed
-   - use the same label naming so tooltips/legend text stay clear
+3. **Source color palette** in Analytics charts
+   - Slack: purple `#9B87F5`
+   - Gmail: pink/red
+   - Manual entry: teal
+   - Intercom: amber `#F59E0B`
+   - Conversation volume chart renders Manual and Intercom as separate Area series
 
-4. Update the “Conversation volume” chart rendering
-   - keep Slack and Gmail unchanged
-   - render Manual and Intercom as separate `<Area>` series with different gradients/strokes
-   - when `sourceFilter === "manual"`, show only Manual entry
-   - when `sourceFilter === "intercom"`, show only Intercom
-   - when `sourceFilter === "all"`, show both
+4. **5-minute Intercom polling** via pg_cron (`poll-intercom-inbox-every-5min`) — already in memory but worth surfacing in the main knowledge doc
 
-5. Keep scope tight
-   - only change the conversation volume graph, since that is the issue reported
-   - no backend/database work needed
+### Approach
+- Read current `.lovable/project-knowledge.md` to find the right insertion points (Architecture / UI Pages / Integrations / Analytics sections)
+- Add concise additions — do not rewrite existing content
+- Submit via the **pending_content** mechanism (per the project rule: never modify live KB directly; require UI approval via diff viewer)
 
-### Files to edit
-- `src/pages/Stats.tsx`
-- optionally `mem://ui/analytics-dashboard` to note that the overview volume chart now shows Manual entry and Intercom as separate colored series
+### Files
+- Update `knowledge_documents` row `id = 'project-knowledge'`: set `pending_content`, `pending_summary`, `pending_at` so the user reviews/approves in the Project Knowledge UI
+- Optionally also update `.lovable/project-knowledge.md` static file to match once approved
 
-### Expected result
-On the conversation volume graph:
-- Manual entry and Intercom will no longer share the same color
-- both will be visually distinguishable in “All sources”
-- filtering to Intercom will show only the Intercom-colored series
+### Open question
+Should I also update the **Flow page** (`src/pages/FlowDiagram.tsx`) to reflect the Intercom source as part of the flow, per the project rule "Whenever a logic change is made to the app, make sure to update the Flow page"? I'd recommend yes — but as a follow-up task, not part of this knowledge-doc update.
+
