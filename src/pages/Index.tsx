@@ -54,6 +54,7 @@ const Index = () => {
   const [gmailLoading, setGmailLoading] = useState(false);
   const [intercomPolling, setIntercomPolling] = useState(false);
   const [lastPolledIntercom, setLastPolledIntercom] = useState<string | null>(null);
+  const [cleanupRunning, setCleanupRunning] = useState(false);
 
   const edgeFunctionBaseUrl = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1`;
 
@@ -93,6 +94,27 @@ const Index = () => {
       toast.error("Request failed: " + (err instanceof Error ? err.message : "Unknown"));
     }
     setGmailLoading(false);
+  };
+
+  const cleanupBadIntercomImports = async () => {
+    if (!confirm("This will check every Intercom-sourced conversation against Intercom's API and delete any that aren't currently in the enterprise inbox. May take several minutes. Continue?")) return;
+    setCleanupRunning(true);
+    try {
+      const res = await fetch(`${edgeFunctionBaseUrl}/cleanup-bad-intercom-imports`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: false }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        toast.error("Cleanup failed: " + data.error);
+      } else {
+        toast.success(`Cleanup done: ${data.deleted} deleted, ${data.kept} kept, ${data.notFound} not found, ${data.apiErrors} API errors (of ${data.total} checked)`);
+      }
+    } catch (err) {
+      toast.error("Cleanup request failed: " + (err instanceof Error ? err.message : "Unknown"));
+    }
+    setCleanupRunning(false);
   };
 
   const pollIntercomInbox = async () => {
@@ -499,6 +521,22 @@ const Index = () => {
             <p className="text-xs text-muted-foreground">
               Searches the last 48 hours of enterprise inbox assignments. New conversations are auto-imported or linked to existing Gmail threads.
             </p>
+
+            <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+              <div className="flex-1">
+                <p className="text-sm font-medium">Clean up mis-imported rows</p>
+                <p className="text-xs text-muted-foreground">
+                  Verifies every Intercom-sourced conversation against Intercom and deletes those not currently in the enterprise inbox.
+                </p>
+              </div>
+              <Button size="sm" variant="destructive" onClick={cleanupBadIntercomImports} disabled={cleanupRunning}>
+                {cleanupRunning ? (
+                  <><RefreshCw className="mr-2 h-3 w-3 animate-spin" /> Cleaning...</>
+                ) : (
+                  <>Run cleanup</>
+                )}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
