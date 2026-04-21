@@ -17,6 +17,7 @@ const navItems = [
 const dashboardItems = [
   { to: "/my/joel", label: "Joel" },
   { to: "/my/kristina", label: "Kristina" },
+  { to: "/my/tine", label: "Tine" },
 ];
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
