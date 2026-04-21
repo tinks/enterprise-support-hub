@@ -73,3 +73,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.backfill-enterprise-inbox]
 verify_jwt = false
+[functions.promote-pending-intercom-links]
+verify_jwt = false

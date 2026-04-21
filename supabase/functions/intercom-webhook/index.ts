@@ -302,8 +302,18 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Group aliases that should NOT be used for email-based linking — when a customer
+      // emails enterprise-support@lovable.dev (a Google Group), Intercom records the group
+      // alias as the contact email rather than the customer's address. Matching on it would
+      // be ambiguous against every Gmail row in the inbox.
+      const GROUP_ALIASES = new Set<string>(["enterprise-support@lovable.dev"]);
+      const isGroupAlias = contactEmail ? GROUP_ALIASES.has(contactEmail.toLowerCase()) : false;
+      if (isGroupAlias) {
+        console.log(`[group-alias-skip] Contact email ${contactEmail} is a group alias; skipping email-linker, will rely on subject + pending-link path.`);
+      }
+
       // Cross-reference with gmail_conversations before creating manual entry
-      if (contactEmail) {
+      if (contactEmail && !isGroupAlias) {
         const emailLower = contactEmail.toLowerCase();
         const { data: gmailMatches } = await supabase
           .from("gmail_conversations")
@@ -540,66 +550,47 @@ Deno.serve(async (req) => {
         ? preMessages[0].created_at
         : (icData.created_at ? toIso(icData.created_at) : new Date().toISOString());
 
-      // Insert conversation with correct created_at upfront
-      const insertPayload: Record<string, unknown> = {
-        source: "intercom",
-        contact_name: contactName,
-        subject,
-        link: convUrl,
-        intercom_conversation_id: intercomConvId,
-        status: "active",
-        created_at: conversationCreatedAt,
-      };
-      if (resolvedOwner) insertPayload.owner = resolvedOwner;
+      // Defer manual creation: insert into pending_intercom_links and let either
+      // poll-gmail (within 15 min) or promote-pending-intercom-links (after 20 min)
+      // decide whether this becomes a Gmail link or a manual_conversations row.
+      // This closes the race where Intercom assigns the ticket within seconds while
+      // the matching Gmail row is still queued for the 15-min poll cycle.
+      const intercomCreatedAtIso = icData.created_at
+        ? toIso(icData.created_at)
+        : conversationCreatedAt;
 
-      const { data: inserted, error: insertErr } = await supabase
-        .from("manual_conversations")
-        .upsert(insertPayload, { onConflict: "intercom_conversation_id" })
-        .select("id")
-        .single();
+      const { error: pendingErr } = await supabase
+        .from("pending_intercom_links")
+        .upsert({
+          intercom_conversation_id: intercomConvId,
+          normalized_subject: normSubject || subject.toLowerCase().trim(),
+          intercom_created_at: intercomCreatedAtIso,
+          contact_name: contactName,
+          contact_email: contactEmail || null,
+          resolved_owner: resolvedOwner,
+          source_payload: {
+            subject,
+            link: convUrl,
+            intercom_conversation_id: intercomConvId,
+            conversation_created_at: conversationCreatedAt,
+          },
+          pre_messages: preMessages,
+        }, { onConflict: "intercom_conversation_id" });
 
-      if (insertErr) {
-        console.error("Auto-import insert error:", insertErr);
-        return new Response(JSON.stringify({ ok: true, message: "Insert failed" }), {
+      if (pendingErr) {
+        console.error("[pending-link-insert-error]", pendingErr);
+        return new Response(JSON.stringify({ ok: true, message: "Pending insert failed", error: pendingErr.message }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Add conversation_id to pre-extracted messages and insert with idempotency.
-      // Intercom fires both `conversation.admin.assigned` and `conversation.admin.open.assigned`
-      // for the same logical event; both invocations reach this insert. Dedup by
-      // (role, message_text, second-precision created_at) against existing rows so the
-      // second concurrent webhook is a no-op for messages.
-      const messages = preMessages.map(m => ({ ...m, conversation_id: inserted.id }));
-
-      if (messages.length > 0) {
-        const { data: existingMsgs } = await supabase
-          .from("manual_messages")
-          .select("role, message_text, created_at")
-          .eq("conversation_id", inserted.id);
-
-        const seenKeys = new Set<string>(
-          (existingMsgs || []).map(m =>
-            `${m.role}|${Math.floor(new Date(m.created_at).getTime() / 1000)}|${m.message_text}`
-          )
-        );
-
-        const fresh = messages.filter(m => {
-          const key = `${m.role}|${Math.floor(new Date(m.created_at).getTime() / 1000)}|${m.message_text}`;
-          if (seenKeys.has(key)) return false;
-          seenKeys.add(key);
-          return true;
-        });
-
-        if (fresh.length > 0) {
-          const { error: msgErr } = await supabase.from("manual_messages").insert(fresh);
-          if (msgErr) console.error("Auto-import messages insert error:", msgErr);
-        }
-        console.log(`Auto-import dedup: ${messages.length} pre-extracted, ${fresh.length} new, ${messages.length - fresh.length} skipped as duplicates`);
-      }
-
-      console.log(`Auto-imported Intercom ${intercomConvId} as ${inserted.id} with ${messages.length} messages`);
-      return new Response(JSON.stringify({ ok: true, id: inserted.id, messagesImported: messages.length }), {
+      console.log(`[pending-link-queued] Intercom ${intercomConvId} held for Gmail reconciliation (subject="${normSubject}", contact="${contactEmail}", messages=${preMessages.length})`);
+      return new Response(JSON.stringify({
+        ok: true,
+        message: "Queued for Gmail reconciliation",
+        intercomConvId,
+        normalizedSubject: normSubject,
+      }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

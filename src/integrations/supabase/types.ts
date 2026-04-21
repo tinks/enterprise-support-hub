@@ -418,6 +418,51 @@ export type Database = {
           },
         ]
       }
+      pending_intercom_links: {
+        Row: {
+          attempts: number
+          contact_email: string | null
+          contact_name: string | null
+          created_at: string
+          id: string
+          intercom_conversation_id: string
+          intercom_created_at: string
+          last_attempt_at: string | null
+          normalized_subject: string
+          pre_messages: Json
+          resolved_owner: string | null
+          source_payload: Json
+        }
+        Insert: {
+          attempts?: number
+          contact_email?: string | null
+          contact_name?: string | null
+          created_at?: string
+          id?: string
+          intercom_conversation_id: string
+          intercom_created_at: string
+          last_attempt_at?: string | null
+          normalized_subject: string
+          pre_messages: Json
+          resolved_owner?: string | null
+          source_payload: Json
+        }
+        Update: {
+          attempts?: number
+          contact_email?: string | null
+          contact_name?: string | null
+          created_at?: string
+          id?: string
+          intercom_conversation_id?: string
+          intercom_created_at?: string
+          last_attempt_at?: string | null
+          normalized_subject?: string
+          pre_messages?: Json
+          resolved_owner?: string | null
+          source_payload?: Json
+        }
+        Relationships: []
+      }
       settings: {
         Row: {
           admin_owner_map: string
