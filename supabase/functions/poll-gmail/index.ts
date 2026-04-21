@@ -277,8 +277,94 @@ Deno.serve(async (req) => {
       .update({ gmail_last_polled_at: new Date().toISOString() })
       .not("id", "is", null);
 
+    // 7. Reconcile pending Intercom links — close the webhook→poll race window.
+    // For every queued pending row, look for a Gmail thread with the same normalized
+    // subject whose received_at is within ±15 min of the Intercom created_at. If found,
+    // stamp the Gmail thread with intercom_conversation_id and delete the pending row.
+    let reconciled = 0;
+    try {
+      const { data: pending } = await supabase
+        .from("pending_intercom_links")
+        .select("id, intercom_conversation_id, normalized_subject, intercom_created_at, resolved_owner");
+
+      if (pending && pending.length > 0) {
+        const normalize = (s: string) =>
+          (s || "").replace(/^(Re|Fwd|Fw):\s*/gi, "").replace(/\s+/g, " ").toLowerCase().trim();
+
+        for (const p of pending) {
+          const icMs = new Date(p.intercom_created_at).getTime();
+          const windowStart = new Date(icMs - 15 * 60 * 1000).toISOString();
+          const windowEnd = new Date(icMs + 15 * 60 * 1000).toISOString();
+
+          const { data: candidates } = await supabase
+            .from("gmail_conversations")
+            .select("id, gmail_thread_id, subject, intercom_conversation_id, received_at")
+            .gte("received_at", windowStart)
+            .lte("received_at", windowEnd)
+            .order("received_at", { ascending: false })
+            .limit(50);
+
+          const matched = (candidates || []).filter(
+            (r) => normalize(String(r.subject || "")) === p.normalized_subject,
+          );
+          if (matched.length === 0) continue;
+
+          // If any sibling on the matched thread is already linked to a different
+          // Intercom ticket, log a conflict and delete the pending row (duplicate).
+          const threadId = matched[0].gmail_thread_id;
+          if (!threadId) continue;
+
+          const { data: siblings } = await supabase
+            .from("gmail_conversations")
+            .select("intercom_conversation_id")
+            .eq("gmail_thread_id", threadId)
+            .not("intercom_conversation_id", "is", null);
+
+          const conflicting = (siblings || []).find(
+            (s) =>
+              s.intercom_conversation_id &&
+              s.intercom_conversation_id !== p.intercom_conversation_id,
+          );
+
+          if (conflicting) {
+            console.warn(
+              `[pending-reconcile-conflict] Pending Intercom ${p.intercom_conversation_id} matched Gmail thread ${threadId} already linked to ${conflicting.intercom_conversation_id}; dropping pending row.`,
+            );
+            await supabase.from("pending_intercom_links").delete().eq("id", p.id);
+            continue;
+          }
+
+          const updatePayload: Record<string, unknown> = {
+            intercom_conversation_id: p.intercom_conversation_id,
+          };
+          if (p.resolved_owner) updatePayload.owner = p.resolved_owner;
+
+          const { error: stampErr } = await supabase
+            .from("gmail_conversations")
+            .update(updatePayload)
+            .eq("gmail_thread_id", threadId)
+            .or(
+              `intercom_conversation_id.is.null,intercom_conversation_id.eq.${p.intercom_conversation_id}`,
+            );
+
+          if (stampErr) {
+            console.error("[pending-reconcile-stamp-error]", p.id, stampErr);
+            continue;
+          }
+
+          await supabase.from("pending_intercom_links").delete().eq("id", p.id);
+          reconciled++;
+          console.log(
+            `[pending-reconcile-ok] Linked Intercom ${p.intercom_conversation_id} to Gmail thread ${threadId} via subject "${p.normalized_subject}"`,
+          );
+        }
+      }
+    } catch (reconcileErr) {
+      console.error("[pending-reconcile-fatal]", reconcileErr);
+    }
+
     console.log(
-      `Processed ${messageIds.length} messages, inserted ${inserted} new`,
+      `Processed ${messageIds.length} messages, inserted ${inserted} new, reconciled ${reconciled} pending Intercom links`,
     );
 
     return new Response(
