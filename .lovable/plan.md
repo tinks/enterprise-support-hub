@@ -1,65 +1,58 @@
 
 
-## The fix isn't complete — same class of duplicate is still happening
+## Why this conversation shows up "today" in analytics
 
-### What I found
+### What's happening
 
-Today, after my last fix, this duplicate was created:
-- Gmail thread `19dab3b3b122c2d3` ("Dragonpass x Lovable | Kick-off Call") was already linked to Intercom `215473947146973`.
-- Diana replied via Intercom → email looped back through the Google Group → Intercom created a **second ticket** `215473990768864`.
-- The webhook fired. My overwrite guard correctly refused to re-stamp the Gmail thread ✅
-- Then my "manual_conversations subject lookup" tier ran — but it only checks `manual_conversations`. The original record is in `gmail_conversations`, so it found nothing → fell through and **created a new manual row** `2c32a2ab…` ❌
+Gmail thread `19d9ce644175475b` ("Re: Lovable Git Sync Issue") has 3 rows in `gmail_conversations`:
 
-Same pattern hit 4 conversations in the last week (3 of them before the fix, 1 today). The miss is structural: I added a lookup against the wrong table.
+| Row | from | received_at |
+|---|---|---|
+| `a9ea5c87…` | fadi@lovable.dev | Apr 17 19:23 |
+| `efd23787…` | support@lovable.dev | Apr 17 19:24 |
+| **`2f9cf42f…`** | support@lovable.dev | **Apr 20 11:16** |
 
-### Why my last fix only half-worked
+All three correctly share `gmail_thread_id = 19d9ce644175475b` and `intercom_conversation_id = 215473963341741`.
 
-The "duplicate Intercom ticket" case has two flavors:
-1. **Original lives in `manual_conversations`** → my new tier handles it ✅
-2. **Original lives in `gmail_conversations`** → my new tier doesn't check there → still creates a manual duplicate ❌
+The Stats page deduplicates Gmail by thread (one row per thread) — but the dedup picks **the latest row** per thread, not the earliest:
 
-The overwrite guard catches (2) at the Gmail-stamp step but doesn't stop the manual-row creation that follows it.
+```ts
+// src/pages/Stats.tsx line 247–262
+filteredGmail.forEach((g) => {
+  const key = g.gmail_thread_id || `__orphan_${orphanIdx++}`;
+  const existing = threadMap.get(key);
+  if (!existing) {
+    threadMap.set(key, g);
+  } else {
+    if (newDate > existingDate) threadMap.set(key, g);  // <-- keeps newest
+  }
+});
+```
 
-### Fix — three changes
+So the surviving "representative row" for that thread is `2f9cf42f…` with `received_at = 2026-04-20 11:16`. Then every downstream chart that uses `filteredGmailThreads` (volume chart, hourly activity, heatmap, total counts, customer-domain) buckets the thread on Apr 20 instead of Apr 17.
 
-**1. Extend the existing-record lookup to also check `gmail_conversations` by normalized subject**
+### The fix
 
-In `intercom-webhook` after the Gmail subject linker hits a `subject_link_conflict` (or any time we'd otherwise fall through to manual creation), do one more lookup:
+Change the Gmail thread dedup to keep the **earliest** row per thread, so the thread is bucketed by when the conversation actually started. Resolution-time math (`gmailResolutionTimes`, lines 292–311) already uses the earliest message, so this aligns volume bucketing with how we already think about thread start time.
 
-- Query `gmail_conversations` for rows in the last 14 days where normalized subject matches AND `intercom_conversation_id IS NOT NULL`.
-- If exactly one distinct existing `intercom_conversation_id` matches: log `subject_match_existing_gmail`, return `{ ok: true, message: "Duplicate Intercom ticket for existing Gmail thread", existingThreadId, existingIntercomId }`. Skip manual creation.
+### Concretely
 
-**2. Wire the conflict path into the same skip**
+- **Edit `src/pages/Stats.tsx` lines 247–262**: flip the comparator so the dedup keeps the row with the earliest `received_at || created_at`.
+- This is a one-line change (`>` → `<`). Everywhere `filteredGmailThreads` is consumed (volume chart, KPI counters, hourly activity, heatmap, customer-domain) automatically benefits.
 
-When the overwrite guard fires (`subject_link_conflict` / `email_link_conflict`), today it returns early — good. But before this fix, that early return was never reached for the Dragonpass case because the subject linker found *no* unlinked thread to stamp (all siblings already had a different non-null intercom id), so it just fell through to manual creation. Make sure the "existing linked thread on this normalized subject" check runs **even when the subject linker finds nothing to stamp**, not only as a guard before stamping.
+### Impact
 
-Concretely: replace today's two-step flow (subject linker → manual creation) with: subject linker → if any candidate thread on this normalized subject exists with a non-null intercom id different from ours → log `subject_match_existing_gmail` and return. Otherwise → manual_conversations lookup → manual creation.
+- This thread (and any other multi-day Gmail thread where a reply landed in a later range bucket) will now show on its origin date — Apr 17 here, not Apr 20.
+- Resolution counts unaffected (uses raw rows, not the deduped one).
+- "Currently active conversations" (uses `status`) unaffected — status is the same on every sibling.
+- KPI "Gmail unique threads" count unaffected — same number of distinct threads, just attributed to the earlier date.
 
-**3. Data cleanup for the 4 known dupes**
+### Update memory
 
-Delete the 4 duplicate manual rows since the originals already exist in `gmail_conversations`:
-- `2c32a2ab-2d82-4e85-ac88-63ad0a407412` (Dragonpass)
-- `1e44d53b-8f72-4eb3-bca6-5c71024816c4` (Preview reverting)
-- `2d6ca7d2-e282-4e19-b03c-6d60a6fc9b6e` (Lovable Settings Pane)
-- `73b8b9a6-fcb1-4f21-a30c-38f4cdd8f0e3` (Session Timeout)
-
-Each delete also removes their `manual_messages` and `conversation_audit_logs`. The Gmail rows already carry the original Intercom ticket; replies on the duplicate Intercom tickets won't surface in our DB, but that's acceptable (they're duplicates Intercom shouldn't have created).
-
-### Files
-
-- Edit: `supabase/functions/intercom-webhook/index.ts` — add gmail_conversations subject lookup tier; restructure flow so the "existing linked record" check runs before manual creation regardless of whether the subject linker stamped anything.
-- Data: 4 DELETEs across `manual_conversations` + cascading `manual_messages` / `conversation_audit_logs`.
-- Update `mem://logic/duplicate-intercom-ticket-detection`: lookup tier covers BOTH `manual_conversations` and `gmail_conversations`.
-- Update `.lovable/project-knowledge.md` and FlowDiagram: linker priority order is now email → subject in Gmail → "is this thread/subject already represented anywhere with a different ticket?" → manual lookup → create.
+- Update `mem://logic/gmail-thread-dedup` to specify "keep earliest row per thread" (currently it doesn't pin a direction).
 
 ### Out of scope
 
-- Auto-merging the duplicate Intercom tickets in Intercom (no public API).
-- Subject fuzzy matching beyond Re/Fwd/Fw strip + lowercase + whitespace collapse.
-- A "duplicate detected" UI badge.
-
-### Confirm before I run
-
-1. Delete the 4 duplicate manual rows listed above (originals stay in `gmail_conversations`)?
-2. Add the `gmail_conversations` subject lookup tier and restructure the fallthrough so future duplicates get blocked at the same step?
+- Changing the underlying schema or backfilling anything — purely a client-side aggregation fix.
+- Touching the resolution-time pipeline (already correct).
 
