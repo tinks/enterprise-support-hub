@@ -565,12 +565,37 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Add conversation_id to pre-extracted messages and insert
+      // Add conversation_id to pre-extracted messages and insert with idempotency.
+      // Intercom fires both `conversation.admin.assigned` and `conversation.admin.open.assigned`
+      // for the same logical event; both invocations reach this insert. Dedup by
+      // (role, message_text, second-precision created_at) against existing rows so the
+      // second concurrent webhook is a no-op for messages.
       const messages = preMessages.map(m => ({ ...m, conversation_id: inserted.id }));
 
       if (messages.length > 0) {
-        const { error: msgErr } = await supabase.from("manual_messages").insert(messages);
-        if (msgErr) console.error("Auto-import messages insert error:", msgErr);
+        const { data: existingMsgs } = await supabase
+          .from("manual_messages")
+          .select("role, message_text, created_at")
+          .eq("conversation_id", inserted.id);
+
+        const seenKeys = new Set<string>(
+          (existingMsgs || []).map(m =>
+            `${m.role}|${Math.floor(new Date(m.created_at).getTime() / 1000)}|${m.message_text}`
+          )
+        );
+
+        const fresh = messages.filter(m => {
+          const key = `${m.role}|${Math.floor(new Date(m.created_at).getTime() / 1000)}|${m.message_text}`;
+          if (seenKeys.has(key)) return false;
+          seenKeys.add(key);
+          return true;
+        });
+
+        if (fresh.length > 0) {
+          const { error: msgErr } = await supabase.from("manual_messages").insert(fresh);
+          if (msgErr) console.error("Auto-import messages insert error:", msgErr);
+        }
+        console.log(`Auto-import dedup: ${messages.length} pre-extracted, ${fresh.length} new, ${messages.length - fresh.length} skipped as duplicates`);
       }
 
       console.log(`Auto-imported Intercom ${intercomConvId} as ${inserted.id} with ${messages.length} messages`);
