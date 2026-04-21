@@ -302,8 +302,18 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Group aliases that should NOT be used for email-based linking — when a customer
+      // emails enterprise-support@lovable.dev (a Google Group), Intercom records the group
+      // alias as the contact email rather than the customer's address. Matching on it would
+      // be ambiguous against every Gmail row in the inbox.
+      const GROUP_ALIASES = new Set<string>(["enterprise-support@lovable.dev"]);
+      const isGroupAlias = contactEmail ? GROUP_ALIASES.has(contactEmail.toLowerCase()) : false;
+      if (isGroupAlias) {
+        console.log(`[group-alias-skip] Contact email ${contactEmail} is a group alias; skipping email-linker, will rely on subject + pending-link path.`);
+      }
+
       // Cross-reference with gmail_conversations before creating manual entry
-      if (contactEmail) {
+      if (contactEmail && !isGroupAlias) {
         const emailLower = contactEmail.toLowerCase();
         const { data: gmailMatches } = await supabase
           .from("gmail_conversations")
