@@ -255,7 +255,7 @@ const Stats = () => {
       } else {
         const existingDate = existing.received_at || existing.created_at;
         const newDate = g.received_at || g.created_at;
-        if (newDate > existingDate) threadMap.set(key, g);
+        if (newDate < existingDate) threadMap.set(key, g);
       }
     });
     return [...threadMap.values()];
