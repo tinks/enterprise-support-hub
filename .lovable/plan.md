@@ -1,58 +1,78 @@
 
 
-## Why this conversation shows up "today" in analytics
+## Why duplicates happen
 
-### What's happening
+`intercom-webhook` handles assignment events. When Intercom assigns a new ticket to the enterprise inbox, it fires **both** topics within ~1 second:
+- `conversation.admin.assigned`
+- `conversation.admin.open.assigned`
 
-Gmail thread `19d9ce644175475b` ("Re: Lovable Git Sync Issue") has 3 rows in `gmail_conversations`:
+Both are in `ASSIGNMENT_TOPICS`, so the auto-import path runs twice. The flow:
 
-| Row | from | received_at |
-|---|---|---|
-| `a9ea5c87…` | fadi@lovable.dev | Apr 17 19:23 |
-| `efd23787…` | support@lovable.dev | Apr 17 19:24 |
-| **`2f9cf42f…`** | support@lovable.dev | **Apr 20 11:16** |
+1. Dup-check across 3 tables — both webhook invocations see "no existing row" because they fire concurrently before either commits.
+2. `manual_conversations.upsert(..., onConflict: "intercom_conversation_id")` — second invocation correctly returns the same row, no duplicate conv.
+3. **`manual_messages.insert(messages)`** — runs unconditionally on both invocations. **No idempotency.** Every message gets inserted twice.
 
-All three correctly share `gmail_thread_id = 19d9ce644175475b` and `intercom_conversation_id = 215473963341741`.
+I confirmed this by inspecting:
+- Conv `835057a8…` (Apr 21): 5 rows = 3 distinct, every `created_at`-tied original message duplicated, only Joel's later reply (added via live `conversation.admin.replied` after the conv already existed) is single.
+- Conv `3495565e…` (Apr 3): 31 rows, every message exactly doubled with identical `created_at`. Only Joel's manual `Apr 19` reply is single.
+- Edge logs show the double-fire on conv `215474002457693`: both `conversation.admin.assigned` (T+0ms) and `conversation.admin.open.assigned` (T+850ms) hit the function back-to-back.
 
-The Stats page deduplicates Gmail by thread (one row per thread) — but the dedup picks **the latest row** per thread, not the earliest:
+The same lack of message-level idempotency exists in `poll-intercom-inbox` and `backfill-enterprise-inbox`, so polling/backfill races could trigger it too. The webhook is by far the dominant path.
 
-```ts
-// src/pages/Stats.tsx line 247–262
-filteredGmail.forEach((g) => {
-  const key = g.gmail_thread_id || `__orphan_${orphanIdx++}`;
-  const existing = threadMap.get(key);
-  if (!existing) {
-    threadMap.set(key, g);
-  } else {
-    if (newDate > existingDate) threadMap.set(key, g);  // <-- keeps newest
-  }
-});
+The live-append at `intercom-webhook:682` (for `conversation.admin.replied` on already-tracked manual rows) also has no dedup, but the data shows it's not the source of these duplicates — those messages are single.
+
+## Fix
+
+### 1. Make `manual_messages` insertion idempotent in `intercom-webhook` auto-import
+
+In `supabase/functions/intercom-webhook/index.ts` around lines 568–574, before inserting `messages`, fetch existing messages for the (just-upserted) conversation and filter out any whose `(role, message_text, created_at-epoch-second)` already exists. Concretely: re-query `manual_messages` for `conversation_id = inserted.id`, build a set of `${role}|${md5(message_text)}|${epochSec}` keys, drop matches from `messages`, then insert only the remainder. This makes the second concurrent webhook a no-op for messages.
+
+### 2. Same idempotency in `poll-intercom-inbox`
+
+In `supabase/functions/poll-intercom-inbox/index.ts` lines 350–360, mirror the same dedup pattern before inserting `messages`. (Only matters if a poll race ever happens, but cheap insurance.)
+
+### 3. Drop the second assignment topic OR add a per-conversation lock
+
+Cleanest option: remove `conversation.admin.open.assigned` from `ASSIGNMENT_TOPICS`. They fire for the same logical event; one is enough. But this is a defense-in-depth change, not the root fix — keep both topics processable, but rely on the message-level dedup from change #1 to make the second one a no-op.
+
+I'll do the message-level dedup (the actual fix). Skipping the topic-list change unless you want it.
+
+### 4. One-time data cleanup — dedupe existing rows
+
+Delete the 2nd row of every `(conversation_id, role, message_text, created_at-truncated-to-second)` group across `manual_messages`. Keep the row with the lowest `id` (UUID lexicographic — arbitrary but stable). Counts to expect from the survey: ~25+ conversations affected, 50+ duplicate rows deleted.
+
+Concrete SQL:
+```sql
+WITH ranked AS (
+  SELECT id, ROW_NUMBER() OVER (
+    PARTITION BY conversation_id, role, message_text,
+                 date_trunc('second', created_at)
+    ORDER BY id
+  ) AS rn
+  FROM manual_messages
+)
+DELETE FROM manual_messages
+WHERE id IN (SELECT id FROM ranked WHERE rn > 1);
 ```
 
-So the surviving "representative row" for that thread is `2f9cf42f…` with `received_at = 2026-04-20 11:16`. Then every downstream chart that uses `filteredGmailThreads` (volume chart, hourly activity, heatmap, total counts, customer-domain) buckets the thread on Apr 20 instead of Apr 17.
+I'll print the count first (dry-run select), then execute.
 
-### The fix
+### Files
 
-Change the Gmail thread dedup to keep the **earliest** row per thread, so the thread is bucketed by when the conversation actually started. Resolution-time math (`gmailResolutionTimes`, lines 292–311) already uses the earliest message, so this aligns volume bucketing with how we already think about thread start time.
-
-### Concretely
-
-- **Edit `src/pages/Stats.tsx` lines 247–262**: flip the comparator so the dedup keeps the row with the earliest `received_at || created_at`.
-- This is a one-line change (`>` → `<`). Everywhere `filteredGmailThreads` is consumed (volume chart, KPI counters, hourly activity, heatmap, customer-domain) automatically benefits.
-
-### Impact
-
-- This thread (and any other multi-day Gmail thread where a reply landed in a later range bucket) will now show on its origin date — Apr 17 here, not Apr 20.
-- Resolution counts unaffected (uses raw rows, not the deduped one).
-- "Currently active conversations" (uses `status`) unaffected — status is the same on every sibling.
-- KPI "Gmail unique threads" count unaffected — same number of distinct threads, just attributed to the earlier date.
-
-### Update memory
-
-- Update `mem://logic/gmail-thread-dedup` to specify "keep earliest row per thread" (currently it doesn't pin a direction).
+- `supabase/functions/intercom-webhook/index.ts` — add message dedup before insert at line 572.
+- `supabase/functions/poll-intercom-inbox/index.ts` — same dedup at line 358.
+- One SQL cleanup query against `manual_messages`.
+- `.lovable/project-knowledge.md` — note that `manual_messages` inserts must dedupe by `(conversation_id, role, content, second-precision created_at)` because Intercom fires multiple assignment topics per event.
+- `mem://logic/slack-deduplication` (or a new `mem://logic/manual-message-dedup`) — capture the rule.
 
 ### Out of scope
 
-- Changing the underlying schema or backfilling anything — purely a client-side aggregation fix.
-- Touching the resolution-time pipeline (already correct).
+- Changing `live-append` path (line 682) — no evidence it's duplicating today, and adding dedup there is a separate cheap-insurance change you can ask for if you want.
+- Backfill-intercom-replies — already has epoch-based dedup at line 167, no change needed.
+- Trimming `ASSIGNMENT_TOPICS` — keeping both topics is fine once messages are idempotent; lets us survive Intercom firing only one of them.
+
+### Confirm
+
+1. Run the dedupe SQL on `manual_messages` (lossless: only removes exact duplicates within the same second)?
+2. Add message-level idempotency to both `intercom-webhook` auto-import and `poll-intercom-inbox`?
 
