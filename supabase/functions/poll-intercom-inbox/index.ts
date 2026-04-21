@@ -352,11 +352,33 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Insert messages
+      // Insert messages with idempotency dedup against existing rows for this conversation.
+      // Guards against poll/webhook races inserting the same message twice.
       const messages = preMessages.map(m => ({ ...m, conversation_id: inserted.id }));
       if (messages.length > 0) {
-        const { error: msgErr } = await supabase.from("manual_messages").insert(messages);
-        if (msgErr) console.error(`Messages insert error for ${intercomConvId}:`, msgErr);
+        const { data: existingMsgs } = await supabase
+          .from("manual_messages")
+          .select("role, message_text, created_at")
+          .eq("conversation_id", inserted.id);
+
+        const seenKeys = new Set<string>(
+          (existingMsgs || []).map(m =>
+            `${m.role}|${Math.floor(new Date(m.created_at).getTime() / 1000)}|${m.message_text}`
+          )
+        );
+
+        const fresh = messages.filter(m => {
+          const key = `${m.role}|${Math.floor(new Date(m.created_at).getTime() / 1000)}|${m.message_text}`;
+          if (seenKeys.has(key)) return false;
+          seenKeys.add(key);
+          return true;
+        });
+
+        if (fresh.length > 0) {
+          const { error: msgErr } = await supabase.from("manual_messages").insert(fresh);
+          if (msgErr) console.error(`Messages insert error for ${intercomConvId}:`, msgErr);
+        }
+        console.log(`Poll dedup for ${intercomConvId}: ${messages.length} extracted, ${fresh.length} new, ${messages.length - fresh.length} skipped`);
       }
 
       console.log(`Imported Intercom ${intercomConvId} as ${inserted.id} with ${messages.length} messages`);
