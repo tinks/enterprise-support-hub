@@ -78,10 +78,20 @@ interface ManualConversation {
 
 type SourceFilter = "all" | "slack" | "slack_import" | "gmail" | "manual" | "intercom";
 
+interface PendingIntercomLink {
+  id: string;
+  intercom_conversation_id: string;
+  normalized_subject: string;
+  intercom_created_at: string;
+  contact_name: string | null;
+  contact_email: string | null;
+}
+
 type UnifiedRow =
   | { source: "slack"; data: ConversationMapping; sortDate: string; groupedEmails?: undefined; groupCount?: undefined }
   | { source: "gmail"; data: GmailConversation; sortDate: string; groupedEmails?: GmailConversation[]; groupCount?: number; groupKey?: string }
-  | { source: "manual"; data: ManualConversation; sortDate: string; groupedEmails?: undefined; groupCount?: undefined };
+  | { source: "manual"; data: ManualConversation; sortDate: string; groupedEmails?: undefined; groupCount?: undefined }
+  | { source: "pending"; data: PendingIntercomLink; sortDate: string; groupedEmails?: undefined; groupCount?: undefined };
 
 const normalizeSubject = (subject: string | null): string => {
   if (!subject) return "";
