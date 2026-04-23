@@ -78,10 +78,20 @@ interface ManualConversation {
 
 type SourceFilter = "all" | "slack" | "slack_import" | "gmail" | "manual" | "intercom";
 
+interface PendingIntercomLink {
+  id: string;
+  intercom_conversation_id: string;
+  normalized_subject: string;
+  intercom_created_at: string;
+  contact_name: string | null;
+  contact_email: string | null;
+}
+
 type UnifiedRow =
   | { source: "slack"; data: ConversationMapping; sortDate: string; groupedEmails?: undefined; groupCount?: undefined }
   | { source: "gmail"; data: GmailConversation; sortDate: string; groupedEmails?: GmailConversation[]; groupCount?: number; groupKey?: string }
-  | { source: "manual"; data: ManualConversation; sortDate: string; groupedEmails?: undefined; groupCount?: undefined };
+  | { source: "manual"; data: ManualConversation; sortDate: string; groupedEmails?: undefined; groupCount?: undefined }
+  | { source: "pending"; data: PendingIntercomLink; sortDate: string; groupedEmails?: undefined; groupCount?: undefined };
 
 const normalizeSubject = (subject: string | null): string => {
   if (!subject) return "";
@@ -223,7 +233,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const savedClassFilter = localStorage.getItem("conv-class-filter");
   const [classificationFilter, setClassificationFilter] = useState<string>(savedClassFilter || "all");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [searchResults, setSearchResults] = useState<{ slack: ConversationMapping[]; gmail: GmailConversation[]; manual: ManualConversation[] } | null>(null);
+  const [searchResults, setSearchResults] = useState<{ slack: ConversationMapping[]; gmail: GmailConversation[]; manual: ManualConversation[]; pending: PendingIntercomLink[] } | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
@@ -768,19 +778,22 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       const slackIds: string[] = [];
       const gmailIds: string[] = [];
       const manualIds: string[] = [];
+      const pendingIds: string[] = [];
       for (const h of (hits ?? []) as { result_id: string; result_source: string }[]) {
         if (h.result_source === "slack") slackIds.push(h.result_id);
         else if (h.result_source === "gmail") gmailIds.push(h.result_id);
         else if (h.result_source === "manual") manualIds.push(h.result_id);
+        else if (h.result_source === "pending") pendingIds.push(h.result_id);
       }
 
       // Deduplicate
       const uniqSlack = [...new Set(slackIds)];
       const uniqGmail = [...new Set(gmailIds)];
       const uniqManual = [...new Set(manualIds)];
+      const uniqPending = [...new Set(pendingIds)];
 
       // Step 2: Fetch full rows for matching IDs (respecting source filter)
-      const [slackRes, gmailRes, manualRes] = await Promise.all([
+      const [slackRes, gmailRes, manualRes, pendingRes] = await Promise.all([
         (sourceFilter === "all" || sourceFilter === "slack" || sourceFilter === "slack_import") && uniqSlack.length > 0
           ? supabase.from("conversation_mappings").select("*").in("id", uniqSlack).order("created_at", { ascending: false })
           : Promise.resolve({ data: [] }),
@@ -790,12 +803,16 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         (sourceFilter === "all" || sourceFilter === "manual" || sourceFilter === "intercom") && uniqManual.length > 0
           ? supabase.from("manual_conversations").select("*").in("id", uniqManual).order("created_at", { ascending: false })
           : Promise.resolve({ data: [] }),
+        uniqPending.length > 0
+          ? supabase.from("pending_intercom_links").select("id,intercom_conversation_id,normalized_subject,intercom_created_at,contact_name,contact_email").in("id", uniqPending).order("intercom_created_at", { ascending: false })
+          : Promise.resolve({ data: [] }),
       ]);
 
       setSearchResults({
         slack: (slackRes.data ?? []) as unknown as ConversationMapping[],
         gmail: (gmailRes.data ?? []) as unknown as GmailConversation[],
         manual: (manualRes.data ?? []) as unknown as ManualConversation[],
+        pending: (pendingRes.data ?? []) as unknown as PendingIntercomLink[],
       });
       setSearchLoading(false);
     };
@@ -847,8 +864,11 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         rows.push({ source: "manual", data: mc, sortDate: mc.created_at });
       }
     }
-
-    rows.sort((a, b) => new Date(b.sortDate).getTime() - new Date(a.sortDate).getTime());
+    if (searchResults && searchResults.pending.length > 0) {
+      for (const p of searchResults.pending) {
+        rows.push({ source: "pending", data: p, sortDate: p.intercom_created_at });
+      }
+    }
 
     // Apply heatmap filter from query params
     if (paramDay !== null && paramHour !== null) {
@@ -927,6 +947,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     if (!searchResults && !paramManualChannel) {
       const filtered = hiddenStatuses.size > 0
         ? classFiltered.filter((r) => {
+            if (r.source === "pending") return true;
             if (hiddenStatuses.has("test") && r.data.is_test) return false;
             if (hiddenStatuses.has(r.data.status)) return false;
             return true;
@@ -1676,7 +1697,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="Search…"
+                  placeholder="Search messages, names, emails, Intercom ID…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="h-9 w-[50vw] max-w-[600px] pl-8 text-sm"
@@ -1796,8 +1817,43 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "op
                             ))}
                           </Fragment>
                         );
+                      } else if (row.source === "pending") {
+                        const p = row.data;
+                        return (
+                          <TableRow
+                            key={`pending-${p.id}`}
+                            className="hover:bg-muted/50 transition-colors border-l-[3px] border-amber-500/70 bg-amber-50/30"
+                          >
+                            <TableCell colSpan={columnOrder.length} className="py-3">
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                                <Badge variant="outline" className="border-amber-500 text-amber-700">Pending (Intercom)</Badge>
+                                <span className="font-medium">{p.normalized_subject || "(no subject)"}</span>
+                                {(p.contact_name || p.contact_email) && (
+                                  <span className="text-muted-foreground">
+                                    {p.contact_name}{p.contact_name && p.contact_email ? " · " : ""}{p.contact_email}
+                                  </span>
+                                )}
+                                <span className="text-xs text-muted-foreground">
+                                  {format(new Date(p.intercom_created_at), "MMM d, HH:mm")}
+                                </span>
+                                <a
+                                  href={`https://app.intercom.com/a/inbox/_/inbox/conversation/${p.intercom_conversation_id}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 text-primary hover:underline"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  Intercom <ExternalLink className="h-3 w-3" />
+                                </a>
+                                <span className="text-xs text-muted-foreground italic ml-auto">
+                                  Awaiting Gmail match — auto-promotes within 20 min
+                                </span>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
                       } else {
-                        const mc = row.data;
+                        const mc = row.data as ManualConversation;
                         return (
                           <TableRow
                             key={`manual-${mc.id}`}
