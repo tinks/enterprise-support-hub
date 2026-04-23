@@ -920,28 +920,33 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       });
     }
 
-    // Apply owner filter
-    const ownerFiltered = ownerFilter === "all"
-      ? channelScoped
-      : channelScoped.filter((r) => {
-          const o = (r.data as any).owner as string | null;
-          if (ownerFilter === "unassigned") return !o;
-          return o === ownerFilter;
-        });
+    // Sidebar filters (owner / product area / classification) only apply when NOT searching.
+    // During an explicit search, show every match the RPC returned regardless of sidebar chips.
+    let classFiltered = channelScoped;
+    if (!searchResults) {
+      // Apply owner filter
+      const ownerFiltered = ownerFilter === "all"
+        ? channelScoped
+        : channelScoped.filter((r) => {
+            const o = (r.data as any).owner as string | null;
+            if (ownerFilter === "unassigned") return !o;
+            return o === ownerFilter;
+          });
 
-    // Apply product area filter
-    const paFiltered = productAreaFilter === "all"
-      ? ownerFiltered
-      : productAreaFilter === "unassigned"
-        ? ownerFiltered.filter((r) => !(r.data as any).product_area)
-        : ownerFiltered.filter((r) => (r.data as any).product_area === productAreaFilter);
+      // Apply product area filter
+      const paFiltered = productAreaFilter === "all"
+        ? ownerFiltered
+        : productAreaFilter === "unassigned"
+          ? ownerFiltered.filter((r) => !(r.data as any).product_area)
+          : ownerFiltered.filter((r) => (r.data as any).product_area === productAreaFilter);
 
-    // Apply classification filter
-    const classFiltered = classificationFilter === "all"
-      ? paFiltered
-      : classificationFilter === "unassigned"
-        ? paFiltered.filter((r) => !(r.data as any).classification)
-        : paFiltered.filter((r) => (r.data as any).classification === classificationFilter);
+      // Apply classification filter
+      classFiltered = classificationFilter === "all"
+        ? paFiltered
+        : classificationFilter === "unassigned"
+          ? paFiltered.filter((r) => !(r.data as any).classification)
+          : paFiltered.filter((r) => (r.data as any).classification === classificationFilter);
+    }
 
     // Apply status filter (skip when searching — show all matches)
     if (!searchResults && !paramManualChannel) {
