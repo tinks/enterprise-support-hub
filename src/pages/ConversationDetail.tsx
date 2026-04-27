@@ -978,8 +978,8 @@ const ConversationDetail = () => {
     const { error } = await supabase.from(table).update(updates as any).eq("id", current.id);
     if (error) { toast.error("Failed to update date"); return; }
     if (source === "slack" && conv) setConv({ ...conv, ...updates } as ConversationMapping);
-    else if (source === "gmail" && gmailConv) setGmailConv({ ...gmailConv, ...updates } as GmailConversation);
-    else if (source === "manual" && manualConv) setManualConv({ ...manualConv, ...updates } as ManualConversation);
+    else if (source === "gmail" && gmailConv) setGmailConv({ ...gmailConv, ...updates } as GmailConv);
+    else if (source === "manual" && manualConv) setManualConv({ ...manualConv, ...updates } as ManualConv);
     const oldLabel = oldRaw ? new Date(oldRaw).toLocaleString() : "(unset)";
     await logAudit(`updated_${field}`, oldLabel, newDate.toLocaleString());
     toast.success(field === "resolved_at" ? "Resolution time updated" : "Date updated");
@@ -994,8 +994,8 @@ const ConversationDetail = () => {
     const { error } = await supabase.from(table).update(updates as any).eq("id", current.id);
     if (error) { toast.error("Failed to clear resolution"); return; }
     if (source === "slack" && conv) setConv({ ...conv, ...updates } as ConversationMapping);
-    else if (source === "gmail" && gmailConv) setGmailConv({ ...gmailConv, ...updates } as GmailConversation);
-    else if (source === "manual" && manualConv) setManualConv({ ...manualConv, ...updates } as ManualConversation);
+    else if (source === "gmail" && gmailConv) setGmailConv({ ...gmailConv, ...updates } as GmailConv);
+    else if (source === "manual" && manualConv) setManualConv({ ...manualConv, ...updates } as ManualConv);
     await logAudit("updated_resolved_at", new Date(current.resolved_at).toLocaleString(), "(cleared)");
     toast.success("Resolution cleared");
   };
