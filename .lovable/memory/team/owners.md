@@ -5,6 +5,8 @@ type: feature
 ---
 Canonical owner options across UI: Joel, Kristina, Sam (AI agent), CSM, Eren.
 
+Known teammate emails (recorded in `src/lib/parseThread.ts` `ADMIN_OPTIONS`): Eren = `eren@lovable.dev`. Slack user ID and Intercom admin ID for Eren are not yet known.
+
 Eren is a contractor scoped to SSO/SCIM work. Tracked in the unified Inbox like any other owner — filter by `Owner = Eren` (optionally combined with `Product area = SSO` or `SCIM`) to see his work. No separate tables, page, or analytics path.
 
 To add a new owner:
