@@ -625,6 +625,7 @@ export default function TestChannelReview() {
                     <SelectItem value="Kristina">Kristina</SelectItem>
                     <SelectItem value="Sam">Sam</SelectItem>
                     <SelectItem value="CSM">CSM</SelectItem>
+                    <SelectItem value="Eren">Eren</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
