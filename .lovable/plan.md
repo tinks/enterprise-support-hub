@@ -1,46 +1,47 @@
 ## Goal
 
-Wire `eren@lovable.dev` into the only place teammate emails are meaningful in this codebase: the teammate roster used to attribute pasted Slack-thread messages.
+Let users **manually backdate the resolution time** of any conversation from the detail page, so analytics reflect when the work actually wrapped up — not when someone remembered to click "Resolve".
 
-## Honest finding
+## Where this lives
 
-I checked everywhere teammate identity is referenced. The app does **not** use teammate emails for routing, notifications, or auto-assignment:
+The Conversation detail page (`/conversations/:id`) already has a Timeline card on the right rail with editable `Created` dates (uses `EditableDateCell` + `handleDateChange`). I'll extend that same pattern to `Resolved`.
 
-- **Intercom auto-assignment** is keyed by Intercom admin ID (set in Settings → Admin → owner mapping). Eren's email doesn't help here — you'll need his Intercom admin ID once he's added as an Intercom teammate.
-- **Slack group-DM notifications on new tickets** use hardcoded Slack user IDs (`slack-interactions/index.ts:422`). Adding Eren here requires his Slack user ID, not his email. Also, you may not want every new SSO/SCIM ticket pinging him.
-- **Owner display name** (`"Eren"`) is already wired everywhere from the previous step.
-- **Authentication / login** is handled by workspace SSO — adding Eren's email here is a workspace-admin action, not a code change.
+## Changes — `src/pages/ConversationDetail.tsx`
 
-The only code location where an email is genuinely useful is `src/lib/parseThread.ts`, the teammate roster used by paste-thread import to distinguish admin replies from user replies.
+### 1. Make the Resolved row always visible and editable
 
-## Change
+Currently the "Resolved" row only renders when `resolved_at` is set, and is read-only. Update `renderDates()` so:
 
-### `src/lib/parseThread.ts`
+- For all three sources (slack / gmail / manual) the Timeline always includes a **Resolved** row.
+- When `resolved_at` is set → editable date cell (same UX as Created).
+- When `resolved_at` is null → a small "Set resolved time" button that opens the same date picker.
+- Add the missing `resolved_at` push for the `manual` branch (it was never rendered, even when set).
 
-Add Eren to `ADMIN_OPTIONS` with his email; make `slackId` and `email` both optional in the type so we can record what we know without inventing missing IDs.
+### 2. Generalize `handleDateChange` to handle either field
 
-```ts
-export const ADMIN_OPTIONS: Array<{ name: string; slackId?: string; email?: string }> = [
-  { name: "Joel Samuelson", slackId: "U091GANMA2U" },
-  { name: "Kristina Bodurova", slackId: "U0AFU714807" },
-  { name: "Eren",            email: "eren@lovable.dev" },
-];
-```
+Take a `field: "created_at" | "resolved_at"` argument. The existing `created_at` callsite stays the same; the new resolved-cell calls it with `"resolved_at"`.
 
-`ADMIN_NAMES` (derived from `name`) continues to work unchanged. When you have Eren's Slack user ID, add it to the same row.
+### 3. Auto-flip status to `resolved` when a resolved date is set
 
-### Memory update
+If the user picks a resolved date and `status !== "resolved"`, also update `status = "resolved"` in the same write. This is the whole point — backdating closes the ticket so it stops being counted as open.
 
-Append Eren's email to `mem://team/owners` so future agent runs know it without re-asking.
+If the user **clears** the resolved date (separate "Clear" button on the editable cell when set), revert `status` back to a sensible value: `active` for slack/manual, `open` for gmail (matches existing reset logic in `updateStatus`).
 
-## What I'm explicitly NOT doing (and why)
+### 4. Audit + toast + optimistic update
 
-- **Not** adding Eren to the new-ticket Slack DM notifier in `slack-interactions/index.ts`. That fires on every new enterprise ticket; he should only see SSO/SCIM ones. If you want him notified for SSO/SCIM specifically, that's a separate filtered-notifier feature — call it out and I'll build it.
-- **Not** touching `settings.admin_owner_map` from code. That's runtime config you'll fill in via Settings UI once Eren has an Intercom admin ID.
-- **Not** inventing a Slack user ID for Eren. If you share it, I'll add it to `parseThread.ts` in one line.
+Audit log entry: `"updated_resolved_at"` with old → new (or `"cleared"`). Toast: "Resolution time updated". Optimistic local state update so the UI reflects immediately (mirrors `handleDateChange` for created_at).
 
-## Follow-ups you may want
+### 5. Minor: extend `EditableDateCell` with an optional Clear button
 
-1. Once Eren is in Intercom: add `<his admin ID> → Eren` in Settings → Admin → owner mapping.
-2. Send me his Slack user ID so paste-thread import can attribute his Slack messages by ID rather than name match.
-3. Decide whether SSO/SCIM tickets should DM him on creation (separate task).
+Add an optional `onClear?: () => void` prop. When present, render a small "Clear" link next to the time input inside the popover. Used only by the Resolved cell, not Created.
+
+## What's intentionally NOT changing
+
+- **Inbox table** — no inline resolved-date editor in the table; this stays a detail-page action to avoid accidental clicks (and there's no good column for it). The existing "mark resolved" status dropdown still works for "I'm closing this right now."
+- **Analytics math** — `Stats.tsx` already computes resolution time as `resolved_at - created_at`. No formula changes; just better data flowing in.
+- **Sync to Intercom/Gmail/Slack** — manually setting a resolved time is **local only** and does not close the upstream Intercom conversation, Gmail thread, or Slack mapping. Closing upstream is a different action with side effects (Slack reactions, Intercom assignee credit, etc.) and would surprise users. I'll add a small inline note under the picker: *"Local resolution time only — does not close the ticket in Intercom."*
+- **Bulk backdating** — out of scope; ask if you want it later.
+
+## Memory
+
+Add a short note to `mem://logic/resolution-sync` (or a sibling) recording that resolved_at is now manually editable on the detail page, that it auto-flips status to resolved, and that it is intentionally local-only (no upstream close).
