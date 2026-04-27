@@ -1,60 +1,46 @@
 ## Goal
 
-Track Eren's SSO/SCIM contractor work inside the existing Inbox — no separate tables, no separate page. Eren becomes a regular owner alongside Joel, Kristina, Sam, and CSM.
+Wire `eren@lovable.dev` into the only place teammate emails are meaningful in this codebase: the teammate roster used to attribute pasted Slack-thread messages.
 
-## Why this fits
+## Honest finding
 
-The system already models "who is handling a ticket" as a free-text `owner` column on `conversation_mappings`, `gmail_conversations`, and `manual_conversations`. Owner is also auto-resolved from Intercom assignment events via the `admin_owner_map` in settings (Intercom admin ID → owner name). All analytics, filters, and dashboards read from that one column. Adding Eren as an owner means his work shows up in:
+I checked everywhere teammate identity is referenced. The app does **not** use teammate emails for routing, notifications, or auto-assignment:
 
-- Inbox owner filter and per-row owner dropdown
-- Stats "Conversations by owner" chart
-- Sidebar "My" dashboard (`/my/eren`)
-- Conversation detail owner picker
-- Bulk import owner mapping
-- Auto-assignment from Intercom (once his admin ID is mapped)
+- **Intercom auto-assignment** is keyed by Intercom admin ID (set in Settings → Admin → owner mapping). Eren's email doesn't help here — you'll need his Intercom admin ID once he's added as an Intercom teammate.
+- **Slack group-DM notifications on new tickets** use hardcoded Slack user IDs (`slack-interactions/index.ts:422`). Adding Eren here requires his Slack user ID, not his email. Also, you may not want every new SSO/SCIM ticket pinging him.
+- **Owner display name** (`"Eren"`) is already wired everywhere from the previous step.
+- **Authentication / login** is handled by workspace SSO — adding Eren's email here is a workspace-admin action, not a code change.
 
-Filtering by `Owner = Eren` + `Product area = SSO` or `SCIM` gives you a clean view of just his work without isolating it from the rest.
+The only code location where an email is genuinely useful is `src/lib/parseThread.ts`, the teammate roster used by paste-thread import to distinguish admin replies from user replies.
 
-## Changes
+## Change
 
-### 1. Add Eren to the hardcoded owner option lists
+### `src/lib/parseThread.ts`
 
-Four files reference the closed list `["Joel", "Kristina", "Sam", "CSM"]`. Add `"Eren"` to each:
+Add Eren to `ADMIN_OPTIONS` with his email; make `slackId` and `email` both optional in the type so we can record what we know without inventing missing IDs.
 
-- `src/pages/Conversations.tsx` — `OwnerFilter` type and `OWNER_OPTIONS`
-- `src/pages/ConversationDetail.tsx` — `OWNER_OPTIONS`
-- `src/pages/TestChannelReview.tsx` — `<SelectItem>` list
-- `src/pages/BulkImportReview.tsx` — `mapOwner` lookup table (add `"eren": "Eren"` and any name variants)
+```ts
+export const ADMIN_OPTIONS: Array<{ name: string; slackId?: string; email?: string }> = [
+  { name: "Joel Samuelson", slackId: "U091GANMA2U" },
+  { name: "Kristina Bodurova", slackId: "U0AFU714807" },
+  { name: "Eren",            email: "eren@lovable.dev" },
+];
+```
 
-### 2. Add Eren to the sidebar "My" dashboards
+`ADMIN_NAMES` (derived from `name`) continues to work unchanged. When you have Eren's Slack user ID, add it to the same row.
 
-`src/components/AppLayout.tsx` — append `{ to: "/my/eren", label: "Eren" }` next to Joel and Kristina. The `/my/:owner` route already renders generically via `OwnerDashboard.tsx`, so no new page needed.
+### Memory update
 
-### 3. Map Eren's Intercom admin ID for auto-owner assignment
+Append Eren's email to `mem://team/owners` so future agent runs know it without re-asking.
 
-This is a runtime configuration step, not a code change. After Eren is added as an Intercom teammate:
+## What I'm explicitly NOT doing (and why)
 
-- Open Settings → Admin → owner mapping card
-- Add a row: `{Eren's Intercom admin ID} → Eren`
-- Save
+- **Not** adding Eren to the new-ticket Slack DM notifier in `slack-interactions/index.ts`. That fires on every new enterprise ticket; he should only see SSO/SCIM ones. If you want him notified for SSO/SCIM specifically, that's a separate filtered-notifier feature — call it out and I'll build it.
+- **Not** touching `settings.admin_owner_map` from code. That's runtime config you'll fill in via Settings UI once Eren has an Intercom admin ID.
+- **Not** inventing a Slack user ID for Eren. If you share it, I'll add it to `parseThread.ts` in one line.
 
-From then on, any Intercom conversation assigned to Eren is auto-tagged `owner = Eren` by `intercom-webhook` and `poll-intercom-inbox` — same path Joel and Kristina already use.
+## Follow-ups you may want
 
-### 4. (Optional) Pre-populate SSO/SCIM scope
-
-Confirm `SSO` and `SCIM` already exist in `settings.product_areas` (default seed includes both). Nothing to change unless they were removed.
-
-### 5. Documentation
-
-Update `.lovable/project-knowledge.md` and the Flow page owner-list comments to mention Eren as a contractor owner for SSO/SCIM. Add a memory note recording that Eren is a contractor scoped to SSO/SCIM.
-
-## Why not separate tracking
-
-- A separate table or page would fork analytics, audit logs, status automation, owner auto-assignment, and the Intercom/Slack/Gmail dedup logic — all of which currently key off the unified `owner` field.
-- "Contractor vs. employee" is a property of the person, not the ticket. If you later want to distinguish them in reports, the cleaner add-on is a small `owner_metadata` table (`owner_name`, `role`, `active`) — but that's only worth doing if you hire more contractors. For one person, the owner string is enough.
-
-## Out of scope
-
-- Building a contractor-vs-employee toggle or separate role table (revisit if you add more contractors).
-- Restricting Eren's RLS access — current auth model treats all signed-in teammates equally; changing that is a much larger task.
-- Auto-routing SSO/SCIM tickets to Eren in Intercom (would need a workflow rule on Intercom's side, not in this app).
+1. Once Eren is in Intercom: add `<his admin ID> → Eren` in Settings → Admin → owner mapping.
+2. Send me his Slack user ID so paste-thread import can attribute his Slack messages by ID rather than name match.
+3. Decide whether SSO/SCIM tickets should DM him on creation (separate task).
