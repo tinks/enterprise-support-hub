@@ -916,36 +916,87 @@ const ConversationDetail = () => {
     return links;
   };
 
+  type DateRow = { label: string; value: string; editable?: boolean; raw?: string; field?: "created_at" | "resolved_at"; clearable?: boolean; placeholder?: boolean };
   const renderDates = () => {
-    const dates: { label: string; value: string; editable?: boolean; raw?: string }[] = [];
+    const dates: DateRow[] = [];
     if (source === "gmail" && gmailConv) {
       if (gmailConv.received_at) dates.push({ label: "Received", value: new Date(gmailConv.received_at).toLocaleString() });
-      dates.push({ label: "Created", value: new Date(gmailConv.created_at).toLocaleString(), editable: true, raw: gmailConv.created_at });
-      if (gmailConv.resolved_at) dates.push({ label: "Resolved", value: new Date(gmailConv.resolved_at).toLocaleString() });
+      dates.push({ label: "Created", value: new Date(gmailConv.created_at).toLocaleString(), editable: true, raw: gmailConv.created_at, field: "created_at" });
+      dates.push({
+        label: "Resolved",
+        value: gmailConv.resolved_at ? new Date(gmailConv.resolved_at).toLocaleString() : "Not set",
+        editable: true,
+        raw: gmailConv.resolved_at ?? new Date().toISOString(),
+        field: "resolved_at",
+        clearable: !!gmailConv.resolved_at,
+        placeholder: !gmailConv.resolved_at,
+      });
     } else if (source === "manual" && manualConv) {
-      dates.push({ label: "Created", value: new Date(manualConv.created_at).toLocaleString(), editable: true, raw: manualConv.created_at });
+      dates.push({ label: "Created", value: new Date(manualConv.created_at).toLocaleString(), editable: true, raw: manualConv.created_at, field: "created_at" });
       dates.push({ label: "Updated", value: new Date(manualConv.updated_at).toLocaleString() });
+      dates.push({
+        label: "Resolved",
+        value: manualConv.resolved_at ? new Date(manualConv.resolved_at).toLocaleString() : "Not set",
+        editable: true,
+        raw: manualConv.resolved_at ?? new Date().toISOString(),
+        field: "resolved_at",
+        clearable: !!manualConv.resolved_at,
+        placeholder: !manualConv.resolved_at,
+      });
     } else if (conv) {
-      dates.push({ label: "Created", value: new Date(conv.created_at).toLocaleString(), editable: true, raw: conv.created_at });
+      dates.push({ label: "Created", value: new Date(conv.created_at).toLocaleString(), editable: true, raw: conv.created_at, field: "created_at" });
       dates.push({ label: "Updated", value: new Date(conv.updated_at).toLocaleString() });
-      if (conv.resolved_at) dates.push({ label: "Resolved", value: new Date(conv.resolved_at).toLocaleString() });
+      dates.push({
+        label: "Resolved",
+        value: conv.resolved_at ? new Date(conv.resolved_at).toLocaleString() : "Not set",
+        editable: true,
+        raw: conv.resolved_at ?? new Date().toISOString(),
+        field: "resolved_at",
+        clearable: !!conv.resolved_at,
+        placeholder: !conv.resolved_at,
+      });
       if (conv.reminder_sent_at) dates.push({ label: "Reminder", value: new Date(conv.reminder_sent_at).toLocaleString() });
     }
     return dates;
   };
 
-  const handleDateChange = async (oldRaw: string, newDate: Date) => {
+  const handleDateChange = async (
+    field: "created_at" | "resolved_at",
+    oldRaw: string | null,
+    newDate: Date,
+  ) => {
     const current = conv || gmailConv || manualConv;
     if (!current) return;
     const table = source === "slack" ? "conversation_mappings" : source === "gmail" ? "gmail_conversations" : "manual_conversations";
     const newIso = newDate.toISOString();
-    const { error } = await supabase.from(table).update({ created_at: newIso } as any).eq("id", current.id);
+    const updates: Record<string, any> = { [field]: newIso };
+    // When backdating resolution, also flip status to resolved so analytics counts it.
+    if (field === "resolved_at" && current.status !== "resolved") {
+      updates.status = "resolved";
+    }
+    const { error } = await supabase.from(table).update(updates as any).eq("id", current.id);
     if (error) { toast.error("Failed to update date"); return; }
-    if (source === "slack" && conv) setConv({ ...conv, created_at: newIso });
-    else if (source === "gmail" && gmailConv) setGmailConv({ ...gmailConv, created_at: newIso });
-    else if (source === "manual" && manualConv) setManualConv({ ...manualConv, created_at: newIso });
-    await logAudit("updated_created_at", new Date(oldRaw).toLocaleString(), newDate.toLocaleString());
-    toast.success("Date updated");
+    if (source === "slack" && conv) setConv({ ...conv, ...updates } as ConversationMapping);
+    else if (source === "gmail" && gmailConv) setGmailConv({ ...gmailConv, ...updates } as GmailConversation);
+    else if (source === "manual" && manualConv) setManualConv({ ...manualConv, ...updates } as ManualConversation);
+    const oldLabel = oldRaw ? new Date(oldRaw).toLocaleString() : "(unset)";
+    await logAudit(`updated_${field}`, oldLabel, newDate.toLocaleString());
+    toast.success(field === "resolved_at" ? "Resolution time updated" : "Date updated");
+  };
+
+  const handleClearResolved = async () => {
+    const current = conv || gmailConv || manualConv;
+    if (!current || !current.resolved_at) return;
+    const table = source === "slack" ? "conversation_mappings" : source === "gmail" ? "gmail_conversations" : "manual_conversations";
+    const reopenStatus = source === "gmail" ? "open" : "active";
+    const updates: Record<string, any> = { resolved_at: null, status: reopenStatus };
+    const { error } = await supabase.from(table).update(updates as any).eq("id", current.id);
+    if (error) { toast.error("Failed to clear resolution"); return; }
+    if (source === "slack" && conv) setConv({ ...conv, ...updates } as ConversationMapping);
+    else if (source === "gmail" && gmailConv) setGmailConv({ ...gmailConv, ...updates } as GmailConversation);
+    else if (source === "manual" && manualConv) setManualConv({ ...manualConv, ...updates } as ManualConversation);
+    await logAudit("updated_resolved_at", new Date(current.resolved_at).toLocaleString(), "(cleared)");
+    toast.success("Resolution cleared");
   };
 
   return (
