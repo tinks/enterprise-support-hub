@@ -2,6 +2,7 @@ export const ADMIN_OPTIONS: Array<{ name: string; slackId?: string; email?: stri
   { name: "Joel Samuelson", slackId: "U091GANMA2U" },
   { name: "Kristina Bodurova", slackId: "U0AFU714807" },
   { name: "Eren", email: "eren@lovable.dev" },
+  { name: "Tine" },
 ];
 
 export const ADMIN_NAMES = ADMIN_OPTIONS.map((a) => a.name.toLowerCase());

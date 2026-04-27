@@ -146,8 +146,8 @@ const STATUS_OPTIONS = ["open", "active", "resolved", "cancelled", "escalated", 
 const ALL_COLUMNS = ["id", "date", "channel", "message", "status", "owner", "product_area", "sent_by", "classification", "source", "link", "intercom", "test", "resolved", "bug"] as const;
 type ColKey = typeof ALL_COLUMNS[number];
 
-type OwnerFilter = "all" | "Joel" | "Kristina" | "Sam" | "CSM" | "Eren" | "unassigned";
-const OWNER_OPTIONS = ["Joel", "Kristina", "Sam", "CSM", "Eren"] as const;
+type OwnerFilter = "all" | "Joel" | "Kristina" | "Sam" | "CSM" | "Eren" | "Tine" | "unassigned";
+const OWNER_OPTIONS = ["Joel", "Kristina", "Sam", "CSM", "Eren", "Tine"] as const;
 
 const ColumnFilter = ({ value, options, onChange, label }: { value: string; options: string[]; onChange: (v: string) => void; label: string }) => (
   <Popover>

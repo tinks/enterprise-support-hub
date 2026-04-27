@@ -106,6 +106,7 @@ const OWNER_MAP: Record<string, string> = {
   "kristina": "Kristina",
   joel: "Joel",
   eren: "Eren",
+  tine: "Tine",
 };
 
 function mapOwner(teammate: string): string | null {

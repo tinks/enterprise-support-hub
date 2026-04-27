@@ -3,9 +3,9 @@ name: Owners
 description: Canonical owner list, contractor scope, and how to add new owners
 type: feature
 ---
-Canonical owner options across UI: Joel, Kristina, Sam (AI agent), CSM, Eren.
+Canonical owner options across UI: Joel, Kristina, Sam (AI agent), CSM, Eren, Tine.
 
-Known teammate emails (recorded in `src/lib/parseThread.ts` `ADMIN_OPTIONS`): Eren = `eren@lovable.dev`. Slack user ID and Intercom admin ID for Eren are not yet known.
+Known teammate emails (recorded in `src/lib/parseThread.ts` `ADMIN_OPTIONS`): Eren = `eren@lovable.dev`. Slack user ID and Intercom admin ID for Eren are not yet known. Tine has no email, Slack user ID, or Intercom admin ID recorded yet.
 
 Eren is a contractor scoped to SSO/SCIM work. Tracked in the unified Inbox like any other owner — filter by `Owner = Eren` (optionally combined with `Product area = SSO` or `SCIM`) to see his work. No separate tables, page, or analytics path.
 
