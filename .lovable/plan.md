@@ -1,30 +1,60 @@
-## April 2026 Intercom coverage check
+## Goal
 
-I queried Intercom directly for the enterprise inbox (`team_assignee_id = 8484447`) for the window **2026-04-01 → 2026-04-28 (today)** and compared against everything tracked locally (`manual_conversations`, `conversation_mappings`, `gmail_conversations` with a non-null `intercom_conversation_id`).
+Track Eren's SSO/SCIM contractor work inside the existing Inbox — no separate tables, no separate page. Eren becomes a regular owner alongside Joel, Kristina, Sam, and CSM.
 
-| Source | April count |
-|---|---|
-| Currently in Intercom enterprise inbox | **163** |
-| Tracked locally with an Intercom ID (created in April) | 376 |
-| **Of the 163 inbox tickets — missing locally** | **3** |
+## Why this fits
 
-The 376 > 163 is expected: many April tickets were tracked while in the enterprise inbox and have since been reassigned/closed and moved out. The relevant gap is the **3 tickets currently sitting in the enterprise inbox that we never picked up**:
+The system already models "who is handling a ticket" as a free-text `owner` column on `conversation_mappings`, `gmail_conversations`, and `manual_conversations`. Owner is also auto-resolved from Intercom assignment events via the `admin_owner_map` in settings (Intercom admin ID → owner name). All analytics, filters, and dashboards read from that one column. Adding Eren as an owner means his work shows up in:
 
-- `215473994501379`
-- `215473922409590`
-- `215473738186057`
+- Inbox owner filter and per-row owner dropdown
+- Stats "Conversations by owner" chart
+- Sidebar "My" dashboard (`/my/eren`)
+- Conversation detail owner picker
+- Bulk import owner mapping
+- Auto-assignment from Intercom (once his admin ID is mapped)
 
-## What I'll do
+Filtering by `Owner = Eren` + `Product area = SSO` or `SCIM` gives you a clean view of just his work without isolating it from the rest.
 
-Run the existing `backfill-enterprise-inbox` edge function scoped to April 2026 (`createdAfter = 1775001600`, `createdBefore = 1777334400`). That function:
+## Changes
 
-- Pages through `team_assignee_id = 8484447` for the time window
-- Skips anything already in `manual_conversations`, `conversation_mappings`, or `gmail_conversations`
-- Links to an existing Gmail thread by contact email when possible, otherwise inserts a `manual_conversations` row (`source: intercom`) with all messages, correct earliest-message `created_at`, owner via `admin_owner_map`, and resolved status if closed
+### 1. Add Eren to the hardcoded owner option lists
 
-I'll loop the function with its returned `nextStartingAfter` cursor until `done: true`, then re-run the missing-IDs check to confirm we're at 0 and report back the final count of newly imported rows.
+Four files reference the closed list `["Joel", "Kristina", "Sam", "CSM"]`. Add `"Eren"` to each:
+
+- `src/pages/Conversations.tsx` — `OwnerFilter` type and `OWNER_OPTIONS`
+- `src/pages/ConversationDetail.tsx` — `OWNER_OPTIONS`
+- `src/pages/TestChannelReview.tsx` — `<SelectItem>` list
+- `src/pages/BulkImportReview.tsx` — `mapOwner` lookup table (add `"eren": "Eren"` and any name variants)
+
+### 2. Add Eren to the sidebar "My" dashboards
+
+`src/components/AppLayout.tsx` — append `{ to: "/my/eren", label: "Eren" }` next to Joel and Kristina. The `/my/:owner` route already renders generically via `OwnerDashboard.tsx`, so no new page needed.
+
+### 3. Map Eren's Intercom admin ID for auto-owner assignment
+
+This is a runtime configuration step, not a code change. After Eren is added as an Intercom teammate:
+
+- Open Settings → Admin → owner mapping card
+- Add a row: `{Eren's Intercom admin ID} → Eren`
+- Save
+
+From then on, any Intercom conversation assigned to Eren is auto-tagged `owner = Eren` by `intercom-webhook` and `poll-intercom-inbox` — same path Joel and Kristina already use.
+
+### 4. (Optional) Pre-populate SSO/SCIM scope
+
+Confirm `SSO` and `SCIM` already exist in `settings.product_areas` (default seed includes both). Nothing to change unless they were removed.
+
+### 5. Documentation
+
+Update `.lovable/project-knowledge.md` and the Flow page owner-list comments to mention Eren as a contractor owner for SSO/SCIM. Add a memory note recording that Eren is a contractor scoped to SSO/SCIM.
+
+## Why not separate tracking
+
+- A separate table or page would fork analytics, audit logs, status automation, owner auto-assignment, and the Intercom/Slack/Gmail dedup logic — all of which currently key off the unified `owner` field.
+- "Contractor vs. employee" is a property of the person, not the ticket. If you later want to distinguish them in reports, the cleaner add-on is a small `owner_metadata` table (`owner_name`, `role`, `active`) — but that's only worth doing if you hire more contractors. For one person, the owner string is enough.
 
 ## Out of scope
 
-- **Tickets that were in the enterprise inbox during April but have since been reassigned out.** The `team_assignee_id` filter only matches the *current* assignee, so Intercom search can't surface them retroactively. If you want those too, we'd need a separate sweep using `created_at`-only (no team filter) — much larger pull, and most results would be unrelated tickets that legitimately never belonged to enterprise. Happy to do it if you want, but I'd recommend skipping unless you have a specific reason.
-- No code changes — purely a data backfill using the existing function.
+- Building a contractor-vs-employee toggle or separate role table (revisit if you add more contractors).
+- Restricting Eren's RLS access — current auth model treats all signed-in teammates equally; changing that is a much larger task.
+- Auto-routing SSO/SCIM tickets to Eren in Intercom (would need a workflow rule on Intercom's side, not in this app).
