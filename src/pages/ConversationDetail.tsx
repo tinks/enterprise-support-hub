@@ -1304,8 +1304,13 @@ const ConversationDetail = () => {
                 {renderDates().map((d) => (
                   <div key={d.label} className="flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">{d.label}</span>
-                    {d.editable && d.raw ? (
-                      <EditableDateCell rawDate={d.raw} onSave={(newDate) => handleDateChange(d.raw!, newDate)} />
+                    {d.editable && d.raw && d.field ? (
+                      <EditableDateCell
+                        rawDate={d.raw}
+                        placeholder={d.placeholder ? "Set resolved time" : undefined}
+                        onSave={(newDate) => handleDateChange(d.field!, d.placeholder ? null : d.raw!, newDate)}
+                        onClear={d.clearable ? handleClearResolved : undefined}
+                      />
                     ) : (
                       <span className="text-xs text-foreground">{d.value}</span>
                     )}
