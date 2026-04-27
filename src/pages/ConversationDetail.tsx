@@ -89,7 +89,7 @@ interface ManualConv {
   resolved_at: string | null;
 }
 
-const OWNER_OPTIONS = ["Joel", "Kristina", "Sam", "CSM", "Eren"] as const;
+const OWNER_OPTIONS = ["Joel", "Kristina", "Sam", "CSM", "Eren", "Tine"] as const;
 const CLASSIFICATION_OPTIONS = ["Issue", "Configuration", "Bug", "FR", "Question"] as const;
 
 interface ManualMessage {
