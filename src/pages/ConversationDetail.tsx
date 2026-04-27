@@ -1396,7 +1396,7 @@ const ConversationDetail = () => {
   );
 };
 
-const EditableDateCell = ({ rawDate, onSave }: { rawDate: string; onSave: (d: Date) => void }) => {
+const EditableDateCell = ({ rawDate, onSave, placeholder, onClear }: { rawDate: string; onSave: (d: Date) => void; placeholder?: string; onClear?: () => void }) => {
   const [open, setOpen] = useState(false);
   const current = new Date(rawDate);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(current);
@@ -1414,9 +1414,9 @@ const EditableDateCell = ({ rawDate, onSave }: { rawDate: string; onSave: (d: Da
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className="inline-flex items-center gap-1 text-xs text-foreground hover:text-primary transition-colors cursor-pointer">
+        <button className={`inline-flex items-center gap-1 text-xs hover:text-primary transition-colors cursor-pointer ${placeholder ? "text-muted-foreground italic" : "text-foreground"}`}>
           <CalendarIcon className="h-3 w-3" />
-          {current.toLocaleString()}
+          {placeholder ?? current.toLocaleString()}
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="end">
@@ -1430,7 +1430,11 @@ const EditableDateCell = ({ rawDate, onSave }: { rawDate: string; onSave: (d: Da
         <div className="px-3 pb-3 flex items-center gap-2">
           <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-28 h-8 text-xs" />
           <Button size="sm" onClick={handleSave} className="h-8">Save</Button>
+          {onClear && (
+            <Button size="sm" variant="ghost" onClick={() => { onClear(); setOpen(false); }} className="h-8 text-xs">Clear</Button>
+          )}
         </div>
+        <p className="px-3 pb-3 text-[10px] text-muted-foreground max-w-[260px]">Local timestamp only — does not close the ticket in Intercom.</p>
       </PopoverContent>
     </Popover>
   );
