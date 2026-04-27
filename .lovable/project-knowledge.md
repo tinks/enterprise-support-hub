@@ -474,3 +474,12 @@ Manual rows with `source='slack_thread'` or `source='slack_dm'` are visually tre
 - Inbox search (server-side `search_conversations` RPC) already covers `manual_conversations.link`, `subject`, `contact_name`, `status`, `owner`, `classification`, and `manual_messages.message_text` — no separate channel-name search path is needed.
 - Empty-state message is channel-aware: when `?manualChannel=` is set and `unified` is empty, the message names the channel and suggests clearing status/owner/classification filters.
 - **Manual channel drilldown overrides defaults**: when `?manualChannel=` is present, the inbox (a) bumps the per-source page size to 1000 so the full manual set is loaded (the default 50-row cap was hiding older rows), and (b) bypasses the default `hiddenStatuses` filter so resolved/test/cancelled rows in the channel are visible. Owner / product area / classification filters still apply and can be cleared from the chip.
+
+## Resolution time — manual override
+
+- The Conversation detail page (`/conversations/:id`) Timeline card lets users edit `resolved_at` for slack, gmail, and manual conversations (alongside the existing editable `created_at`).
+- When a previously unset Resolved date is picked, status is auto-flipped to `resolved` in the same write so analytics counts the conversation as closed.
+- Clearing the Resolved date reverts status to `active` (slack/manual) or `open` (gmail) and nulls `resolved_at`.
+- Both actions are logged to `conversation_audit_logs` as `updated_resolved_at` (old → new, or `(cleared)`).
+- This is **local only** — it does not close the upstream Intercom conversation, Gmail thread, or Slack mapping. The popover shows a small note clarifying this.
+- `ManualConv` interface in `ConversationDetail.tsx` was extended with `resolved_at: string | null` (the underlying `manual_conversations.resolved_at` column already existed).
