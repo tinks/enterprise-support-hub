@@ -1,29 +1,30 @@
+## April 2026 Intercom coverage check
 
+I queried Intercom directly for the enterprise inbox (`team_assignee_id = 8484447`) for the window **2026-04-01 → 2026-04-28 (today)** and compared against everything tracked locally (`manual_conversations`, `conversation_mappings`, `gmail_conversations` with a non-null `intercom_conversation_id`).
 
-## Why "no conversations found" despite the row existing
+| Source | April count |
+|---|---|
+| Currently in Intercom enterprise inbox | **163** |
+| Tracked locally with an Intercom ID (created in April) | 376 |
+| **Of the 163 inbox tickets — missing locally** | **3** |
 
-Ticket `215474005499607` is a real `manual_conversations` row (subject "Help - Multi-tenant architecture…", owner Kristina, no product area, no classification). The `search_conversations` RPC returns it correctly — verified directly against the DB.
+The 376 > 163 is expected: many April tickets were tracked while in the enterprise inbox and have since been reassigned/closed and moved out. The relevant gap is the **3 tickets currently sitting in the enterprise inbox that we never picked up**:
 
-The row gets dropped client-side in `src/pages/Conversations.tsx` (the `unified` `useMemo`, lines 923–944) by one of these three filters that **still apply during search**:
-- `ownerFilter` — anything except "all" or "Kristina" filters this row out
-- `productAreaFilter` — any specific area or "unassigned-on-the-other-rows" combo filters it out
-- `classificationFilter` — same story
+- `215473994501379`
+- `215473922409590`
+- `215473738186057`
 
-The status filter is already bypassed during search (line 947 checks `!searchResults`), but the owner/product-area/classification filters are not. So if the inbox sidebar has any of those set, a search by ID silently returns nothing even when the RPC found the row.
+## What I'll do
 
-## Fix
+Run the existing `backfill-enterprise-inbox` edge function scoped to April 2026 (`createdAfter = 1775001600`, `createdBefore = 1777334400`). That function:
 
-In `src/pages/Conversations.tsx`, wrap the three filter blocks (owner / product area / classification, lines 923–944) in `if (!searchResults)` so they only apply when browsing, not when explicitly searching. This matches the existing pattern already used for the status filter on line 947.
+- Pages through `team_assignee_id = 8484447` for the time window
+- Skips anything already in `manual_conversations`, `conversation_mappings`, or `gmail_conversations`
+- Links to an existing Gmail thread by contact email when possible, otherwise inserts a `manual_conversations` row (`source: intercom`) with all messages, correct earliest-message `created_at`, owner via `admin_owner_map`, and resolved status if closed
 
-Result: pasting any ID, email, or text into search returns every match the RPC found, regardless of sidebar filter state.
+I'll loop the function with its returned `nextStartingAfter` cursor until `done: true`, then re-run the missing-IDs check to confirm we're at 0 and report back the final count of newly imported rows.
 
-### Optional polish (recommend including)
+## Out of scope
 
-When `searchResults` is active and the result count is non-zero but the visible filtered count would have been zero, show a one-line hint above the table: "Showing N matches. Sidebar filters were ignored for search." So users aren't confused when search results don't match their current filter chips.
-
-### Out of scope
-
-- Changing the source filter behavior during search (it's intentional — narrowing a search to one source is reasonable).
-- Any RPC changes — server-side search is working correctly.
-- Detail-page deep-link from a bare ID paste.
-
+- **Tickets that were in the enterprise inbox during April but have since been reassigned out.** The `team_assignee_id` filter only matches the *current* assignee, so Intercom search can't surface them retroactively. If you want those too, we'd need a separate sweep using `created_at`-only (no team filter) — much larger pull, and most results would be unrelated tickets that legitimately never belonged to enterprise. Happy to do it if you want, but I'd recommend skipping unless you have a specific reason.
+- No code changes — purely a data backfill using the existing function.
