@@ -88,7 +88,7 @@ interface ManualConv {
   classification: string | null;
 }
 
-const OWNER_OPTIONS = ["Joel", "Kristina", "Sam", "CSM"] as const;
+const OWNER_OPTIONS = ["Joel", "Kristina", "Sam", "CSM", "Eren"] as const;
 const CLASSIFICATION_OPTIONS = ["Issue", "Configuration", "Bug", "FR", "Question"] as const;
 
 interface ManualMessage {

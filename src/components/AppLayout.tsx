@@ -18,6 +18,7 @@ const dashboardItems = [
   { to: "/my/joel", label: "Joel" },
   { to: "/my/kristina", label: "Kristina" },
   { to: "/my/tine", label: "Tine" },
+  { to: "/my/eren", label: "Eren" },
 ];
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
