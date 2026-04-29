@@ -841,26 +841,31 @@ const ConversationDetail = () => {
           <CardContent>
             {gmailThreadLoading && gmailThreadMessages.length === 0 ? (
               <p className="text-sm text-muted-foreground">Loading thread…</p>
-            ) : gmailThreadMessages.length > 0 ? (
+            ) : gmailThreadMessages.length > 0 || notes.length > 0 ? (
               <div className="space-y-4">
-                {gmailThreadMessages.map((msg) => (
-                  <div key={msg.id} className="flex gap-3">
+                {[
+                  ...gmailThreadMessages.map((m) => ({ kind: "msg" as const, ts: new Date(m.date).getTime(), data: m })),
+                  ...notes.map((n) => ({ kind: "note" as const, ts: new Date(n.created_at).getTime(), data: n })),
+                ]
+                  .sort((a, b) => a.ts - b.ts)
+                  .map((item) => item.kind === "note" ? renderInlineNote(item.data) : (
+                  <div key={item.data.id} className="flex gap-3">
                     <Avatar className="h-8 w-8 shrink-0 mt-0.5">
                       <AvatarFallback className="bg-muted text-muted-foreground text-xs">
-                        {(msg.from_name || msg.from_email || "?").slice(0, 2).toUpperCase()}
+                        {(item.data.from_name || item.data.from_email || "?").slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2">
                         <span className="text-sm font-medium text-foreground">
-                          {msg.from_name || msg.from_email}
+                          {item.data.from_name || item.data.from_email}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(msg.date).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                          {new Date(item.data.date).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                         </span>
                       </div>
                       <p className="mt-0.5 text-sm whitespace-pre-wrap break-words text-foreground">
-                        {msg.body || msg.snippet}
+                        {item.data.body || item.data.snippet}
                       </p>
                     </div>
                   </div>
@@ -871,6 +876,7 @@ const ConversationDetail = () => {
             ) : (
               <p className="text-sm text-muted-foreground">No messages found.</p>
             )}
+            {renderNoteComposer()}
           </CardContent>
         </Card>
       </>
