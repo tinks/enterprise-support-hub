@@ -483,3 +483,14 @@ Manual rows with `source='slack_thread'` or `source='slack_dm'` are visually tre
 - Both actions are logged to `conversation_audit_logs` as `updated_resolved_at` (old → new, or `(cleared)`).
 - This is **local only** — it does not close the upstream Intercom conversation, Gmail thread, or Slack mapping. The popover shows a small note clarifying this.
 - `ManualConv` interface in `ConversationDetail.tsx` was extended with `resolved_at: string | null` (the underlying `manual_conversations.resolved_at` column already existed).
+
+## Intercom internal notes — inline in message thread
+
+Intercom internal notes (`part_type === "note"`) are now ingested into `manual_messages` with `is_internal_note = true` (column added 2026-04). Previously they were filtered out of every Intercom ingestion path.
+
+- Affected ingestion functions: `import-intercom-ticket`, `backfill-intercom-replies`, `poll-intercom-inbox`, `backfill-enterprise-inbox`, `bulk-import-intercom`, `intercom-webhook` (live, including the new `conversation.admin.noted` topic in `REPLY_TOPICS`).
+- The conversation detail page renders these notes interleaved chronologically with messages, using the same yellow "Internal note" card style as user-authored notes from `conversation_notes`.
+- Internal notes do not change the customer-facing status (`awaiting_customer` / `awaiting_support`).
+- The webhook still skips notes when forwarding back to Slack via `lastCommentPart` — only `part_type === "comment"` parts are mirrored to customers.
+- `backfill-intercom-replies` dedup key is `epoch:is_internal_note` so a note posted at the same second as a reply isn't suppressed.
+- To pull notes into already-imported tickets, run `backfill-intercom-replies?recent=true` (recent 7 days) or paginate with `offset`/`limit` for the full historical set.

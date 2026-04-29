@@ -148,6 +148,7 @@ Deno.serve(async (req) => {
     const REPLY_TOPICS = [
       "conversation.admin.replied",
       "conversation.admin.single.reply",
+      "conversation.admin.noted",
       "ticket.admin.replied",
       "conversation.user.replied",
       "conversation.user.created",
@@ -493,9 +494,9 @@ Deno.serve(async (req) => {
       // Extract messages FIRST to compute earliest timestamp
       const mapRole = (type: string) => (type === "user" || type === "lead") ? "user" : "admin";
       const toIso = (ts: number) => new Date(ts * 1000).toISOString();
-      const SKIP_PART_TYPES = new Set(["note", "open", "close", "away_mode_assignment"]);
+      const SKIP_PART_TYPES = new Set(["open", "close", "away_mode_assignment"]);
 
-      const preMessages: Array<{ message_text: string; sender_name: string; role: string; created_at: string }> = [];
+      const preMessages: Array<{ message_text: string; sender_name: string; role: string; created_at: string; is_internal_note: boolean }> = [];
 
       // Source message
       const src = icData.source;
@@ -507,6 +508,7 @@ Deno.serve(async (req) => {
             sender_name: src.author?.name || src.author?.email || src.author?.type || "Unknown",
             role: mapRole(src.author?.type || "user"),
             created_at: src.created_at ? toIso(src.created_at) : (icData.created_at ? toIso(icData.created_at) : new Date().toISOString()),
+            is_internal_note: false,
           });
         }
       }
@@ -540,6 +542,7 @@ Deno.serve(async (req) => {
           sender_name: part.author?.name || part.author?.email || part.author?.type || "Unknown",
           role: mapRole(part.author?.type || "admin"),
           created_at: part.created_at ? toIso(part.created_at) : new Date().toISOString(),
+          is_internal_note: part.part_type === "note",
         });
       }
 
@@ -694,6 +697,7 @@ Deno.serve(async (req) => {
               const createdAt = latestPart.created_at
                 ? new Date(latestPart.created_at * 1000).toISOString()
                 : new Date().toISOString();
+              const isNote = latestPart.part_type === "note";
 
               const { error: msgErr } = await supabase.from("manual_messages").insert({
                 conversation_id: manualConv.id,
@@ -701,19 +705,22 @@ Deno.serve(async (req) => {
                 sender_name: senderName,
                 role,
                 created_at: createdAt,
+                is_internal_note: isNote,
               });
               if (msgErr) {
                 console.error("Failed to insert live reply for manual conv:", msgErr);
               } else {
-                console.log(`Appended live reply to manual conversation ${manualConv.id}`);
-                // Auto-update status based on who replied
-                const newStatus = role === "admin" ? "awaiting_customer" : "awaiting_support";
-                await supabase
-                  .from("manual_conversations")
-                  .update({ status: newStatus } as any)
-                  .eq("id", manualConv.id)
-                  .neq("status", "resolved");
-                console.log(`Updated manual_conversation ${manualConv.id} status to ${newStatus}`);
+                console.log(`Appended live ${isNote ? "note" : "reply"} to manual conversation ${manualConv.id}`);
+                // Internal notes don't change the customer-facing status
+                if (!isNote) {
+                  const newStatus = role === "admin" ? "awaiting_customer" : "awaiting_support";
+                  await supabase
+                    .from("manual_conversations")
+                    .update({ status: newStatus } as any)
+                    .eq("id", manualConv.id)
+                    .neq("status", "resolved");
+                  console.log(`Updated manual_conversation ${manualConv.id} status to ${newStatus}`);
+                }
               }
               return new Response(JSON.stringify({ ok: true, message: "Appended to manual conversation", id: manualConv.id }), {
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
