@@ -1,6 +1,6 @@
 # Project Knowledge — Slack ↔ Intercom Support Bridge
 
-> **Last updated:** 2026-03-18
+> **Last updated:** 2026-04-29
 > This document captures all rules, logic, and behaviors of the system. Update it whenever logic changes.
 
 ---
@@ -18,35 +18,62 @@ A Slack-to-Intercom support bridge for enterprise customers. When a user @mentio
 |---|---|
 | `slack-events` | Handles Slack `app_mention` and `message` events (real-time mentions + thread replies) |
 | `slack-interactions` | Handles Slack button clicks, modal submissions, and feedback actions. Also contains the proactive polling logic for Sam's initial reply |
-| `intercom-webhook` | Receives Intercom webhook events (admin replies, conversation/ticket closed) and relays to Slack |
+| `intercom-webhook` | Receives Intercom webhook events (admin replies, conversation/ticket closed, notes) and relays to Slack / writes to manual tables |
 | `check-bot-identity` | Diagnostic endpoint — verifies the Slack bot token identity against expected bot user ID |
 | `list-slack-channels` | Lists Slack channels for the settings UI channel browser |
 | `list-slack-users` | Lists Slack users (utility) |
+| `poll-gmail` | 15-min cron: pulls new Gmail messages, upserts `gmail_conversations`, reconciles `pending_intercom_links` |
+| `poll-intercom-inbox` | Cron reconciler that scans the Intercom inbox for tickets the webhook missed and imports them |
+| `context-reminder` | 5-min cron: posts a reminder at 15 min and auto-creates the Intercom ticket at 30 min for stuck `awaiting_context` bot-flow conversations |
+| `promote-pending-intercom-links` | 2-min cron: late-reconciles or promotes `pending_intercom_links` rows older than 20 min into `manual_conversations` |
+| `backfill-intercom-replies` | Reconciliation that fetches missing Intercom parts (replies + notes) into `manual_messages`. `?recent=true` is also called by a 5-min cron as a webhook safety net |
+| `backfill-enterprise-inbox` | One-shot/manual backfill of enterprise inbox Intercom conversations into `manual_conversations` |
+| `backfill-gmail-headers` | Backfills missing `to_emails`/`cc_emails`/`from_*` on existing `gmail_conversations` rows |
+| `backfill-slack-user-names` | Backfills `slack_user_name` on `conversation_mappings` from Slack profile lookups |
+| `bulk-import-intercom` | Server side of the CSV / bulk import flow used by `/import/bulk` |
+| `import-intercom-ticket` | Imports a single Intercom conversation (by ID/URL) into `manual_conversations` + `manual_messages` |
+| `import-slack-thread` | Imports a single Slack thread URL into `manual_conversations` + `manual_messages`; `ImportTab` then auto-navigates to the new row |
+| `create-intercom-from-import` | Creates a new Intercom conversation from a manually imported thread |
+| `fetch-gmail-thread` | On-demand fetch of a Gmail thread's full message list |
+| `fetch-thread-messages` | Generic thread-message fetcher used by the conversation detail UI |
+| `gmail-auth-url` / `gmail-oauth-callback` | Gmail OAuth start + callback; tokens land in `gmail_oauth_tokens` |
+| `parse-thread` | Pasted-text parser used by manual ingestion to split a transcript into messages |
+| `post-reply` | Centralized outbound reply: routes to Slack, Intercom, or Gmail based on conversation source |
+| `search-intercom-by-email` | Lookup helper: finds an Intercom contact + recent conversations by email |
+| `cleanup-bad-intercom-imports` | Maintenance: removes malformed `manual_conversations` rows from earlier import bugs |
+| `delete-conversation-mapping` | Admin-only deletion of a `conversation_mappings` row (used to retry from scratch) |
+| `delete-slack-message` | Admin-only Slack message deletion (e.g., to remove an interim bot message) |
 
 ### Database Tables
 | Table | Purpose |
 |---|---|
-| `settings` | Singleton config: monitored channels, Intercom IDs, testing mode, bot user ID |
+| `settings` | Singleton config: monitored channels, Intercom IDs, testing mode, bot user ID, admin→owner map |
 | `conversation_mappings` | Maps Slack threads ↔ Intercom conversations with status tracking |
 | `bot_messages` | Editable bot message templates (keyed by `message_key`) |
 | `flow_node_positions` | Persisted drag positions for the flow diagram UI |
 | `knowledge_documents` | Project knowledge document with pending-change review workflow |
 | `gmail_conversations` | Gmail-sourced conversations with thread tracking |
 | `gmail_oauth_tokens` | OAuth tokens for Gmail integration |
-| `manual_conversations` | Manually logged conversations from any source |
-| `manual_messages` | Individual messages within manual conversations |
+| `manual_conversations` | Manually logged / Intercom-imported / Gmail-stub conversations from any source |
+| `manual_messages` | Individual messages within manual conversations. Includes `is_internal_note` for Intercom notes |
+| `conversation_notes` | User-authored inline yellow notes attached to any conversation (slack/gmail/manual) |
+| `conversation_audit_logs` | Immutable old/new value history for metadata edits (owner, status, classification, resolved_at, etc.) |
+| `pending_intercom_links` | Escrow table holding Intercom tickets for up to 20 min while `poll-gmail` tries to match them to a Gmail thread (closes the Google-Group race) |
 
 ### UI Pages
 | Route | Page | Purpose |
 |---|---|---|
-| `/` | Stats | System statistics |
-| `/conversations` | Conversations | View and monitor active/resolved conversations |
-| `/conversations/:id` | Conversation detail | Individual conversation thread view |
-| `/my/:owner` | Owner dashboard | Per-person dashboard (Joel, Kristina) |
-| `/import` | Import | Import conversations from external sources |
-| `/settings` | Settings | Configure channels, Intercom IDs, testing mode, view webhook URLs |
+| `/login` | Login | Supabase Auth sign-in (email + password / Google / SAML SSO) |
+| `/` | Stats | Analytics dashboard (volume, channels, owners, resolution time) |
+| `/conversations` | Conversations | Unified inbox — view and monitor active/resolved conversations across Slack, Gmail, manual |
+| `/conversations/:id` | Conversation detail | Individual conversation thread view with metadata sidebar, notes, audit log |
+| `/my/:owner` | Owner dashboard | Per-person dashboard (Joel, Kristina, Sam, CSM, Eren, Tine) |
+| `/import` | Import | Manual ingestion — paste, single URL (Slack thread / Intercom ticket), bulk |
+| `/import/bulk` | Bulk import review | CSV bulk import preview + commit |
+| `/test-review` | Test channel review | Triage view for the dedicated test inbox |
+| `/settings` | Settings | Configure channels, Intercom IDs, admin→owner map, testing mode, view webhook URLs |
 | `/flow` | Flow diagram | Interactive visual diagram of the full support workflow |
-| `/knowledge` | Knowledge | View and edit project knowledge document |
+| `/knowledge` | Knowledge | View and edit this project knowledge document (with pending-diff review) |
 
 ---
 
