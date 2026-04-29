@@ -1398,7 +1398,8 @@ const ConversationDetail = () => {
 
 const EditableDateCell = ({ rawDate, onSave, placeholder, onClear }: { rawDate: string; onSave: (d: Date) => void; placeholder?: string; onClear?: () => void }) => {
   const [open, setOpen] = useState(false);
-  const current = new Date(rawDate);
+  const parsed = rawDate ? new Date(rawDate) : new Date();
+  const current = isNaN(parsed.getTime()) ? new Date() : parsed;
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(current);
   const [time, setTime] = useState(format(current, "HH:mm"));
 
