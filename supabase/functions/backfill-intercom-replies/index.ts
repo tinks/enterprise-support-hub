@@ -17,7 +17,7 @@ function stripHtml(html: string): string {
     .trim();
 }
 
-const SKIP_PART_TYPES = new Set(["note", "open", "close", "away_mode_assignment"]);
+const SKIP_PART_TYPES = new Set(["open", "close", "away_mode_assignment"]);
 const mapRole = (type: string) => (type === "user" || type === "lead") ? "user" : "admin";
 const toIso = (ts: number) => new Date(ts * 1000).toISOString();
 
