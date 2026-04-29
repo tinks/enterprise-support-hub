@@ -203,8 +203,8 @@ Deno.serve(async (req) => {
       const convUrl = `https://app.intercom.com/a/inbox/wq44gprj/inbox/conversation/${intercomConvId}`;
       const mapRole = (type: string) => (type === "user" || type === "lead") ? "user" : "admin";
       const toIso = (ts: number) => new Date(ts * 1000).toISOString();
-      const SKIP_PART_TYPES = new Set(["note", "open", "close", "away_mode_assignment"]);
-      const preMessages: Array<{ message_text: string; sender_name: string; role: string; created_at: string }> = [];
+      const SKIP_PART_TYPES = new Set(["open", "close", "away_mode_assignment"]);
+      const preMessages: Array<{ message_text: string; sender_name: string; role: string; created_at: string; is_internal_note: boolean }> = [];
 
       const src = icData.source;
       if (src?.body) {
@@ -215,6 +215,7 @@ Deno.serve(async (req) => {
             sender_name: src.author?.name || src.author?.email || src.author?.type || "Unknown",
             role: mapRole(src.author?.type || "user"),
             created_at: src.created_at ? toIso(src.created_at) : (icData.created_at ? toIso(icData.created_at) : new Date().toISOString()),
+            is_internal_note: false,
           });
         }
       }
@@ -246,6 +247,7 @@ Deno.serve(async (req) => {
           sender_name: part.author?.name || part.author?.email || part.author?.type || "Unknown",
           role: mapRole(part.author?.type || "admin"),
           created_at: part.created_at ? toIso(part.created_at) : new Date().toISOString(),
+          is_internal_note: part.part_type === "note",
         });
       }
 
