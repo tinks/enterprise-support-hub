@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import AppLayout from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,9 @@ import {
   X,
   AlertTriangle,
   RefreshCw,
+  Columns2,
+  AlignJustify,
+  ChevronsUpDown,
 } from "lucide-react";
 
 const DOC_ID = "project-knowledge";
@@ -131,17 +134,43 @@ const ProjectKnowledge = () => {
 
   const hasEdits = editContent !== content;
 
-  // Compute a simple line-level diff for review
-  const computeDiff = (
-    oldText: string,
-    newText: string
-  ): Array<{ type: "same" | "added" | "removed"; text: string }> => {
+  // --- Diff viewer state (review mode only) ----------------------------------
+  type DiffView = "split" | "unified";
+  const [diffView, setDiffView] = useState<DiffView>(() => {
+    if (typeof window === "undefined") return "split";
+    return (localStorage.getItem("knowledge_diff_view") as DiffView) || "split";
+  });
+  const [onlyChanges, setOnlyChanges] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    const v = localStorage.getItem("knowledge_diff_only_changes");
+    return v === null ? true : v === "true";
+  });
+  const [expandedHunks, setExpandedHunks] = useState<Record<number, boolean>>({});
+
+  useEffect(() => {
+    localStorage.setItem("knowledge_diff_view", diffView);
+  }, [diffView]);
+  useEffect(() => {
+    localStorage.setItem("knowledge_diff_only_changes", String(onlyChanges));
+  }, [onlyChanges]);
+
+  // Reset collapsed-hunk expansion state when the diff itself changes
+  useEffect(() => {
+    setExpandedHunks({});
+  }, [content, pendingContent]);
+
+  // Compute a line-level LCS diff, with per-side line numbers.
+  type DiffLine = {
+    type: "same" | "added" | "removed";
+    text: string;
+    oldNo: number | null;
+    newNo: number | null;
+  };
+
+  const computeDiff = (oldText: string, newText: string): DiffLine[] => {
     const oldLines = oldText.split("\n");
     const newLines = newText.split("\n");
-    const result: Array<{ type: "same" | "added" | "removed"; text: string }> =
-      [];
 
-    // Simple LCS-based diff
     const m = oldLines.length;
     const n = newLines.length;
     const dp: number[][] = Array.from({ length: m + 1 }, () =>
@@ -156,25 +185,141 @@ const ProjectKnowledge = () => {
       }
     }
 
-    const diffLines: Array<{ type: "same" | "added" | "removed"; text: string }> = [];
-    let i = m,
-      j = n;
+    const out: DiffLine[] = [];
+    let i = m;
+    let j = n;
     while (i > 0 || j > 0) {
       if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
-        diffLines.unshift({ type: "same", text: oldLines[i - 1] });
+        out.unshift({ type: "same", text: oldLines[i - 1], oldNo: i, newNo: j });
         i--;
         j--;
       } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-        diffLines.unshift({ type: "added", text: newLines[j - 1] });
+        out.unshift({ type: "added", text: newLines[j - 1], oldNo: null, newNo: j });
         j--;
       } else {
-        diffLines.unshift({ type: "removed", text: oldLines[i - 1] });
+        out.unshift({ type: "removed", text: oldLines[i - 1], oldNo: i, newNo: null });
         i--;
       }
     }
-
-    return diffLines;
+    return out;
   };
+
+  // Aligned-row representation for the side-by-side view.
+  // Each row has an optional left (current) and right (pending) cell.
+  type SplitRow = {
+    left: { no: number; text: string; changed: boolean } | null;
+    right: { no: number; text: string; changed: boolean } | null;
+  };
+
+  const buildSplitRows = (diff: DiffLine[]): SplitRow[] => {
+    const rows: SplitRow[] = [];
+    let k = 0;
+    while (k < diff.length) {
+      const d = diff[k];
+      if (d.type === "same") {
+        rows.push({
+          left: { no: d.oldNo!, text: d.text, changed: false },
+          right: { no: d.newNo!, text: d.text, changed: false },
+        });
+        k++;
+        continue;
+      }
+      // Collect a contiguous run of removed and added lines and pair them up
+      const removed: DiffLine[] = [];
+      const added: DiffLine[] = [];
+      while (k < diff.length && (diff[k].type === "removed" || diff[k].type === "added")) {
+        if (diff[k].type === "removed") removed.push(diff[k]);
+        else added.push(diff[k]);
+        k++;
+      }
+      const len = Math.max(removed.length, added.length);
+      for (let p = 0; p < len; p++) {
+        const r = removed[p];
+        const a = added[p];
+        rows.push({
+          left: r ? { no: r.oldNo!, text: r.text, changed: true } : null,
+          right: a ? { no: a.newNo!, text: a.text, changed: true } : null,
+        });
+      }
+    }
+    return rows;
+  };
+
+  // Group consecutive unchanged rows into a collapsible hunk when "only changes"
+  // is on. We always keep CONTEXT lines around each change.
+  const CONTEXT = 3;
+  type RenderItem =
+    | { kind: "row"; row: SplitRow; key: string }
+    | { kind: "collapsed"; count: number; key: string; id: number };
+
+  const buildRenderItems = (rows: SplitRow[]): RenderItem[] => {
+    if (!onlyChanges) {
+      return rows.map((row, idx) => ({ kind: "row", row, key: `r-${idx}` }));
+    }
+    // Mark each row as changed or unchanged
+    const changedFlags = rows.map(
+      (r) => (r.left?.changed ?? false) || (r.right?.changed ?? false)
+    );
+    // For each row, compute distance to nearest changed row in either direction
+    const keep = new Array(rows.length).fill(false);
+    for (let idx = 0; idx < rows.length; idx++) {
+      if (changedFlags[idx]) {
+        for (let p = Math.max(0, idx - CONTEXT); p <= Math.min(rows.length - 1, idx + CONTEXT); p++) {
+          keep[p] = true;
+        }
+      }
+    }
+    const items: RenderItem[] = [];
+    let collapsedRun = 0;
+    let collapsedId = 0;
+    for (let idx = 0; idx < rows.length; idx++) {
+      if (keep[idx]) {
+        if (collapsedRun > 0) {
+          const id = collapsedId++;
+          if (expandedHunks[id]) {
+            for (let p = idx - collapsedRun; p < idx; p++) {
+              items.push({ kind: "row", row: rows[p], key: `r-${p}` });
+            }
+          } else {
+            items.push({ kind: "collapsed", count: collapsedRun, key: `c-${id}`, id });
+          }
+          collapsedRun = 0;
+        }
+        items.push({ kind: "row", row: rows[idx], key: `r-${idx}` });
+      } else {
+        collapsedRun++;
+      }
+    }
+    if (collapsedRun > 0) {
+      const id = collapsedId++;
+      if (expandedHunks[id]) {
+        for (let p = rows.length - collapsedRun; p < rows.length; p++) {
+          items.push({ kind: "row", row: rows[p], key: `r-${p}` });
+        }
+      } else {
+        items.push({ kind: "collapsed", count: collapsedRun, key: `c-${id}`, id });
+      }
+    }
+    return items;
+  };
+
+  const diffLines = useMemo(
+    () => (pendingContent ? computeDiff(content, pendingContent) : []),
+    [content, pendingContent]
+  );
+  const splitRows = useMemo(() => buildSplitRows(diffLines), [diffLines]);
+  const renderItems = useMemo(
+    () => buildRenderItems(splitRows),
+    [splitRows, onlyChanges, expandedHunks]
+  );
+  const additions = useMemo(
+    () => diffLines.filter((d) => d.type === "added").length,
+    [diffLines]
+  );
+  const deletions = useMemo(
+    () => diffLines.filter((d) => d.type === "removed").length,
+    [diffLines]
+  );
 
   // Simple markdown renderer
   const renderMarkdown = (md: string) => {
@@ -340,6 +485,58 @@ const ProjectKnowledge = () => {
           <div className="flex items-center gap-2">
             {mode === "review" ? (
               <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 text-xs">
+                  <Badge
+                    variant="outline"
+                    className="border-green-500/30 text-green-700 dark:text-green-400 bg-green-500/5 px-1.5 py-0 h-5"
+                  >
+                    +{additions}
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="border-red-500/30 text-red-700 dark:text-red-400 bg-red-500/5 px-1.5 py-0 h-5"
+                  >
+                    −{deletions}
+                  </Badge>
+                </div>
+                <div className="flex rounded-md border border-border overflow-hidden">
+                  <button
+                    onClick={() => setDiffView("split")}
+                    title="Side-by-side"
+                    className={`flex items-center gap-1.5 px-2 py-1 text-xs font-medium transition-colors ${
+                      diffView === "split"
+                        ? "bg-accent text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Columns2 className="h-3 w-3" />
+                    Side-by-side
+                  </button>
+                  <button
+                    onClick={() => setDiffView("unified")}
+                    title="Unified"
+                    className={`flex items-center gap-1.5 px-2 py-1 text-xs font-medium transition-colors ${
+                      diffView === "unified"
+                        ? "bg-accent text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <AlignJustify className="h-3 w-3" />
+                    Unified
+                  </button>
+                </div>
+                <button
+                  onClick={() => setOnlyChanges((v) => !v)}
+                  className={`flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs font-medium transition-colors ${
+                    onlyChanges
+                      ? "bg-accent text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  title={onlyChanges ? "Showing changes only" : "Showing entire document"}
+                >
+                  <ChevronsUpDown className="h-3 w-3" />
+                  {onlyChanges ? "Only changes" : "Full file"}
+                </button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -439,29 +636,114 @@ const ProjectKnowledge = () => {
                 )}
               </div>
               {/* Diff view */}
-              <div className="font-mono text-xs leading-relaxed">
-                {computeDiff(content, pendingContent).map((line, i) => (
-                  <div
-                    key={i}
-                    className={`px-6 py-0.5 ${
-                      line.type === "added"
-                        ? "bg-green-500/10 text-green-700 dark:text-green-400"
-                        : line.type === "removed"
-                          ? "bg-red-500/10 text-red-700 dark:text-red-400 line-through"
-                          : "text-foreground/70"
-                    }`}
-                  >
-                    <span className="select-none inline-block w-5 text-right mr-3 text-muted-foreground/50">
-                      {line.type === "added"
-                        ? "+"
-                        : line.type === "removed"
-                          ? "−"
-                          : " "}
-                    </span>
-                    {line.text || " "}
+              {diffView === "unified" ? (
+                <div className="font-mono text-xs leading-relaxed">
+                  {diffLines.map((line, i) => (
+                    <div
+                      key={i}
+                      className={`px-6 py-0.5 ${
+                        line.type === "added"
+                          ? "bg-green-500/10 text-green-700 dark:text-green-400"
+                          : line.type === "removed"
+                            ? "bg-red-500/10 text-red-700 dark:text-red-400 line-through"
+                            : "text-foreground/70"
+                      }`}
+                    >
+                      <span className="select-none inline-block w-5 text-right mr-3 text-muted-foreground/50">
+                        {line.type === "added"
+                          ? "+"
+                          : line.type === "removed"
+                            ? "−"
+                            : " "}
+                      </span>
+                      {line.text || " "}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="font-mono text-xs leading-relaxed overflow-x-auto">
+                  {/* Column headers */}
+                  <div className="sticky top-0 z-10 grid grid-cols-2 border-b border-border bg-muted/40 backdrop-blur">
+                    <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground border-r border-border">
+                      Current (live)
+                    </div>
+                    <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Pending
+                    </div>
                   </div>
-                ))}
-              </div>
+                  {renderItems.length === 0 && (
+                    <div className="px-6 py-6 text-muted-foreground text-center">
+                      No differences detected.
+                    </div>
+                  )}
+                  {renderItems.map((item) => {
+                    if (item.kind === "collapsed") {
+                      return (
+                        <button
+                          key={item.key}
+                          onClick={() =>
+                            setExpandedHunks((prev) => ({ ...prev, [item.id]: true }))
+                          }
+                          className="w-full grid grid-cols-1 border-y border-border bg-muted/30 hover:bg-muted/60 transition-colors text-muted-foreground text-[11px] py-1.5 px-3 text-center"
+                        >
+                          … Show {item.count} unchanged line{item.count === 1 ? "" : "s"}
+                        </button>
+                      );
+                    }
+                    const { left, right } = item.row;
+                    const cellClass = (
+                      side: "left" | "right",
+                      cell: SplitRow["left"]
+                    ) => {
+                      if (!cell) {
+                        // Filler cell (no line on this side) — striped background
+                        return "bg-[repeating-linear-gradient(45deg,transparent,transparent_6px,hsl(var(--muted))_6px,hsl(var(--muted))_7px)] opacity-60";
+                      }
+                      if (cell.changed) {
+                        return side === "left"
+                          ? "bg-red-500/10 text-red-700 dark:text-red-400"
+                          : "bg-green-500/10 text-green-700 dark:text-green-400";
+                      }
+                      return "text-foreground/75";
+                    };
+                    return (
+                      <div key={item.key} className="grid grid-cols-2">
+                        {/* Left (current) */}
+                        <div
+                          className={`flex items-start border-r border-border ${cellClass(
+                            "left",
+                            left
+                          )}`}
+                        >
+                          <span className="select-none shrink-0 w-10 text-right pr-2 py-0.5 text-muted-foreground/50 border-r border-border/40">
+                            {left?.no ?? ""}
+                          </span>
+                          <span className="select-none shrink-0 w-4 text-center py-0.5 text-muted-foreground/60">
+                            {left?.changed ? "−" : ""}
+                          </span>
+                          <pre className="whitespace-pre-wrap break-words py-0.5 pr-3 flex-1 font-mono">
+                            {left ? left.text || " " : " "}
+                          </pre>
+                        </div>
+                        {/* Right (pending) */}
+                        <div
+                          className={`flex items-start ${cellClass("right", right)}`}
+                        >
+                          <span className="select-none shrink-0 w-10 text-right pr-2 py-0.5 text-muted-foreground/50 border-r border-border/40">
+                            {right?.no ?? ""}
+                          </span>
+                          <span className="select-none shrink-0 w-4 text-center py-0.5 text-muted-foreground/60">
+                            {right?.changed ? "+" : ""}
+                          </span>
+                          <pre className="whitespace-pre-wrap break-words py-0.5 pr-3 flex-1 font-mono">
+                            {right ? right.text || " " : " "}
+                          </pre>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ) : mode === "edit" ? (
             <textarea
