@@ -134,17 +134,43 @@ const ProjectKnowledge = () => {
 
   const hasEdits = editContent !== content;
 
-  // Compute a simple line-level diff for review
-  const computeDiff = (
-    oldText: string,
-    newText: string
-  ): Array<{ type: "same" | "added" | "removed"; text: string }> => {
+  // --- Diff viewer state (review mode only) ----------------------------------
+  type DiffView = "split" | "unified";
+  const [diffView, setDiffView] = useState<DiffView>(() => {
+    if (typeof window === "undefined") return "split";
+    return (localStorage.getItem("knowledge_diff_view") as DiffView) || "split";
+  });
+  const [onlyChanges, setOnlyChanges] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    const v = localStorage.getItem("knowledge_diff_only_changes");
+    return v === null ? true : v === "true";
+  });
+  const [expandedHunks, setExpandedHunks] = useState<Record<number, boolean>>({});
+
+  useEffect(() => {
+    localStorage.setItem("knowledge_diff_view", diffView);
+  }, [diffView]);
+  useEffect(() => {
+    localStorage.setItem("knowledge_diff_only_changes", String(onlyChanges));
+  }, [onlyChanges]);
+
+  // Reset collapsed-hunk expansion state when the diff itself changes
+  useEffect(() => {
+    setExpandedHunks({});
+  }, [content, pendingContent]);
+
+  // Compute a line-level LCS diff, with per-side line numbers.
+  type DiffLine = {
+    type: "same" | "added" | "removed";
+    text: string;
+    oldNo: number | null;
+    newNo: number | null;
+  };
+
+  const computeDiff = (oldText: string, newText: string): DiffLine[] => {
     const oldLines = oldText.split("\n");
     const newLines = newText.split("\n");
-    const result: Array<{ type: "same" | "added" | "removed"; text: string }> =
-      [];
 
-    // Simple LCS-based diff
     const m = oldLines.length;
     const n = newLines.length;
     const dp: number[][] = Array.from({ length: m + 1 }, () =>
@@ -159,25 +185,141 @@ const ProjectKnowledge = () => {
       }
     }
 
-    const diffLines: Array<{ type: "same" | "added" | "removed"; text: string }> = [];
-    let i = m,
-      j = n;
+    const out: DiffLine[] = [];
+    let i = m;
+    let j = n;
     while (i > 0 || j > 0) {
       if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
-        diffLines.unshift({ type: "same", text: oldLines[i - 1] });
+        out.unshift({ type: "same", text: oldLines[i - 1], oldNo: i, newNo: j });
         i--;
         j--;
       } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-        diffLines.unshift({ type: "added", text: newLines[j - 1] });
+        out.unshift({ type: "added", text: newLines[j - 1], oldNo: null, newNo: j });
         j--;
       } else {
-        diffLines.unshift({ type: "removed", text: oldLines[i - 1] });
+        out.unshift({ type: "removed", text: oldLines[i - 1], oldNo: i, newNo: null });
         i--;
       }
     }
-
-    return diffLines;
+    return out;
   };
+
+  // Aligned-row representation for the side-by-side view.
+  // Each row has an optional left (current) and right (pending) cell.
+  type SplitRow = {
+    left: { no: number; text: string; changed: boolean } | null;
+    right: { no: number; text: string; changed: boolean } | null;
+  };
+
+  const buildSplitRows = (diff: DiffLine[]): SplitRow[] => {
+    const rows: SplitRow[] = [];
+    let k = 0;
+    while (k < diff.length) {
+      const d = diff[k];
+      if (d.type === "same") {
+        rows.push({
+          left: { no: d.oldNo!, text: d.text, changed: false },
+          right: { no: d.newNo!, text: d.text, changed: false },
+        });
+        k++;
+        continue;
+      }
+      // Collect a contiguous run of removed and added lines and pair them up
+      const removed: DiffLine[] = [];
+      const added: DiffLine[] = [];
+      while (k < diff.length && (diff[k].type === "removed" || diff[k].type === "added")) {
+        if (diff[k].type === "removed") removed.push(diff[k]);
+        else added.push(diff[k]);
+        k++;
+      }
+      const len = Math.max(removed.length, added.length);
+      for (let p = 0; p < len; p++) {
+        const r = removed[p];
+        const a = added[p];
+        rows.push({
+          left: r ? { no: r.oldNo!, text: r.text, changed: true } : null,
+          right: a ? { no: a.newNo!, text: a.text, changed: true } : null,
+        });
+      }
+    }
+    return rows;
+  };
+
+  // Group consecutive unchanged rows into a collapsible hunk when "only changes"
+  // is on. We always keep CONTEXT lines around each change.
+  const CONTEXT = 3;
+  type RenderItem =
+    | { kind: "row"; row: SplitRow; key: string }
+    | { kind: "collapsed"; count: number; key: string; id: number };
+
+  const buildRenderItems = (rows: SplitRow[]): RenderItem[] => {
+    if (!onlyChanges) {
+      return rows.map((row, idx) => ({ kind: "row", row, key: `r-${idx}` }));
+    }
+    // Mark each row as changed or unchanged
+    const changedFlags = rows.map(
+      (r) => (r.left?.changed ?? false) || (r.right?.changed ?? false)
+    );
+    // For each row, compute distance to nearest changed row in either direction
+    const keep = new Array(rows.length).fill(false);
+    for (let idx = 0; idx < rows.length; idx++) {
+      if (changedFlags[idx]) {
+        for (let p = Math.max(0, idx - CONTEXT); p <= Math.min(rows.length - 1, idx + CONTEXT); p++) {
+          keep[p] = true;
+        }
+      }
+    }
+    const items: RenderItem[] = [];
+    let collapsedRun = 0;
+    let collapsedId = 0;
+    for (let idx = 0; idx < rows.length; idx++) {
+      if (keep[idx]) {
+        if (collapsedRun > 0) {
+          const id = collapsedId++;
+          if (expandedHunks[id]) {
+            for (let p = idx - collapsedRun; p < idx; p++) {
+              items.push({ kind: "row", row: rows[p], key: `r-${p}` });
+            }
+          } else {
+            items.push({ kind: "collapsed", count: collapsedRun, key: `c-${id}`, id });
+          }
+          collapsedRun = 0;
+        }
+        items.push({ kind: "row", row: rows[idx], key: `r-${idx}` });
+      } else {
+        collapsedRun++;
+      }
+    }
+    if (collapsedRun > 0) {
+      const id = collapsedId++;
+      if (expandedHunks[id]) {
+        for (let p = rows.length - collapsedRun; p < rows.length; p++) {
+          items.push({ kind: "row", row: rows[p], key: `r-${p}` });
+        }
+      } else {
+        items.push({ kind: "collapsed", count: collapsedRun, key: `c-${id}`, id });
+      }
+    }
+    return items;
+  };
+
+  const diffLines = useMemo(
+    () => (pendingContent ? computeDiff(content, pendingContent) : []),
+    [content, pendingContent]
+  );
+  const splitRows = useMemo(() => buildSplitRows(diffLines), [diffLines]);
+  const renderItems = useMemo(
+    () => buildRenderItems(splitRows),
+    [splitRows, onlyChanges, expandedHunks]
+  );
+  const additions = useMemo(
+    () => diffLines.filter((d) => d.type === "added").length,
+    [diffLines]
+  );
+  const deletions = useMemo(
+    () => diffLines.filter((d) => d.type === "removed").length,
+    [diffLines]
+  );
 
   // Simple markdown renderer
   const renderMarkdown = (md: string) => {
