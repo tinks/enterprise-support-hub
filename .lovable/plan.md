@@ -1,36 +1,67 @@
-# Add Tine as a new owner
+## Goal
 
-Add "Tine" to every place an owner can be selected, attributed, or filtered. The sidebar dashboard entry for Tine already exists (`/my/tine` in `AppLayout.tsx`), so no sidebar change is needed.
+Show internal notes inline within the message thread on the conversation detail page, interleaved chronologically with Slack/Gmail/manual messages — instead of (or in addition to) being tucked away in the "Internal notes" tab.
 
 ## Changes
 
-1. **`src/pages/Conversations.tsx`**
-   - Extend `OwnerFilter` type to include `"Tine"`.
-   - Append `"Tine"` to `OWNER_OPTIONS`. (All four dropdowns and the bulk-edit popover read from this constant, so they pick it up automatically.)
+### 1. Inline note rendering in the thread (`src/pages/ConversationDetail.tsx`)
 
-2. **`src/pages/ConversationDetail.tsx`**
-   - Append `"Tine"` to `OWNER_OPTIONS` so the per-conversation owner dropdown offers Tine.
+In each of the three thread renderers (`renderSlackContent`, `renderGmailContent`, `renderManualContent`), build a unified timeline that merges:
+- Existing messages (with their timestamps: `msg.ts` for Slack, `msg.date` for Gmail, `msg.created_at` for manual)
+- `notes` from state (sorted by `created_at`)
 
-3. **`src/pages/TestChannelReview.tsx`**
-   - Add `<SelectItem value="Tine">Tine</SelectItem>` next to the existing owner items.
+Each timeline item is tagged `kind: "message" | "note"`, sorted ascending by timestamp, then rendered in order. Notes get a distinct visual treatment so they don't look like customer/agent messages:
+- Subtle yellow/amber tinted card (`bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200`)
+- Small "Internal note" label + author + relative timestamp
+- Sentence-case copy throughout
+- Hover-revealed delete (X) button — same behavior as today
+- `whitespace-pre-wrap` text body
 
-4. **`src/pages/BulkImportReview.tsx`**
-   - Add `tine: "Tine"` to `OWNER_MAP` so CSV/Intercom name matching resolves to Tine.
+### 2. Quick-add input below the thread
 
-5. **`src/lib/parseThread.ts`**
-   - Add `{ name: "Tine" }` to `ADMIN_OPTIONS` (no Slack ID or email yet — both are optional).
+Underneath each message list, add a compact inline note composer (textarea + "Add note" button + optional name field if `noteAuthor` is empty). It calls the existing `addNote()` — no logic change. ⌘+Enter shortcut preserved.
 
-6. **`.lovable/memory/team/owners.md`**
-   - Add Tine to the canonical owner list. Note that Slack ID, email, and Intercom admin ID are not yet known.
+### 3. Tab cleanup
 
-## Not changing
+Remove the standalone "Internal notes" tab from the `Tabs` block (lines ~1025, 1068–1118). Notes now live in the thread + inline composer, so the tab is redundant. Tabs reduce to:
+- Reply to customer
+- Activity log
 
-- `src/components/AppLayout.tsx` — Tine is already in `dashboardItems`, so `/my/tine` is already routed via `OwnerDashboard.tsx`.
-- Settings → Admin owner mapping (`settings.admin_owner_map`) — only needed once Tine's Intercom admin ID is known. Will flag this as a follow-up.
-- No database migration: `owner` is a free-text column, so existing rows are untouched and new selections persist immediately.
+`defaultValue` becomes `"reply"` (unchanged).
 
-## Follow-up to ask the user after merging
+### 4. State / data layer
 
-- Tine's Slack user ID (for accurate Slack attribution in `parseThread.ts`).
-- Tine's email (for ADMIN_OPTIONS).
-- Tine's Intercom admin ID (to enable auto-assignment via `settings.admin_owner_map`).
+No schema changes. `conversation_notes` table, `addNote`, `deleteNote`, and the fetch effect stay as-is. The `notes` array is now consumed inside the renderers instead of the tab.
+
+### 5. Follow-up housekeeping
+
+- Update `.lovable/project-knowledge.md` to note that internal notes render inline in the thread.
+- Update `mem://features/internal-notes` to reflect the inline placement.
+- No Flow page change needed (no logic flow shift, just UI placement).
+
+## Technical detail
+
+Timeline merge helper (per source), inside each renderer:
+
+```ts
+type TimelineItem =
+  | { kind: "message"; ts: number; data: ThreadMessage }
+  | { kind: "note"; ts: number; data: ConversationNote };
+
+const items: TimelineItem[] = [
+  ...threadMessages.map(m => ({ kind: "message" as const, ts: parseFloat(m.ts) * 1000, data: m })),
+  ...notes.map(n => ({ kind: "note" as const, ts: new Date(n.created_at).getTime(), data: n })),
+].sort((a, b) => a.ts - b.ts);
+```
+
+Equivalent for Gmail (`new Date(msg.date).getTime()`) and manual (`new Date(msg.created_at).getTime()`).
+
+Render switch:
+
+```tsx
+items.map(item => item.kind === "message"
+  ? <MessageBubble msg={item.data} />
+  : <InlineNote note={item.data} onDelete={deleteNote} />)
+```
+
+`InlineNote` is a small inline component (or JSX block) inside `ConversationDetail.tsx` — no new file.
