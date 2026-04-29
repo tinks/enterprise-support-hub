@@ -721,41 +721,46 @@ const ConversationDetail = () => {
               <p className="text-sm text-muted-foreground">No messages found.</p>
             ) : (
               <div className="space-y-4">
-                {threadMessages.map((msg) => (
-                  <div key={msg.ts} className="flex gap-3">
+                {[
+                  ...threadMessages.map((m) => ({ kind: "msg" as const, ts: parseFloat(m.ts) * 1000, data: m })),
+                  ...notes.map((n) => ({ kind: "note" as const, ts: new Date(n.created_at).getTime(), data: n })),
+                ]
+                  .sort((a, b) => a.ts - b.ts)
+                  .map((item) => item.kind === "note" ? renderInlineNote(item.data) : (
+                  <div key={item.data.ts} className="flex gap-3">
                     <Avatar className="h-8 w-8 shrink-0 mt-0.5">
-                      {msg.is_bot ? (
+                      {item.data.is_bot ? (
                         <AvatarFallback className="bg-primary/10 text-primary">
                           <Bot className="h-4 w-4" />
                         </AvatarFallback>
-                      ) : msg.user_avatar ? (
-                        <AvatarImage src={msg.user_avatar} alt={msg.user_name} />
+                      ) : item.data.user_avatar ? (
+                        <AvatarImage src={item.data.user_avatar} alt={item.data.user_name} />
                       ) : (
                         <AvatarFallback className="bg-muted text-muted-foreground text-xs">
-                          {msg.user_name.slice(0, 2).toUpperCase()}
+                          {item.data.user_name.slice(0, 2).toUpperCase()}
                         </AvatarFallback>
                       )}
                     </Avatar>
                     <div className="min-w-0 flex-1 group/msg">
                       <div className="flex items-baseline gap-2">
-                        <span className={`text-sm font-medium ${msg.is_bot ? "text-primary" : "text-foreground"}`}>
-                          {msg.user_name}
+                        <span className={`text-sm font-medium ${item.data.is_bot ? "text-primary" : "text-foreground"}`}>
+                          {item.data.user_name}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {formatSlackTs(msg.ts)}
+                          {formatSlackTs(item.data.ts)}
                         </span>
-                        {msg.is_bot && (
+                        {item.data.is_bot && (
                           <button
                             className="opacity-0 group-hover/msg:opacity-100 transition-opacity ml-auto text-muted-foreground hover:text-destructive"
                             title="Delete from Slack"
                             onClick={async () => {
                               try {
                                 const { data, error } = await supabase.functions.invoke("delete-slack-message", {
-                                  body: { channelId: conv.slack_channel_id, messageTs: msg.ts },
+                                  body: { channelId: conv.slack_channel_id, messageTs: item.data.ts },
                                 });
                                 if (error) throw error;
                                 if (data?.error) throw new Error(data.error);
-                                setThreadMessages((prev) => prev.filter((m) => m.ts !== msg.ts));
+                                setThreadMessages((prev) => prev.filter((m) => m.ts !== item.data.ts));
                                 toast.success("Message deleted from Slack");
                               } catch (err: any) {
                                 toast.error(err.message || "Failed to delete message");
@@ -767,17 +772,18 @@ const ConversationDetail = () => {
                         )}
                       </div>
                       <p className={`mt-0.5 text-sm whitespace-pre-wrap break-words ${
-                        msg.is_bot
+                        item.data.is_bot
                           ? "text-muted-foreground bg-muted/50 rounded-md p-2 -ml-2"
                           : "text-foreground"
                       }`}>
-                        {cleanSlackText(msg.text)}
+                        {cleanSlackText(item.data.text)}
                       </p>
                     </div>
                   </div>
                 ))}
               </div>
             )}
+            {renderNoteComposer()}
           </CardContent>
         </Card>
       </>
