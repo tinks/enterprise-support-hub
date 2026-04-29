@@ -98,6 +98,7 @@ interface ManualMessage {
   sender_name: string;
   message_text: string;
   created_at: string;
+  is_internal_note?: boolean;
 }
 
 interface ConversationNote {
@@ -909,30 +910,57 @@ const ConversationDetail = () => {
                   ...notes.map((n) => ({ kind: "note" as const, ts: new Date(n.created_at).getTime(), data: n })),
                 ]
                   .sort((a, b) => a.ts - b.ts)
-                  .map((item) => item.kind === "note" ? renderInlineNote(item.data) : (
-                  <div key={item.data.id} className="flex gap-3">
-                    <Avatar className="h-8 w-8 shrink-0 mt-0.5">
-                      <AvatarFallback className={item.data.role === "admin" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}>
-                        {item.data.sender_name ? item.data.sender_name.slice(0, 2).toUpperCase() : (item.data.role === "admin" ? "A" : "U")}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline gap-2">
-                        <span className={`text-sm font-medium ${item.data.role === "admin" ? "text-primary" : "text-foreground"}`}>
-                          {item.data.sender_name || item.data.role}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(item.data.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                        </span>
+                  .map((item) => {
+                    if (item.kind === "note") return renderInlineNote(item.data);
+                    const m = item.data;
+                    if (m.is_internal_note) {
+                      return (
+                        <div key={`mn-${m.id}`} className="flex gap-3">
+                          <div className="h-8 w-8 shrink-0 mt-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/40 flex items-center justify-center">
+                            <StickyNote className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-sm font-medium text-foreground">{m.sender_name || "Intercom admin"}</span>
+                              <span className="text-[10px] uppercase tracking-wide font-semibold text-yellow-700 dark:text-yellow-300 bg-yellow-100 dark:bg-yellow-900/40 px-1.5 py-0.5 rounded">
+                                Internal note
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(m.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-sm whitespace-pre-wrap break-words text-foreground bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900/50 rounded-md p-2 -ml-2">
+                              {m.message_text}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div key={m.id} className="flex gap-3">
+                        <Avatar className="h-8 w-8 shrink-0 mt-0.5">
+                          <AvatarFallback className={m.role === "admin" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}>
+                            {m.sender_name ? m.sender_name.slice(0, 2).toUpperCase() : (m.role === "admin" ? "A" : "U")}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline gap-2">
+                            <span className={`text-sm font-medium ${m.role === "admin" ? "text-primary" : "text-foreground"}`}>
+                              {m.sender_name || m.role}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(m.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                            </span>
+                          </div>
+                          <p className={`mt-0.5 text-sm whitespace-pre-wrap break-words ${
+                            m.role === "admin" ? "text-muted-foreground bg-muted/50 rounded-md p-2 -ml-2" : "text-foreground"
+                          }`}>
+                            {m.message_text}
+                          </p>
+                        </div>
                       </div>
-                      <p className={`mt-0.5 text-sm whitespace-pre-wrap break-words ${
-                        item.data.role === "admin" ? "text-muted-foreground bg-muted/50 rounded-md p-2 -ml-2" : "text-foreground"
-                      }`}>
-                        {item.data.message_text}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                    );
+                  })}
               </div>
             )}
             {renderNoteComposer()}
