@@ -900,36 +900,42 @@ const ConversationDetail = () => {
             <CardTitle className="text-sm">Messages</CardTitle>
           </CardHeader>
           <CardContent>
-            {manualMessages.length === 0 ? (
+            {manualMessages.length === 0 && notes.length === 0 ? (
               <p className="text-sm text-muted-foreground">No messages.</p>
             ) : (
               <div className="space-y-4">
-                {manualMessages.map((msg) => (
-                  <div key={msg.id} className="flex gap-3">
+                {[
+                  ...manualMessages.map((m) => ({ kind: "msg" as const, ts: new Date(m.created_at).getTime(), data: m })),
+                  ...notes.map((n) => ({ kind: "note" as const, ts: new Date(n.created_at).getTime(), data: n })),
+                ]
+                  .sort((a, b) => a.ts - b.ts)
+                  .map((item) => item.kind === "note" ? renderInlineNote(item.data) : (
+                  <div key={item.data.id} className="flex gap-3">
                     <Avatar className="h-8 w-8 shrink-0 mt-0.5">
-                      <AvatarFallback className={msg.role === "admin" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}>
-                        {msg.sender_name ? msg.sender_name.slice(0, 2).toUpperCase() : (msg.role === "admin" ? "A" : "U")}
+                      <AvatarFallback className={item.data.role === "admin" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}>
+                        {item.data.sender_name ? item.data.sender_name.slice(0, 2).toUpperCase() : (item.data.role === "admin" ? "A" : "U")}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2">
-                        <span className={`text-sm font-medium ${msg.role === "admin" ? "text-primary" : "text-foreground"}`}>
-                          {msg.sender_name || msg.role}
+                        <span className={`text-sm font-medium ${item.data.role === "admin" ? "text-primary" : "text-foreground"}`}>
+                          {item.data.sender_name || item.data.role}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(msg.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                          {new Date(item.data.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                         </span>
                       </div>
                       <p className={`mt-0.5 text-sm whitespace-pre-wrap break-words ${
-                        msg.role === "admin" ? "text-muted-foreground bg-muted/50 rounded-md p-2 -ml-2" : "text-foreground"
+                        item.data.role === "admin" ? "text-muted-foreground bg-muted/50 rounded-md p-2 -ml-2" : "text-foreground"
                       }`}>
-                        {msg.message_text}
+                        {item.data.message_text}
                       </p>
                     </div>
                   </div>
                 ))}
               </div>
             )}
+            {renderNoteComposer()}
           </CardContent>
         </Card>
       </>
