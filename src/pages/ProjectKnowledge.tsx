@@ -636,29 +636,114 @@ const ProjectKnowledge = () => {
                 )}
               </div>
               {/* Diff view */}
-              <div className="font-mono text-xs leading-relaxed">
-                {computeDiff(content, pendingContent).map((line, i) => (
-                  <div
-                    key={i}
-                    className={`px-6 py-0.5 ${
-                      line.type === "added"
-                        ? "bg-green-500/10 text-green-700 dark:text-green-400"
-                        : line.type === "removed"
-                          ? "bg-red-500/10 text-red-700 dark:text-red-400 line-through"
-                          : "text-foreground/70"
-                    }`}
-                  >
-                    <span className="select-none inline-block w-5 text-right mr-3 text-muted-foreground/50">
-                      {line.type === "added"
-                        ? "+"
-                        : line.type === "removed"
-                          ? "−"
-                          : " "}
-                    </span>
-                    {line.text || " "}
+              {diffView === "unified" ? (
+                <div className="font-mono text-xs leading-relaxed">
+                  {diffLines.map((line, i) => (
+                    <div
+                      key={i}
+                      className={`px-6 py-0.5 ${
+                        line.type === "added"
+                          ? "bg-green-500/10 text-green-700 dark:text-green-400"
+                          : line.type === "removed"
+                            ? "bg-red-500/10 text-red-700 dark:text-red-400 line-through"
+                            : "text-foreground/70"
+                      }`}
+                    >
+                      <span className="select-none inline-block w-5 text-right mr-3 text-muted-foreground/50">
+                        {line.type === "added"
+                          ? "+"
+                          : line.type === "removed"
+                            ? "−"
+                            : " "}
+                      </span>
+                      {line.text || " "}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="font-mono text-xs leading-relaxed overflow-x-auto">
+                  {/* Column headers */}
+                  <div className="sticky top-0 z-10 grid grid-cols-2 border-b border-border bg-muted/40 backdrop-blur">
+                    <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground border-r border-border">
+                      Current (live)
+                    </div>
+                    <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Pending
+                    </div>
                   </div>
-                ))}
-              </div>
+                  {renderItems.length === 0 && (
+                    <div className="px-6 py-6 text-muted-foreground text-center">
+                      No differences detected.
+                    </div>
+                  )}
+                  {renderItems.map((item) => {
+                    if (item.kind === "collapsed") {
+                      return (
+                        <button
+                          key={item.key}
+                          onClick={() =>
+                            setExpandedHunks((prev) => ({ ...prev, [item.id]: true }))
+                          }
+                          className="w-full grid grid-cols-1 border-y border-border bg-muted/30 hover:bg-muted/60 transition-colors text-muted-foreground text-[11px] py-1.5 px-3 text-center"
+                        >
+                          … Show {item.count} unchanged line{item.count === 1 ? "" : "s"}
+                        </button>
+                      );
+                    }
+                    const { left, right } = item.row;
+                    const cellClass = (
+                      side: "left" | "right",
+                      cell: SplitRow["left"]
+                    ) => {
+                      if (!cell) {
+                        // Filler cell (no line on this side) — striped background
+                        return "bg-[repeating-linear-gradient(45deg,transparent,transparent_6px,hsl(var(--muted))_6px,hsl(var(--muted))_7px)] opacity-60";
+                      }
+                      if (cell.changed) {
+                        return side === "left"
+                          ? "bg-red-500/10 text-red-700 dark:text-red-400"
+                          : "bg-green-500/10 text-green-700 dark:text-green-400";
+                      }
+                      return "text-foreground/75";
+                    };
+                    return (
+                      <div key={item.key} className="grid grid-cols-2">
+                        {/* Left (current) */}
+                        <div
+                          className={`flex items-start border-r border-border ${cellClass(
+                            "left",
+                            left
+                          )}`}
+                        >
+                          <span className="select-none shrink-0 w-10 text-right pr-2 py-0.5 text-muted-foreground/50 border-r border-border/40">
+                            {left?.no ?? ""}
+                          </span>
+                          <span className="select-none shrink-0 w-4 text-center py-0.5 text-muted-foreground/60">
+                            {left?.changed ? "−" : ""}
+                          </span>
+                          <pre className="whitespace-pre-wrap break-words py-0.5 pr-3 flex-1 font-mono">
+                            {left ? left.text || " " : " "}
+                          </pre>
+                        </div>
+                        {/* Right (pending) */}
+                        <div
+                          className={`flex items-start ${cellClass("right", right)}`}
+                        >
+                          <span className="select-none shrink-0 w-10 text-right pr-2 py-0.5 text-muted-foreground/50 border-r border-border/40">
+                            {right?.no ?? ""}
+                          </span>
+                          <span className="select-none shrink-0 w-4 text-center py-0.5 text-muted-foreground/60">
+                            {right?.changed ? "+" : ""}
+                          </span>
+                          <pre className="whitespace-pre-wrap break-words py-0.5 pr-3 flex-1 font-mono">
+                            {right ? right.text || " " : " "}
+                          </pre>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ) : mode === "edit" ? (
             <textarea
