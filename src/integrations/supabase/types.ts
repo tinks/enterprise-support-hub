@@ -388,6 +388,7 @@ export type Database = {
           conversation_id: string
           created_at: string
           id: string
+          is_internal_note: boolean
           message_text: string
           role: string
           sender_name: string
@@ -396,6 +397,7 @@ export type Database = {
           conversation_id: string
           created_at?: string
           id?: string
+          is_internal_note?: boolean
           message_text?: string
           role?: string
           sender_name?: string
@@ -404,6 +406,7 @@ export type Database = {
           conversation_id?: string
           created_at?: string
           id?: string
+          is_internal_note?: boolean
           message_text?: string
           role?: string
           sender_name?: string

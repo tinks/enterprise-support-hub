@@ -1,0 +1,1 @@
+ALTER TABLE public.manual_messages ADD COLUMN is_internal_note boolean NOT NULL DEFAULT false;
