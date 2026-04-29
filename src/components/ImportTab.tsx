@@ -127,6 +127,9 @@ const ImportTab = () => {
       });
       setUrl("");
       loadRecentImports();
+      if (data?.conversation?.id) {
+        navigate(`/conversations/${data.conversation.id}?source=slack`);
+      }
     } catch (err) {
       toast.error("Failed to import thread");
     } finally {
