@@ -485,6 +485,58 @@ const ProjectKnowledge = () => {
           <div className="flex items-center gap-2">
             {mode === "review" ? (
               <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 text-xs">
+                  <Badge
+                    variant="outline"
+                    className="border-green-500/30 text-green-700 dark:text-green-400 bg-green-500/5 px-1.5 py-0 h-5"
+                  >
+                    +{additions}
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="border-red-500/30 text-red-700 dark:text-red-400 bg-red-500/5 px-1.5 py-0 h-5"
+                  >
+                    −{deletions}
+                  </Badge>
+                </div>
+                <div className="flex rounded-md border border-border overflow-hidden">
+                  <button
+                    onClick={() => setDiffView("split")}
+                    title="Side-by-side"
+                    className={`flex items-center gap-1.5 px-2 py-1 text-xs font-medium transition-colors ${
+                      diffView === "split"
+                        ? "bg-accent text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <Columns2 className="h-3 w-3" />
+                    Side-by-side
+                  </button>
+                  <button
+                    onClick={() => setDiffView("unified")}
+                    title="Unified"
+                    className={`flex items-center gap-1.5 px-2 py-1 text-xs font-medium transition-colors ${
+                      diffView === "unified"
+                        ? "bg-accent text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <AlignJustify className="h-3 w-3" />
+                    Unified
+                  </button>
+                </div>
+                <button
+                  onClick={() => setOnlyChanges((v) => !v)}
+                  className={`flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs font-medium transition-colors ${
+                    onlyChanges
+                      ? "bg-accent text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  title={onlyChanges ? "Showing changes only" : "Showing entire document"}
+                >
+                  <ChevronsUpDown className="h-3 w-3" />
+                  {onlyChanges ? "Only changes" : "Full file"}
+                </button>
                 <Button
                   variant="outline"
                   size="sm"
