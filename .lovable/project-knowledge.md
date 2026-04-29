@@ -64,9 +64,9 @@ A Slack-to-Intercom support bridge for enterprise customers. When a user @mentio
 | Route | Page | Purpose |
 |---|---|---|
 | `/login` | Login | Supabase Auth sign-in (email + password / Google / SAML SSO) |
-| `/` | Stats | Analytics dashboard (volume, channels, owners, resolution time) |
+| `/` | Stats | Dashboard with per-source metrics. Top-level KPIs aggregate across Slack + Gmail + Manual + Intercom; each source has its own KPI section (total, resolved %, active, avg resolution time, escalation rate, top product area, bug rate) plus volume / status / product-area charts. Source color palette: Slack purple `#9B87F5`, Gmail pink/red, Manual entry teal, Intercom amber `#F59E0B`. The Conversation volume chart renders Manual entry and Intercom as separate Area series with distinct gradients |
 | `/conversations` | Conversations | Unified inbox — view and monitor active/resolved conversations across Slack, Gmail, manual |
-| `/conversations/:id` | Conversation detail | Individual conversation thread view with metadata sidebar, notes, audit log |
+| `/conversations/:id` | Conversation detail | Individual conversation thread view with metadata sidebar, notes, audit log. Status dropdown supports `active`, `resolved`, `cancelled`, `escalated`, `awaiting_context`, `awaiting_support`, `awaiting_engineering`, `awaiting_customer`. A collapsible section reveals all raw IDs (`intercom_contact_id`, `last_intercom_part_id`, `prompt_message_ts`, etc.). For Gmail rows, an Intercom-linking widget searches Intercom by email and lets the user link an existing conversation or create a new one |
 | `/my/:owner` | Owner dashboard | Per-person dashboard (Joel, Kristina, Sam, CSM, Eren, Tine) |
 | `/import` | Import | Manual ingestion — paste, single URL (Slack thread / Intercom ticket), bulk |
 | `/import/bulk` | Bulk import review | CSV bulk import preview + commit |
