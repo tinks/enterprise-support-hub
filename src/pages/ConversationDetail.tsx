@@ -614,6 +614,68 @@ const ConversationDetail = () => {
 
   // ── Left panel: conversation content ──
 
+  // Inline internal note rendered within a message thread
+  const renderInlineNote = (note: ConversationNote) => (
+    <div key={`note-${note.id}`} className="flex gap-3 group/note">
+      <div className="h-8 w-8 shrink-0 mt-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/40 flex items-center justify-center">
+        <StickyNote className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <span className="text-sm font-medium text-foreground">{note.author}</span>
+          <span className="text-[10px] uppercase tracking-wide font-semibold text-yellow-700 dark:text-yellow-300 bg-yellow-100 dark:bg-yellow-900/40 px-1.5 py-0.5 rounded">
+            Internal note
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {new Date(note.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+          </span>
+          <button
+            onClick={() => deleteNote(note.id)}
+            className="opacity-0 group-hover/note:opacity-100 transition-opacity ml-auto text-muted-foreground hover:text-destructive"
+            title="Delete note"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <p className="mt-0.5 text-sm whitespace-pre-wrap break-words text-foreground bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900/50 rounded-md p-2 -ml-2">
+          {note.note_text}
+        </p>
+      </div>
+    </div>
+  );
+
+  // Compact inline composer rendered below each thread
+  const renderNoteComposer = () => (
+    <div className="mt-4 pt-4 border-t space-y-2">
+      <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+        <StickyNote className="h-3.5 w-3.5" /> Add internal note
+      </label>
+      {!noteAuthor.trim() && (
+        <Input
+          placeholder="Your name"
+          value={noteAuthor}
+          onChange={(e) => setNoteAuthor(e.target.value)}
+          className="h-8 text-sm"
+        />
+      )}
+      <Textarea
+        placeholder="Notes are visible only to your team…"
+        value={newNoteText}
+        onChange={(e) => setNewNoteText(e.target.value)}
+        className="min-h-[60px] text-sm bg-yellow-50/50 dark:bg-yellow-950/10 border-yellow-200 dark:border-yellow-900/50 focus-visible:ring-yellow-400"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addNote();
+        }}
+      />
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">⌘+Enter to add</span>
+        <Button size="sm" variant="outline" onClick={addNote} disabled={addingNote || !newNoteText.trim()}>
+          <Plus className="h-3.5 w-3.5 mr-1" /> Add note
+        </Button>
+      </div>
+    </div>
+  );
+
   const renderSlackContent = () => {
     if (!conv) return null;
     const resolvedChannelName =
@@ -659,41 +721,46 @@ const ConversationDetail = () => {
               <p className="text-sm text-muted-foreground">No messages found.</p>
             ) : (
               <div className="space-y-4">
-                {threadMessages.map((msg) => (
-                  <div key={msg.ts} className="flex gap-3">
+                {[
+                  ...threadMessages.map((m) => ({ kind: "msg" as const, ts: parseFloat(m.ts) * 1000, data: m })),
+                  ...notes.map((n) => ({ kind: "note" as const, ts: new Date(n.created_at).getTime(), data: n })),
+                ]
+                  .sort((a, b) => a.ts - b.ts)
+                  .map((item) => item.kind === "note" ? renderInlineNote(item.data) : (
+                  <div key={item.data.ts} className="flex gap-3">
                     <Avatar className="h-8 w-8 shrink-0 mt-0.5">
-                      {msg.is_bot ? (
+                      {item.data.is_bot ? (
                         <AvatarFallback className="bg-primary/10 text-primary">
                           <Bot className="h-4 w-4" />
                         </AvatarFallback>
-                      ) : msg.user_avatar ? (
-                        <AvatarImage src={msg.user_avatar} alt={msg.user_name} />
+                      ) : item.data.user_avatar ? (
+                        <AvatarImage src={item.data.user_avatar} alt={item.data.user_name} />
                       ) : (
                         <AvatarFallback className="bg-muted text-muted-foreground text-xs">
-                          {msg.user_name.slice(0, 2).toUpperCase()}
+                          {item.data.user_name.slice(0, 2).toUpperCase()}
                         </AvatarFallback>
                       )}
                     </Avatar>
                     <div className="min-w-0 flex-1 group/msg">
                       <div className="flex items-baseline gap-2">
-                        <span className={`text-sm font-medium ${msg.is_bot ? "text-primary" : "text-foreground"}`}>
-                          {msg.user_name}
+                        <span className={`text-sm font-medium ${item.data.is_bot ? "text-primary" : "text-foreground"}`}>
+                          {item.data.user_name}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {formatSlackTs(msg.ts)}
+                          {formatSlackTs(item.data.ts)}
                         </span>
-                        {msg.is_bot && (
+                        {item.data.is_bot && (
                           <button
                             className="opacity-0 group-hover/msg:opacity-100 transition-opacity ml-auto text-muted-foreground hover:text-destructive"
                             title="Delete from Slack"
                             onClick={async () => {
                               try {
                                 const { data, error } = await supabase.functions.invoke("delete-slack-message", {
-                                  body: { channelId: conv.slack_channel_id, messageTs: msg.ts },
+                                  body: { channelId: conv.slack_channel_id, messageTs: item.data.ts },
                                 });
                                 if (error) throw error;
                                 if (data?.error) throw new Error(data.error);
-                                setThreadMessages((prev) => prev.filter((m) => m.ts !== msg.ts));
+                                setThreadMessages((prev) => prev.filter((m) => m.ts !== item.data.ts));
                                 toast.success("Message deleted from Slack");
                               } catch (err: any) {
                                 toast.error(err.message || "Failed to delete message");
@@ -705,17 +772,18 @@ const ConversationDetail = () => {
                         )}
                       </div>
                       <p className={`mt-0.5 text-sm whitespace-pre-wrap break-words ${
-                        msg.is_bot
+                        item.data.is_bot
                           ? "text-muted-foreground bg-muted/50 rounded-md p-2 -ml-2"
                           : "text-foreground"
                       }`}>
-                        {cleanSlackText(msg.text)}
+                        {cleanSlackText(item.data.text)}
                       </p>
                     </div>
                   </div>
                 ))}
               </div>
             )}
+            {renderNoteComposer()}
           </CardContent>
         </Card>
       </>
@@ -773,26 +841,31 @@ const ConversationDetail = () => {
           <CardContent>
             {gmailThreadLoading && gmailThreadMessages.length === 0 ? (
               <p className="text-sm text-muted-foreground">Loading thread…</p>
-            ) : gmailThreadMessages.length > 0 ? (
+            ) : gmailThreadMessages.length > 0 || notes.length > 0 ? (
               <div className="space-y-4">
-                {gmailThreadMessages.map((msg) => (
-                  <div key={msg.id} className="flex gap-3">
+                {[
+                  ...gmailThreadMessages.map((m) => ({ kind: "msg" as const, ts: new Date(m.date).getTime(), data: m })),
+                  ...notes.map((n) => ({ kind: "note" as const, ts: new Date(n.created_at).getTime(), data: n })),
+                ]
+                  .sort((a, b) => a.ts - b.ts)
+                  .map((item) => item.kind === "note" ? renderInlineNote(item.data) : (
+                  <div key={item.data.id} className="flex gap-3">
                     <Avatar className="h-8 w-8 shrink-0 mt-0.5">
                       <AvatarFallback className="bg-muted text-muted-foreground text-xs">
-                        {(msg.from_name || msg.from_email || "?").slice(0, 2).toUpperCase()}
+                        {(item.data.from_name || item.data.from_email || "?").slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2">
                         <span className="text-sm font-medium text-foreground">
-                          {msg.from_name || msg.from_email}
+                          {item.data.from_name || item.data.from_email}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(msg.date).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                          {new Date(item.data.date).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                         </span>
                       </div>
                       <p className="mt-0.5 text-sm whitespace-pre-wrap break-words text-foreground">
-                        {msg.body || msg.snippet}
+                        {item.data.body || item.data.snippet}
                       </p>
                     </div>
                   </div>
@@ -803,6 +876,7 @@ const ConversationDetail = () => {
             ) : (
               <p className="text-sm text-muted-foreground">No messages found.</p>
             )}
+            {renderNoteComposer()}
           </CardContent>
         </Card>
       </>
@@ -826,36 +900,42 @@ const ConversationDetail = () => {
             <CardTitle className="text-sm">Messages</CardTitle>
           </CardHeader>
           <CardContent>
-            {manualMessages.length === 0 ? (
+            {manualMessages.length === 0 && notes.length === 0 ? (
               <p className="text-sm text-muted-foreground">No messages.</p>
             ) : (
               <div className="space-y-4">
-                {manualMessages.map((msg) => (
-                  <div key={msg.id} className="flex gap-3">
+                {[
+                  ...manualMessages.map((m) => ({ kind: "msg" as const, ts: new Date(m.created_at).getTime(), data: m })),
+                  ...notes.map((n) => ({ kind: "note" as const, ts: new Date(n.created_at).getTime(), data: n })),
+                ]
+                  .sort((a, b) => a.ts - b.ts)
+                  .map((item) => item.kind === "note" ? renderInlineNote(item.data) : (
+                  <div key={item.data.id} className="flex gap-3">
                     <Avatar className="h-8 w-8 shrink-0 mt-0.5">
-                      <AvatarFallback className={msg.role === "admin" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}>
-                        {msg.sender_name ? msg.sender_name.slice(0, 2).toUpperCase() : (msg.role === "admin" ? "A" : "U")}
+                      <AvatarFallback className={item.data.role === "admin" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}>
+                        {item.data.sender_name ? item.data.sender_name.slice(0, 2).toUpperCase() : (item.data.role === "admin" ? "A" : "U")}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline gap-2">
-                        <span className={`text-sm font-medium ${msg.role === "admin" ? "text-primary" : "text-foreground"}`}>
-                          {msg.sender_name || msg.role}
+                        <span className={`text-sm font-medium ${item.data.role === "admin" ? "text-primary" : "text-foreground"}`}>
+                          {item.data.sender_name || item.data.role}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          {new Date(msg.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                          {new Date(item.data.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                         </span>
                       </div>
                       <p className={`mt-0.5 text-sm whitespace-pre-wrap break-words ${
-                        msg.role === "admin" ? "text-muted-foreground bg-muted/50 rounded-md p-2 -ml-2" : "text-foreground"
+                        item.data.role === "admin" ? "text-muted-foreground bg-muted/50 rounded-md p-2 -ml-2" : "text-foreground"
                       }`}>
-                        {msg.message_text}
+                        {item.data.message_text}
                       </p>
                     </div>
                   </div>
                 ))}
               </div>
             )}
+            {renderNoteComposer()}
           </CardContent>
         </Card>
       </>
@@ -1022,7 +1102,7 @@ const ConversationDetail = () => {
             <Tabs defaultValue="reply" className="w-full">
               <TabsList className="w-full justify-start">
                 <TabsTrigger value="reply" className="gap-1.5"><Send className="h-3.5 w-3.5" /> Reply to customer</TabsTrigger>
-                <TabsTrigger value="notes" className="gap-1.5"><StickyNote className="h-3.5 w-3.5" /> Internal notes</TabsTrigger>
+                
                 <TabsTrigger value="activity" className="gap-1.5">
                   <History className="h-3.5 w-3.5" /> Activity log
                   {auditLogs.length > 0 && <Badge variant="secondary" className="text-xs ml-1 h-5 min-w-[20px] px-1">{auditLogs.length}</Badge>}
@@ -1061,58 +1141,6 @@ const ConversationDetail = () => {
                         </>
                       );
                     })()}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="notes">
-                <Card>
-                  <CardContent className="pt-4 space-y-4">
-                    {notes.length > 0 && (
-                      <div className="space-y-3">
-                        {notes.map((note) => (
-                          <div key={note.id} className="group relative bg-muted/50 rounded-md p-3">
-                            <div className="flex items-baseline justify-between gap-2">
-                              <span className="text-xs font-medium text-foreground">{note.author}</span>
-                              <div className="flex items-center gap-1">
-                                <span className="text-xs text-muted-foreground">
-                                  {new Date(note.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                                </span>
-                                <button
-                                  onClick={() => deleteNote(note.id)}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                                >
-                                  <X className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                            <p className="mt-1 text-sm text-foreground whitespace-pre-wrap">{note.note_text}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <div className="space-y-2">
-                      {!noteAuthor.trim() && (
-                        <Input
-                          placeholder="Your name"
-                          value={noteAuthor}
-                          onChange={(e) => setNoteAuthor(e.target.value)}
-                          className="h-8 text-sm"
-                        />
-                      )}
-                      <Textarea
-                        placeholder="Add a note…"
-                        value={newNoteText}
-                        onChange={(e) => setNewNoteText(e.target.value)}
-                        className="min-h-[60px] text-sm"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addNote();
-                        }}
-                      />
-                      <Button size="sm" onClick={addNote} disabled={addingNote || !newNoteText.trim()}>
-                        <Plus className="h-3.5 w-3.5 mr-1" /> Add note
-                      </Button>
-                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>
