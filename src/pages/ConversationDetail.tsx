@@ -1102,7 +1102,7 @@ const ConversationDetail = () => {
             <Tabs defaultValue="reply" className="w-full">
               <TabsList className="w-full justify-start">
                 <TabsTrigger value="reply" className="gap-1.5"><Send className="h-3.5 w-3.5" /> Reply to customer</TabsTrigger>
-                <TabsTrigger value="notes" className="gap-1.5"><StickyNote className="h-3.5 w-3.5" /> Internal notes</TabsTrigger>
+                
                 <TabsTrigger value="activity" className="gap-1.5">
                   <History className="h-3.5 w-3.5" /> Activity log
                   {auditLogs.length > 0 && <Badge variant="secondary" className="text-xs ml-1 h-5 min-w-[20px] px-1">{auditLogs.length}</Badge>}
