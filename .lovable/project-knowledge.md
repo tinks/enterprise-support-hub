@@ -1,6 +1,6 @@
 # Project Knowledge — Slack ↔ Intercom Support Bridge
 
-> **Last updated:** 2026-03-18
+> **Last updated:** 2026-04-29
 > This document captures all rules, logic, and behaviors of the system. Update it whenever logic changes.
 
 ---
@@ -18,35 +18,62 @@ A Slack-to-Intercom support bridge for enterprise customers. When a user @mentio
 |---|---|
 | `slack-events` | Handles Slack `app_mention` and `message` events (real-time mentions + thread replies) |
 | `slack-interactions` | Handles Slack button clicks, modal submissions, and feedback actions. Also contains the proactive polling logic for Sam's initial reply |
-| `intercom-webhook` | Receives Intercom webhook events (admin replies, conversation/ticket closed) and relays to Slack |
+| `intercom-webhook` | Receives Intercom webhook events (admin replies, conversation/ticket closed, notes) and relays to Slack / writes to manual tables |
 | `check-bot-identity` | Diagnostic endpoint — verifies the Slack bot token identity against expected bot user ID |
 | `list-slack-channels` | Lists Slack channels for the settings UI channel browser |
 | `list-slack-users` | Lists Slack users (utility) |
+| `poll-gmail` | 15-min cron: pulls new Gmail messages, upserts `gmail_conversations`, reconciles `pending_intercom_links` |
+| `poll-intercom-inbox` | Cron reconciler that scans the Intercom inbox for tickets the webhook missed and imports them |
+| `context-reminder` | 5-min cron: posts a reminder at 15 min and auto-creates the Intercom ticket at 30 min for stuck `awaiting_context` bot-flow conversations |
+| `promote-pending-intercom-links` | 2-min cron: late-reconciles or promotes `pending_intercom_links` rows older than 20 min into `manual_conversations` |
+| `backfill-intercom-replies` | Reconciliation that fetches missing Intercom parts (replies + notes) into `manual_messages`. `?recent=true` is also called by a 5-min cron as a webhook safety net |
+| `backfill-enterprise-inbox` | One-shot/manual backfill of enterprise inbox Intercom conversations into `manual_conversations` |
+| `backfill-gmail-headers` | Backfills missing `to_emails`/`cc_emails`/`from_*` on existing `gmail_conversations` rows |
+| `backfill-slack-user-names` | Backfills `slack_user_name` on `conversation_mappings` from Slack profile lookups |
+| `bulk-import-intercom` | Server side of the CSV / bulk import flow used by `/import/bulk` |
+| `import-intercom-ticket` | Imports a single Intercom conversation (by ID/URL) into `manual_conversations` + `manual_messages` |
+| `import-slack-thread` | Imports a single Slack thread URL into `manual_conversations` + `manual_messages`; `ImportTab` then auto-navigates to the new row |
+| `create-intercom-from-import` | Creates a new Intercom conversation from a manually imported thread |
+| `fetch-gmail-thread` | On-demand fetch of a Gmail thread's full message list |
+| `fetch-thread-messages` | Generic thread-message fetcher used by the conversation detail UI |
+| `gmail-auth-url` / `gmail-oauth-callback` | Gmail OAuth start + callback; tokens land in `gmail_oauth_tokens` |
+| `parse-thread` | Pasted-text parser used by manual ingestion to split a transcript into messages |
+| `post-reply` | Centralized outbound reply: routes to Slack, Intercom, or Gmail based on conversation source |
+| `search-intercom-by-email` | Lookup helper: finds an Intercom contact + recent conversations by email |
+| `cleanup-bad-intercom-imports` | Maintenance: removes malformed `manual_conversations` rows from earlier import bugs |
+| `delete-conversation-mapping` | Admin-only deletion of a `conversation_mappings` row (used to retry from scratch) |
+| `delete-slack-message` | Admin-only Slack message deletion (e.g., to remove an interim bot message) |
 
 ### Database Tables
 | Table | Purpose |
 |---|---|
-| `settings` | Singleton config: monitored channels, Intercom IDs, testing mode, bot user ID |
+| `settings` | Singleton config: monitored channels, Intercom IDs, testing mode, bot user ID, admin→owner map |
 | `conversation_mappings` | Maps Slack threads ↔ Intercom conversations with status tracking |
 | `bot_messages` | Editable bot message templates (keyed by `message_key`) |
 | `flow_node_positions` | Persisted drag positions for the flow diagram UI |
 | `knowledge_documents` | Project knowledge document with pending-change review workflow |
 | `gmail_conversations` | Gmail-sourced conversations with thread tracking |
 | `gmail_oauth_tokens` | OAuth tokens for Gmail integration |
-| `manual_conversations` | Manually logged conversations from any source |
-| `manual_messages` | Individual messages within manual conversations |
+| `manual_conversations` | Manually logged / Intercom-imported / Gmail-stub conversations from any source |
+| `manual_messages` | Individual messages within manual conversations. Includes `is_internal_note` for Intercom notes |
+| `conversation_notes` | User-authored inline yellow notes attached to any conversation (slack/gmail/manual) |
+| `conversation_audit_logs` | Immutable old/new value history for metadata edits (owner, status, classification, resolved_at, etc.) |
+| `pending_intercom_links` | Escrow table holding Intercom tickets for up to 20 min while `poll-gmail` tries to match them to a Gmail thread (closes the Google-Group race) |
 
 ### UI Pages
 | Route | Page | Purpose |
 |---|---|---|
-| `/` | Stats | System statistics |
-| `/conversations` | Conversations | View and monitor active/resolved conversations |
-| `/conversations/:id` | Conversation detail | Individual conversation thread view |
-| `/my/:owner` | Owner dashboard | Per-person dashboard (Joel, Kristina) |
-| `/import` | Import | Import conversations from external sources |
-| `/settings` | Settings | Configure channels, Intercom IDs, testing mode, view webhook URLs |
+| `/login` | Login | Supabase Auth sign-in (email + password / Google / SAML SSO) |
+| `/` | Stats | Analytics dashboard (volume, channels, owners, resolution time) |
+| `/conversations` | Conversations | Unified inbox — view and monitor active/resolved conversations across Slack, Gmail, manual |
+| `/conversations/:id` | Conversation detail | Individual conversation thread view with metadata sidebar, notes, audit log |
+| `/my/:owner` | Owner dashboard | Per-person dashboard (Joel, Kristina, Sam, CSM, Eren, Tine) |
+| `/import` | Import | Manual ingestion — paste, single URL (Slack thread / Intercom ticket), bulk |
+| `/import/bulk` | Bulk import review | CSV bulk import preview + commit |
+| `/test-review` | Test channel review | Triage view for the dedicated test inbox |
+| `/settings` | Settings | Configure channels, Intercom IDs, admin→owner map, testing mode, view webhook URLs |
 | `/flow` | Flow diagram | Interactive visual diagram of the full support workflow |
-| `/knowledge` | Knowledge | View and edit project knowledge document |
+| `/knowledge` | Knowledge | View and edit this project knowledge document (with pending-diff review) |
 
 ---
 
@@ -484,13 +511,55 @@ Manual rows with `source='slack_thread'` or `source='slack_dm'` are visually tre
 - This is **local only** — it does not close the upstream Intercom conversation, Gmail thread, or Slack mapping. The popover shows a small note clarifying this.
 - `ManualConv` interface in `ConversationDetail.tsx` was extended with `resolved_at: string | null` (the underlying `manual_conversations.resolved_at` column already existed).
 
-## Intercom internal notes — inline in message thread
+## Internal notes — two sources, one rendering
 
-Intercom internal notes (`part_type === "note"`) are now ingested into `manual_messages` with `is_internal_note = true` (column added 2026-04). Previously they were filtered out of every Intercom ingestion path.
+Two independent sources both render as the same yellow "Internal note" card, interleaved chronologically with messages on the conversation detail page. There is no separate "Internal notes" tab; the tabs below the thread are "Reply to customer" and "Activity log".
 
-- Affected ingestion functions: `import-intercom-ticket`, `backfill-intercom-replies`, `poll-intercom-inbox`, `backfill-enterprise-inbox`, `bulk-import-intercom`, `intercom-webhook` (live, including the new `conversation.admin.noted` topic in `REPLY_TOPICS`).
-- The conversation detail page renders these notes interleaved chronologically with messages, using the same yellow "Internal note" card style as user-authored notes from `conversation_notes`.
-- Internal notes do not change the customer-facing status (`awaiting_customer` / `awaiting_support`).
+**1. User-authored notes** — stored in `conversation_notes` (`conversation_id` + `conversation_source` + `author` + `note_text` + `created_at`).
+- Created via the inline composer below the thread on `/conversations/:id`. ⌘+Enter submits.
+- Hover reveals a delete (X) button.
+- Author name is saved to `localStorage` under `note_author` and reused across sessions.
+- RLS: authenticated read / insert / delete; no UPDATE.
+
+**2. Intercom-origin notes** — Intercom conversation parts with `part_type === "note"` are ingested into `manual_messages` with `is_internal_note = true` (column added 2026-04). Previously they were filtered out of every Intercom ingestion path.
+- Affected ingestion functions: `import-intercom-ticket`, `backfill-intercom-replies`, `poll-intercom-inbox`, `backfill-enterprise-inbox`, `bulk-import-intercom`, `intercom-webhook` (live, including the `conversation.admin.noted` topic in `REPLY_TOPICS`).
+- Notes do **not** change the customer-facing status (`awaiting_customer` / `awaiting_support`).
 - The webhook still skips notes when forwarding back to Slack via `lastCommentPart` — only `part_type === "comment"` parts are mirrored to customers.
+- Read-only — no UI to delete or post a note back to Intercom.
 - `backfill-intercom-replies` dedup key is `epoch:is_internal_note` so a note posted at the same second as a reply isn't suppressed.
 - To pull notes into already-imported tickets, run `backfill-intercom-replies?recent=true` (recent 7 days) or paginate with `offset`/`limit` for the full historical set.
+
+---
+
+## Slack import — auto-navigate to triage
+
+After a successful Slack thread import in `ImportTab` (`/import`), the UI extracts `data.conversation.id` from the import response and navigates to `/conversations/:id?source=slack`. This drops the user straight into the triage view for the freshly imported thread instead of leaving them on the import form. Same pattern can be applied to other import paths (Intercom single-URL, bulk) when desired.
+
+---
+
+## `manual_messages` dedup rule (general)
+
+`manual_messages` has no DB-level uniqueness constraint. Any code path that inserts into it MUST first fetch existing rows for the conversation and filter incoming messages by key:
+
+```
+${role}|${floor(created_at_ms / 1000)}|${message_text}
+```
+
+Drop incoming rows whose key already exists. This is required because (a) Intercom fires both `conversation.admin.assigned` and `conversation.admin.open.assigned` ~1s apart for the same logical event and both reach the auto-import path concurrently, and (b) the reply-reconciliation cron and the live webhook can race on the same part. Currently applied in `intercom-webhook` (auto-import path) and `poll-intercom-inbox`. `backfill-intercom-replies` uses its own `epoch:is_internal_note` epoch-based dedup. Any new ingestion function must follow this pattern.
+
+---
+
+## Owners (canonical list)
+
+Canonical owner options across the UI: **Joel, Kristina, Sam (AI agent), CSM, Eren, Tine.**
+
+- Each non-AI owner gets a dashboard at `/my/<lowercase-name>` rendered by `OwnerDashboard.tsx`.
+- Eren is a contractor scoped to **SSO/SCIM** work. Tracked in the unified Inbox like any other owner — filter by `Owner = Eren` (optionally combined with `Product area = SSO` or `SCIM`). No separate tables, page, or analytics path.
+- Tine has no email, Slack user ID, or Intercom admin ID recorded yet.
+- Known teammate emails live in `src/lib/parseThread.ts` `ADMIN_OPTIONS` (e.g. Eren = `eren@lovable.dev`).
+
+To add a new owner:
+1. Append to `OWNER_OPTIONS` in `src/pages/Conversations.tsx` (also extend the `OwnerFilter` type), `src/pages/ConversationDetail.tsx`, and the `SelectItem` list in `src/pages/TestChannelReview.tsx`.
+2. Add to `OWNER_MAP` in `src/pages/BulkImportReview.tsx` (lowercase name → display name).
+3. Add a sidebar entry in `src/components/AppLayout.tsx` `dashboardItems` (route `/my/<lowercase>` is auto-rendered).
+4. For Intercom auto-assignment, add their Intercom admin ID → owner name in Settings → Admin → owner mapping (`settings.admin_owner_map`). Read by `intercom-webhook` and `poll-intercom-inbox`.
