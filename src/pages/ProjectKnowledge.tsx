@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import AppLayout from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,9 @@ import {
   X,
   AlertTriangle,
   RefreshCw,
+  Columns2,
+  AlignJustify,
+  ChevronsUpDown,
 } from "lucide-react";
 
 const DOC_ID = "project-knowledge";
