@@ -75,6 +75,13 @@ A Slack-to-Intercom support bridge for enterprise customers. When a user @mentio
 | `/flow` | Flow diagram | Interactive visual diagram of the full support workflow |
 | `/knowledge` | Knowledge | View and edit this project knowledge document (with pending-diff review) |
 
+### Source taxonomy (`manual_conversations.source`)
+- `manual` — manually logged via the Manual Log tab
+- `intercom` — imported from Intercom (via `import-intercom-ticket`, `bulk-import-intercom`, `backfill-enterprise-inbox`, `poll-intercom-inbox`, or `intercom-webhook` auto-import on assignment)
+- `slack_thread` / `slack_dm` — Slack imports stored in `manual_conversations` (rather than `conversation_mappings`)
+- All Intercom write paths set `source = 'intercom'`. A legacy backfill re-labeled rows where `intercom_conversation_id IS NOT NULL` from `manual` → `intercom`.
+- Filter dropdowns in the Inbox, Analytics, and Flow Diagram expose Intercom as its own option separate from Manual entry.
+
 ---
 
 ## 3. Bot Identity
