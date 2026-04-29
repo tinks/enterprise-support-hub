@@ -1,4 +1,7 @@
-# Project Knowledge — Slack ↔ Intercom Support Bridge
+-- Stage merged knowledge document for review on /knowledge.
+-- Writes only to pending_content; live `content` is untouched until Approve.
+UPDATE public.knowledge_documents
+SET pending_content = $KBMERGE$# Project Knowledge — Slack ↔ Intercom Support Bridge
 
 > **Last updated:** 2026-04-29 (full merge with live DB summary content: source taxonomy, per-source stats palette, conversation-detail sidebar)
 > This document captures all rules, logic, and behaviors of the system. Update it whenever logic changes.
@@ -446,7 +449,7 @@ All Intercom API calls use `Intercom-Version: 2.11`.
 - The Knowledge page (`/knowledge`) shows a rendered markdown preview, an edit mode for manual edits, and a diff-based review mode for pending agent changes
 - Manual edits by the user via the Edit mode save directly (no approval needed)
 - Pending changes are highlighted with an orange banner across the UI
-- The diff view uses LCS-based line comparison showing added (green) and removed (red) lines
+- The diff view uses LCS-based line comparison showing added (green) and removed (red) lines, with both unified and side-by-side modes plus an "only changes" filter
 
 ### Agent Workflow for Updating Knowledge
 1. Read current content: `SELECT content FROM knowledge_documents WHERE id = 'project-knowledge'`
@@ -570,3 +573,8 @@ To add a new owner:
 2. Add to `OWNER_MAP` in `src/pages/BulkImportReview.tsx` (lowercase name → display name).
 3. Add a sidebar entry in `src/components/AppLayout.tsx` `dashboardItems` (route `/my/<lowercase>` is auto-rendered).
 4. For Intercom auto-assignment, add their Intercom admin ID → owner name in Settings → Admin → owner mapping (`settings.admin_owner_map`). Read by `intercom-webhook` and `poll-intercom-inbox`.
+$KBMERGE$,
+    pending_summary = 'Merge full project knowledge: replace the summary-only live doc (~10KB) with the comprehensive ~570-line version covering edge functions, lifecycle, deduplication, internal notes, pending Intercom links, owners, navigation, and analytics drilldown. Adds source taxonomy, per-source stats palette, and conversation-detail sidebar bullets carried over from the previous live doc.',
+    pending_at = now(),
+    updated_at = now()
+WHERE id = 'project-knowledge';
