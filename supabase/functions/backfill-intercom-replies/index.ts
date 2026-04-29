@@ -109,7 +109,7 @@ Deno.serve(async (req) => {
         const icData = await icRes.json();
 
         // Extract all Intercom messages (source + paginated parts)
-        const icMessages: Array<{ text: string; sender: string; role: string; created_at: string; epoch: number }> = [];
+        const icMessages: Array<{ text: string; sender: string; role: string; created_at: string; epoch: number; is_internal_note: boolean }> = [];
 
         const src = icData.source;
         if (src?.body) {
@@ -122,6 +122,7 @@ Deno.serve(async (req) => {
               role: mapRole(src.author?.type || "user"),
               created_at: ts ? toIso(ts) : new Date().toISOString(),
               epoch: ts || 0,
+              is_internal_note: false,
             });
           }
         }
@@ -155,21 +156,23 @@ Deno.serve(async (req) => {
             role: mapRole(part.author?.type || "admin"),
             created_at: part.created_at ? toIso(part.created_at) : new Date().toISOString(),
             epoch: part.created_at || 0,
+            is_internal_note: part.part_type === "note",
           });
         }
 
-        // Fetch existing messages
+        // Fetch existing messages (key by epoch + is_internal_note so notes posted
+        // at the same second as a comment don't dedup against each other)
         const { data: existingMsgs } = await sb
           .from("manual_messages")
-          .select("created_at")
+          .select("created_at, is_internal_note")
           .eq("conversation_id", conv.id);
 
-        const existingEpochs = new Set(
-          (existingMsgs || []).map(m => Math.floor(new Date(m.created_at).getTime() / 1000))
+        const existingKeys = new Set(
+          (existingMsgs || []).map(m => `${Math.floor(new Date(m.created_at).getTime() / 1000)}:${m.is_internal_note ? 1 : 0}`)
         );
 
         // Find missing messages
-        const missing = icMessages.filter(m => !existingEpochs.has(m.epoch));
+        const missing = icMessages.filter(m => !existingKeys.has(`${m.epoch}:${m.is_internal_note ? 1 : 0}`));
 
         if (!dry && missing.length > 0) {
           const toInsert = missing.map(m => ({
@@ -178,6 +181,7 @@ Deno.serve(async (req) => {
             sender_name: m.sender,
             role: m.role,
             created_at: m.created_at,
+            is_internal_note: m.is_internal_note,
           }));
           const { error: insertErr } = await sb.from("manual_messages").insert(toInsert);
           if (insertErr) console.error(`Insert error for ${conv.id}:`, insertErr);
