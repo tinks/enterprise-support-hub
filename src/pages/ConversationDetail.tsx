@@ -614,6 +614,68 @@ const ConversationDetail = () => {
 
   // ── Left panel: conversation content ──
 
+  // Inline internal note rendered within a message thread
+  const renderInlineNote = (note: ConversationNote) => (
+    <div key={`note-${note.id}`} className="flex gap-3 group/note">
+      <div className="h-8 w-8 shrink-0 mt-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/40 flex items-center justify-center">
+        <StickyNote className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <span className="text-sm font-medium text-foreground">{note.author}</span>
+          <span className="text-[10px] uppercase tracking-wide font-semibold text-yellow-700 dark:text-yellow-300 bg-yellow-100 dark:bg-yellow-900/40 px-1.5 py-0.5 rounded">
+            Internal note
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {new Date(note.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+          </span>
+          <button
+            onClick={() => deleteNote(note.id)}
+            className="opacity-0 group-hover/note:opacity-100 transition-opacity ml-auto text-muted-foreground hover:text-destructive"
+            title="Delete note"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <p className="mt-0.5 text-sm whitespace-pre-wrap break-words text-foreground bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900/50 rounded-md p-2 -ml-2">
+          {note.note_text}
+        </p>
+      </div>
+    </div>
+  );
+
+  // Compact inline composer rendered below each thread
+  const renderNoteComposer = () => (
+    <div className="mt-4 pt-4 border-t space-y-2">
+      <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+        <StickyNote className="h-3.5 w-3.5" /> Add internal note
+      </label>
+      {!noteAuthor.trim() && (
+        <Input
+          placeholder="Your name"
+          value={noteAuthor}
+          onChange={(e) => setNoteAuthor(e.target.value)}
+          className="h-8 text-sm"
+        />
+      )}
+      <Textarea
+        placeholder="Notes are visible only to your team…"
+        value={newNoteText}
+        onChange={(e) => setNewNoteText(e.target.value)}
+        className="min-h-[60px] text-sm bg-yellow-50/50 dark:bg-yellow-950/10 border-yellow-200 dark:border-yellow-900/50 focus-visible:ring-yellow-400"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) addNote();
+        }}
+      />
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">⌘+Enter to add</span>
+        <Button size="sm" variant="outline" onClick={addNote} disabled={addingNote || !newNoteText.trim()}>
+          <Plus className="h-3.5 w-3.5 mr-1" /> Add note
+        </Button>
+      </div>
+    </div>
+  );
+
   const renderSlackContent = () => {
     if (!conv) return null;
     const resolvedChannelName =
