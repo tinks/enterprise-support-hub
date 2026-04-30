@@ -1170,6 +1170,17 @@ const Stats = () => {
                     {(sourceFilter === "all" || sourceFilter === "intercom") && (
                       <Area type="monotone" dataKey="intercom" stroke="#F59E0B" fill="url(#gradIntercomOverview)" strokeWidth={2} />
                     )}
+                    {sourceFilter === "all" && (
+                      <Line
+                        type="monotone"
+                        dataKey="total"
+                        stroke="hsl(var(--foreground))"
+                        strokeWidth={2}
+                        strokeDasharray="4 4"
+                        dot={false}
+                        name="Total"
+                      />
+                    )}
                   </AreaChart>
                 </ChartContainer>
               )}
