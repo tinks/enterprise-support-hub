@@ -42,6 +42,7 @@ interface GmailRow {
   from_email: string | null;
   to_emails: string | null;
   cc_emails: string | null;
+  intercom_conversation_id: string | null;
 }
 
 interface ManualRow {
@@ -55,6 +56,7 @@ interface ManualRow {
   product_area: string | null;
   resolved_at: string | null;
   link: string | null;
+  intercom_conversation_id: string | null;
 }
 
 // Normalize a free-text Slack channel name: lowercase, trim, strip a single leading "#".
