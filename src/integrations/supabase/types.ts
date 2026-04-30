@@ -205,6 +205,9 @@ export type Database = {
           cc_emails: string | null
           classification: string | null
           created_at: string
+          csat_rated_at: string | null
+          csat_rating: number | null
+          csat_remark: string | null
           from_email: string | null
           from_name: string | null
           gmail_message_id: string
@@ -227,6 +230,9 @@ export type Database = {
           cc_emails?: string | null
           classification?: string | null
           created_at?: string
+          csat_rated_at?: string | null
+          csat_rating?: number | null
+          csat_remark?: string | null
           from_email?: string | null
           from_name?: string | null
           gmail_message_id: string
@@ -249,6 +255,9 @@ export type Database = {
           cc_emails?: string | null
           classification?: string | null
           created_at?: string
+          csat_rated_at?: string | null
+          csat_rating?: number | null
+          csat_remark?: string | null
           from_email?: string | null
           from_name?: string | null
           gmail_message_id?: string
@@ -331,6 +340,9 @@ export type Database = {
           classification: string | null
           contact_name: string
           created_at: string
+          csat_rated_at: string | null
+          csat_rating: number | null
+          csat_remark: string | null
           id: string
           intercom_conversation_id: string | null
           is_bug: boolean
@@ -349,6 +361,9 @@ export type Database = {
           classification?: string | null
           contact_name?: string
           created_at?: string
+          csat_rated_at?: string | null
+          csat_rating?: number | null
+          csat_remark?: string | null
           id?: string
           intercom_conversation_id?: string | null
           is_bug?: boolean
@@ -367,6 +382,9 @@ export type Database = {
           classification?: string | null
           contact_name?: string
           created_at?: string
+          csat_rated_at?: string | null
+          csat_rating?: number | null
+          csat_remark?: string | null
           id?: string
           intercom_conversation_id?: string | null
           is_bug?: boolean
