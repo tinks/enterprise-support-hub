@@ -1954,6 +1954,109 @@ const Stats = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* Customer satisfaction (Intercom CSAT) */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Customer satisfaction</CardTitle>
+            <CardDescription>
+              Ratings collected by Intercom after a conversation is resolved.
+              {csatStats.total === 0 && " No ratings in the current selection yet."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Average CSAT</div>
+                <div className="mt-1 flex items-baseline gap-1">
+                  <span className="text-3xl font-bold text-foreground">
+                    {csatStats.total > 0 ? csatStats.avg.toFixed(1) : "—"}
+                  </span>
+                  {csatStats.total > 0 && <span className="text-sm text-muted-foreground">/ 5</span>}
+                </div>
+              </div>
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Total ratings</div>
+                <div className="mt-1 text-3xl font-bold text-foreground">{csatStats.total}</div>
+              </div>
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Response rate</div>
+                <div className="mt-1 flex items-baseline gap-1">
+                  <span className="text-3xl font-bold text-foreground">
+                    {csatStats.responseRateBase > 0 ? `${csatStats.responseRate.toFixed(0)}%` : "—"}
+                  </span>
+                  {csatStats.responseRateBase > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      {csatStats.total} / {csatStats.responseRateBase} resolved
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {csatStats.total > 0 && (
+              <div>
+                <div className="mb-2 text-sm font-medium text-foreground">Rating distribution</div>
+                <ChartContainer config={{ count: { label: "Ratings", color: "#9B87F5" } }} className="h-[180px] w-full">
+                  <BarChart data={csatStats.distribution} layout="vertical" margin={{ left: 8, right: 24 }}>
+                    <CartesianGrid horizontal={false} className="stroke-muted" />
+                    <XAxis type="number" allowDecimals={false} className="text-xs" />
+                    <YAxis
+                      type="category"
+                      dataKey="rating"
+                      className="text-xs"
+                      width={48}
+                      tickFormatter={(v) => `${v}★`}
+                    />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                      {csatStats.distribution.map((d) => (
+                        <Cell key={d.rating} fill={ratingColor(d.rating)} />
+                      ))}
+                      <LabelList dataKey="count" position="right" className="text-xs fill-foreground" />
+                    </Bar>
+                  </BarChart>
+                </ChartContainer>
+              </div>
+            )}
+
+            {lowCsatRows.length > 0 && (
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
+                  <ThumbsDown className="h-4 w-4 text-destructive" />
+                  Recent low ratings (1–2★)
+                </div>
+                <div className="space-y-2">
+                  {lowCsatRows.map((r) => (
+                    <button
+                      key={`${r.source}-${r.id}`}
+                      type="button"
+                      onClick={() => navigate(`/conversations/${r.source}/${r.id}`)}
+                      className="flex w-full items-start gap-3 rounded-md border border-border bg-card p-3 text-left transition hover:bg-accent"
+                    >
+                      <span
+                        className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                        style={{ backgroundColor: ratingColor(r.rating) }}
+                      >
+                        {r.rating}★
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-foreground">{r.subject}</div>
+                        {r.remark && (
+                          <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">"{r.remark}"</div>
+                        )}
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {r.rated_at ? format(parseISO(r.rated_at), "MMM dd, yyyy") : "—"} · {r.source}
+                        </div>
+                      </div>
+                      <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </AppLayout>
   );
