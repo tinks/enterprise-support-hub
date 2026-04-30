@@ -904,6 +904,68 @@ const Stats = () => {
     }
   };
 
+  // ===== CSAT (Intercom conversation_rating) =====
+  const csatRows = useMemo(() => {
+    const rows: Array<{ id: string; rating: number; remark: string | null; rated_at: string | null; source: "manual" | "gmail"; subject: string; link: string | null }> = [];
+    if (sourceFilter === "all" || sourceFilter === "manual" || sourceFilter === "intercom") {
+      filteredManual.forEach((m) => {
+        if (m.csat_rating && m.id) {
+          rows.push({
+            id: m.id, rating: m.csat_rating, remark: m.csat_remark, rated_at: m.csat_rated_at,
+            source: "manual", subject: m.subject || "(no subject)", link: m.link,
+          });
+        }
+      });
+    }
+    if (sourceFilter === "all" || sourceFilter === "gmail") {
+      filteredGmailThreads.forEach((g) => {
+        if (g.csat_rating && g.id) {
+          rows.push({
+            id: g.id, rating: g.csat_rating, remark: g.csat_remark, rated_at: g.csat_rated_at,
+            source: "gmail", subject: g.subject || "(no subject)", link: null,
+          });
+        }
+      });
+    }
+    return rows;
+  }, [filteredManual, filteredGmailThreads, sourceFilter]);
+
+  const csatStats = useMemo(() => {
+    const total = csatRows.length;
+    const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    csatRows.forEach((r) => { counts[r.rating] = (counts[r.rating] || 0) + 1; });
+    const distribution = [1, 2, 3, 4, 5].map((rating) => ({ rating, count: counts[rating] }));
+    const avg = total > 0 ? csatRows.reduce((s, r) => s + r.rating, 0) / total : 0;
+    let resolvedWithIntercom = 0;
+    if (sourceFilter === "all" || sourceFilter === "manual" || sourceFilter === "intercom") {
+      filteredManual.forEach((m) => {
+        if (m.intercom_conversation_id && (m.status === "resolved" || m.resolved_at)) resolvedWithIntercom++;
+      });
+    }
+    if (sourceFilter === "all" || sourceFilter === "gmail") {
+      filteredGmailThreads.forEach((g) => {
+        if (g.intercom_conversation_id && (g.status === "resolved" || g.resolved_at)) resolvedWithIntercom++;
+      });
+    }
+    const responseRate = resolvedWithIntercom > 0 ? (total / resolvedWithIntercom) * 100 : 0;
+    return { total, avg, distribution, responseRateBase: resolvedWithIntercom, responseRate };
+  }, [csatRows, filteredManual, filteredGmailThreads, sourceFilter]);
+
+  const lowCsatRows = useMemo(() => {
+    return [...csatRows]
+      .filter((r) => r.rating <= 2)
+      .sort((a, b) => (b.rated_at || "").localeCompare(a.rated_at || ""))
+      .slice(0, 8);
+  }, [csatRows]);
+
+  const ratingColor = (rating: number) => {
+    if (rating >= 5) return "#10B981";
+    if (rating >= 4) return "#84CC16";
+    if (rating >= 3) return "#EAB308";
+    if (rating >= 2) return "#F97316";
+    return "#EF4444";
+  };
+
   if (loading) {
     return (
       <AppLayout>
