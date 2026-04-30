@@ -508,14 +508,21 @@ const Stats = () => {
       slackByDay[day] = (slackByDay[day] || 0) + 1;
     });
 
-    return [...allDays].sort().map((day) => ({
-      date: day,
-      label: format(parseISO(day), "MMM dd"),
-      slack: slackByDay[day] || 0,
-      gmail: gmailVolumeData[day] || 0,
-      manual: manualVolumeData[day] || 0,
-      intercom: intercomVolumeDataOverview[day] || 0,
-    }));
+    return [...allDays].sort().map((day) => {
+      const slack = slackByDay[day] || 0;
+      const gmail = gmailVolumeData[day] || 0;
+      const manual = manualVolumeData[day] || 0;
+      const intercom = intercomVolumeDataOverview[day] || 0;
+      return {
+        date: day,
+        label: format(parseISO(day), "MMM dd"),
+        slack,
+        gmail,
+        manual,
+        intercom,
+        total: slack + gmail + manual + intercom,
+      };
+    });
   }, [filtered, filteredGmailThreads, filteredManual, gmailVolumeData, manualVolumeData, intercomVolumeDataOverview]);
 
   const stats = useMemo(() => {
