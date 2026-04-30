@@ -384,15 +384,27 @@ const Stats = () => {
     return byDay;
   }, [filteredManual]);
 
+  // Intercom IDs already represented by a Gmail thread — skip these in the
+  // intercom volume series so the same conversation isn't counted twice when
+  // sourceFilter === "all".
+  const intercomIdsCoveredByGmail = useMemo(() => {
+    const set = new Set<string>();
+    filteredGmailThreads.forEach((g) => {
+      if (g.intercom_conversation_id) set.add(g.intercom_conversation_id);
+    });
+    return set;
+  }, [filteredGmailThreads]);
+
   const intercomVolumeDataOverview = useMemo(() => {
     const byDay: Record<string, number> = {};
     filteredManual.forEach((m) => {
       if (m.source !== "intercom") return;
+      if (m.intercom_conversation_id && intercomIdsCoveredByGmail.has(m.intercom_conversation_id)) return;
       const day = format(parseISO(m.created_at), "yyyy-MM-dd");
       byDay[day] = (byDay[day] || 0) + 1;
     });
     return byDay;
-  }, [filteredManual]);
+  }, [filteredManual, intercomIdsCoveredByGmail]);
 
   // Dedicated Intercom-only filter (ignores sourceFilter so the Intercom
   // section always reflects intercom-imported tickets when visible).
