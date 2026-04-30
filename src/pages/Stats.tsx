@@ -243,23 +243,51 @@ const Stats = () => {
     });
   }, [gmailData, view, range, customFrom, customTo]);
 
-  // Deduplicate Gmail rows by gmail_thread_id — keep only the latest row per thread
+  // Deduplicate Gmail rows by gmail_thread_id, picking the EARLIEST message
+  // per thread from the FULL unfiltered dataset (so a thread is bucketed on its
+  // true origin date, not on whichever reply happens to fall inside the range),
+  // then apply the same view/range/internal-only filters used by filteredGmail.
   const filteredGmailThreads = useMemo(() => {
-    const threadMap = new Map<string, GmailRow>();
+    const cutoff = getCutoffDate(range);
+    const earliestByThread = new Map<string, GmailRow>();
     let orphanIdx = 0;
-    filteredGmail.forEach((g) => {
+    gmailData.forEach((g) => {
       const key = g.gmail_thread_id || `__orphan_${orphanIdx++}`;
-      const existing = threadMap.get(key);
+      const existing = earliestByThread.get(key);
       if (!existing) {
-        threadMap.set(key, g);
+        earliestByThread.set(key, g);
       } else {
         const existingDate = existing.received_at || existing.created_at;
         const newDate = g.received_at || g.created_at;
-        if (newDate < existingDate) threadMap.set(key, g);
+        if (newDate && existingDate && newDate < existingDate) earliestByThread.set(key, g);
       }
     });
-    return [...threadMap.values()];
-  }, [filteredGmail]);
+
+    return [...earliestByThread.values()].filter((g) => {
+      const matchView = view === "test" ? g.is_test : !g.is_test;
+      const dateStr = g.received_at || g.created_at;
+      const parsed = parseISO(dateStr);
+      let matchRange: boolean;
+      if (range === "this_month") {
+        matchRange = (isAfter(parsed, startOfDay(startOfMonth(new Date()))) || parsed.getTime() === startOfDay(startOfMonth(new Date())).getTime()) &&
+                     (isBefore(parsed, endOfDay(endOfMonth(new Date()))) || parsed.getTime() === endOfDay(endOfMonth(new Date())).getTime());
+      } else if (range === "custom") {
+        matchRange = (!customFrom || isAfter(parsed, startOfDay(customFrom))) &&
+                     (!customTo || isBefore(parsed, endOfDay(customTo)));
+      } else {
+        matchRange = cutoff ? isAfter(parsed, cutoff) : true;
+      }
+      if (!matchView || !matchRange || g.status === "cancelled") return false;
+      const raw = [g.from_email, g.to_emails, g.cc_emails].filter(Boolean).join(",");
+      const emails = raw.split(",").map((e) => {
+        const match = e.match(/<([^>]+)>/);
+        return (match ? match[1] : e).trim().toLowerCase();
+      }).filter((e) => e.includes("@"));
+      if (emails.length === 0) return false;
+      const allInternal = emails.every((e) => e.endsWith("@lovable.dev"));
+      return !allInternal;
+    });
+  }, [gmailData, view, range, customFrom, customTo]);
 
   const filteredManual = useMemo(() => {
     const cutoff = getCutoffDate(range);
