@@ -570,3 +570,16 @@ To add a new owner:
 2. Add to `OWNER_MAP` in `src/pages/BulkImportReview.tsx` (lowercase name → display name).
 3. Add a sidebar entry in `src/components/AppLayout.tsx` `dashboardItems` (route `/my/<lowercase>` is auto-rendered).
 4. For Intercom auto-assignment, add their Intercom admin ID → owner name in Settings → Admin → owner mapping (`settings.admin_owner_map`). Read by `intercom-webhook` and `poll-intercom-inbox`.
+
+---
+
+## Intercom CSAT capture
+
+Intercom's `conversation_rating` (1–5 plus optional `remark`) is captured into `manual_conversations` and `gmail_conversations` via three columns: `csat_rating smallint`, `csat_remark text`, `csat_rated_at timestamptz`. A trigger (`validate_csat_rating`) enforces 1–5 on insert/update.
+
+Capture paths:
+- `import-intercom-ticket` and `bulk-import-intercom` set CSAT on insert if Intercom returns a rating.
+- `refresh-intercom-csat` edge function pulls ratings for any Intercom-linked conversation that doesn't yet have one. Runs every 6h via pg_cron job `refresh-intercom-csat-6h` against `?mode=recent` (only conversations resolved in the last 14 days). Call with `?mode=backfill` for a one-time historical sweep.
+- The `poll-intercom-inbox` and `intercom-webhook` paths intentionally do NOT touch CSAT — ratings arrive minutes-to-days after resolution, so the cron is the source of truth.
+
+Surfaced on `/stats` under "Customer satisfaction" with avg, total, response rate (ratings / resolved Intercom-linked conversations in scope), 1–5 distribution chart, and a click-through list of recent 1–2★ ratings.
