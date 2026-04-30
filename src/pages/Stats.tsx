@@ -77,7 +77,7 @@ const chartConfig = {
   active: { label: "Active", color: "#FF6B6B" },
   awaiting_context: { label: "Awaiting customer", color: "hsl(var(--muted-foreground))" },
   awaiting_support: { label: "Awaiting support", color: "hsl(var(--muted-foreground))" },
-  total: { label: "Total", color: "#FF6B6B" },
+  total: { label: "Total", color: "hsl(var(--foreground))" },
   slack: { label: "Slack", color: "#FF6B6B" },
   gmail: { label: "Gmail", color: "#E66FD2" },
   manual: { label: "Manual entry", color: "#4ECDC4" },
