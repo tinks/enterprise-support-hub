@@ -42,6 +42,7 @@ interface GmailRow {
   from_email: string | null;
   to_emails: string | null;
   cc_emails: string | null;
+  intercom_conversation_id: string | null;
 }
 
 interface ManualRow {
@@ -55,6 +56,7 @@ interface ManualRow {
   product_area: string | null;
   resolved_at: string | null;
   link: string | null;
+  intercom_conversation_id: string | null;
 }
 
 // Normalize a free-text Slack channel name: lowercase, trim, strip a single leading "#".
@@ -75,7 +77,7 @@ const chartConfig = {
   active: { label: "Active", color: "#FF6B6B" },
   awaiting_context: { label: "Awaiting customer", color: "hsl(var(--muted-foreground))" },
   awaiting_support: { label: "Awaiting support", color: "hsl(var(--muted-foreground))" },
-  total: { label: "Total", color: "#FF6B6B" },
+  total: { label: "Total", color: "hsl(var(--foreground))" },
   slack: { label: "Slack", color: "#FF6B6B" },
   gmail: { label: "Gmail", color: "#E66FD2" },
   manual: { label: "Manual entry", color: "#4ECDC4" },
@@ -137,11 +139,11 @@ const Stats = () => {
         .order("created_at", { ascending: true }),
       supabase
         .from("gmail_conversations")
-        .select("received_at, created_at, is_test, subject, status, resolved_at, gmail_thread_id, from_email, to_emails, cc_emails")
+        .select("received_at, created_at, is_test, subject, status, resolved_at, gmail_thread_id, from_email, to_emails, cc_emails, intercom_conversation_id")
         .order("received_at", { ascending: true }),
       supabase
         .from("manual_conversations")
-        .select("status, created_at, is_test, source, owner, classification, is_bug, product_area, resolved_at, link")
+        .select("status, created_at, is_test, source, owner, classification, is_bug, product_area, resolved_at, link, intercom_conversation_id")
         .order("created_at", { ascending: true }),
     ]);
     const rows = (slackRes.data as Mapping[]) || [];
@@ -243,23 +245,51 @@ const Stats = () => {
     });
   }, [gmailData, view, range, customFrom, customTo]);
 
-  // Deduplicate Gmail rows by gmail_thread_id — keep only the latest row per thread
+  // Deduplicate Gmail rows by gmail_thread_id, picking the EARLIEST message
+  // per thread from the FULL unfiltered dataset (so a thread is bucketed on its
+  // true origin date, not on whichever reply happens to fall inside the range),
+  // then apply the same view/range/internal-only filters used by filteredGmail.
   const filteredGmailThreads = useMemo(() => {
-    const threadMap = new Map<string, GmailRow>();
+    const cutoff = getCutoffDate(range);
+    const earliestByThread = new Map<string, GmailRow>();
     let orphanIdx = 0;
-    filteredGmail.forEach((g) => {
+    gmailData.forEach((g) => {
       const key = g.gmail_thread_id || `__orphan_${orphanIdx++}`;
-      const existing = threadMap.get(key);
+      const existing = earliestByThread.get(key);
       if (!existing) {
-        threadMap.set(key, g);
+        earliestByThread.set(key, g);
       } else {
         const existingDate = existing.received_at || existing.created_at;
         const newDate = g.received_at || g.created_at;
-        if (newDate < existingDate) threadMap.set(key, g);
+        if (newDate && existingDate && newDate < existingDate) earliestByThread.set(key, g);
       }
     });
-    return [...threadMap.values()];
-  }, [filteredGmail]);
+
+    return [...earliestByThread.values()].filter((g) => {
+      const matchView = view === "test" ? g.is_test : !g.is_test;
+      const dateStr = g.received_at || g.created_at;
+      const parsed = parseISO(dateStr);
+      let matchRange: boolean;
+      if (range === "this_month") {
+        matchRange = (isAfter(parsed, startOfDay(startOfMonth(new Date()))) || parsed.getTime() === startOfDay(startOfMonth(new Date())).getTime()) &&
+                     (isBefore(parsed, endOfDay(endOfMonth(new Date()))) || parsed.getTime() === endOfDay(endOfMonth(new Date())).getTime());
+      } else if (range === "custom") {
+        matchRange = (!customFrom || isAfter(parsed, startOfDay(customFrom))) &&
+                     (!customTo || isBefore(parsed, endOfDay(customTo)));
+      } else {
+        matchRange = cutoff ? isAfter(parsed, cutoff) : true;
+      }
+      if (!matchView || !matchRange || g.status === "cancelled") return false;
+      const raw = [g.from_email, g.to_emails, g.cc_emails].filter(Boolean).join(",");
+      const emails = raw.split(",").map((e) => {
+        const match = e.match(/<([^>]+)>/);
+        return (match ? match[1] : e).trim().toLowerCase();
+      }).filter((e) => e.includes("@"));
+      if (emails.length === 0) return false;
+      const allInternal = emails.every((e) => e.endsWith("@lovable.dev"));
+      return !allInternal;
+    });
+  }, [gmailData, view, range, customFrom, customTo]);
 
   const filteredManual = useMemo(() => {
     const cutoff = getCutoffDate(range);
@@ -356,15 +386,27 @@ const Stats = () => {
     return byDay;
   }, [filteredManual]);
 
+  // Intercom IDs already represented by a Gmail thread — skip these in the
+  // intercom volume series so the same conversation isn't counted twice when
+  // sourceFilter === "all".
+  const intercomIdsCoveredByGmail = useMemo(() => {
+    const set = new Set<string>();
+    filteredGmailThreads.forEach((g) => {
+      if (g.intercom_conversation_id) set.add(g.intercom_conversation_id);
+    });
+    return set;
+  }, [filteredGmailThreads]);
+
   const intercomVolumeDataOverview = useMemo(() => {
     const byDay: Record<string, number> = {};
     filteredManual.forEach((m) => {
       if (m.source !== "intercom") return;
+      if (m.intercom_conversation_id && intercomIdsCoveredByGmail.has(m.intercom_conversation_id)) return;
       const day = format(parseISO(m.created_at), "yyyy-MM-dd");
       byDay[day] = (byDay[day] || 0) + 1;
     });
     return byDay;
-  }, [filteredManual]);
+  }, [filteredManual, intercomIdsCoveredByGmail]);
 
   // Dedicated Intercom-only filter (ignores sourceFilter so the Intercom
   // section always reflects intercom-imported tickets when visible).
@@ -466,14 +508,21 @@ const Stats = () => {
       slackByDay[day] = (slackByDay[day] || 0) + 1;
     });
 
-    return [...allDays].sort().map((day) => ({
-      date: day,
-      label: format(parseISO(day), "MMM dd"),
-      slack: slackByDay[day] || 0,
-      gmail: gmailVolumeData[day] || 0,
-      manual: manualVolumeData[day] || 0,
-      intercom: intercomVolumeDataOverview[day] || 0,
-    }));
+    return [...allDays].sort().map((day) => {
+      const slack = slackByDay[day] || 0;
+      const gmail = gmailVolumeData[day] || 0;
+      const manual = manualVolumeData[day] || 0;
+      const intercom = intercomVolumeDataOverview[day] || 0;
+      return {
+        date: day,
+        label: format(parseISO(day), "MMM dd"),
+        slack,
+        gmail,
+        manual,
+        intercom,
+        total: slack + gmail + manual + intercom,
+      };
+    });
   }, [filtered, filteredGmailThreads, filteredManual, gmailVolumeData, manualVolumeData, intercomVolumeDataOverview]);
 
   const stats = useMemo(() => {
@@ -1120,6 +1169,17 @@ const Stats = () => {
                     )}
                     {(sourceFilter === "all" || sourceFilter === "intercom") && (
                       <Area type="monotone" dataKey="intercom" stroke="#F59E0B" fill="url(#gradIntercomOverview)" strokeWidth={2} />
+                    )}
+                    {sourceFilter === "all" && (
+                      <Line
+                        type="monotone"
+                        dataKey="total"
+                        stroke="hsl(var(--foreground))"
+                        strokeWidth={2}
+                        strokeDasharray="4 4"
+                        dot={false}
+                        name="Total"
+                      />
                     )}
                   </AreaChart>
                 </ChartContainer>
