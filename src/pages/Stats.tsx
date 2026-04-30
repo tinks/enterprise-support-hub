@@ -43,6 +43,10 @@ interface GmailRow {
   to_emails: string | null;
   cc_emails: string | null;
   intercom_conversation_id: string | null;
+  csat_rating: number | null;
+  csat_remark: string | null;
+  csat_rated_at: string | null;
+  id?: string;
 }
 
 interface ManualRow {
@@ -57,6 +61,11 @@ interface ManualRow {
   resolved_at: string | null;
   link: string | null;
   intercom_conversation_id: string | null;
+  csat_rating: number | null;
+  csat_remark: string | null;
+  csat_rated_at: string | null;
+  id?: string;
+  subject?: string | null;
 }
 
 // Normalize a free-text Slack channel name: lowercase, trim, strip a single leading "#".
