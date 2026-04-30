@@ -180,6 +180,16 @@ Deno.serve(async (req) => {
       ? preMessages[0].created_at
       : (icData.created_at ? toIso(icData.created_at) : new Date().toISOString());
 
+    // Extract CSAT (Intercom conversation_rating)
+    const rating = icData.conversation_rating;
+    const csatFields: Record<string, unknown> = rating && typeof rating.rating === "number"
+      ? {
+          csat_rating: rating.rating,
+          csat_remark: rating.remark || null,
+          csat_rated_at: rating.created_at ? toIso(rating.created_at) : null,
+        }
+      : {};
+
     // Insert conversation with correct created_at
     const { data: inserted, error: insertErr } = await sb
       .from("manual_conversations")
@@ -191,6 +201,7 @@ Deno.serve(async (req) => {
         intercom_conversation_id: intercomConvId,
         status: "active",
         created_at: conversationCreatedAt,
+        ...csatFields,
       })
       .select("id")
       .single();

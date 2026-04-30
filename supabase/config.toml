@@ -75,3 +75,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.promote-pending-intercom-links]
 verify_jwt = false
+[functions.refresh-intercom-csat]
+verify_jwt = false

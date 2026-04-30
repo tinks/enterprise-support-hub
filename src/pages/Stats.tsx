@@ -43,6 +43,10 @@ interface GmailRow {
   to_emails: string | null;
   cc_emails: string | null;
   intercom_conversation_id: string | null;
+  csat_rating: number | null;
+  csat_remark: string | null;
+  csat_rated_at: string | null;
+  id?: string;
 }
 
 interface ManualRow {
@@ -57,6 +61,11 @@ interface ManualRow {
   resolved_at: string | null;
   link: string | null;
   intercom_conversation_id: string | null;
+  csat_rating: number | null;
+  csat_remark: string | null;
+  csat_rated_at: string | null;
+  id?: string;
+  subject?: string | null;
 }
 
 // Normalize a free-text Slack channel name: lowercase, trim, strip a single leading "#".
@@ -139,11 +148,11 @@ const Stats = () => {
         .order("created_at", { ascending: true }),
       supabase
         .from("gmail_conversations")
-        .select("received_at, created_at, is_test, subject, status, resolved_at, gmail_thread_id, from_email, to_emails, cc_emails, intercom_conversation_id")
+        .select("id, received_at, created_at, is_test, subject, status, resolved_at, gmail_thread_id, from_email, to_emails, cc_emails, intercom_conversation_id, csat_rating, csat_remark, csat_rated_at")
         .order("received_at", { ascending: true }),
       supabase
         .from("manual_conversations")
-        .select("status, created_at, is_test, source, owner, classification, is_bug, product_area, resolved_at, link, intercom_conversation_id")
+        .select("id, status, created_at, is_test, source, owner, classification, is_bug, product_area, resolved_at, link, intercom_conversation_id, subject, csat_rating, csat_remark, csat_rated_at")
         .order("created_at", { ascending: true }),
     ]);
     const rows = (slackRes.data as Mapping[]) || [];
@@ -893,6 +902,68 @@ const Stats = () => {
     } finally {
       setExporting(false);
     }
+  };
+
+  // ===== CSAT (Intercom conversation_rating) =====
+  const csatRows = useMemo(() => {
+    const rows: Array<{ id: string; rating: number; remark: string | null; rated_at: string | null; source: "manual" | "gmail"; subject: string; link: string | null }> = [];
+    if (sourceFilter === "all" || sourceFilter === "manual" || sourceFilter === "intercom") {
+      filteredManual.forEach((m) => {
+        if (m.csat_rating && m.id) {
+          rows.push({
+            id: m.id, rating: m.csat_rating, remark: m.csat_remark, rated_at: m.csat_rated_at,
+            source: "manual", subject: m.subject || "(no subject)", link: m.link,
+          });
+        }
+      });
+    }
+    if (sourceFilter === "all" || sourceFilter === "gmail") {
+      filteredGmailThreads.forEach((g) => {
+        if (g.csat_rating && g.id) {
+          rows.push({
+            id: g.id, rating: g.csat_rating, remark: g.csat_remark, rated_at: g.csat_rated_at,
+            source: "gmail", subject: g.subject || "(no subject)", link: null,
+          });
+        }
+      });
+    }
+    return rows;
+  }, [filteredManual, filteredGmailThreads, sourceFilter]);
+
+  const csatStats = useMemo(() => {
+    const total = csatRows.length;
+    const counts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    csatRows.forEach((r) => { counts[r.rating] = (counts[r.rating] || 0) + 1; });
+    const distribution = [1, 2, 3, 4, 5].map((rating) => ({ rating, count: counts[rating] }));
+    const avg = total > 0 ? csatRows.reduce((s, r) => s + r.rating, 0) / total : 0;
+    let resolvedWithIntercom = 0;
+    if (sourceFilter === "all" || sourceFilter === "manual" || sourceFilter === "intercom") {
+      filteredManual.forEach((m) => {
+        if (m.intercom_conversation_id && (m.status === "resolved" || m.resolved_at)) resolvedWithIntercom++;
+      });
+    }
+    if (sourceFilter === "all" || sourceFilter === "gmail") {
+      filteredGmailThreads.forEach((g) => {
+        if (g.intercom_conversation_id && (g.status === "resolved" || g.resolved_at)) resolvedWithIntercom++;
+      });
+    }
+    const responseRate = resolvedWithIntercom > 0 ? (total / resolvedWithIntercom) * 100 : 0;
+    return { total, avg, distribution, responseRateBase: resolvedWithIntercom, responseRate };
+  }, [csatRows, filteredManual, filteredGmailThreads, sourceFilter]);
+
+  const lowCsatRows = useMemo(() => {
+    return [...csatRows]
+      .filter((r) => r.rating <= 2)
+      .sort((a, b) => (b.rated_at || "").localeCompare(a.rated_at || ""))
+      .slice(0, 8);
+  }, [csatRows]);
+
+  const ratingColor = (rating: number) => {
+    if (rating >= 5) return "#10B981";
+    if (rating >= 4) return "#84CC16";
+    if (rating >= 3) return "#EAB308";
+    if (rating >= 2) return "#F97316";
+    return "#EF4444";
   };
 
   if (loading) {
@@ -1883,6 +1954,109 @@ const Stats = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* Customer satisfaction (Intercom CSAT) */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Customer satisfaction</CardTitle>
+            <CardDescription>
+              Ratings collected by Intercom after a conversation is resolved.
+              {csatStats.total === 0 && " No ratings in the current selection yet."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Average CSAT</div>
+                <div className="mt-1 flex items-baseline gap-1">
+                  <span className="text-3xl font-bold text-foreground">
+                    {csatStats.total > 0 ? csatStats.avg.toFixed(1) : "—"}
+                  </span>
+                  {csatStats.total > 0 && <span className="text-sm text-muted-foreground">/ 5</span>}
+                </div>
+              </div>
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Total ratings</div>
+                <div className="mt-1 text-3xl font-bold text-foreground">{csatStats.total}</div>
+              </div>
+              <div className="rounded-lg border border-border bg-card p-4">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Response rate</div>
+                <div className="mt-1 flex items-baseline gap-1">
+                  <span className="text-3xl font-bold text-foreground">
+                    {csatStats.responseRateBase > 0 ? `${csatStats.responseRate.toFixed(0)}%` : "—"}
+                  </span>
+                  {csatStats.responseRateBase > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      {csatStats.total} / {csatStats.responseRateBase} resolved
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {csatStats.total > 0 && (
+              <div>
+                <div className="mb-2 text-sm font-medium text-foreground">Rating distribution</div>
+                <ChartContainer config={{ count: { label: "Ratings", color: "#9B87F5" } }} className="h-[180px] w-full">
+                  <BarChart data={csatStats.distribution} layout="vertical" margin={{ left: 8, right: 24 }}>
+                    <CartesianGrid horizontal={false} className="stroke-muted" />
+                    <XAxis type="number" allowDecimals={false} className="text-xs" />
+                    <YAxis
+                      type="category"
+                      dataKey="rating"
+                      className="text-xs"
+                      width={48}
+                      tickFormatter={(v) => `${v}★`}
+                    />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                      {csatStats.distribution.map((d) => (
+                        <Cell key={d.rating} fill={ratingColor(d.rating)} />
+                      ))}
+                      <LabelList dataKey="count" position="right" className="text-xs fill-foreground" />
+                    </Bar>
+                  </BarChart>
+                </ChartContainer>
+              </div>
+            )}
+
+            {lowCsatRows.length > 0 && (
+              <div>
+                <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
+                  <ThumbsDown className="h-4 w-4 text-destructive" />
+                  Recent low ratings (1–2★)
+                </div>
+                <div className="space-y-2">
+                  {lowCsatRows.map((r) => (
+                    <button
+                      key={`${r.source}-${r.id}`}
+                      type="button"
+                      onClick={() => navigate(`/conversations/${r.source}/${r.id}`)}
+                      className="flex w-full items-start gap-3 rounded-md border border-border bg-card p-3 text-left transition hover:bg-accent"
+                    >
+                      <span
+                        className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                        style={{ backgroundColor: ratingColor(r.rating) }}
+                      >
+                        {r.rating}★
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-foreground">{r.subject}</div>
+                        {r.remark && (
+                          <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">"{r.remark}"</div>
+                        )}
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {r.rated_at ? format(parseISO(r.rated_at), "MMM dd, yyyy") : "—"} · {r.source}
+                        </div>
+                      </div>
+                      <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </AppLayout>
   );

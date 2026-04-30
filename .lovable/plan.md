@@ -1,48 +1,64 @@
-# Fix daily volume chart totals on Stats
+# Add Intercom CSAT Capture & Stats
 
-## The problem
+## Phase 1 — Schema (migration)
 
-On `/stats`, the "Conversation volume" area chart renders four overlapping series (Slack, Gmail, Manual, Intercom). The daily values don't sum to the KPI totals shown above the chart for two reasons I confirmed in the data:
+Add to both `manual_conversations` and `gmail_conversations`:
+- `csat_rating smallint` (1–5, nullable)
+- `csat_remark text` (nullable)
+- `csat_rated_at timestamptz` (nullable)
 
-1. **Gmail ↔ Intercom double-counting.** 255 Gmail rows currently carry an `intercom_conversation_id`, meaning the same conversation is counted once in the Gmail series and again in the Intercom series. When `sourceFilter = "all"`, the four areas overlap and the visual "total" overstates real volume.
-2. **Gmail thread dedup is order-of-operations sensitive.** `filteredGmailThreads` dedupes by `gmail_thread_id` *after* the date-range filter is applied. If a thread's earliest message is older than the cutoff but a reply lands inside it, the chart attributes the thread to the reply day instead of its true origin day. This shifts daily counts around, especially near the left edge of any range.
+Add a validation trigger (not CHECK) enforcing `csat_rating BETWEEN 1 AND 5` on insert/update. Partial indexes on `(csat_rating)` where `csat_rating IS NOT NULL` for both tables.
 
-Symptoms the user is seeing: daily bars on the chart don't reconcile with the "Total conversations" KPI, and certain days look inflated.
+## Phase 2 — Capture in existing edge functions
 
-## Fix
+Extract `conversation_rating` from Intercom API responses and write the three columns in:
+- `poll-intercom-inbox` — on every poll cycle update for both `manual_conversations` and `gmail_conversations` rows linked by `intercom_conversation_id`.
+- `intercom-webhook` — on `conversation_part` events, check `conversation.conversation_rating` and update the linked row.
+- `import-intercom-ticket` — set on initial insert.
+- `bulk-import-intercom` — set on initial insert.
 
-### 1. De-duplicate Gmail/Intercom overlap in `mergedVolumeData`
+Helper (inline in each function):
+```ts
+const rating = icData.conversation_rating;
+const csatFields = rating ? {
+  csat_rating: rating.rating,
+  csat_remark: rating.remark || null,
+  csat_rated_at: rating.created_at ? new Date(rating.created_at * 1000).toISOString() : null,
+} : {};
+```
 
-In `src/pages/Stats.tsx`, when building the per-day buckets:
+## Phase 3 — Backfill + refresh
 
-- Compute a `Set<string>` of `intercom_conversation_id` values present in `filteredGmailThreads`.
-- In `intercomVolumeDataOverview`, skip any `manual_conversations` row whose `intercom_conversation_id` is in that set (it's already represented by the Gmail series).
-- This mirrors how the existing dedup memory ("Gmail thread deduplication") treats threads as the source of truth and keeps the Intercom series additive only for tickets that didn't originate from a tracked email.
+New edge function `refresh-intercom-csat`:
+- One-time mode (`?mode=backfill`): page through all `manual_conversations` and `gmail_conversations` rows with non-null `intercom_conversation_id` and null `csat_rating`, fetch each from Intercom, write rating if present. Rate-limit ~5 req/sec.
+- Recurring mode (default): only conversations resolved in the last 14 days with null `csat_rating` (CSAT typically arrives hours/days after resolution).
+- Schedule via `pg_cron` every 6 hours using `net.http_post` (insert SQL, not migration).
 
-### 2. Bucket Gmail threads on their true earliest date
+## Phase 4 — Stats UI (`src/pages/Stats.tsx`)
 
-Switch `filteredGmailThreads` to dedupe against the *full* unfiltered `gmailData` set first (keeping the earliest row per `gmail_thread_id`), then apply the date-range filter against that representative row's `received_at || created_at`. This guarantees a thread is bucketed on its origin date and never gets re-attributed because of a later reply.
-
-### 3. Add a "Total" reference line / tooltip row
-
-To make the chart self-checking:
-
-- Add a computed `total = slack + gmail + manual + intercom` field to each `mergedVolumeData` point.
-- Render an extra `<Line>` (no fill) on top of the areas in a muted color so the user can visually confirm the daily total.
-- Show `Total` as the first row in the chart tooltip.
-
-### 4. Sanity test
-
-After the fix, sum `mergedVolumeData[*].total` for the active range and assert it equals `stats.total + stats.gmailTotal + stats.manualTotal` (with intercom already merged into manual). Log a `console.warn` in dev when they diverge so future regressions are caught early.
+New section "Customer satisfaction":
+- KPI cards: **Avg CSAT** (1–5, 1 decimal), **Response rate** (% of resolved Intercom-linked tickets with a rating), **Total ratings**.
+- Distribution chart: horizontal bar, counts per 1–5 rating, color-graded red→green.
+- Recent low ratings list: 1–2 star ratings in range, click-through to `/conversations/:source/:id`.
+- Respect existing date range / source / owner filters.
+- Pull from both `manual_conversations` and `gmail_conversations` via existing query patterns (just select the new columns).
 
 ## Files touched
 
-- `src/pages/Stats.tsx` — update `filteredGmailThreads`, `intercomVolumeDataOverview`, `mergedVolumeData`, and the chart JSX.
-- `.lovable/project-knowledge.md` — note the dedup rule (Gmail thread linked to Intercom = counted once, on the Gmail series).
-- `.lovable/memory/logic/gmail-thread-dedup.md` — extend with the Gmail↔Intercom precedence rule.
+- `supabase/migrations/<new>_add_csat_columns.sql` — columns + trigger + indexes.
+- `supabase/functions/poll-intercom-inbox/index.ts` — capture rating on poll.
+- `supabase/functions/intercom-webhook/index.ts` — capture rating on webhook.
+- `supabase/functions/import-intercom-ticket/index.ts` — capture on import.
+- `supabase/functions/bulk-import-intercom/index.ts` — capture on bulk import.
+- `supabase/functions/refresh-intercom-csat/index.ts` — new, backfill + refresh.
+- `supabase/config.toml` — register `refresh-intercom-csat` with `verify_jwt = false`.
+- `src/pages/Stats.tsx` — CSAT section.
+- `.lovable/project-knowledge.md` + new `.lovable/memory/features/csat.md` — document the flow.
+- `src/pages/FlowDiagram.tsx` — add CSAT capture node.
+- One pg_cron `INSERT` SQL (run via insert tool, not migration) to schedule the refresh.
 
 ## Out of scope
 
-- No DB migrations required.
-- KPI cards already use the correct deduped counts; only the chart series need adjusting.
-- Other charts (hourly activity, heatmap) have the same overlap risk — flagged for a follow-up but not changed here to keep this PR focused.
+- Slack-only conversations (no Intercom link → no CSAT).
+- Triggering CSAT requests (Intercom owns that flow).
+- Editing/overriding ratings from the UI.
