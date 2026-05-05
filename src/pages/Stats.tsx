@@ -566,8 +566,9 @@ const Stats = () => {
     if (sourceFilter === "gmail") combinedTotal = gmailTotal;
     else if (sourceFilter === "slack") combinedTotal = total;
     else if (sourceFilter === "manual" || sourceFilter === "intercom") combinedTotal = manualTotal;
-    const daySpan = range === "this_month"
-      ? differenceInDays(new Date(), startOfMonth(new Date())) || 1
+    const monthRange = getMonthRange(range);
+    const daySpan = monthRange
+      ? (differenceInDays(monthRange[1], monthRange[0]) || 1)
       : cutoff
         ? differenceInDays(new Date(), cutoff) || 1
         : filtered.length > 0
