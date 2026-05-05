@@ -76,7 +76,7 @@ const normalizeChannelName = (raw: string | null | undefined): string => {
 };
 
 type SourceFilter = "all" | "slack" | "gmail" | "manual" | "intercom";
-type TimeRange = "this_month" | "7d" | "30d" | "90d" | "all" | "custom";
+type TimeRange = "this_month" | "last_month" | "7d" | "30d" | "90d" | "all" | "custom";
 
 const chartConfig = {
   resolved: { label: "Resolved", color: "#9B87F5" },
@@ -98,11 +98,23 @@ const chartConfig = {
 
 const rangeLabel: Record<TimeRange, string> = {
   this_month: "This month",
+  last_month: "Last month",
   "7d": "Last 7 days",
   "30d": "Last 30 days",
   "90d": "Last 90 days",
   all: "All time",
   custom: "Custom range",
+};
+
+// Returns [start, end] for fixed-window ranges (this_month, last_month), or null
+const getMonthRange = (range: TimeRange): [Date, Date] | null => {
+  const now = new Date();
+  if (range === "this_month") return [startOfDay(startOfMonth(now)), endOfDay(endOfMonth(now))];
+  if (range === "last_month") {
+    const prev = subMonths(now, 1);
+    return [startOfDay(startOfMonth(prev)), endOfDay(endOfMonth(prev))];
+  }
+  return null;
 };
 
 const getCutoffDate = (range: TimeRange): Date | null => {
@@ -211,9 +223,9 @@ const Stats = () => {
       const matchView = view === "test" ? m.is_test : !m.is_test;
       const parsed = parseISO(m.created_at);
       let matchRange: boolean;
-      if (range === "this_month") {
-        matchRange = isAfter(parsed, startOfDay(startOfMonth(new Date()))) || parsed.getTime() === startOfDay(startOfMonth(new Date())).getTime();
-        matchRange = matchRange && (isBefore(parsed, endOfDay(endOfMonth(new Date()))) || parsed.getTime() === endOfDay(endOfMonth(new Date())).getTime());
+      if (range === "this_month" || range === "last_month") {
+        const [s, e] = getMonthRange(range)!;
+        matchRange = parsed >= s && parsed <= e;
       } else if (range === "custom") {
         matchRange = (!customFrom || isAfter(parsed, startOfDay(customFrom))) &&
                      (!customTo || isBefore(parsed, endOfDay(customTo)));
@@ -232,9 +244,9 @@ const Stats = () => {
       const dateStr = g.received_at || g.created_at;
       const parsed = parseISO(dateStr);
       let matchRange: boolean;
-      if (range === "this_month") {
-        matchRange = (isAfter(parsed, startOfDay(startOfMonth(new Date()))) || parsed.getTime() === startOfDay(startOfMonth(new Date())).getTime()) &&
-                     (isBefore(parsed, endOfDay(endOfMonth(new Date()))) || parsed.getTime() === endOfDay(endOfMonth(new Date())).getTime());
+      if (range === "this_month" || range === "last_month") {
+        const [s, e] = getMonthRange(range)!;
+        matchRange = parsed >= s && parsed <= e;
       } else if (range === "custom") {
         matchRange = (!customFrom || isAfter(parsed, startOfDay(customFrom))) &&
                      (!customTo || isBefore(parsed, endOfDay(customTo)));
@@ -279,9 +291,9 @@ const Stats = () => {
       const dateStr = g.received_at || g.created_at;
       const parsed = parseISO(dateStr);
       let matchRange: boolean;
-      if (range === "this_month") {
-        matchRange = (isAfter(parsed, startOfDay(startOfMonth(new Date()))) || parsed.getTime() === startOfDay(startOfMonth(new Date())).getTime()) &&
-                     (isBefore(parsed, endOfDay(endOfMonth(new Date()))) || parsed.getTime() === endOfDay(endOfMonth(new Date())).getTime());
+      if (range === "this_month" || range === "last_month") {
+        const [s, e] = getMonthRange(range)!;
+        matchRange = parsed >= s && parsed <= e;
       } else if (range === "custom") {
         matchRange = (!customFrom || isAfter(parsed, startOfDay(customFrom))) &&
                      (!customTo || isBefore(parsed, endOfDay(customTo)));
@@ -306,9 +318,9 @@ const Stats = () => {
       const matchView = view === "test" ? m.is_test : !m.is_test;
       const parsed = parseISO(m.created_at);
       let matchRange: boolean;
-      if (range === "this_month") {
-        matchRange = (isAfter(parsed, startOfDay(startOfMonth(new Date()))) || parsed.getTime() === startOfDay(startOfMonth(new Date())).getTime()) &&
-                     (isBefore(parsed, endOfDay(endOfMonth(new Date()))) || parsed.getTime() === endOfDay(endOfMonth(new Date())).getTime());
+      if (range === "this_month" || range === "last_month") {
+        const [s, e] = getMonthRange(range)!;
+        matchRange = parsed >= s && parsed <= e;
       } else if (range === "custom") {
         matchRange = (!customFrom || isAfter(parsed, startOfDay(customFrom))) &&
                      (!customTo || isBefore(parsed, endOfDay(customTo)));
@@ -426,9 +438,9 @@ const Stats = () => {
       const matchView = view === "test" ? m.is_test : !m.is_test;
       const parsed = parseISO(m.created_at);
       let matchRange: boolean;
-      if (range === "this_month") {
-        matchRange = (isAfter(parsed, startOfDay(startOfMonth(new Date()))) || parsed.getTime() === startOfDay(startOfMonth(new Date())).getTime()) &&
-                     (isBefore(parsed, endOfDay(endOfMonth(new Date()))) || parsed.getTime() === endOfDay(endOfMonth(new Date())).getTime());
+      if (range === "this_month" || range === "last_month") {
+        const [s, e] = getMonthRange(range)!;
+        matchRange = parsed >= s && parsed <= e;
       } else if (range === "custom") {
         matchRange = (!customFrom || isAfter(parsed, startOfDay(customFrom))) &&
                      (!customTo || isBefore(parsed, endOfDay(customTo)));
@@ -554,8 +566,9 @@ const Stats = () => {
     if (sourceFilter === "gmail") combinedTotal = gmailTotal;
     else if (sourceFilter === "slack") combinedTotal = total;
     else if (sourceFilter === "manual" || sourceFilter === "intercom") combinedTotal = manualTotal;
-    const daySpan = range === "this_month"
-      ? differenceInDays(new Date(), startOfMonth(new Date())) || 1
+    const monthRange = getMonthRange(range);
+    const daySpan = monthRange
+      ? (differenceInDays(monthRange[1], monthRange[0]) || 1)
       : cutoff
         ? differenceInDays(new Date(), cutoff) || 1
         : filtered.length > 0
@@ -1037,6 +1050,7 @@ const Stats = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="this_month">This month</SelectItem>
+              <SelectItem value="last_month">Last month</SelectItem>
               <SelectItem value="7d">Last 7 days</SelectItem>
               <SelectItem value="30d">Last 30 days</SelectItem>
               <SelectItem value="90d">Last 90 days</SelectItem>
