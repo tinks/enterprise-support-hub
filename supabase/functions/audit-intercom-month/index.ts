@@ -21,19 +21,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-    const token = authHeader.replace("Bearer ", "");
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
-    if (token !== anonKey) {
-      const anon = createClient(Deno.env.get("SUPABASE_URL")!, anonKey, { global: { headers: { Authorization: authHeader } } });
-      const { data: userData, error: userErr } = await anon.auth.getUser(token);
-      if (userErr || !userData?.user) {
-        return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
-    }
+    // Public ops endpoint (no auth) — verify_jwt = false in config.toml
 
     const INTERCOM_API_TOKEN = Deno.env.get("INTERCOM_API_TOKEN");
     if (!INTERCOM_API_TOKEN) {
