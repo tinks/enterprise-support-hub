@@ -98,11 +98,23 @@ const chartConfig = {
 
 const rangeLabel: Record<TimeRange, string> = {
   this_month: "This month",
+  last_month: "Last month",
   "7d": "Last 7 days",
   "30d": "Last 30 days",
   "90d": "Last 90 days",
   all: "All time",
   custom: "Custom range",
+};
+
+// Returns [start, end] for fixed-window ranges (this_month, last_month), or null
+const getMonthRange = (range: TimeRange): [Date, Date] | null => {
+  const now = new Date();
+  if (range === "this_month") return [startOfDay(startOfMonth(now)), endOfDay(endOfMonth(now))];
+  if (range === "last_month") {
+    const prev = subMonths(now, 1);
+    return [startOfDay(startOfMonth(prev)), endOfDay(endOfMonth(prev))];
+  }
+  return null;
 };
 
 const getCutoffDate = (range: TimeRange): Date | null => {
