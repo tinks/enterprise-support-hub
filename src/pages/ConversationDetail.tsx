@@ -200,6 +200,48 @@ const ConversationDetail = () => {
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
   const [auditLogs, setAuditLogs] = useState<{ id: string; action: string; old_value: string | null; new_value: string | null; performed_by: string; created_at: string }[]>([]);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const startEditMessage = (m: ManualMessage) => {
+    setEditingNoteId(null);
+    setEditingMessageId(m.id);
+    setEditDraft(m.message_text);
+  };
+  const startEditNote = (n: ConversationNote) => {
+    setEditingMessageId(null);
+    setEditingNoteId(n.id);
+    setEditDraft(n.note_text);
+  };
+  const cancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingNoteId(null);
+    setEditDraft("");
+  };
+  const saveMessageEdit = async (msgId: string) => {
+    const text = editDraft.trim();
+    if (!text) { toast.error("Message cannot be empty"); return; }
+    setSavingEdit(true);
+    const { error } = await supabase.from("manual_messages").update({ message_text: text }).eq("id", msgId);
+    if (error) { toast.error("Failed to save"); setSavingEdit(false); return; }
+    setManualMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, message_text: text } : m)));
+    cancelEdit();
+    setSavingEdit(false);
+    toast.success("Message updated");
+  };
+  const saveNoteEdit = async (noteId: string) => {
+    const text = editDraft.trim();
+    if (!text) { toast.error("Note cannot be empty"); return; }
+    setSavingEdit(true);
+    const { error } = await supabase.from("conversation_notes").update({ note_text: text }).eq("id", noteId);
+    if (error) { toast.error("Failed to save"); setSavingEdit(false); return; }
+    setNotes((prev) => prev.map((n) => (n.id === noteId ? { ...n, note_text: text } : n)));
+    cancelEdit();
+    setSavingEdit(false);
+    toast.success("Note updated");
+  };
   
 
   const logAudit = async (action: string, oldValue: string | null, newValue: string | null) => {
