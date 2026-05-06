@@ -583,3 +583,9 @@ Capture paths:
 - The `poll-intercom-inbox` and `intercom-webhook` paths intentionally do NOT touch CSAT — ratings arrive minutes-to-days after resolution, so the cron is the source of truth.
 
 Surfaced on `/stats` under "Customer satisfaction" with avg, total, response rate (ratings / resolved Intercom-linked conversations in scope), 1–5 distribution chart, and a click-through list of recent 1–2★ ratings.
+
+---
+
+## Inline editing of messages and notes
+
+On the conversation detail page, hovering a manual message or internal note (either source: `conversation_notes` row or `manual_messages` with `is_internal_note=true`) reveals a pencil icon. Clicking opens an inline `Textarea` with Save / Cancel; ⌘+Enter saves, Esc cancels. Saves write to `manual_messages.message_text` or `conversation_notes.note_text` respectively. Author / role / timestamp are read-only. RLS: `conversation_notes` now has an authenticated UPDATE policy (added 2026-05).
