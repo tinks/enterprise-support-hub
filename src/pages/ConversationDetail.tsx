@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket, Mail, Trash2, Link, Search, StickyNote, X, Plus, Send, History, CalendarIcon } from "lucide-react";
+import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket, Mail, Trash2, Link, Search, StickyNote, X, Plus, Send, History, CalendarIcon, Pencil, Check as CheckIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
@@ -200,6 +200,48 @@ const ConversationDetail = () => {
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
   const [auditLogs, setAuditLogs] = useState<{ id: string; action: string; old_value: string | null; new_value: string | null; performed_by: string; created_at: string }[]>([]);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const startEditMessage = (m: ManualMessage) => {
+    setEditingNoteId(null);
+    setEditingMessageId(m.id);
+    setEditDraft(m.message_text);
+  };
+  const startEditNote = (n: ConversationNote) => {
+    setEditingMessageId(null);
+    setEditingNoteId(n.id);
+    setEditDraft(n.note_text);
+  };
+  const cancelEdit = () => {
+    setEditingMessageId(null);
+    setEditingNoteId(null);
+    setEditDraft("");
+  };
+  const saveMessageEdit = async (msgId: string) => {
+    const text = editDraft.trim();
+    if (!text) { toast.error("Message cannot be empty"); return; }
+    setSavingEdit(true);
+    const { error } = await supabase.from("manual_messages").update({ message_text: text }).eq("id", msgId);
+    if (error) { toast.error("Failed to save"); setSavingEdit(false); return; }
+    setManualMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, message_text: text } : m)));
+    cancelEdit();
+    setSavingEdit(false);
+    toast.success("Message updated");
+  };
+  const saveNoteEdit = async (noteId: string) => {
+    const text = editDraft.trim();
+    if (!text) { toast.error("Note cannot be empty"); return; }
+    setSavingEdit(true);
+    const { error } = await supabase.from("conversation_notes").update({ note_text: text }).eq("id", noteId);
+    if (error) { toast.error("Failed to save"); setSavingEdit(false); return; }
+    setNotes((prev) => prev.map((n) => (n.id === noteId ? { ...n, note_text: text } : n)));
+    cancelEdit();
+    setSavingEdit(false);
+    toast.success("Note updated");
+  };
   
 
   const logAudit = async (action: string, oldValue: string | null, newValue: string | null) => {
@@ -615,35 +657,78 @@ const ConversationDetail = () => {
 
   // ── Left panel: conversation content ──
 
-  // Inline internal note rendered within a message thread
-  const renderInlineNote = (note: ConversationNote) => (
-    <div key={`note-${note.id}`} className="flex gap-3 group/note">
-      <div className="h-8 w-8 shrink-0 mt-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/40 flex items-center justify-center">
-        <StickyNote className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm font-medium text-foreground">{note.author}</span>
-          <span className="text-[10px] uppercase tracking-wide font-semibold text-yellow-700 dark:text-yellow-300 bg-yellow-100 dark:bg-yellow-900/40 px-1.5 py-0.5 rounded">
-            Internal note
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {new Date(note.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-          </span>
-          <button
-            onClick={() => deleteNote(note.id)}
-            className="opacity-0 group-hover/note:opacity-100 transition-opacity ml-auto text-muted-foreground hover:text-destructive"
-            title="Delete note"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-        <p className="mt-0.5 text-sm whitespace-pre-wrap break-words text-foreground bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900/50 rounded-md p-2 -ml-2">
-          {note.note_text}
-        </p>
+  // Inline editor body (textarea + save/cancel) used for messages and notes
+  const renderInlineEditor = (onSave: () => void, opts?: { yellow?: boolean }) => (
+    <div className="mt-1 space-y-2">
+      <Textarea
+        autoFocus
+        value={editDraft}
+        onChange={(e) => setEditDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") { e.preventDefault(); cancelEdit(); }
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); onSave(); }
+        }}
+        className={`min-h-[80px] text-sm ${opts?.yellow ? "bg-yellow-50/80 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-900/50 focus-visible:ring-yellow-400" : ""}`}
+      />
+      <div className="flex items-center gap-2">
+        <Button size="sm" onClick={onSave} disabled={savingEdit} className="h-7">
+          <CheckIcon className="h-3.5 w-3.5 mr-1" /> Save
+        </Button>
+        <Button size="sm" variant="ghost" onClick={cancelEdit} disabled={savingEdit} className="h-7">
+          Cancel
+        </Button>
+        <span className="text-xs text-muted-foreground ml-auto">⌘+Enter to save · Esc to cancel</span>
       </div>
     </div>
   );
+
+  // Inline internal note rendered within a message thread
+  const renderInlineNote = (note: ConversationNote) => {
+    const isEditing = editingNoteId === note.id;
+    return (
+      <div key={`note-${note.id}`} className="flex gap-3 group/note">
+        <div className="h-8 w-8 shrink-0 mt-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/40 flex items-center justify-center">
+          <StickyNote className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm font-medium text-foreground">{note.author}</span>
+            <span className="text-[10px] uppercase tracking-wide font-semibold text-yellow-700 dark:text-yellow-300 bg-yellow-100 dark:bg-yellow-900/40 px-1.5 py-0.5 rounded">
+              Internal note
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {new Date(note.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+            </span>
+            {!isEditing && (
+              <div className="ml-auto flex items-center gap-1 opacity-0 group-hover/note:opacity-100 transition-opacity">
+                <button
+                  onClick={() => startEditNote(note)}
+                  className="text-muted-foreground hover:text-foreground"
+                  title="Edit note"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => deleteNote(note.id)}
+                  className="text-muted-foreground hover:text-destructive"
+                  title="Delete note"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+          {isEditing ? (
+            renderInlineEditor(() => saveNoteEdit(note.id), { yellow: true })
+          ) : (
+            <p className="mt-0.5 text-sm whitespace-pre-wrap break-words text-foreground bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900/50 rounded-md p-2 -ml-2">
+              {note.note_text}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   // Compact inline composer rendered below each thread
   const renderNoteComposer = () => (
@@ -913,9 +998,10 @@ const ConversationDetail = () => {
                   .map((item) => {
                     if (item.kind === "note") return renderInlineNote(item.data);
                     const m = item.data;
+                    const isEditing = editingMessageId === m.id;
                     if (m.is_internal_note) {
                       return (
-                        <div key={`mn-${m.id}`} className="flex gap-3">
+                        <div key={`mn-${m.id}`} className="flex gap-3 group/msg">
                           <div className="h-8 w-8 shrink-0 mt-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/40 flex items-center justify-center">
                             <StickyNote className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
                           </div>
@@ -928,16 +1014,29 @@ const ConversationDetail = () => {
                               <span className="text-xs text-muted-foreground">
                                 {new Date(m.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                               </span>
+                              {!isEditing && (
+                                <button
+                                  onClick={() => startEditMessage(m)}
+                                  className="ml-auto opacity-0 group-hover/msg:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                                  title="Edit note"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                             </div>
-                            <p className="mt-0.5 text-sm whitespace-pre-wrap break-words text-foreground bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900/50 rounded-md p-2 -ml-2">
-                              {m.message_text}
-                            </p>
+                            {isEditing ? (
+                              renderInlineEditor(() => saveMessageEdit(m.id), { yellow: true })
+                            ) : (
+                              <p className="mt-0.5 text-sm whitespace-pre-wrap break-words text-foreground bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900/50 rounded-md p-2 -ml-2">
+                                {m.message_text}
+                              </p>
+                            )}
                           </div>
                         </div>
                       );
                     }
                     return (
-                      <div key={m.id} className="flex gap-3">
+                      <div key={m.id} className="flex gap-3 group/msg">
                         <Avatar className="h-8 w-8 shrink-0 mt-0.5">
                           <AvatarFallback className={m.role === "admin" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}>
                             {m.sender_name ? m.sender_name.slice(0, 2).toUpperCase() : (m.role === "admin" ? "A" : "U")}
@@ -951,12 +1050,25 @@ const ConversationDetail = () => {
                             <span className="text-xs text-muted-foreground">
                               {new Date(m.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                             </span>
+                            {!isEditing && (
+                              <button
+                                onClick={() => startEditMessage(m)}
+                                className="ml-auto opacity-0 group-hover/msg:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                                title="Edit message"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                           </div>
-                          <p className={`mt-0.5 text-sm whitespace-pre-wrap break-words ${
-                            m.role === "admin" ? "text-muted-foreground bg-muted/50 rounded-md p-2 -ml-2" : "text-foreground"
-                          }`}>
-                            {m.message_text}
-                          </p>
+                          {isEditing ? (
+                            renderInlineEditor(() => saveMessageEdit(m.id))
+                          ) : (
+                            <p className={`mt-0.5 text-sm whitespace-pre-wrap break-words ${
+                              m.role === "admin" ? "text-muted-foreground bg-muted/50 rounded-md p-2 -ml-2" : "text-foreground"
+                            }`}>
+                              {m.message_text}
+                            </p>
+                          )}
                         </div>
                       </div>
                     );

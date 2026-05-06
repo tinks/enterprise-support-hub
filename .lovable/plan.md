@@ -1,68 +1,58 @@
-# Audit & backfill missing April Intercom tickets
-
-## Current state
-
-DB counts of conversations created Apr 1 – Apr 30 (this project's clock, year 2026) with an `intercom_conversation_id`:
-- `manual_conversations`: 154
-- `gmail_conversations`: 232
-- `conversation_mappings` (Slack): 55
-- **Total tracked Intercom-linked: 441**
-
-Polling (`poll-intercom-inbox`) only scans by `team_assignee_id = enterprise inbox` plus per-admin assignees in `admin_owner_map`, with a 10-page safety cap per query and a `last_polled_intercom_at` lower bound. Anything routed elsewhere, assigned to an admin not in the map, or dropped due to a poll outage / page cap will never be tracked.
-
 ## Goal
 
-Compare the full set of Intercom conversations **created in April** against everything we already track, then import the gaps into `manual_conversations` so they show up in the app and Stats.
+On the conversation detail page (`/conversations/:id`), make the body text of:
+1. **Messages** in the Messages thread (`manual_messages.message_text`)
+2. **Internal notes** — both sources:
+   - User-authored notes (`conversation_notes.note_text`)
+   - Intercom-origin notes (`manual_messages` rows with `is_internal_note = true`)
 
-## Implementation
+editable inline, with Save / Cancel.
 
-### 1. New edge function: `audit-intercom-month`
+Author/sender, role, and timestamp stay read-only — only the body text is editable.
 
-`supabase/functions/audit-intercom-month/index.ts` (verify_jwt = false, called from authenticated UI).
+## UX
 
-Inputs: `{ start: "2026-04-01", end: "2026-05-01", dryRun?: boolean, owner?: string }`.
+- Hovering a message or note reveals a small **pencil** icon (next to the existing delete X on notes).
+- Clicking pencil swaps the `<p>` for a `<Textarea>` pre-filled with current text, plus **Save** and **Cancel** buttons.
+- ⌘/Ctrl+Enter saves; Esc cancels.
+- On save: optimistic update, then `supabase.update(...)` on the relevant table. On error, revert and `toast.error`.
+- Empty text is rejected (toast + stay in edit mode).
+- Yellow internal-note styling is preserved in edit mode (textarea inherits the yellow background classes).
 
-Logic:
-1. Auth: require Bearer token, validate with `auth.getClaims` (same pattern as `bulk-import-intercom`).
-2. Page through Intercom `POST /conversations/search` with:
-   ```
-   { operator: "AND", value: [
-       { field: "created_at", operator: ">", value: startTs },
-       { field: "created_at", operator: "<", value: endTs },
-   ]}
-   ```
-   `pagination: { per_page: 150 }`, follow `pages.next.starting_after` until exhausted. No team/admin filter — we want everything.
-3. Collect every `id` into a `Set<string>`.
-4. Query existing IDs in one round-trip each:
-   - `manual_conversations.intercom_conversation_id IN (...)`
-   - `gmail_conversations.intercom_conversation_id IN (...)`
-   - `conversation_mappings.intercom_conversation_id IN (...)`
-   - `pending_intercom_links.intercom_conversation_id IN (...)`
-   Chunk the `IN` lists to 500 ids.
-5. Compute `missingIds = intercomIds − tracked`.
-6. If `dryRun`, return `{ totalIntercom, tracked: {manual, gmail, slack, pending}, missingCount, sampleMissing: missingIds.slice(0,20) }`.
-7. Otherwise, for each missing id: reuse the exact import path from `bulk-import-intercom` (fetch full conversation, paginate parts, strip HTML, compute earliest `created_at`, capture `conversation_rating` into `csat_*`) and insert into `manual_conversations` + `manual_messages`. Owner: the `owner` arg (default null). Source: `"intercom"`. Rate-limit ~5 req/sec (`setTimeout 200ms`).
-8. Return `{ totalIntercom, missingBefore, imported, failed, results }`.
+## Where
 
-To keep it fast and within edge runtime limits, process at most ~300 backfills per invocation; report `remaining` so a follow-up call can drain the rest. We'll likely call it 1–2 times.
+All changes in `src/pages/ConversationDetail.tsx`:
 
-### 2. Trigger
+1. Add `editingMessageId`, `editingNoteId`, `editDraft` state.
+2. Add `saveMessageEdit(id)` → `update({ message_text }).eq('id', id)` on `manual_messages`, then refresh local state.
+3. Add `saveNoteEdit(id)` → `update({ note_text }).eq('id', id)` on `conversation_notes`. (Add a permissive RLS update policy — see DB section.)
+4. Refactor the three render branches in `renderManualContent()` (regular message, internal-note from messages) and `renderInlineNote()` to render a small inline editor when `editing*Id === item.id`.
+5. Pencil icon uses `lucide-react`'s `Pencil` (already used elsewhere in the codebase if available, otherwise import).
 
-Two-step from this chat:
-1. Call with `dryRun: true` → see the gap.
-2. Call again without `dryRun` → backfill. Repeat until `remaining === 0`.
+## Database
 
-No UI surface needed — this is a one-off ops action. (If you want a button later, easy to add to Settings.)
+`conversation_notes` currently has no UPDATE RLS policy (only SELECT/INSERT/DELETE). Add:
 
-### 3. Out of scope
+```sql
+CREATE POLICY "Allow authenticated update conversation_notes"
+ON public.conversation_notes
+FOR UPDATE TO authenticated
+USING (true) WITH CHECK (true);
+```
 
-- Not touching `gmail_conversations` / `conversation_mappings`: anything Intercom-side that maps to an existing Gmail/Slack thread is already tracked, and re-linking isn't part of this task.
-- Not changing the recurring poller; if drift is a recurring problem we can schedule this audit weekly afterward.
-- No schema changes.
+`manual_messages` already has an authenticated UPDATE policy — no migration needed.
+
+## Audit log
+
+Optional but consistent with existing patterns: write a `conversation_audit_logs` row on edit with `action='message_edited'` / `'note_edited'`, `old_value`, `new_value`. Skip unless you want it — not asked for explicitly. **Default: skip** to keep the change small; mention to user.
+
+## Memory
+
+Update `mem://features/internal-notes.md` to note that both note sources and manual messages now support inline editing (body text only).
 
 ## Files
 
-- `supabase/functions/audit-intercom-month/index.ts` (new)
-- `supabase/config.toml` (register `verify_jwt = false`)
-
-Reply "go" to run it.
+- Edit `src/pages/ConversationDetail.tsx`
+- New migration adding UPDATE policy on `conversation_notes`
+- Edit `mem://features/internal-notes.md`
+- Edit `.lovable/project-knowledge.md` (per project rule about logic-change tracking)
