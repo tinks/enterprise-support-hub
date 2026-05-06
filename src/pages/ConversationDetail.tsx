@@ -998,9 +998,10 @@ const ConversationDetail = () => {
                   .map((item) => {
                     if (item.kind === "note") return renderInlineNote(item.data);
                     const m = item.data;
+                    const isEditing = editingMessageId === m.id;
                     if (m.is_internal_note) {
                       return (
-                        <div key={`mn-${m.id}`} className="flex gap-3">
+                        <div key={`mn-${m.id}`} className="flex gap-3 group/msg">
                           <div className="h-8 w-8 shrink-0 mt-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/40 flex items-center justify-center">
                             <StickyNote className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
                           </div>
@@ -1013,16 +1014,29 @@ const ConversationDetail = () => {
                               <span className="text-xs text-muted-foreground">
                                 {new Date(m.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                               </span>
+                              {!isEditing && (
+                                <button
+                                  onClick={() => startEditMessage(m)}
+                                  className="ml-auto opacity-0 group-hover/msg:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                                  title="Edit note"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                              )}
                             </div>
-                            <p className="mt-0.5 text-sm whitespace-pre-wrap break-words text-foreground bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900/50 rounded-md p-2 -ml-2">
-                              {m.message_text}
-                            </p>
+                            {isEditing ? (
+                              renderInlineEditor(() => saveMessageEdit(m.id), { yellow: true })
+                            ) : (
+                              <p className="mt-0.5 text-sm whitespace-pre-wrap break-words text-foreground bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900/50 rounded-md p-2 -ml-2">
+                                {m.message_text}
+                              </p>
+                            )}
                           </div>
                         </div>
                       );
                     }
                     return (
-                      <div key={m.id} className="flex gap-3">
+                      <div key={m.id} className="flex gap-3 group/msg">
                         <Avatar className="h-8 w-8 shrink-0 mt-0.5">
                           <AvatarFallback className={m.role === "admin" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}>
                             {m.sender_name ? m.sender_name.slice(0, 2).toUpperCase() : (m.role === "admin" ? "A" : "U")}
@@ -1036,12 +1050,25 @@ const ConversationDetail = () => {
                             <span className="text-xs text-muted-foreground">
                               {new Date(m.created_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                             </span>
+                            {!isEditing && (
+                              <button
+                                onClick={() => startEditMessage(m)}
+                                className="ml-auto opacity-0 group-hover/msg:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+                                title="Edit message"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                           </div>
-                          <p className={`mt-0.5 text-sm whitespace-pre-wrap break-words ${
-                            m.role === "admin" ? "text-muted-foreground bg-muted/50 rounded-md p-2 -ml-2" : "text-foreground"
-                          }`}>
-                            {m.message_text}
-                          </p>
+                          {isEditing ? (
+                            renderInlineEditor(() => saveMessageEdit(m.id))
+                          ) : (
+                            <p className={`mt-0.5 text-sm whitespace-pre-wrap break-words ${
+                              m.role === "admin" ? "text-muted-foreground bg-muted/50 rounded-md p-2 -ml-2" : "text-foreground"
+                            }`}>
+                              {m.message_text}
+                            </p>
+                          )}
                         </div>
                       </div>
                     );
