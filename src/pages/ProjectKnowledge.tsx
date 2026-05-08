@@ -25,6 +25,7 @@ const ProjectKnowledge = () => {
   const [editContent, setEditContent] = useState("");
   const [pendingContent, setPendingContent] = useState<string | null>(null);
   const [pendingSummary, setPendingSummary] = useState<string | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [mode, setMode] = useState<"preview" | "edit" | "review">("preview");
