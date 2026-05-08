@@ -18,8 +18,10 @@ Both paths post the same threaded Slack message with 5 emoji buttons (😠 Terri
 
 `slack-interactions` handles the click: writes `csat_rating` + `csat_rated_at`, replaces the prompt via `chat.update` ("Thanks for rating: <emoji> <label>"), and opens an optional remark modal (`callback_id: csat_remark_modal`, `private_metadata` carries `mappingId`). Modal submission writes `csat_remark`. Modal is only opened on the first rating (last-write-wins on subsequent clicks for the rating only).
 
+When the customer submits a remark, `slack-interactions` also surfaces it (best-effort, in `EdgeRuntime.waitUntil` so modal closes immediately): (a) posts `💬 Customer remark on N/5: "…"` back into the original Slack thread via `chat.postMessage` with `BOT_IDENTITY`; (b) adds an internal note on the linked Intercom conversation via `POST /conversations/{id}/reply` with `message_type: "note"`, `admin_id = settings.intercom_assignee_id`. Both are skipped silently if their respective IDs are missing.
+
 ## Stats UI
 `/stats` "Customer satisfaction" card aggregates ratings from all three sources. Avg score, total ratings, distribution, recent 1–2★ list with click-through. Response-rate denominator = resolved Slack rows + Intercom-linked manual/gmail rows in scope. Respects existing date / source / channel filters (`slack` source filter contributes Slack-side ratings).
 
 ## Conversation detail
-A "Customer satisfaction" card appears on the conversation detail page when `csat_rating` is present, showing the emoji, score, optional remark, and rated-at timestamp. Read-only.
+A "Customer satisfaction" card appears on the conversation detail page when `csat_rating` is present, showing the emoji, score, optional remark, and rated-at timestamp. Read-only. The rating + remark also renders as a chronological entry in the message timeline (sorted by `csat_rated_at`) so it's discoverable inline alongside messages and internal notes.

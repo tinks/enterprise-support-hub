@@ -856,6 +856,76 @@ Deno.serve(async (req) => {
             .from("conversation_mappings")
             .update({ csat_remark: remark } as any)
             .eq("id", meta.mappingId);
+
+          // Surface the remark beyond the silent DB write — best effort, don't block modal close
+          const surfaceWork = (async () => {
+            try {
+              const { data: mapping } = await supabase
+                .from("conversation_mappings")
+                .select("slack_channel_id, slack_thread_ts, intercom_conversation_id, csat_rating")
+                .eq("id", meta.mappingId)
+                .maybeSingle();
+              if (!mapping) return;
+              const rating = (mapping as any).csat_rating;
+              const ratingLabel = rating ? `${rating}/5` : "rating";
+
+              // 1. Post into the Slack thread so the support team sees it inline
+              try {
+                if ((mapping as any).slack_channel_id && (mapping as any).slack_thread_ts) {
+                  const text = `💬 Customer remark on ${ratingLabel}: "${remark}"`;
+                  await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+                    method: "POST",
+                    headers: {
+                      Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                      channel: (mapping as any).slack_channel_id,
+                      thread_ts: (mapping as any).slack_thread_ts,
+                      text,
+                      blocks: [{ type: "section", text: { type: "mrkdwn", text } }],
+                      ...BOT_IDENTITY,
+                    }),
+                  });
+                }
+              } catch (e) {
+                console.error("CSAT remark Slack post failed:", e);
+              }
+
+              // 2. Add an internal note in Intercom so it's visible alongside the conversation
+              try {
+                const intercomConvId = (mapping as any).intercom_conversation_id;
+                if (intercomConvId) {
+                  if (!cachedSettings) cachedSettings = await getSettings(supabase);
+                  const adminId = cachedSettings?.intercom_assignee_id;
+                  if (adminId) {
+                    const noteBody = `<p><strong>CSAT remark (${ratingLabel}):</strong> ${remark.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]!))}</p>`;
+                    await fetch(`https://api.intercom.io/conversations/${intercomConvId}/reply`, {
+                      method: "POST",
+                      headers: {
+                        Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
+                        "Content-Type": "application/json",
+                        Accept: "application/json",
+                      },
+                      body: JSON.stringify({
+                        message_type: "note",
+                        type: "admin",
+                        admin_id: adminId,
+                        body: noteBody,
+                      }),
+                    });
+                  }
+                }
+              } catch (e) {
+                console.error("CSAT remark Intercom note failed:", e);
+              }
+            } catch (e) {
+              console.error("CSAT remark surfacing failed:", e);
+            }
+          })();
+          if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+            EdgeRuntime.waitUntil(surfaceWork);
+          }
         }
       } catch (e) {
         console.error("CSAT remark submission failed:", e);
