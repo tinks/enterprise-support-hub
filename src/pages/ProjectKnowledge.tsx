@@ -25,6 +25,7 @@ const ProjectKnowledge = () => {
   const [editContent, setEditContent] = useState("");
   const [pendingContent, setPendingContent] = useState<string | null>(null);
   const [pendingSummary, setPendingSummary] = useState<string | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [mode, setMode] = useState<"preview" | "edit" | "review">("preview");
@@ -41,6 +42,7 @@ const ProjectKnowledge = () => {
       setEditContent(data.content || "");
       setPendingContent((data as any).pending_content || null);
       setPendingSummary((data as any).pending_summary || null);
+      setUpdatedAt((data as any).updated_at || null);
       if ((data as any).pending_content) {
         setMode("review");
       }
@@ -70,11 +72,12 @@ const ProjectKnowledge = () => {
 
   const handleSave = useCallback(async () => {
     setSaving(true);
+    const nowIso = new Date().toISOString();
     const { error } = await supabase
       .from("knowledge_documents")
       .update({
         content: editContent,
-        updated_at: new Date().toISOString(),
+        updated_at: nowIso,
       } as any)
       .eq("id", DOC_ID);
 
@@ -82,6 +85,7 @@ const ProjectKnowledge = () => {
       toast.error("Failed to save");
     } else {
       setContent(editContent);
+      setUpdatedAt(nowIso);
       toast.success("Knowledge document saved");
     }
     setSaving(false);
@@ -89,6 +93,7 @@ const ProjectKnowledge = () => {
 
   const handleApprove = useCallback(async () => {
     if (!pendingContent) return;
+    const nowIso = new Date().toISOString();
     const { error } = await supabase
       .from("knowledge_documents")
       .update({
@@ -96,7 +101,7 @@ const ProjectKnowledge = () => {
         pending_content: null,
         pending_summary: null,
         pending_at: null,
-        updated_at: new Date().toISOString(),
+        updated_at: nowIso,
       } as any)
       .eq("id", DOC_ID);
 
@@ -107,6 +112,7 @@ const ProjectKnowledge = () => {
       setEditContent(pendingContent);
       setPendingContent(null);
       setPendingSummary(null);
+      setUpdatedAt(nowIso);
       setMode("preview");
       toast.success("Changes approved and applied");
     }
@@ -480,6 +486,11 @@ const ProjectKnowledge = () => {
               >
                 pending review
               </Badge>
+            )}
+            {updatedAt && (
+              <span className="text-xs text-muted-foreground ml-1">
+                Last updated {new Date(updatedAt).toLocaleString()}
+              </span>
             )}
           </div>
           <div className="flex items-center gap-2">
