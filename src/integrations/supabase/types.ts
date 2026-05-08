@@ -78,6 +78,10 @@ export type Database = {
         Row: {
           classification: string | null
           created_at: string
+          csat_prompt_ts: string | null
+          csat_rated_at: string | null
+          csat_rating: number | null
+          csat_remark: string | null
           id: string
           intercom_contact_id: string
           intercom_conversation_id: string | null
@@ -103,6 +107,10 @@ export type Database = {
         Insert: {
           classification?: string | null
           created_at?: string
+          csat_prompt_ts?: string | null
+          csat_rated_at?: string | null
+          csat_rating?: number | null
+          csat_remark?: string | null
           id?: string
           intercom_contact_id?: string
           intercom_conversation_id?: string | null
@@ -128,6 +136,10 @@ export type Database = {
         Update: {
           classification?: string | null
           created_at?: string
+          csat_prompt_ts?: string | null
+          csat_rated_at?: string | null
+          csat_rating?: number | null
+          csat_remark?: string | null
           id?: string
           intercom_contact_id?: string
           intercom_conversation_id?: string | null
