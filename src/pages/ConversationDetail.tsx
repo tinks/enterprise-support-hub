@@ -819,9 +819,34 @@ const ConversationDetail = () => {
                 {[
                   ...threadMessages.map((m) => ({ kind: "msg" as const, ts: parseFloat(m.ts) * 1000, data: m })),
                   ...notes.map((n) => ({ kind: "note" as const, ts: new Date(n.created_at).getTime(), data: n })),
+                  ...((current as any).csat_rating && (current as any).csat_rated_at
+                    ? [{ kind: "csat" as const, ts: new Date((current as any).csat_rated_at).getTime(), data: { rating: (current as any).csat_rating, remark: (current as any).csat_remark, rated_at: (current as any).csat_rated_at } }]
+                    : []),
                 ]
                   .sort((a, b) => a.ts - b.ts)
-                  .map((item) => item.kind === "note" ? renderInlineNote(item.data) : (
+                  .map((item) => item.kind === "note" ? renderInlineNote(item.data) : item.kind === "csat" ? (
+                  <div key={`csat-${item.ts}`} className="flex gap-3">
+                    <div className="h-8 w-8 shrink-0 mt-0.5 rounded-full bg-primary/10 flex items-center justify-center text-base">
+                      {(["😠","🙁","😐","😀","🤩"] as const)[item.data.rating - 1]}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm font-medium text-foreground">Customer satisfaction</span>
+                        <span className="text-[10px] uppercase tracking-wide font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                          {item.data.rating}/5
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(item.data.rated_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                        </span>
+                      </div>
+                      {item.data.remark && (
+                        <p className="mt-0.5 text-sm whitespace-pre-wrap break-words text-foreground bg-muted/40 border border-border rounded-md p-2 -ml-2">
+                          "{item.data.remark}"
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
                   <div key={item.data.ts} className="flex gap-3">
                     <Avatar className="h-8 w-8 shrink-0 mt-0.5">
                       {item.data.is_bot ? (
