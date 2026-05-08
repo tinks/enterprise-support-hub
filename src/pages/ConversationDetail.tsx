@@ -45,6 +45,9 @@ interface ConversationMapping {
   owner: string | null;
   classification: string | null;
   slack_user_name: string | null;
+  csat_rating: number | null;
+  csat_remark: string | null;
+  csat_rated_at: string | null;
 }
 
 interface GmailConv {
@@ -68,6 +71,9 @@ interface GmailConv {
   cc_emails: string | null;
   owner: string | null;
   classification: string | null;
+  csat_rating: number | null;
+  csat_remark: string | null;
+  csat_rated_at: string | null;
 }
 
 interface ManualConv {
@@ -87,6 +93,9 @@ interface ManualConv {
   owner: string | null;
   classification: string | null;
   resolved_at: string | null;
+  csat_rating: number | null;
+  csat_remark: string | null;
+  csat_rated_at: string | null;
 }
 
 const OWNER_OPTIONS = ["Joel", "Kristina", "Sam", "CSM", "Eren", "Tine"] as const;
@@ -1414,7 +1423,31 @@ const ConversationDetail = () => {
               </CardContent>
             </Card>
 
-            {/* Intercom suggestions (Gmail only, when no intercom_conversation_id) */}
+            {/* CSAT */}
+            {(current as any).csat_rating ? (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Customer satisfaction</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1.5 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">
+                      {(["😠","🙁","😐","😀","🤩"] as const)[(current as any).csat_rating - 1]}
+                    </span>
+                    <span className="font-semibold">{(current as any).csat_rating} / 5</span>
+                  </div>
+                  {(current as any).csat_remark && (
+                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">"{(current as any).csat_remark}"</p>
+                  )}
+                  {(current as any).csat_rated_at && (
+                    <p className="text-xs text-muted-foreground">
+                      Rated {new Date((current as any).csat_rated_at).toLocaleString()}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            ) : null}
+
             {source === "gmail" && !intercomId && (intercomSuggestions.length > 0 || searchingIntercom) && (
               <Card>
                 <CardHeader className="pb-3">
