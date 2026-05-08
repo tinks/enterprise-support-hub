@@ -1448,11 +1448,17 @@ Deno.serve(async (req) => {
           .from("conversation_mappings")
           .update(updatePayload)
           .eq("intercom_conversation_id", conversationId)
-          .in("status", ["active", "awaiting_context", "escalated"])
-          .select("id");
+          .not("status", "in", "(resolved,cancelled)")
+          .select("id, status");
 
         if (!guardResult || guardResult.length === 0) {
-          console.log(`Feedback guard: ${actionId} skipped for ${conversationId} — already processed`);
+          // Either no mapping for this conversation, or it's already resolved/cancelled
+          const { data: currentMapping } = await supabase
+            .from("conversation_mappings")
+            .select("status")
+            .eq("intercom_conversation_id", conversationId)
+            .maybeSingle();
+          console.log(`Feedback guard: ${actionId} skipped for ${conversationId} — current status=${currentMapping?.status ?? "no-mapping"}`);
           return;
         }
 
