@@ -875,6 +875,47 @@ Deno.serve(async (req) => {
           .update({ status: "resolved", resolved_at: new Date().toISOString() })
           .eq("id", mapping.id);
 
+        // Post CSAT prompt (idempotent: skip if already rated or already prompted)
+        if (!(mapping as any).csat_rating && !(mapping as any).csat_prompt_ts) {
+          try {
+            const csatRes = await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                channel: mapping.slack_channel_id,
+                thread_ts: mapping.slack_thread_ts,
+                text: "Rate your conversation",
+                blocks: [
+                  { type: "section", text: { type: "mrkdwn", text: "*Rate your conversation*" } },
+                  {
+                    type: "actions",
+                    block_id: `csat_${mapping.id}`,
+                    elements: [
+                      { type: "button", action_id: "csat_1", text: { type: "plain_text", emoji: true, text: "😠 Terrible" }, value: "1" },
+                      { type: "button", action_id: "csat_2", text: { type: "plain_text", emoji: true, text: "🙁 Bad" }, value: "2" },
+                      { type: "button", action_id: "csat_3", text: { type: "plain_text", emoji: true, text: "😐 OK" }, value: "3" },
+                      { type: "button", action_id: "csat_4", text: { type: "plain_text", emoji: true, text: "😀 Great" }, value: "4" },
+                      { type: "button", action_id: "csat_5", text: { type: "plain_text", emoji: true, text: "🤩 Amazing" }, value: "5" },
+                    ],
+                  },
+                ],
+                ...BOT_IDENTITY,
+              }),
+            });
+            const csatData = await csatRes.json();
+            if (csatData.ok && csatData.ts) {
+              await supabase.from("conversation_mappings").update({ csat_prompt_ts: csatData.ts } as any).eq("id", mapping.id);
+            } else {
+              console.error("Failed to post CSAT prompt:", csatData);
+            }
+          } catch (e) {
+            console.error("CSAT post error:", e);
+          }
+        }
+
         console.log(`Marked conversation ${conversationId} as resolved and notified Slack`);
       } else {
         console.log(`Conversation ${conversationId} already resolved, skipping`);
