@@ -71,6 +71,9 @@ interface GmailConv {
   cc_emails: string | null;
   owner: string | null;
   classification: string | null;
+  csat_rating: number | null;
+  csat_remark: string | null;
+  csat_rated_at: string | null;
 }
 
 interface ManualConv {
