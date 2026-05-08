@@ -1,6 +1,5 @@
 # Project Knowledge — Slack ↔ Intercom Support Bridge
 
-> **Last updated:** 2026-04-29 (full merge with live DB summary content: source taxonomy, per-source stats palette, conversation-detail sidebar)
 > This document captures all rules, logic, and behaviors of the system. Update it whenever logic changes.
 
 ---
