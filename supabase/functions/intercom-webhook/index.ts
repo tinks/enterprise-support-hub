@@ -1002,10 +1002,15 @@ Deno.serve(async (req) => {
     // IMPORTANT: We must identify the comment BEFORE setting the dedup marker,
     // otherwise non-comment parts can "consume" the dedup slot and prevent
     // the actual comment from ever being processed.
+    // Accept comment parts AND assignment parts that carry a body — Intercom's
+    // "assign and reply" delivers the admin's text on an `assignment` part.
+    // Notes stay excluded (internal-only, must not leak to Slack).
+    const FORWARDABLE_PART_TYPES = new Set(["comment", "assignment"]);
     let lastCommentPart: Record<string, unknown> | null = null;
     if (conversationParts && conversationParts.length > 0) {
       for (let i = conversationParts.length - 1; i >= 0; i--) {
-        if (conversationParts[i].part_type === "comment" && conversationParts[i].body) {
+        const p = conversationParts[i] as { part_type?: string; body?: string };
+        if (FORWARDABLE_PART_TYPES.has(p.part_type || "") && p.body && String(p.body).trim()) {
           lastCommentPart = conversationParts[i];
           break;
         }
