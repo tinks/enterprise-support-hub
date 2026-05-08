@@ -24,11 +24,17 @@ import { cn } from "@/lib/utils";
 import { channelNameOverrides } from "@/lib/channelOverrides";
 
 interface Mapping {
+  id?: string;
   status: string;
   created_at: string;
   resolved_at: string | null;
   is_test: boolean;
   slack_channel_id: string;
+  intercom_conversation_id?: string | null;
+  csat_rating?: number | null;
+  csat_remark?: string | null;
+  csat_rated_at?: string | null;
+  original_message_text?: string | null;
 }
 
 interface GmailRow {
