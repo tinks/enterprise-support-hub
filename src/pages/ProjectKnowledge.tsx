@@ -93,6 +93,7 @@ const ProjectKnowledge = () => {
 
   const handleApprove = useCallback(async () => {
     if (!pendingContent) return;
+    const nowIso = new Date().toISOString();
     const { error } = await supabase
       .from("knowledge_documents")
       .update({
@@ -100,7 +101,7 @@ const ProjectKnowledge = () => {
         pending_content: null,
         pending_summary: null,
         pending_at: null,
-        updated_at: new Date().toISOString(),
+        updated_at: nowIso,
       } as any)
       .eq("id", DOC_ID);
 
@@ -111,6 +112,7 @@ const ProjectKnowledge = () => {
       setEditContent(pendingContent);
       setPendingContent(null);
       setPendingSummary(null);
+      setUpdatedAt(nowIso);
       setMode("preview");
       toast.success("Changes approved and applied");
     }
