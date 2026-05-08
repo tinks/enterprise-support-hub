@@ -1,38 +1,41 @@
-# Fix: "👍 This resolves my issue" button silently no-ops
+## Problem
 
-## Root cause
-In `supabase/functions/slack-interactions/index.ts` (line 1451), the atomic guard that gates `feedback_positive`/`feedback_negative` only accepts these statuses:
-
-```ts
-.in("status", ["active", "awaiting_context", "escalated"])
-```
-
-Logs for the failing thread (mapping `9fdc6d73…`, Intercom `215474223263405`) show its status was `awaiting_customer` (set by `slack-events` when an employee replied: "Set conversation … status to awaiting_customer (Slack reply from employee)"). That status is not in the whitelist, so the UPDATE matches 0 rows and the handler logs the misleading "Feedback guard: feedback_positive skipped … already processed" and returns. Result: nothing happens in Slack or Intercom.
-
-In production today there are 10 mappings sitting in `awaiting_customer`, 7 in `awaiting_support`, 4 in `awaiting_engineering`, 1 in `processing` — clicking the button on any of them currently does nothing.
+When a customer submits the optional CSAT remark in Slack, it's saved to `conversation_mappings.csat_remark` but never surfaced anywhere visible — not in the Slack thread, not in Intercom, and not in the messages timeline of the Conversation Detail page. It only appears in the small CSAT side card.
 
 ## Fix
 
-### 1. `supabase/functions/slack-interactions/index.ts`
-Expand the guard to include every non-terminal status, i.e. everything except already-`resolved` and `cancelled`:
+In `supabase/functions/slack-interactions/index.ts`, extend the `csat_remark_modal` view_submission handler so that, after persisting the remark, it also:
 
-```ts
-.not("status", "in", "(resolved,cancelled)")
-```
+1. **Posts back into the Slack thread** as a bot message:
+   > 💬 Customer remark on rating: "{remark}"
+   
+   Uses `chat.postMessage` with `channel = original slack_channel_id`, `thread_ts = original slack_thread_ts` (looked up via `mappingId`), and `BOT_IDENTITY`.
 
-This way:
-- First click transitions from any open state → `resolved`/`escalated` and proceeds with the close + CSAT flow.
-- Subsequent clicks correctly hit the "already processed" branch (status is now `resolved`).
+2. **Adds an internal note in Intercom** on the linked conversation:
+   > CSAT remark ({rating}/5): {remark}
+   
+   Uses `POST /conversations/{intercom_conversation_id}/reply` with `message_type: "note"`, `type: "admin"`, `admin_id: settings.intercom_assignee_id`. Skipped silently if `intercom_conversation_id` is missing.
 
-Also tweak the log line to be accurate ("guard: not in updatable state").
+Both calls are best-effort and wrapped in try/catch so a failure in one doesn't block the other or the modal close.
 
-### 2. Better log message
-Change "skipped … already processed" to also include the actual current status, so future debugging is one log read.
+## Conversation Detail timeline
 
-## Verification
-- Reproduce: pick a mapping in `awaiting_customer`, click 👍 → conversation should now resolve, close in Intercom, and post the CSAT block (per the previous fix).
-- Click 👍 again → should hit the guard branch and no-op.
+In `src/pages/ConversationDetail.tsx`, render a synthetic timeline entry in the messages list when `csat_rating` is set:
+
+- Timestamp = `csat_rated_at`
+- Author label = "Customer satisfaction"
+- Body = emoji + `{rating}/5` + remark in quotes (when present)
+- Styled as a distinct system/event row (similar to existing internal-note styling) so it's chronologically discoverable, not just in the side card.
+
+The existing CSAT side card stays as a quick-glance summary.
 
 ## Out of scope
-- Backfilling missing CSAT prompts for the 3 mappings that hit this bug today (215474223263405 and friends). Can be a follow-up if you want.
-- Re-thinking the `awaiting_*` taxonomy (separate concern).
+
+- Backfilling Slack thread / Intercom note for the existing rating on conversation `9fdc6d73…` (rating already in DB). Can be a one-off if requested.
+- Gmail/manual CSAT remark display (Slack scope only per existing design).
+
+## Files touched
+
+- `supabase/functions/slack-interactions/index.ts` — extend remark modal handler
+- `src/pages/ConversationDetail.tsx` — render CSAT entry in the message timeline
+- `.lovable/project-knowledge.md` and `mem://features/csat` — document the new surfacing behavior
