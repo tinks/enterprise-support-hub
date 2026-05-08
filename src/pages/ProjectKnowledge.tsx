@@ -42,6 +42,7 @@ const ProjectKnowledge = () => {
       setEditContent(data.content || "");
       setPendingContent((data as any).pending_content || null);
       setPendingSummary((data as any).pending_summary || null);
+      setUpdatedAt((data as any).updated_at || null);
       if ((data as any).pending_content) {
         setMode("review");
       }
