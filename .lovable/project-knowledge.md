@@ -531,7 +531,7 @@ Two independent sources both render as the same yellow "Internal note" card, int
 **2. Intercom-origin notes** — Intercom conversation parts with `part_type === "note"` are ingested into `manual_messages` with `is_internal_note = true` (column added 2026-04). Previously they were filtered out of every Intercom ingestion path.
 - Affected ingestion functions: `import-intercom-ticket`, `backfill-intercom-replies`, `poll-intercom-inbox`, `backfill-enterprise-inbox`, `bulk-import-intercom`, `intercom-webhook` (live, including the `conversation.admin.noted` topic in `REPLY_TOPICS`).
 - Notes do **not** change the customer-facing status (`awaiting_customer` / `awaiting_support`).
-- The webhook still skips notes when forwarding back to Slack via `lastCommentPart` — only `part_type === "comment"` parts are mirrored to customers.
+- The webhook still skips notes when forwarding back to Slack via `lastCommentPart` — only `comment` parts and `assignment` parts with non-empty body (Intercom's "assign and reply") are mirrored to customers. `note` and other system part types stay internal.
 - Read-only — no UI to delete or post a note back to Intercom.
 - `backfill-intercom-replies` dedup key is `epoch:is_internal_note` so a note posted at the same second as a reply isn't suppressed.
 - To pull notes into already-imported tickets, run `backfill-intercom-replies?recent=true` (recent 7 days) or paginate with `offset`/`limit` for the full historical set.
