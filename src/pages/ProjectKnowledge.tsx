@@ -72,11 +72,12 @@ const ProjectKnowledge = () => {
 
   const handleSave = useCallback(async () => {
     setSaving(true);
+    const nowIso = new Date().toISOString();
     const { error } = await supabase
       .from("knowledge_documents")
       .update({
         content: editContent,
-        updated_at: new Date().toISOString(),
+        updated_at: nowIso,
       } as any)
       .eq("id", DOC_ID);
 
@@ -84,6 +85,7 @@ const ProjectKnowledge = () => {
       toast.error("Failed to save");
     } else {
       setContent(editContent);
+      setUpdatedAt(nowIso);
       toast.success("Knowledge document saved");
     }
     setSaving(false);
