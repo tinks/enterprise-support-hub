@@ -162,7 +162,7 @@ const Stats = () => {
     const [slackRes, gmailRes, manualRes] = await Promise.all([
       supabase
         .from("conversation_mappings")
-        .select("status, created_at, is_test, slack_channel_id, resolved_at")
+        .select("id, status, created_at, is_test, slack_channel_id, resolved_at, intercom_conversation_id, csat_rating, csat_remark, csat_rated_at, original_message_text")
         .order("created_at", { ascending: true }),
       supabase
         .from("gmail_conversations")
