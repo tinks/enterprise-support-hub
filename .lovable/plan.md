@@ -1,55 +1,34 @@
-## Slack CSAT for Sam / Ask Lovable conversations
+# Fix missing CSAT for Slack-resolved conversations
 
-Post a 1–5 emoji rating widget in the Slack thread the moment a Slack-originated conversation is marked resolved by Intercom. Capture the click, prompt for an optional remark, and store the rating on the existing Slack-side conversation row so it shows up alongside the Intercom CSAT we already track.
+## Root cause
+The CSAT prompt is only posted inside `intercom-webhook`'s "closed" handler, gated by `if (mapping.status !== "resolved")`. When a user clicks "👍 This resolved my issue" in Slack, `slack-interactions` sets `status='resolved'` first, then closes Intercom. The subsequent close webhook sees status already resolved and skips — so CSAT never fires for this (very common) path.
 
-### Flow
-```text
-Intercom resolved ──► intercom-webhook posts:
-  "This issue has been marked as resolved…"
-  + CSAT block: 😠 Terrible | 🙁 Bad | 😐 OK | 😀 Great | 🤩 Amazing
-                                  │
-                User clicks an emoji (slack-interactions)
-                                  │
-                ├─ Save rating immediately to conversation_mappings
-                ├─ Replace block with "Thanks for rating: <emoji> <label>"
-                └─ Open modal "Anything else you'd like to share?" (optional)
-                                  │
-                          User submits modal
-                                  │
-                          Save remark to conversation_mappings
-```
+Confirmed via logs for Intercom conversation 215474223170131 / mapping `338b5c82…`: "Conversation 215474223170131 already resolved, skipping" right after the user clicked feedback_positive.
 
-### Database
-New migration on `conversation_mappings` (parallels gmail/manual tables):
-- `csat_rating smallint` (1–5, validated by reusing `validate_csat_rating` trigger)
-- `csat_remark text`
-- `csat_rated_at timestamptz`
-- `csat_prompt_ts text` (the message ts of the CSAT block, so we can update it after a click)
+## Changes
 
-No changes to gmail/manual — they keep using Intercom's `conversation_rating` via `refresh-intercom-csat`.
+### 1. `supabase/functions/slack-interactions/index.ts` — feedback_positive branch
+After posting the closing message and closing the Intercom conversation, post the same CSAT block already used by `intercom-webhook` and persist `csat_prompt_ts`. Keep idempotent: skip if `csat_rating` or `csat_prompt_ts` already set.
 
-### Edge functions
-1. **`intercom-webhook`** — in the existing "conversation closed/resolved" branch (around line 850), after posting the closing message, also post a second thread message containing a Slack `actions` block with 5 buttons (`csat_1`…`csat_5`, value = rating). Save the returned `ts` into `csat_prompt_ts`. Skip if `csat_rating` is already set or `csat_prompt_ts` already exists (idempotent on retries).
-2. **`slack-interactions`** —
-   - Handle `csat_1`…`csat_5` `block_actions`: update `conversation_mappings.csat_rating` + `csat_rated_at`, replace the prompt message via `chat.update` with "Thanks for rating: <emoji> <label>", then call `views.open` with a modal containing a single optional `plain_text_input` (multiline) labeled "Anything else you'd like to share? (optional)". Pass the mapping id in `private_metadata`.
-   - Handle `view_submission` for that modal: write `csat_remark` to the row keyed by `private_metadata`. Empty submission = no-op.
-   - Bot-identity / signing-secret verification reuses existing helpers.
+Reuse the exact same block payload (5 emoji buttons, `block_id: csat_<mapping.id>`, `action_id: csat_1..csat_5`) so the existing `slack-interactions` rating handler keeps working unchanged.
 
-### Frontend
-- **Stats page CSAT card**: extend the data source to also count Slack-originated ratings from `conversation_mappings` (currently only `manual_conversations` + `gmail_conversations`). Same averages, distribution, and 1–2★ recent list. Response rate denominator becomes "resolved Slack + Intercom-linked manual/gmail in scope".
-- **Conversation detail page**: when viewing a Slack conversation, show the same CSAT badge component already used for manual/gmail (rating stars + remark + rated-at). Read-only.
-- No new admin toggle — feature is on by default. Can be disabled later behind a settings flag if needed.
+### 2. `supabase/functions/intercom-webhook/index.ts` — close handler
+Move the CSAT prompt block out of the `if (mapping.status !== "resolved")` branch so it also runs when the close webhook arrives for an already-resolved mapping. Idempotency (`!csat_rating && !csat_prompt_ts`) prevents duplicates when both paths run.
 
-### Edge cases
-- If the same conversation gets re-resolved (Intercom reopen → resolve), don't re-prompt: guard on `csat_rating IS NOT NULL OR csat_prompt_ts IS NOT NULL`.
-- Re-rating: if the user clicks a different emoji on the same prompt before the chat.update lands, last-write-wins on the rating field (acceptable).
-- Modal dismissal: rating is already saved on click, so closing the modal without text is fine.
+### 3. Extract a small helper (optional, same file scope)
+To avoid duplicating the ~30-line Slack `chat.postMessage` payload, add a tiny inline helper `postCsatPrompt(mapping)` in each function (no shared module — edge functions don't share imports cleanly). Keeps the two call sites readable.
 
-### Out of scope
-- DM/Email CSAT for gmail/manual contacts (not requested).
-- A standalone settings toggle to disable the prompt.
-- Backfilling CSAT for already-resolved Slack conversations.
+### 4. Documentation
+- Update `mem://features/csat` to note both trigger paths (Slack feedback_positive AND Intercom close).
+- Update `.lovable/project-knowledge.md` CSAT section accordingly.
+- Update the Flow page node/description for resolution → CSAT.
 
-### Docs to update after implementation
-- `mem://features/csat` — extend to mention Slack-side capture + new columns.
-- `.lovable/project-knowledge.md` and the Flow page — add the resolution → CSAT step.
+## Out of scope
+- Backfilling CSAT prompts for already-resolved conversations missing `csat_prompt_ts` (e.g. this 215474223170131 ticket). Can be done later with a one-shot script if you want.
+- Changing the rating UI / modal behavior.
+- DM/Gmail/manual CSAT.
+
+## Verification
+- Resolve a test Slack thread via the 👍 button → CSAT block appears in the thread, `csat_prompt_ts` set in DB.
+- Resolve a test Slack thread by closing the linked Intercom conversation → CSAT block appears (existing path still works).
+- Resolve via 👍 then have Intercom close fire → only one CSAT block posted (idempotency).
