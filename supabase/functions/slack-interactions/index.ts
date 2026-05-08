@@ -1035,6 +1035,90 @@ Deno.serve(async (req) => {
 
     const actionId = action.action_id;
 
+    // ===== Handle CSAT rating click =====
+    if (typeof actionId === "string" && actionId.startsWith("csat_")) {
+      const rating = parseInt(action.value || actionId.slice(5), 10);
+      const channelId = payload.channel?.id;
+      const messageTs = payload.message?.ts;
+      const triggerId = payload.trigger_id;
+      const labels: Record<number, string> = { 1: "😠 Terrible", 2: "🙁 Bad", 3: "😐 OK", 4: "😀 Great", 5: "🤩 Amazing" };
+      const label = labels[rating] || `${rating}`;
+
+      if (rating >= 1 && rating <= 5 && channelId && messageTs) {
+        const threadTs = payload.message?.thread_ts || messageTs;
+        let { data: mapping } = await supabase
+          .from("conversation_mappings")
+          .select("id, csat_rating")
+          .eq("csat_prompt_ts", messageTs)
+          .maybeSingle();
+        if (!mapping) {
+          const res = await supabase
+            .from("conversation_mappings")
+            .select("id, csat_rating")
+            .eq("slack_channel_id", channelId)
+            .eq("slack_thread_ts", threadTs)
+            .maybeSingle();
+          mapping = res.data as any;
+        }
+
+        if (mapping) {
+          const isFirstRating = !mapping.csat_rating;
+          await supabase
+            .from("conversation_mappings")
+            .update({ csat_rating: rating, csat_rated_at: new Date().toISOString() } as any)
+            .eq("id", mapping.id);
+
+          await fetch(`${SLACK_API_URL}/chat.update`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              channel: channelId,
+              ts: messageTs,
+              text: `Thanks for rating: ${label}`,
+              blocks: [{ type: "section", text: { type: "mrkdwn", text: `Thanks for rating: *${label}*` } }],
+            }),
+          });
+
+          if (triggerId && isFirstRating) {
+            try {
+              await fetch(`${SLACK_API_URL}/views.open`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}`, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  trigger_id: triggerId,
+                  view: {
+                    type: "modal",
+                    callback_id: "csat_remark_modal",
+                    private_metadata: JSON.stringify({ mappingId: mapping.id }),
+                    title: { type: "plain_text", text: "Thanks for your rating" },
+                    submit: { type: "plain_text", text: "Submit" },
+                    close: { type: "plain_text", text: "Skip" },
+                    blocks: [
+                      {
+                        type: "input",
+                        block_id: "remark_block",
+                        optional: true,
+                        label: { type: "plain_text", text: "Anything else you'd like to share? (optional)" },
+                        element: {
+                          type: "plain_text_input",
+                          action_id: "remark_input",
+                          multiline: true,
+                          max_length: 2000,
+                        },
+                      },
+                    ],
+                  },
+                }),
+              });
+            } catch (e) {
+              console.error("Failed to open CSAT remark modal:", e);
+            }
+          }
+        }
+      }
+      return new Response("", { status: 200 });
+    }
+
     // ===== Helper: get the prompt message ts from the interaction payload =====
     function getPromptMessageTs(): string | undefined {
       return payload.message?.ts || undefined;
