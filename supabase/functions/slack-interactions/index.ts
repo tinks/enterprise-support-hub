@@ -846,6 +846,23 @@ Deno.serve(async (req) => {
     const payload = JSON.parse(payloadStr);
     console.log("Slack interaction received:", JSON.stringify(payload).substring(0, 500));
 
+    // ===== Handle CSAT remark modal submission =====
+    if (payload.type === "view_submission" && payload.view?.callback_id === "csat_remark_modal") {
+      try {
+        const meta = JSON.parse(payload.view.private_metadata || "{}");
+        const remark = payload.view.state?.values?.remark_block?.remark_input?.value?.trim();
+        if (meta.mappingId && remark) {
+          await supabase
+            .from("conversation_mappings")
+            .update({ csat_remark: remark } as any)
+            .eq("id", meta.mappingId);
+        }
+      } catch (e) {
+        console.error("CSAT remark submission failed:", e);
+      }
+      return new Response("", { status: 200 });
+    }
+
     // ===== Handle view_submission (modal) =====
     if (payload.type === "view_submission") {
       const metadata = JSON.parse(payload.view.private_metadata || "{}");
