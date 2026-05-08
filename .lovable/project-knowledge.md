@@ -588,6 +588,15 @@ Surfaced on `/stats` under "Customer satisfaction" with avg, total, response rat
 
 `conversation_mappings` also has `csat_rating`, `csat_remark`, `csat_rated_at` plus `csat_prompt_ts`. When `intercom-webhook` resolves a Slack-originated conversation, it posts a second threaded message with five emoji buttons (😠 Terrible / 🙁 Bad / 😐 OK / 😀 Great / 🤩 Amazing, action_ids `csat_1`…`csat_5`) and stores the message ts in `csat_prompt_ts` (idempotent — skipped if already prompted/rated). `slack-interactions` records the rating, replaces the prompt with a thank-you, and opens an optional remark modal (`callback_id: csat_remark_modal`) on the first click. Ratings are merged into the same Stats card and a "Customer satisfaction" card on the conversation detail page.
 
+When the remark modal is submitted, `slack-interactions` surfaces the remark in three places (all wrapped in `EdgeRuntime.waitUntil` so the modal closes immediately):
+- Posts `💬 Customer remark on N/5: "..."` back into the original Slack thread via `chat.postMessage` (best-effort).
+- Adds an internal note on the linked Intercom conversation via `POST /conversations/{id}/reply` with `message_type: "note"`, `admin_id = settings.intercom_assignee_id`. Skipped silently if `intercom_conversation_id` is missing.
+- Renders a synthetic `csat` entry inline in the Conversation Detail message timeline, sorted by `csat_rated_at` (in addition to the existing side card).
+
+## Intercom "assign and reply" parts
+
+Intercom delivers an admin's assign-and-reply text on `part_type === "assignment"`, not `comment`. The `intercom-webhook` part-picker (`FORWARDABLE_PART_TYPES`) therefore accepts both `comment` and `assignment` parts that carry a non-empty body; `note` and other system part types stay excluded so internal content never leaks to Slack. Dedup still flows through `claim_intercom_part` keyed on `part.id`, so the broader filter cannot cause double-posting.
+
 ---
 
 ## Inline editing of messages and notes
