@@ -45,6 +45,9 @@ interface ConversationMapping {
   owner: string | null;
   classification: string | null;
   slack_user_name: string | null;
+  csat_rating: number | null;
+  csat_remark: string | null;
+  csat_rated_at: string | null;
 }
 
 interface GmailConv {
