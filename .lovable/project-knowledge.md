@@ -584,6 +584,10 @@ Capture paths:
 
 Surfaced on `/stats` under "Customer satisfaction" with avg, total, response rate (ratings / resolved Intercom-linked conversations in scope), 1–5 distribution chart, and a click-through list of recent 1–2★ ratings.
 
+## Slack-side CSAT (Sam / Ask Lovable)
+
+`conversation_mappings` also has `csat_rating`, `csat_remark`, `csat_rated_at` plus `csat_prompt_ts`. When `intercom-webhook` resolves a Slack-originated conversation, it posts a second threaded message with five emoji buttons (😠 Terrible / 🙁 Bad / 😐 OK / 😀 Great / 🤩 Amazing, action_ids `csat_1`…`csat_5`) and stores the message ts in `csat_prompt_ts` (idempotent — skipped if already prompted/rated). `slack-interactions` records the rating, replaces the prompt with a thank-you, and opens an optional remark modal (`callback_id: csat_remark_modal`) on the first click. Ratings are merged into the same Stats card and a "Customer satisfaction" card on the conversation detail page.
+
 ---
 
 ## Inline editing of messages and notes
