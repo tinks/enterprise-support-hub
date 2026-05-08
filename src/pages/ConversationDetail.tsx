@@ -93,6 +93,9 @@ interface ManualConv {
   owner: string | null;
   classification: string | null;
   resolved_at: string | null;
+  csat_rating: number | null;
+  csat_remark: string | null;
+  csat_rated_at: string | null;
 }
 
 const OWNER_OPTIONS = ["Joel", "Kristina", "Sam", "CSM", "Eren", "Tine"] as const;
