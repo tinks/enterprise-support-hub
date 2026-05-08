@@ -925,7 +925,7 @@ const Stats = () => {
 
   // ===== CSAT (Intercom conversation_rating) =====
   const csatRows = useMemo(() => {
-    const rows: Array<{ id: string; rating: number; remark: string | null; rated_at: string | null; source: "manual" | "gmail"; subject: string; link: string | null }> = [];
+    const rows: Array<{ id: string; rating: number; remark: string | null; rated_at: string | null; source: "manual" | "gmail" | "slack"; subject: string; link: string | null }> = [];
     if (sourceFilter === "all" || sourceFilter === "manual" || sourceFilter === "intercom") {
       filteredManual.forEach((m) => {
         if (m.csat_rating && m.id) {
@@ -946,8 +946,18 @@ const Stats = () => {
         }
       });
     }
+    if (sourceFilter === "all" || sourceFilter === "slack") {
+      filtered.forEach((m) => {
+        if (m.csat_rating && m.id) {
+          rows.push({
+            id: m.id, rating: m.csat_rating, remark: m.csat_remark ?? null, rated_at: m.csat_rated_at ?? null,
+            source: "slack", subject: (m.original_message_text || "").slice(0, 80) || "(slack thread)", link: null,
+          });
+        }
+      });
+    }
     return rows;
-  }, [filteredManual, filteredGmailThreads, sourceFilter]);
+  }, [filteredManual, filteredGmailThreads, filtered, sourceFilter]);
 
   const csatStats = useMemo(() => {
     const total = csatRows.length;
@@ -955,20 +965,26 @@ const Stats = () => {
     csatRows.forEach((r) => { counts[r.rating] = (counts[r.rating] || 0) + 1; });
     const distribution = [1, 2, 3, 4, 5].map((rating) => ({ rating, count: counts[rating] }));
     const avg = total > 0 ? csatRows.reduce((s, r) => s + r.rating, 0) / total : 0;
-    let resolvedWithIntercom = 0;
+    let resolvedBase = 0;
     if (sourceFilter === "all" || sourceFilter === "manual" || sourceFilter === "intercom") {
       filteredManual.forEach((m) => {
-        if (m.intercom_conversation_id && (m.status === "resolved" || m.resolved_at)) resolvedWithIntercom++;
+        if (m.intercom_conversation_id && (m.status === "resolved" || m.resolved_at)) resolvedBase++;
       });
     }
     if (sourceFilter === "all" || sourceFilter === "gmail") {
       filteredGmailThreads.forEach((g) => {
-        if (g.intercom_conversation_id && (g.status === "resolved" || g.resolved_at)) resolvedWithIntercom++;
+        if (g.intercom_conversation_id && (g.status === "resolved" || g.resolved_at)) resolvedBase++;
       });
     }
-    const responseRate = resolvedWithIntercom > 0 ? (total / resolvedWithIntercom) * 100 : 0;
-    return { total, avg, distribution, responseRateBase: resolvedWithIntercom, responseRate };
-  }, [csatRows, filteredManual, filteredGmailThreads, sourceFilter]);
+    if (sourceFilter === "all" || sourceFilter === "slack") {
+      filtered.forEach((m) => {
+        if (m.status === "resolved" || m.resolved_at) resolvedBase++;
+      });
+    }
+    const responseRate = resolvedBase > 0 ? (total / resolvedBase) * 100 : 0;
+    return { total, avg, distribution, responseRateBase: resolvedBase, responseRate };
+  }, [csatRows, filteredManual, filteredGmailThreads, filtered, sourceFilter]);
+
 
   const lowCsatRows = useMemo(() => {
     return [...csatRows]
