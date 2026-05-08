@@ -897,7 +897,7 @@ Deno.serve(async (req) => {
                 const intercomConvId = (mapping as any).intercom_conversation_id;
                 if (intercomConvId) {
                   if (!cachedSettings) cachedSettings = await getSettings(supabase);
-                  const adminId = cachedSettings.intercom_assignee_id;
+                  const adminId = cachedSettings?.intercom_assignee_id;
                   if (adminId) {
                     const noteBody = `<p><strong>CSAT remark (${ratingLabel}):</strong> ${remark.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c]!))}</p>`;
                     await fetch(`https://api.intercom.io/conversations/${intercomConvId}/reply`, {
