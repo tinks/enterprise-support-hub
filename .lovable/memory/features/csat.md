@@ -10,7 +10,11 @@ CSAT columns live on `manual_conversations`, `gmail_conversations`, AND `convers
 Imports (`import-intercom-ticket`, `bulk-import-intercom`) write CSAT on insert. Ongoing capture via `refresh-intercom-csat` edge function, scheduled every 6h via pg_cron (`refresh-intercom-csat-6h`) with `?mode=recent` (last 14 days resolved). One-time historical sweep: `?mode=backfill`. Hot paths intentionally don't handle CSAT — ratings arrive long after resolution.
 
 ## Slack-side (Sam / Ask Lovable)
-When `intercom-webhook` marks a `conversation_mappings` row as resolved, it posts a second threaded Slack message with 5 emoji buttons (😠 Terrible / 🙁 Bad / 😐 OK / 😀 Great / 🤩 Amazing, action_id `csat_1`…`csat_5`) and stores its `ts` in `csat_prompt_ts`. Idempotent: skipped if `csat_rating` or `csat_prompt_ts` already set.
+The CSAT prompt fires from BOTH resolution paths (idempotent via `!csat_rating && !csat_prompt_ts`):
+1. `intercom-webhook` close handler — when Intercom marks the linked conversation resolved.
+2. `slack-interactions` `feedback_positive` handler — when the user clicks "👍 This resolved my issue" in Slack. This path sets `status='resolved'` first, so the subsequent Intercom close webhook short-circuits at its `mapping.status !== "resolved"` guard and would otherwise miss CSAT.
+
+Both paths post the same threaded Slack message with 5 emoji buttons (😠 Terrible / 🙁 Bad / 😐 OK / 😀 Great / 🤩 Amazing, action_id `csat_1`…`csat_5`) and store its `ts` in `csat_prompt_ts`.
 
 `slack-interactions` handles the click: writes `csat_rating` + `csat_rated_at`, replaces the prompt via `chat.update` ("Thanks for rating: <emoji> <label>"), and opens an optional remark modal (`callback_id: csat_remark_modal`, `private_metadata` carries `mappingId`). Modal submission writes `csat_remark`. Modal is only opened on the first rating (last-write-wins on subsequent clicks for the rating only).
 

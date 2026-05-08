@@ -1511,6 +1511,53 @@ Deno.serve(async (req) => {
             }),
           });
 
+          // Post CSAT prompt (idempotent: skip if already rated/prompted)
+          try {
+            const mappingId = guardResult[0].id;
+            const { data: csatCheck } = await supabase
+              .from("conversation_mappings")
+              .select("csat_rating, csat_prompt_ts")
+              .eq("id", mappingId)
+              .maybeSingle();
+            if (csatCheck && !(csatCheck as any).csat_rating && !(csatCheck as any).csat_prompt_ts) {
+              const csatRes = await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${SLACK_BOT_TOKEN}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  channel,
+                  thread_ts: threadTs,
+                  text: "Rate your conversation",
+                  blocks: [
+                    { type: "section", text: { type: "mrkdwn", text: "*Rate your conversation*" } },
+                    {
+                      type: "actions",
+                      block_id: `csat_${mappingId}`,
+                      elements: [
+                        { type: "button", action_id: "csat_1", text: { type: "plain_text", emoji: true, text: "😠 Terrible" }, value: "1" },
+                        { type: "button", action_id: "csat_2", text: { type: "plain_text", emoji: true, text: "🙁 Bad" }, value: "2" },
+                        { type: "button", action_id: "csat_3", text: { type: "plain_text", emoji: true, text: "😐 OK" }, value: "3" },
+                        { type: "button", action_id: "csat_4", text: { type: "plain_text", emoji: true, text: "😀 Great" }, value: "4" },
+                        { type: "button", action_id: "csat_5", text: { type: "plain_text", emoji: true, text: "🤩 Amazing" }, value: "5" },
+                      ],
+                    },
+                  ],
+                  ...BOT_IDENTITY,
+                }),
+              });
+              const csatData = await csatRes.json();
+              if (csatData.ok && csatData.ts) {
+                await supabase.from("conversation_mappings").update({ csat_prompt_ts: csatData.ts } as any).eq("id", mappingId);
+              } else {
+                console.error("Failed to post CSAT prompt (slack-interactions):", csatData);
+              }
+            }
+          } catch (e) {
+            console.error("CSAT post error (slack-interactions):", e);
+          }
+
         } else if (actionId === "feedback_negative") {
           if (!cachedSettings) cachedSettings = await getSettings(supabase);
           if (cachedSettings.intercom_inbox_id && cachedSettings.intercom_assignee_id) {
