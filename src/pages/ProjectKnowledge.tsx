@@ -487,6 +487,11 @@ const ProjectKnowledge = () => {
                 pending review
               </Badge>
             )}
+            {updatedAt && (
+              <span className="text-xs text-muted-foreground ml-1">
+                Last updated {new Date(updatedAt).toLocaleString()}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {mode === "review" ? (
