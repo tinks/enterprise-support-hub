@@ -1294,11 +1294,36 @@ const ConversationDetail = () => {
   return (
     <AppLayout>
       <div className="bg-background p-6">
-        {/* Back button */}
-        <div className="mb-4">
+        {/* Back + Prev/Next */}
+        <div className="mb-4 flex items-center justify-between gap-2">
           <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
             <ArrowLeft className="mr-1 h-4 w-4" /> Back
           </Button>
+          {inboxNav.total > 0 && inboxNav.position > 0 && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => goToNeighbor(inboxNav.prev)}
+                disabled={!inboxNav.prev}
+                title="Previous (shortcut: [)"
+              >
+                <ChevronLeft className="h-4 w-4" /> Prev
+              </Button>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {inboxNav.position} / {inboxNav.total}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => goToNeighbor(inboxNav.next)}
+                disabled={!inboxNav.next}
+                title="Next (shortcut: ])"
+              >
+                Next <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* 70/30 split */}
