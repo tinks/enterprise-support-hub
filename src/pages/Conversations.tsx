@@ -964,6 +964,35 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     return classFiltered;
   }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, paramChannel, paramChannelGroup, paramManualChannel, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter, isResolutionMode, resolutionMin, resolutionMax]);
 
+  // Persist the visible navigable list (id + source) so the conversation
+  // detail page can offer Prev / Next that follow the current Inbox order.
+  const goToConversation = (id: string, source?: "gmail" | "manual") => {
+    try {
+      const list: { id: string; source?: "gmail" | "manual" }[] = [];
+      for (const row of unified) {
+        if (row.source === "slack") {
+          list.push({ id: (row.data as ConversationMapping).id });
+        } else if (row.source === "gmail") {
+          const g = row.data as GmailConversation;
+          list.push({ id: g.id, source: "gmail" });
+          const isGrouped = row.groupCount && row.groupCount > 1;
+          const isExpanded = row.groupKey ? expandedGmailGroups.has(row.groupKey) : false;
+          if (isGrouped && isExpanded && row.groupedEmails) {
+            for (const sub of row.groupedEmails.slice(1)) {
+              list.push({ id: sub.id, source: "gmail" });
+            }
+          }
+        } else if (row.source === "manual") {
+          list.push({ id: (row.data as ManualConversation).id, source: "manual" });
+        }
+      }
+      sessionStorage.setItem("inbox:list", JSON.stringify(list));
+    } catch {
+      /* ignore storage errors */
+    }
+    navigate(`/conversations/${id}${source ? `?source=${source}` : ""}`);
+  };
+
   const canLoadMore =
     !isHeatmapMode && !isResolutionMode && !isDayOnlyMode && !searchResults && (
       ((sourceFilter === "all" || sourceFilter === "slack" || sourceFilter === "slack_import") && hasMore) ||
