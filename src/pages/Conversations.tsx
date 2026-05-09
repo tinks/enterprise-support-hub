@@ -425,6 +425,18 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   useEffect(() => { localStorage.setItem("conv-pa-filter", productAreaFilter); }, [productAreaFilter]);
   useEffect(() => { localStorage.setItem("conv-class-filter", classificationFilter); }, [classificationFilter]);
   useEffect(() => { localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses]);
+  useEffect(() => {
+    if (searchQuery) localStorage.setItem("conv-search", searchQuery);
+    else localStorage.removeItem("conv-search");
+  }, [searchQuery]);
+  useEffect(() => {
+    if (dateFrom) localStorage.setItem("conv-date-from", dateFrom.toISOString());
+    else localStorage.removeItem("conv-date-from");
+  }, [dateFrom]);
+  useEffect(() => {
+    if (dateTo) localStorage.setItem("conv-date-to", dateTo.toISOString());
+    else localStorage.removeItem("conv-date-to");
+  }, [dateTo]);
 
   const handleDragStart = useCallback((col: ColKey) => { dragCol.current = col; }, []);
   const handleDragOver = useCallback((e: React.DragEvent, col: ColKey) => {
