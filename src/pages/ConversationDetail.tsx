@@ -184,6 +184,43 @@ const ConversationDetail = () => {
   const [searchParams] = useSearchParams();
   const source: SourceType = (searchParams.get("source") as SourceType) || "slack";
 
+  // Prev / Next navigation across the Inbox list (persisted by Conversations page)
+  const inboxNav = (() => {
+    try {
+      const raw = sessionStorage.getItem("inbox:list");
+      if (!raw || !id) return { prev: null as null | { id: string; source?: string }, next: null as null | { id: string; source?: string }, position: 0, total: 0 };
+      const list = JSON.parse(raw) as { id: string; source?: string }[];
+      const currentSource = searchParams.get("source") || undefined;
+      const idx = list.findIndex((r) => r.id === id && (r.source || undefined) === currentSource);
+      if (idx === -1) return { prev: null, next: null, position: 0, total: list.length };
+      return {
+        prev: idx > 0 ? list[idx - 1] : null,
+        next: idx < list.length - 1 ? list[idx + 1] : null,
+        position: idx + 1,
+        total: list.length,
+      };
+    } catch {
+      return { prev: null, next: null, position: 0, total: 0 };
+    }
+  })();
+
+  const goToNeighbor = (target: { id: string; source?: string } | null) => {
+    if (!target) return;
+    navigate(`/conversations/${target.id}${target.source ? `?source=${target.source}` : ""}`);
+  };
+
+  // Keyboard shortcuts: [ prev, ] next
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement | null)?.isContentEditable) return;
+      if (e.key === "[") { e.preventDefault(); goToNeighbor(inboxNav.prev); }
+      if (e.key === "]") { e.preventDefault(); goToNeighbor(inboxNav.next); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
   const [conv, setConv] = useState<ConversationMapping | null>(null);
   const [gmailConv, setGmailConv] = useState<GmailConv | null>(null);
   const [manualConv, setManualConv] = useState<ManualConv | null>(null);
