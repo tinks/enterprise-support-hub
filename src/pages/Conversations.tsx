@@ -1767,6 +1767,11 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                 />
               </div>
               <div className="flex-1" />
+              {anyFilterActive && (
+                <Button variant="outline" size="sm" className="gap-1" onClick={resetAll}>
+                  <RotateCcw className="h-3 w-3" /> Reset filters
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={() => { loadData().then((rows) => loadLookups(rows)); }} disabled={loading}>
                 <RefreshCw className={`mr-1 h-3 w-3 ${loading ? "animate-spin" : ""}`} />
                 Refresh
