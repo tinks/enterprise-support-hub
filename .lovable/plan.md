@@ -1,27 +1,38 @@
 ## Goal
 
-Add prev/next navigation to the conversation detail page so you can move through the inbox without going back.
+Inbox filters should survive navigating into a conversation and back. They should only clear when the user clicks an explicit Reset filters button.
 
-## Approach
+## Current state
 
-When you click into a conversation from the Inbox (or an Owner dashboard, which reuses Inbox), persist the currently visible, filtered+sorted list of conversation IDs to `sessionStorage` under a key like `inbox:list`. The detail page reads that list, finds the current ID, and exposes Prev / Next buttons that navigate to the neighboring entry (preserving the `?source=...` param per row).
+Most filters already persist to `localStorage` and rehydrate on mount: `sourceFilter`, `ownerFilter`, `productAreaFilter`, `classificationFilter`, `hiddenStatuses`, and `columnOrder`. There is also a `resetAll()` function and a `Reset` button — but the button lives inside the collapsible Filter panel, so it's easy to miss, and it does not clear the localStorage entries it leaves behind.
 
-This way Next honors whatever filters/search/sort the user had applied in the Inbox, instead of guessing an order from the DB.
+Two filter inputs do NOT persist today:
+- `searchQuery`
+- `dateFrom` / `dateTo`
 
-## Changes
+So when you go to a conversation and hit Back, the search box and the date range are lost.
 
-1. **`src/pages/Conversations.tsx`**
-   - Build a flat ordered array of `{ id, source }` from the rendered rows (the same order the table shows: Slack mappings, gmail with subrows, manual rows).
-   - On every row click that navigates to `/conversations/:id`, write that array to `sessionStorage` first, e.g. `sessionStorage.setItem("inbox:list", JSON.stringify(list))`.
+## Changes (all in `src/pages/Conversations.tsx`)
 
-2. **`src/pages/ConversationDetail.tsx`**
-   - On mount, read `inbox:list` from `sessionStorage`. Find current `{ id, source }` by matching `useParams().id` + `useSearchParams().get("source")`.
-   - Add a small Prev / Next control near the existing "Back" button (top of the page). Use `ChevronLeft` / `ChevronRight` icon buttons with keyboard shortcuts `[` / `]` (or `j` / `k`) for power use.
-   - Disable Prev at index 0 and Next at the end. Hide entirely if no list is found in storage (e.g. user opened the URL directly).
-   - Navigation target: `/conversations/${nextId}${nextSource ? \`?source=${nextSource}\` : ""}`.
+1. **Persist `searchQuery`**
+   - Initialize `useState` from `localStorage.getItem("conv-search")`.
+   - Add a `useEffect` that writes `searchQuery` to `localStorage` on change (empty string clears the key).
+
+2. **Persist `dateFrom` / `dateTo`**
+   - Initialize from `localStorage.getItem("conv-date-from") / "conv-date-to"` (parse ISO strings to `Date`).
+   - Add `useEffect`s that write them on change (or remove the key when undefined).
+
+3. **Make `resetAll` actually reset everything**
+   - Also clear `searchQuery`, `dateFrom`, `dateTo`.
+   - Explicitly `localStorage.removeItem(...)` for every persisted key (`conv-source-filter`, `conv-owner-filter`, `conv-pa-filter`, `conv-class-filter`, `conv-hidden-statuses`, `conv-search`, `conv-date-from`, `conv-date-to`, plus the column order keys). The existing per-state `useEffect`s will then re-write the cleared defaults, which is fine.
+   - Update `anyFilterActive` to also consider `searchQuery.length > 0`.
+
+4. **Surface a top-level Reset filters button**
+   - Add a `Reset filters` button (`RotateCcw` icon, ghost/outline) to the always-visible Search & Refresh bar (around line 1730), shown only when `anyFilterActive` is true.
+   - Keep the existing one inside the Filter accordion as-is so both entry points work.
 
 ## Out of scope
 
-- Changing inbox sort/filter behavior.
-- Auto-advancing on resolve, or any "skip resolved" logic — Next strictly follows the Inbox order at the time you opened the conversation.
-- Server-side pagination across the boundary (if the Inbox is paginated and Next would cross a page, it just stops at the last loaded item).
+- Persisting query-string driven filters (`paramDay`, `paramHour`, `paramChannel`, etc.) — those are link-driven, not user filters.
+- Persisting expanded gmail groups or expanded message previews.
+- Cross-tab sync.

@@ -225,7 +225,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   // When linked here from the manual-channel drilldown, force source=manual so manual rows actually load.
   const initialSource: SourceFilter = paramManualChannel ? "manual" : (paramSource || savedSource || "all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>(initialSource);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => localStorage.getItem("conv-search") || "");
   const savedOwner = localStorage.getItem("conv-owner-filter") as OwnerFilter | null;
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(forceOwner as OwnerFilter || savedOwner || "all");
   const savedPaFilter = localStorage.getItem("conv-pa-filter");
@@ -236,8 +236,14 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const [searchResults, setSearchResults] = useState<{ slack: ConversationMapping[]; gmail: GmailConversation[]; manual: ManualConversation[]; pending: PendingIntercomLink[] } | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
-  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(() => {
+    const v = localStorage.getItem("conv-date-from");
+    return v ? new Date(v) : undefined;
+  });
+  const [dateTo, setDateTo] = useState<Date | undefined>(() => {
+    const v = localStorage.getItem("conv-date-to");
+    return v ? new Date(v) : undefined;
+  });
    const [datePopoverOpen, setDatePopoverOpen] = useState(false);
    const [dateStep, setDateStep] = useState<"from" | "to">("from");
   const [creatingTicket, setCreatingTicket] = useState<Set<string>>(new Set());
@@ -419,6 +425,18 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   useEffect(() => { localStorage.setItem("conv-pa-filter", productAreaFilter); }, [productAreaFilter]);
   useEffect(() => { localStorage.setItem("conv-class-filter", classificationFilter); }, [classificationFilter]);
   useEffect(() => { localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses]);
+  useEffect(() => {
+    if (searchQuery) localStorage.setItem("conv-search", searchQuery);
+    else localStorage.removeItem("conv-search");
+  }, [searchQuery]);
+  useEffect(() => {
+    if (dateFrom) localStorage.setItem("conv-date-from", dateFrom.toISOString());
+    else localStorage.removeItem("conv-date-from");
+  }, [dateFrom]);
+  useEffect(() => {
+    if (dateTo) localStorage.setItem("conv-date-to", dateTo.toISOString());
+    else localStorage.removeItem("conv-date-to");
+  }, [dateTo]);
 
   const handleDragStart = useCallback((col: ColKey) => { dragCol.current = col; }, []);
   const handleDragOver = useCallback((e: React.DragEvent, col: ColKey) => {
@@ -1447,7 +1465,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   };
 
   const isCustomOrder = JSON.stringify(columnOrder) !== JSON.stringify([...ALL_COLUMNS]);
-  const anyFilterActive = sourceFilter !== "all" || ownerFilter !== "all" || productAreaFilter !== "all" || classificationFilter !== "all" || hiddenDiffersFromDefault || !!dateFrom || !!dateTo || isCustomOrder;
+  const anyFilterActive = sourceFilter !== "all" || ownerFilter !== "all" || productAreaFilter !== "all" || classificationFilter !== "all" || hiddenDiffersFromDefault || !!dateFrom || !!dateTo || isCustomOrder || searchQuery.trim().length > 0;
   const resetAll = () => {
     setSourceFilter("all");
     setOwnerFilter("all");
@@ -1457,6 +1475,17 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     setDateFrom(undefined);
     setDateTo(undefined);
     setColumnOrder([...ALL_COLUMNS]);
+    setSearchQuery("");
+    [
+      "conv-source-filter",
+      "conv-owner-filter",
+      "conv-pa-filter",
+      "conv-class-filter",
+      "conv-hidden-statuses",
+      "conv-search",
+      "conv-date-from",
+      "conv-date-to",
+    ].forEach((k) => localStorage.removeItem(k));
   };
 
   return (
@@ -1738,6 +1767,11 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                 />
               </div>
               <div className="flex-1" />
+              {anyFilterActive && (
+                <Button variant="outline" size="sm" className="gap-1" onClick={resetAll}>
+                  <RotateCcw className="h-3 w-3" /> Reset filters
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={() => { loadData().then((rows) => loadLookups(rows)); }} disabled={loading}>
                 <RefreshCw className={`mr-1 h-3 w-3 ${loading ? "animate-spin" : ""}`} />
                 Refresh
