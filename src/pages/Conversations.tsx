@@ -1465,7 +1465,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   };
 
   const isCustomOrder = JSON.stringify(columnOrder) !== JSON.stringify([...ALL_COLUMNS]);
-  const anyFilterActive = sourceFilter !== "all" || ownerFilter !== "all" || productAreaFilter !== "all" || classificationFilter !== "all" || hiddenDiffersFromDefault || !!dateFrom || !!dateTo || isCustomOrder;
+  const anyFilterActive = sourceFilter !== "all" || ownerFilter !== "all" || productAreaFilter !== "all" || classificationFilter !== "all" || hiddenDiffersFromDefault || !!dateFrom || !!dateTo || isCustomOrder || searchQuery.trim().length > 0;
   const resetAll = () => {
     setSourceFilter("all");
     setOwnerFilter("all");
@@ -1475,6 +1475,17 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     setDateFrom(undefined);
     setDateTo(undefined);
     setColumnOrder([...ALL_COLUMNS]);
+    setSearchQuery("");
+    [
+      "conv-source-filter",
+      "conv-owner-filter",
+      "conv-pa-filter",
+      "conv-class-filter",
+      "conv-hidden-statuses",
+      "conv-search",
+      "conv-date-from",
+      "conv-date-to",
+    ].forEach((k) => localStorage.removeItem(k));
   };
 
   return (
