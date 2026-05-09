@@ -1840,7 +1840,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "op
                               <TableRow
                                 key={`gmail-sub-${sub.id}`}
                                 className={`cursor-pointer hover:bg-muted/50 transition-colors bg-muted/20 ${sub.is_test ? "opacity-50" : ""}`}
-                                onClick={() => navigate(`/conversations/${sub.id}?source=gmail`)}
+                                onClick={() => goToConversation(sub.id, "gmail")}
                               >
                                 {columnOrder.map((col) => (
 <TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px] pl-8" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
