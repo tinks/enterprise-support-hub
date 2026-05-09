@@ -219,7 +219,7 @@ const ConversationDetail = () => {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, [inboxNav.prev?.id, inboxNav.next?.id]);
 
   const [conv, setConv] = useState<ConversationMapping | null>(null);
   const [gmailConv, setGmailConv] = useState<GmailConv | null>(null);
