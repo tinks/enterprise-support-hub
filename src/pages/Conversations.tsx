@@ -225,7 +225,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   // When linked here from the manual-channel drilldown, force source=manual so manual rows actually load.
   const initialSource: SourceFilter = paramManualChannel ? "manual" : (paramSource || savedSource || "all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>(initialSource);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => localStorage.getItem("conv-search") || "");
   const savedOwner = localStorage.getItem("conv-owner-filter") as OwnerFilter | null;
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(forceOwner as OwnerFilter || savedOwner || "all");
   const savedPaFilter = localStorage.getItem("conv-pa-filter");
@@ -236,8 +236,14 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const [searchResults, setSearchResults] = useState<{ slack: ConversationMapping[]; gmail: GmailConversation[]; manual: ManualConversation[]; pending: PendingIntercomLink[] } | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
-  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(() => {
+    const v = localStorage.getItem("conv-date-from");
+    return v ? new Date(v) : undefined;
+  });
+  const [dateTo, setDateTo] = useState<Date | undefined>(() => {
+    const v = localStorage.getItem("conv-date-to");
+    return v ? new Date(v) : undefined;
+  });
    const [datePopoverOpen, setDatePopoverOpen] = useState(false);
    const [dateStep, setDateStep] = useState<"from" | "to">("from");
   const [creatingTicket, setCreatingTicket] = useState<Set<string>>(new Set());
