@@ -964,6 +964,35 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     return classFiltered;
   }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, paramChannel, paramChannelGroup, paramManualChannel, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter, isResolutionMode, resolutionMin, resolutionMax]);
 
+  // Persist the visible navigable list (id + source) so the conversation
+  // detail page can offer Prev / Next that follow the current Inbox order.
+  const goToConversation = (id: string, source?: "gmail" | "manual") => {
+    try {
+      const list: { id: string; source?: "gmail" | "manual" }[] = [];
+      for (const row of unified) {
+        if (row.source === "slack") {
+          list.push({ id: (row.data as ConversationMapping).id });
+        } else if (row.source === "gmail") {
+          const g = row.data as GmailConversation;
+          list.push({ id: g.id, source: "gmail" });
+          const isGrouped = row.groupCount && row.groupCount > 1;
+          const isExpanded = row.groupKey ? expandedGmailGroups.has(row.groupKey) : false;
+          if (isGrouped && isExpanded && row.groupedEmails) {
+            for (const sub of row.groupedEmails.slice(1)) {
+              list.push({ id: sub.id, source: "gmail" });
+            }
+          }
+        } else if (row.source === "manual") {
+          list.push({ id: (row.data as ManualConversation).id, source: "manual" });
+        }
+      }
+      sessionStorage.setItem("inbox:list", JSON.stringify(list));
+    } catch {
+      /* ignore storage errors */
+    }
+    navigate(`/conversations/${id}${source ? `?source=${source}` : ""}`);
+  };
+
   const canLoadMore =
     !isHeatmapMode && !isResolutionMode && !isDayOnlyMode && !searchResults && (
       ((sourceFilter === "all" || sourceFilter === "slack" || sourceFilter === "slack_import") && hasMore) ||
@@ -1780,7 +1809,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                           <TableRow
                             key={`slack-${m.id}`}
 className={`cursor-pointer hover:bg-muted/50 transition-colors ${m.is_test ? "opacity-50" : ""} ${!m.owner ? "border-l-[3px] border-primary/70 bg-primary/5" : m.status === "awaiting_support" ? "border-l-[3px] border-amber-500/70 bg-amber-50/50" : ""}`}
-                             onClick={() => navigate(`/conversations/${m.id}`)}
+                             onClick={() => goToConversation(m.id)}
                           >
                             {columnOrder.map((col) => (
 <TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
@@ -1799,7 +1828,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${m.is_test ? "op
                             <TableRow
                               key={`gmail-${g.id}`}
 className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "opacity-50" : ""} ${!g.owner ? "border-l-[3px] border-primary/70 bg-primary/5" : g.status === "awaiting_support" ? "border-l-[3px] border-amber-500/70 bg-amber-50/50" : ""}`}
-                               onClick={() => navigate(`/conversations/${g.id}?source=gmail`)}
+                               onClick={() => goToConversation(g.id, "gmail")}
                             >
                               {columnOrder.map((col) => (
 <TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
@@ -1811,7 +1840,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "op
                               <TableRow
                                 key={`gmail-sub-${sub.id}`}
                                 className={`cursor-pointer hover:bg-muted/50 transition-colors bg-muted/20 ${sub.is_test ? "opacity-50" : ""}`}
-                                onClick={() => navigate(`/conversations/${sub.id}?source=gmail`)}
+                                onClick={() => goToConversation(sub.id, "gmail")}
                               >
                                 {columnOrder.map((col) => (
 <TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px] pl-8" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
@@ -1863,7 +1892,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "op
                           <TableRow
                             key={`manual-${mc.id}`}
 className={`cursor-pointer hover:bg-muted/50 transition-colors ${mc.is_test ? "opacity-50" : ""} ${!mc.owner ? "border-l-[3px] border-primary/70 bg-primary/5" : mc.status === "awaiting_support" ? "border-l-[3px] border-amber-500/70 bg-amber-50/50" : ""}`}
-                             onClick={() => navigate(`/conversations/${mc.id}?source=manual`)}
+                             onClick={() => goToConversation(mc.id, "manual")}
                           >
                             {columnOrder.map((col) => (
 <TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>

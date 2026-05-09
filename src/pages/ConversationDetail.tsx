@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket, Mail, Trash2, Link, Search, StickyNote, X, Plus, Send, History, CalendarIcon, Pencil, Check as CheckIcon } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink, Hash, User, ChevronDown, Copy, RefreshCw, Bot, Ticket, Mail, Trash2, Link, Search, StickyNote, X, Plus, Send, History, CalendarIcon, Pencil, Check as CheckIcon } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
@@ -183,6 +183,43 @@ const ConversationDetail = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const source: SourceType = (searchParams.get("source") as SourceType) || "slack";
+
+  // Prev / Next navigation across the Inbox list (persisted by Conversations page)
+  const inboxNav = (() => {
+    try {
+      const raw = sessionStorage.getItem("inbox:list");
+      if (!raw || !id) return { prev: null as null | { id: string; source?: string }, next: null as null | { id: string; source?: string }, position: 0, total: 0 };
+      const list = JSON.parse(raw) as { id: string; source?: string }[];
+      const currentSource = searchParams.get("source") || undefined;
+      const idx = list.findIndex((r) => r.id === id && (r.source || undefined) === currentSource);
+      if (idx === -1) return { prev: null, next: null, position: 0, total: list.length };
+      return {
+        prev: idx > 0 ? list[idx - 1] : null,
+        next: idx < list.length - 1 ? list[idx + 1] : null,
+        position: idx + 1,
+        total: list.length,
+      };
+    } catch {
+      return { prev: null, next: null, position: 0, total: 0 };
+    }
+  })();
+
+  const goToNeighbor = (target: { id: string; source?: string } | null) => {
+    if (!target) return;
+    navigate(`/conversations/${target.id}${target.source ? `?source=${target.source}` : ""}`);
+  };
+
+  // Keyboard shortcuts: [ prev, ] next
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement | null)?.isContentEditable) return;
+      if (e.key === "[") { e.preventDefault(); goToNeighbor(inboxNav.prev); }
+      if (e.key === "]") { e.preventDefault(); goToNeighbor(inboxNav.next); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [inboxNav.prev?.id, inboxNav.next?.id]);
 
   const [conv, setConv] = useState<ConversationMapping | null>(null);
   const [gmailConv, setGmailConv] = useState<GmailConv | null>(null);
@@ -1257,11 +1294,36 @@ const ConversationDetail = () => {
   return (
     <AppLayout>
       <div className="bg-background p-6">
-        {/* Back button */}
-        <div className="mb-4">
+        {/* Back + Prev/Next */}
+        <div className="mb-4 flex items-center justify-between gap-2">
           <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
             <ArrowLeft className="mr-1 h-4 w-4" /> Back
           </Button>
+          {inboxNav.total > 0 && inboxNav.position > 0 && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => goToNeighbor(inboxNav.prev)}
+                disabled={!inboxNav.prev}
+                title="Previous (shortcut: [)"
+              >
+                <ChevronLeft className="h-4 w-4" /> Prev
+              </Button>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {inboxNav.position} / {inboxNav.total}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => goToNeighbor(inboxNav.next)}
+                disabled={!inboxNav.next}
+                title="Next (shortcut: ])"
+              >
+                Next <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* 70/30 split */}
