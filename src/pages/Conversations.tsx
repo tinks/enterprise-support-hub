@@ -1809,7 +1809,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                           <TableRow
                             key={`slack-${m.id}`}
 className={`cursor-pointer hover:bg-muted/50 transition-colors ${m.is_test ? "opacity-50" : ""} ${!m.owner ? "border-l-[3px] border-primary/70 bg-primary/5" : m.status === "awaiting_support" ? "border-l-[3px] border-amber-500/70 bg-amber-50/50" : ""}`}
-                             onClick={() => navigate(`/conversations/${m.id}`)}
+                             onClick={() => goToConversation(m.id)}
                           >
                             {columnOrder.map((col) => (
 <TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
