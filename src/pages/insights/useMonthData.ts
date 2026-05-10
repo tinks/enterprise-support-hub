@@ -229,7 +229,7 @@ export function useMonthData(month: string, refreshKey: number = 0): MonthData {
       }
     })();
     return () => { cancelled = true; };
-  }, [month]);
+  }, [month, refreshKey]);
 
   return state;
 }
