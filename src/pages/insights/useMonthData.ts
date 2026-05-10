@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { endOfMonth, startOfMonth, parse } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 
