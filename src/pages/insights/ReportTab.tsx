@@ -350,11 +350,11 @@ export function ReportTab({ data, month }: ReportTabProps) {
         <Card>
           <CardContent className="p-5">
             <h2 className="text-sm font-semibold mb-3">By product area</h2>
-            <div className="space-y-1.5">
+            <div className="space-y-2.5">
               {stats.productAreasTop.map(pa => (
                 <div key={pa.name} className="flex items-center gap-3">
-                  <div className="w-32 text-xs truncate">{pa.name}</div>
-                  <div className="flex-1 bg-muted rounded h-4 relative overflow-hidden">
+                  <div className="w-32 text-xs truncate leading-snug">{pa.name}</div>
+                  <div className="flex-1 bg-muted rounded h-5 relative overflow-hidden">
                     <div className="absolute inset-y-0 left-0 bg-primary/70" style={{ width: `${(pa.count / Math.max(1, stats.productAreasTop[0]?.count || 1)) * 100}%` }} />
                   </div>
                   <div className="w-10 text-right text-xs font-medium">{pa.count}</div>
