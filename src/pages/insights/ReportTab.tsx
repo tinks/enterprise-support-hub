@@ -389,7 +389,7 @@ export function ReportTab({ data, month }: ReportTabProps) {
                   const from = format(startOfMonth(monthDate), "yyyy-MM-dd");
                   const to = format(endOfMonth(monthDate), "yyyy-MM-dd");
                   const ownerParam = o.name === "Unassigned" ? "unassigned" : o.name;
-                  const href = `/conversations?owner=${encodeURIComponent(ownerParam)}&from=${from}&to=${to}`;
+                  const href = `/conversations?owner=${encodeURIComponent(ownerParam)}&from=${from}&to=${to}&showAll=1`;
                   return (
                     <tr key={o.name} className="border-b last:border-0 hover:bg-accent/40 cursor-pointer">
                       <td className="py-1.5"><Link to={href} className="block">{o.name}</Link></td>

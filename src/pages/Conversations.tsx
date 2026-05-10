@@ -211,6 +211,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const paramTo = searchParams.get("to");
   const paramProductArea = searchParams.get("productArea");
   const paramOwner = searchParams.get("owner");
+  const paramShowAll = searchParams.get("showAll") === "1";
   const isResolutionMode = resolutionMin !== null && resolutionMax !== null;
 
   const [mappings, setMappings] = useState<ConversationMapping[]>([]);
@@ -396,7 +397,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const DEFAULT_HIDDEN = new Set(["test", "cancelled", "resolved"]);
   const savedHidden = localStorage.getItem("conv-hidden-statuses");
   const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(
-    savedHidden ? new Set(JSON.parse(savedHidden)) : new Set(DEFAULT_HIDDEN)
+    paramShowAll ? new Set() : (savedHidden ? new Set(JSON.parse(savedHidden)) : new Set(DEFAULT_HIDDEN))
   );
   const hiddenDiffersFromDefault = hiddenStatuses.size !== DEFAULT_HIDDEN.size || [...hiddenStatuses].some(s => !DEFAULT_HIDDEN.has(s));
 
@@ -430,7 +431,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   useEffect(() => { if (!forceOwner && !paramOwner) localStorage.setItem("conv-owner-filter", ownerFilter); }, [ownerFilter, forceOwner, paramOwner]);
   useEffect(() => { localStorage.setItem("conv-pa-filter", productAreaFilter); }, [productAreaFilter]);
   useEffect(() => { localStorage.setItem("conv-class-filter", classificationFilter); }, [classificationFilter]);
-  useEffect(() => { localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses]);
+  useEffect(() => { if (!paramShowAll) localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses, paramShowAll]);
   useEffect(() => {
     if (searchQuery) localStorage.setItem("conv-search", searchQuery);
     else localStorage.removeItem("conv-search");
@@ -713,13 +714,13 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     if (dateFrom) {
       const fromIso = startOfDay(dateFrom).toISOString();
       slackQuery = slackQuery.gte("created_at", fromIso);
-      gmailQuery = gmailQuery.gte("received_at", fromIso);
+      gmailQuery = gmailQuery.gte("created_at", fromIso);
       manualQuery = manualQuery.gte("created_at", fromIso);
     }
     if (dateTo) {
       const toIso = endOfDay(dateTo).toISOString();
       slackQuery = slackQuery.lte("created_at", toIso);
-      gmailQuery = gmailQuery.lte("received_at", toIso);
+      gmailQuery = gmailQuery.lte("created_at", toIso);
       manualQuery = manualQuery.lte("created_at", toIso);
     }
 
