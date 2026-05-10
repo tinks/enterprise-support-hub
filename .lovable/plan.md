@@ -1,39 +1,42 @@
-# Reconcile Source performance counts with Total tickets
+# Update project knowledge with Source mix / Source performance rules
 
-## Why 85 + 60 + 200 ≠ 334
+`.lovable/project-knowledge.md` is missing documentation for the recent Insights → Report changes (Source mix bucketing, Source performance table, `intercom-month-stats` edge function, and the shared `sourceBucket` helper).
 
-- **Total (334)** is local DB only: Slack rows + Gmail rows + manual imports.
-- **Slack 85** and **Gmail 60** are local DB by origin.
-- **Intercom 200** is fetched live from the Intercom API, NOT from our DB. It includes:
-  - Slack-escalated conversations (already counted in Slack = 85 → double count)
-  - Intercom conversations that were never imported as `manual_conversations` locally
+## Add one new section at the end of the file
 
-That's where the +11 comes from.
+````md
+## Insights → Report — Source attribution rule
 
-## Fix
+Tickets are bucketed by **origin** in both `Source mix` and `Source performance` (table). A Slack-originated conversation that was later escalated/mirrored into Intercom still counts as **Slack**, not Intercom.
 
-Use the **local DB** for the Intercom count column so all four buckets share the same population as Total. Keep the live Intercom API only for the response-time / handling-time medians which we can't compute locally.
+The shared helper `src/pages/insights/sourceBucket.ts` is the single source of truth:
 
-### Files
+```ts
+sourceBucketOf(t):
+  route_source === "slack"     → "slack"
+  route_source === "gmail"     → "gmail"
+  display_source === "intercom" → "intercom"   // manual imports flagged Intercom
+  else                          → "other"
+```
 
-1. `src/pages/insights/sourceBucket.ts` (new) — single source of truth:
-   ```ts
-   export function sourceBucketOf(t: NormalizedTicket): "slack" | "gmail" | "intercom" | "other" {
-     if (t.route_source === "slack") return "slack";
-     if (t.route_source === "gmail") return "gmail";
-     if (t.display_source === "intercom") return "intercom";
-     return "other";
-   }
-   ```
+Both `ReportTab.tsx` (Source mix donut) and `MonthStatsCards.tsx` (Source performance table) use this helper, so the four buckets always sum to `Total tickets` for the month.
 
-2. `src/pages/insights/ReportTab.tsx` — drop the inline `sourceBucketOf` and import from the new util.
+### Source performance table (`MonthStatsCards.tsx`)
 
-3. `src/pages/insights/MonthStatsCards.tsx`:
-   - Add `computeIntercomStats(tickets)` filtering by `sourceBucketOf(t) === "intercom"` → local Received / Resolved / Open / median resolution.
-   - Replace the **Received**, **Resolved**, **Open**, **Median resolution / time to close** Intercom cells with local values.
-   - Keep `intercomCell(...)` only for `Median first response`, `Median response time`, `Median handling time` (live Intercom API).
-   - Update the footer line to: "Response/handling times from Intercom API ({n} live conversations)" and clarify counts are local.
+Single comparison table with rows = metrics, columns = Slack / Gmail / Intercom.
 
-After this change Slack + Gmail + Intercom + Other in both Source mix and Source performance Received row equal Total.
+- **Counts** (Received, Resolved, Open, Escalated to human, Median resolution / time to close, Average resolution, Success rate, Bot success rate) come from the **local DB** via `data.tickets`, bucketed with `sourceBucketOf`. This guarantees reconciliation with `Total`.
+- **Slack-only rows**: `Escalated to human` (tickets with `intercom_conversation_id` or `status in ('escalated','escalated_pending')`) and `Bot success rate` (resolved without Intercom / total Slack).
+- **Intercom timing rows** (`Median first response`, `Median response time`, `Median handling time`) are fetched live from the Intercom API via the `intercom-month-stats` edge function — these can't be computed from local data because we don't store admin-side reply timestamps.
+- Footer notes that counts are local and timing is live, with current vs previous month conversation counts from Intercom.
 
-No backend or schema changes.
+### `intercom-month-stats` edge function
+
+Queries Intercom Conversations Search for the configured enterprise inbox and returns medians of `time_to_admin_reply`, `median_time_to_reply`, and `time_to_last_close` (seconds) plus a `count` for both the selected month and the previous month. Used **only** for timing deltas in the Source performance Intercom column. Auth: `INTERCOM_API_TOKEN` secret. No DB writes.
+
+### Why we don't use Intercom's live count for the Intercom column
+
+Intercom's live conversation count includes Slack-escalated conversations (already counted under Slack by the origin rule) and may include Intercom items that were never imported into `manual_conversations` locally. Using it as the headline count would double-count and break the `Slack + Gmail + Intercom + Other = Total` invariant. The live count is shown only in the footer for context.
+````
+
+No code changes — documentation only.
