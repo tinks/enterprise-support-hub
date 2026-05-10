@@ -31,6 +31,7 @@ export interface MonthData {
   loading: boolean;
   tickets: NormalizedTicket[];
   error?: string;
+  refresh: () => void;
 }
 
 const cleanSubject = (s: string | null | undefined) =>
