@@ -180,6 +180,7 @@ const Index = () => {
     let total = 0;
     let totalChecked = 0;
     let totalFlagged = 0;
+    const purgedMonths = new Set<string>();
     let offset = 0;
     let batchNum = 0;
     try {
@@ -196,13 +197,15 @@ const Index = () => {
         totalChecked += data.checked || 0;
         totalFlagged += data.flagged || 0;
         if (Array.isArray(data.mismatches)) all.push(...data.mismatches);
+        if (Array.isArray(data.purgedMonths)) for (const m of data.purgedMonths) purgedMonths.add(m);
         toast.info(`Batch ${batchNum}: ${data.checked} checked, ${data.mismatchCount} mismatches${apply ? `, ${data.flagged} flagged` : ""}`);
         if (data.done) break;
         offset = data.nextOffset || 0;
         if (batchNum > 100) { toast.error("Stopped after 100 batches as a safety guard"); break; }
       }
       setAuditReport({ total, mismatches: all });
-      toast.success(`Audit ${apply ? "applied" : "scan"} complete: ${totalChecked} checked, ${all.length} mismatches${apply ? `, ${totalFlagged} flagged` : ""}`);
+      const purgeSuffix = apply && purgedMonths.size > 0 ? ` — purged insights for ${purgedMonths.size} month(s): ${Array.from(purgedMonths).sort().join(", ")}` : "";
+      toast.success(`Audit ${apply ? "applied" : "scan"} complete: ${totalChecked} checked, ${all.length} mismatches${apply ? `, ${totalFlagged} flagged` : ""}${purgeSuffix}`);
     } catch (err) {
       toast.error("Audit request failed: " + (err instanceof Error ? err.message : "Unknown"));
     }
