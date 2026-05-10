@@ -571,6 +571,8 @@ const BulkImportReview = () => {
                                   <Badge className="bg-green-100 text-green-800 border-green-200">Imported</Badge>
                                 ) : result?.status === "failed" ? (
                                   <Badge className="bg-red-100 text-red-800 border-red-200">Failed</Badge>
+                                ) : result?.status === "out_of_inbox" ? (
+                                  <Badge className="bg-amber-100 text-amber-800 border-amber-200" title={`Currently in team ${result.currentTeamId}`}>Outside enterprise inbox</Badge>
                                 ) : (
                                   statusBadge(row.status)
                                 )}
