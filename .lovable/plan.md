@@ -1,42 +1,31 @@
-## Goal
-Replace the three stacked card grids (Slack / Gmail / Intercom) on the Insights → Report tab with a single compact comparison table so all three sources can be scanned side-by-side.
+# Fix Source mix vs Source performance discrepancy
 
-## Proposed layout
+## Root cause
 
-One `Card` titled "Source performance · {Month}" containing a single table:
+Both views look at the same ticket pool but bucket differently:
 
-```
-Metric                          Slack     Gmail     Intercom
-─────────────────────────────────────────────────────────────
-Received                        123       45        87
-Resolved                        110       40        80
-Open                            13        5         7
-Escalated to human              8         —         —
-Success rate                    89%       89%       —
-Bot success rate                72%       —         —
-Median first response           —         —         12m  ▼ 3m
-Median response time            —         —         28m  ▲ 5m
-Median resolution / time-close  4h 12m    6h 30m    2h 10m ▼ 14m
-Average resolution              5h 02m    7h 15m    —
-```
+- **Source mix** (`ReportTab.tsx`) groups by `display_source` — a Slack ticket that escalated to Intercom is counted under **Intercom**.
+- **Source performance** (`MonthStatsCards.tsx`) groups by `route_source` — that same escalated ticket is still counted under **Slack** because it originated there.
 
-- Rows where a metric doesn't apply to a source render as `—` (muted).
-- Right-aligned numeric columns; left-aligned metric label.
-- Intercom column keeps the small green/red delta chip (vs previous month) inline next to the value.
-- Footer line under the table: "Live from Intercom · {n} conversations this month vs {n} previous month" (only when Intercom data loaded). Loading / error states render as a single-row state inside the table body.
-- Sticky-ish header style consistent with other tables in the app (`<Table>` / `<TableHeader>` from `components/ui/table.tsx`).
+So Source mix shows Slack = 36 (only tickets resolved by the bot inside Slack), while Source performance shows Slack = 85 (every ticket that entered via Slack, including ~49 that were escalated and live in Intercom now).
+
+## Fix
+
+Make Source performance match Source mix's definition of "source" so the same number appears in both places.
+
+In `src/pages/insights/MonthStatsCards.tsx`:
+
+1. Change `computeSlackStats` to filter `tickets.filter(t => t.display_source === "slack")` instead of `route_source === "slack"`.
+2. Change `computeGmailStats` similarly to `display_source === "gmail"` (no behavioral change today since gmail's display and route are the same, but keeps the rule consistent).
+3. Recompute the derived metrics on this narrower set:
+   - `Received`, `Resolved`, `Open`, `Success rate`, `Bot success rate`, median/average resolution.
+   - `Escalated to human` row becomes meaningless under the new definition (a Slack ticket that escalated is no longer in the Slack bucket). Replace this row with `—` for Slack, OR drop the row. Recommended: **drop the row** to keep the table clean, since the Source mix already implicitly shows the escalation split.
+4. No changes to the Intercom column — it stays sourced from the live `intercom-month-stats` edge function.
 
 ## Files
 
-### Edited
-- `src/pages/insights/MonthStatsCards.tsx` — replace the three `<section>` blocks + `Kpi` / `DeltaCard` JSX with a single table. Keep all existing data sources untouched: `computeSlackStats`, `computeGmailStats`, the `intercom-month-stats` invoke. Drop the now-unused `Kpi` / `DeltaCard` helpers and the lucide icons that were only used by them; keep `ArrowDown` / `ArrowUp` for the Intercom delta chip.
-- `.lovable/memory/features/month-stats-cards.md` — update description from "three KPI sections" to "single comparison table with one row per metric and one column per source".
+- `src/pages/insights/MonthStatsCards.tsx` — swap the filter field and remove the Escalated row.
+- `.lovable/memory/features/month-stats-cards.md` — document that Slack/Gmail counts are by `display_source` to align with Source mix.
+- `.lovable/project-knowledge.md` — note the alignment rule.
 
-### Untouched
-- No backend / edge function changes.
-- No new files.
-- No change to data computation logic, only presentation.
-
-## Out of scope
-- No new metrics, no removed metrics — same data set, new layout.
-- No CSV export, no sorting, no per-source drilldown.
+No backend, schema, or data-fetching changes.
