@@ -496,15 +496,23 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
   const dailyTrim = daily.slice(0, Math.max(28, lastDay));
   const dailyMax = Math.max(1, ...dailyTrim);
 
-  // Source mix
+  // Source mix — bucket by ORIGIN (route_source). A ticket that started in
+  // Slack and was later escalated/mirrored into Intercom still counts as Slack.
   const sourceColors: Record<string, string> = {
     intercom: "hsl(var(--primary))",
     slack: "hsl(var(--destructive))",
     gmail: "hsl(220 70% 55%)",
     other: "hsl(var(--muted-foreground))",
   };
+  const bucketOf = (t: NormalizedTicket): "slack" | "gmail" | "intercom" | "other" => {
+    if (t.route_source === "slack") return "slack";
+    if (t.route_source === "gmail") return "gmail";
+    // Manual imports: attribute by their display_source (intercom imports → intercom)
+    if (t.display_source === "intercom") return "intercom";
+    return "other";
+  };
   const sourceMix = (["intercom", "slack", "gmail", "other"] as const).map(s => {
-    const count = tickets.filter(t => t.display_source === s).length;
+    const count = tickets.filter(t => bucketOf(t) === s).length;
     return { source: s, count, pct: total ? Math.round((count / total) * 100) : 0, color: sourceColors[s] };
   }).filter(s => s.count > 0);
 
