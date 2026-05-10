@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { format, parse, startOfMonth, subMonths } from "date-fns";
-import { Loader2, FileDown, Sparkles } from "lucide-react";
+import { Loader2, FileDown, Sparkles, AlertTriangle, CheckCircle2 } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { channelNameOverrides } from "@/lib/channelOverrides";
 import { MonthData, NormalizedTicket, useMonthData, sourceLabel } from "./useMonthData";
 import { UncategorizedPanel } from "./UncategorizedPanel";
 import { MonthStatsCards } from "./MonthStatsCards";
-import { sourceBucketOf } from "./sourceBucket";
+import { sourceBucketOf, reconcileSources } from "./sourceBucket";
 
 const BUCKETS = ["Issue", "Configuration", "Bug", "FR", "Question", "Unclassified"] as const;
 type Bucket = typeof BUCKETS[number];
@@ -238,7 +238,27 @@ export function ReportTab({ data, month }: ReportTabProps) {
         {/* Source mix */}
         <Card>
           <CardContent className="p-5">
-            <h2 className="text-sm font-semibold mb-3">Source mix</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold">Source mix</h2>
+              {(() => {
+                const rec = reconcileSources(data.tickets);
+                if (rec.ok && rec.unbucketed.length === 0) {
+                  return (
+                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground" title={`Slack ${rec.counts.slack} + Gmail ${rec.counts.gmail} + Intercom ${rec.counts.intercom} + Other ${rec.counts.other} = ${rec.sum}`}>
+                      <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                      Reconciled · {rec.sum} / {rec.total}
+                    </span>
+                  );
+                }
+                return (
+                  <span className="flex items-center gap-1 text-[11px] text-destructive font-medium" title={`Slack ${rec.counts.slack} + Gmail ${rec.counts.gmail} + Intercom ${rec.counts.intercom} + Other ${rec.counts.other} = ${rec.sum}; total = ${rec.total}; unbucketed (no route_source/display_source) = ${rec.unbucketed.length}`}>
+                    <AlertTriangle className="h-3 w-3" />
+                    Mismatch · sum {rec.sum} ≠ total {rec.total}
+                    {rec.unbucketed.length > 0 && ` · ${rec.unbucketed.length} unbucketed`}
+                  </span>
+                );
+              })()}
+            </div>
             <div className="flex h-6 rounded overflow-hidden bg-muted mb-3">
               {stats.sourceMix.map(s => (
                 <div key={s.source} style={{ width: `${s.pct}%`, background: s.color }} className="flex items-center justify-center text-[10px] text-primary-foreground font-medium">
