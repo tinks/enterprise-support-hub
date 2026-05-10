@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { ids, owner } = await req.json();
+    const { ids, owner, forceInbox } = await req.json();
     if (!Array.isArray(ids) || ids.length === 0) {
       return new Response(
         JSON.stringify({ error: "Missing ids array" }),
@@ -64,6 +64,10 @@ Deno.serve(async (req) => {
     }
 
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Load enterprise inbox once
+    const { data: settingsRow } = await sb.from("settings").select("intercom_inbox_id").limit(1).single();
+    const enterpriseInboxId = String(settingsRow?.intercom_inbox_id || "");
 
     const results: Array<{ id: string; status: "imported" | "skipped" | "failed"; error?: string; dbId?: string }> = [];
 
