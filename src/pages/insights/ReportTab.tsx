@@ -87,7 +87,34 @@ export function ReportTab({ data, month }: ReportTabProps) {
       setInsight(row as unknown as Insight | null);
     })();
     return () => { cancelled = true; };
-  }, [month]);
+  }, [month, insightNonce]);
+
+  const handleRefreshData = useCallback(() => {
+    setRefreshing(true);
+    data.refresh();
+    prev.refresh();
+    setInsightNonce(n => n + 1);
+    toast.success("Data refreshed");
+    setTimeout(() => setRefreshing(false), 600);
+  }, [data, prev]);
+
+  const handleRefreshAll = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const { data: res, error } = await supabase.functions.invoke("analyze-intercom-month", { body: { month } });
+      if (error) throw error;
+      if ((res as { error?: string })?.error) throw new Error((res as { error: string }).error);
+      const count = (res as { ticket_count?: number })?.ticket_count;
+      data.refresh();
+      prev.refresh();
+      setInsightNonce(n => n + 1);
+      toast.success("Report refreshed", { description: count != null ? `${count} tickets analyzed.` : undefined });
+    } catch (e) {
+      toast.error("AI refresh failed", { description: (e as Error).message });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [month, data, prev]);
 
   // Resolve Slack channel IDs → names
   useEffect(() => {
