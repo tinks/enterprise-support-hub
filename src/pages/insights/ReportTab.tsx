@@ -184,7 +184,7 @@ export function ReportTab({ data, month }: ReportTabProps) {
   if (stats.peakDow) highlights.push(`Busiest day of week: ${stats.peakDow.label} (${stats.peakDow.count} tickets).`);
   if (stats.worstCsatPa) highlights.push(`Lowest CSAT product area: ${stats.worstCsatPa.name} at ${stats.worstCsatPa.avg.toFixed(1)}★ (${stats.worstCsatPa.n} ratings).`);
   const overloadedOwner = stats.owners.find(o => o.total >= 30 && o.name !== "Unassigned");
-  if (overloadedOwner) highlights.push(`Highest owner load: ${overloadedOwner.name} with ${overloadedOwner.total} tickets.`);
+  if (overloadedOwner) highlights.push(`Highest owner load: ${overloadedOwner.name === "CSM" ? "CSM/Self-resolved" : overloadedOwner.name} with ${overloadedOwner.total} tickets.`);
   const unassigned = stats.owners.find(o => o.name === "Unassigned");
   if (unassigned && unassigned.total > 0) highlights.push(`${unassigned.total} tickets remain unassigned.`);
 
@@ -392,7 +392,7 @@ export function ReportTab({ data, month }: ReportTabProps) {
                   const href = `/conversations?owner=${encodeURIComponent(ownerParam)}&from=${from}&to=${to}&showAll=1`;
                   return (
                     <tr key={o.name} className="border-b last:border-0 hover:bg-accent/40 cursor-pointer">
-                      <td className="py-1.5"><Link to={href} className="block">{o.name}</Link></td>
+                      <td className="py-1.5"><Link to={href} className="block">{o.name === "CSM" ? "CSM/Self-resolved" : o.name}</Link></td>
                       <td className="py-1.5 font-medium"><Link to={href} className="block">{o.total}</Link></td>
                       <td className="py-1.5"><Link to={href} className="block">{o.Issue}</Link></td>
                       <td className="py-1.5"><Link to={href} className="block">{o.Bug}</Link></td>

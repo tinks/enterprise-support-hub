@@ -208,7 +208,7 @@ export function TicketTypesTab({ data, month }: { data: MonthData; month: string
           <div className="space-y-2">
             {stats.owners.map(o => (
               <div key={o.name} className="flex items-center gap-3 text-sm">
-                <div className="w-32 truncate">{o.name}</div>
+                <div className="w-32 truncate">{o.name === "CSM" ? "CSM/Self-resolved" : o.name}</div>
                 <div className="flex-1 bg-muted rounded h-5 relative overflow-hidden flex">
                   {BUCKETS.map(b => (
                     o[b] > 0 && <div key={b} className={bucketColor[b]} style={{ width: `${(o[b] / stats.owners[0].total) * 100}%` }} title={`${b}: ${o[b]}`} />
