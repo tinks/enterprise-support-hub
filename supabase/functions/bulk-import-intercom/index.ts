@@ -239,9 +239,10 @@ Deno.serve(async (req) => {
     const imported = results.filter(r => r.status === "imported").length;
     const skipped = results.filter(r => r.status === "skipped").length;
     const failed = results.filter(r => r.status === "failed").length;
+    const outOfInbox = results.filter(r => r.status === "out_of_inbox").length;
 
     return new Response(
-      JSON.stringify({ results, summary: { imported, skipped, failed, total: ids.length } }),
+      JSON.stringify({ results, summary: { imported, skipped, failed, outOfInbox, total: ids.length, enterpriseInboxId } }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
