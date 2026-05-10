@@ -609,3 +609,10 @@ On `/stats`, a Slack conversation counts as escalated if it has a non-empty `int
 ## Insights → Ticket types tab (full classification breakdown)
 
 `src/pages/insights/TicketTypesTab.tsx` buckets tickets by the full `classification` taxonomy used in `Conversations`/`ConversationDetail`: `Issue`, `Configuration`, `Bug`, `FR`, `Question`, plus `Unclassified` for nulls. If `classification` is empty but `is_bug` or `is_feature_request` is true, the ticket falls into `Bug` or `FR` respectively (legacy boolean fallback). KPI cards, avg-time-to-resolve, type-mix-by-product-area, and owner-load all use this 6-bucket model with consistent color tokens. There is no "Incident" classification — incident.io detection is a Slack-only status helper and is not stored on tickets.
+
+
+## Monthly Report — Top accounts grouping
+- Slack list: any ticket whose resolved customer is a Slack channel (includes Slack-routed Intercom cases).
+- Gmail list: display_source=gmail, grouped by sender email domain (thread-deduped upstream).
+- Intercom list: display_source=intercom AND contact email known (manual imports / polled inbox with email in contact_name). Slack-routed Intercom cases are intentionally counted under Slack since contact email is not stored locally.
+- Each list shows top 5 with click-to-expand bug/FR/CSAT details.
