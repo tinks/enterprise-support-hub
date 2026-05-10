@@ -1,31 +1,32 @@
-# Fix Source mix vs Source performance discrepancy
+# Reverse the fix: count by origin (route_source) everywhere
 
-## Root cause
+## New rule
 
-Both views look at the same ticket pool but bucket differently:
+A conversation belongs to the source it **originated from**, regardless of whether it was later mirrored/escalated into another tool. So a Slack ticket escalated to Intercom counts as **Slack** in both Source mix and Source performance.
 
-- **Source mix** (`ReportTab.tsx`) groups by `display_source` — a Slack ticket that escalated to Intercom is counted under **Intercom**.
-- **Source performance** (`MonthStatsCards.tsx`) groups by `route_source` — that same escalated ticket is still counted under **Slack** because it originated there.
+## Changes
 
-So Source mix shows Slack = 36 (only tickets resolved by the bot inside Slack), while Source performance shows Slack = 85 (every ticket that entered via Slack, including ~49 that were escalated and live in Intercom now).
+### 1. `src/pages/insights/MonthStatsCards.tsx`
+- Revert `computeSlackStats` / `computeGmailStats` back to filtering by `route_source` ("slack" / "gmail").
+- Restore the **Escalated to human** row for Slack (count of Slack-origin tickets that have an `intercom_conversation_id` or escalated status).
+- Restore the real **Bot success rate** (resolved-without-Intercom / total Slack) — distinct from overall success rate again.
 
-## Fix
+### 2. `src/pages/insights/ReportTab.tsx` — Source mix
+- Change `sourceMix` to bucket by `route_source` instead of `display_source`:
+  - `slack` = `route_source === "slack"` (includes escalated-to-Intercom)
+  - `gmail` = `route_source === "gmail"`
+  - `intercom` = `route_source === "manual"` AND `display_source === "intercom"` (Intercom-origin imports)
+  - `other` = everything else (manual/other)
+- Keep colors and ordering as-is.
 
-Make Source performance match Source mix's definition of "source" so the same number appears in both places.
+### 3. Intercom column in Source performance
+- The live Intercom API count covers all Intercom conversations in the inbox, which includes Slack-escalated ones. With the new rule those should be attributed to Slack, so the Intercom column now overstates Intercom-origin volume.
+- Two options — recommend **Option A** for simplicity:
+  - **A. Leave Intercom column as live-API totals** and add a small footnote: "Intercom totals include Slack-escalated conversations." Simple, no backend change.
+  - **B. Subtract the Slack-escalated count** (number of Slack-origin tickets in the month with an `intercom_conversation_id`) from the Intercom `count` column so totals reconcile.
+- Going with A unless you prefer B.
 
-In `src/pages/insights/MonthStatsCards.tsx`:
+### 4. Docs
+- Update `.lovable/memory/features/month-stats-cards.md` and `.lovable/project-knowledge.md` to state the new rule: **source = origin (route_source)**, and note the Intercom footnote.
 
-1. Change `computeSlackStats` to filter `tickets.filter(t => t.display_source === "slack")` instead of `route_source === "slack"`.
-2. Change `computeGmailStats` similarly to `display_source === "gmail"` (no behavioral change today since gmail's display and route are the same, but keeps the rule consistent).
-3. Recompute the derived metrics on this narrower set:
-   - `Received`, `Resolved`, `Open`, `Success rate`, `Bot success rate`, median/average resolution.
-   - `Escalated to human` row becomes meaningless under the new definition (a Slack ticket that escalated is no longer in the Slack bucket). Replace this row with `—` for Slack, OR drop the row. Recommended: **drop the row** to keep the table clean, since the Source mix already implicitly shows the escalation split.
-4. No changes to the Intercom column — it stays sourced from the live `intercom-month-stats` edge function.
-
-## Files
-
-- `src/pages/insights/MonthStatsCards.tsx` — swap the filter field and remove the Escalated row.
-- `.lovable/memory/features/month-stats-cards.md` — document that Slack/Gmail counts are by `display_source` to align with Source mix.
-- `.lovable/project-knowledge.md` — note the alignment rule.
-
-No backend, schema, or data-fetching changes.
+No backend, schema, or edge-function changes.

@@ -51,16 +51,23 @@ interface IntercomResponse {
 }
 
 function computeSlackStats(tickets: NormalizedTicket[]) {
-  // Align with Source mix: bucket by display_source so Slack-originated
-  // tickets escalated to Intercom are excluded (they appear under Intercom).
-  const slack = tickets.filter((t) => t.display_source === "slack");
+  // Bucket by origin (route_source): a Slack-originated ticket counts as Slack
+  // even if it was later escalated/mirrored into Intercom.
+  const slack = tickets.filter((t) => t.route_source === "slack");
   const total = slack.length;
   const resolved = slack.filter((t) => t.status === "resolved").length;
+  const escalated = slack.filter(
+    (t) =>
+      (t.intercom_conversation_id && t.intercom_conversation_id !== "") ||
+      t.status === "escalated" ||
+      t.status === "escalated_pending",
+  ).length;
   const open = total - resolved;
   const successPct = total ? Math.round((resolved / total) * 100) : 0;
-  // By definition all tickets in this bucket have no Intercom conversation,
-  // so bot success rate equals overall success rate.
-  const botSuccessPct = successPct;
+  const botResolved = slack.filter(
+    (t) => t.status === "resolved" && (!t.intercom_conversation_id || t.intercom_conversation_id === ""),
+  ).length;
+  const botSuccessPct = total ? Math.round((botResolved / total) * 100) : 0;
   const times = slack
     .filter((t) => t.status === "resolved" && t.resolved_at)
     .map((t) => differenceInMinutes(parseISO(t.resolved_at!), parseISO(t.created_at)))
@@ -69,6 +76,7 @@ function computeSlackStats(tickets: NormalizedTicket[]) {
     received: total,
     resolved,
     open,
+    escalated,
     successPct,
     botSuccessPct,
     medianResolutionMin: median(times),
@@ -77,7 +85,7 @@ function computeSlackStats(tickets: NormalizedTicket[]) {
 }
 
 function computeGmailStats(tickets: NormalizedTicket[]) {
-  const gmail = tickets.filter((t) => t.display_source === "gmail");
+  const gmail = tickets.filter((t) => t.route_source === "gmail");
   const total = gmail.length;
   const resolved = gmail.filter((t) => t.status === "resolved").length;
   const open = total - resolved;
