@@ -397,7 +397,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const DEFAULT_HIDDEN = new Set(["test", "cancelled", "resolved"]);
   const savedHidden = localStorage.getItem("conv-hidden-statuses");
   const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(
-    savedHidden ? new Set(JSON.parse(savedHidden)) : new Set(DEFAULT_HIDDEN)
+    paramShowAll ? new Set() : (savedHidden ? new Set(JSON.parse(savedHidden)) : new Set(DEFAULT_HIDDEN))
   );
   const hiddenDiffersFromDefault = hiddenStatuses.size !== DEFAULT_HIDDEN.size || [...hiddenStatuses].some(s => !DEFAULT_HIDDEN.has(s));
 
