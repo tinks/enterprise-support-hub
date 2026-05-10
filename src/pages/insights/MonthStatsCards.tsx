@@ -149,6 +149,7 @@ interface Props {
 export function MonthStatsCards({ data, month }: Props) {
   const slack = useMemo(() => computeSlackStats(data.tickets), [data.tickets]);
   const gmail = useMemo(() => computeGmailStats(data.tickets), [data.tickets]);
+  const intercomLocal = useMemo(() => computeIntercomStats(data.tickets), [data.tickets]);
 
   const [intercom, setIntercom] = useState<IntercomResponse | null>(null);
   const [intercomLoading, setIntercomLoading] = useState(false);
