@@ -206,19 +206,19 @@ export function MonthStatsCards({ data, month }: Props) {
       label: "Received",
       slack: slack.received,
       gmail: gmail.total,
-      intercom: intercomCell("count"),
+      intercom: intercomLocal.total,
     },
     {
       label: "Resolved",
       slack: slack.resolved,
       gmail: gmail.resolved,
-      intercom: MUTED,
+      intercom: intercomLocal.resolved,
     },
     {
       label: "Open",
       slack: slack.open,
       gmail: gmail.open,
-      intercom: MUTED,
+      intercom: intercomLocal.open,
     },
     {
       label: "Escalated to human",
