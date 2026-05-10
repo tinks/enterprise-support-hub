@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug, Filter, GripVertical, RotateCcw, Search, CalendarIcon, Ticket, ChevronRight, ChevronDown, Pencil, ChevronsUpDown } from "lucide-react";
+import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug, Filter, GripVertical, RotateCcw, Search, CalendarIcon, Ticket, ChevronRight, ChevronDown, Pencil, ChevronsUpDown, Sparkles, Loader2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -242,6 +242,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const savedClassFilter = localStorage.getItem("conv-class-filter");
   const [classificationFilter, setClassificationFilter] = useState<string>(paramClassification || (isReportDrilldown ? "all" : (savedClassFilter || "all")));
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [autoClassifying, setAutoClassifying] = useState(false);
   const [searchResults, setSearchResults] = useState<{ slack: ConversationMapping[]; gmail: GmailConversation[]; manual: ManualConversation[]; pending: PendingIntercomLink[] } | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1806,6 +1807,37 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
               {anyFilterActive && (
                 <Button variant="outline" size="sm" className="gap-1" onClick={resetAll}>
                   <RotateCcw className="h-3 w-3" /> Reset filters
+                </Button>
+              )}
+              {isClassificationDrilldown && paramClassification === "unassigned" && paramFrom && paramTo && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="gap-1"
+                  disabled={autoClassifying}
+                  onClick={async () => {
+                    const visible = unified.length;
+                    if (!confirm(`Auto-classify ${visible} unclassified ticket(s) using AI?\n\nLow-confidence rows (<40%) will be skipped.`)) return;
+                    setAutoClassifying(true);
+                    try {
+                      const { data, error } = await supabase.functions.invoke("auto-classify-conversations", {
+                        body: { from: paramFrom, to: paramTo },
+                      });
+                      if (error) throw error;
+                      const r = data as { total: number; written: number; lowConfidence: number; failed: number };
+                      toast.success(`Classified ${r.written} of ${r.total}`, {
+                        description: `${r.lowConfidence} needs review · ${r.failed} failed`,
+                      });
+                      await loadData().then((rows) => loadLookups(rows));
+                    } catch (e) {
+                      toast.error("Auto-classify failed", { description: (e as Error).message });
+                    } finally {
+                      setAutoClassifying(false);
+                    }
+                  }}
+                >
+                  {autoClassifying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                  {autoClassifying ? "Classifying…" : "Auto-classify with AI"}
                 </Button>
               )}
               <Button variant="outline" size="sm" onClick={() => { loadData().then((rows) => loadLookups(rows)); }} disabled={loading}>
