@@ -606,24 +606,21 @@ On the conversation detail page, hovering a manual message or internal note (eit
 
 On `/stats`, a Slack conversation counts as escalated if it has a non-empty `intercom_conversation_id` (i.e. was ever handed off to a human in Intercom), in addition to current `status in ('escalated','escalated_pending')`. This avoids zero counts when humans resolve the ticket in Intercom and the status flips to `resolved`. Applies to: Overview KPI, status pie, daily volume bar, and escalation-rate trend.
 
-## Insights → Ticket types tab (full classification breakdown)
+## Insights page (full)
 
-`src/pages/insights/TicketTypesTab.tsx` buckets tickets by the full `classification` taxonomy used in `Conversations`/`ConversationDetail`: `Issue`, `Configuration`, `Bug`, `FR`, `Question`, plus `Unclassified` for nulls. If `classification` is empty but `is_bug` or `is_feature_request` is true, the ticket falls into `Bug` or `FR` respectively (legacy boolean fallback). KPI cards, avg-time-to-resolve, type-mix-by-product-area, and owner-load all use this 6-bucket model with consistent color tokens. There is no "Incident" classification — incident.io detection is a Slack-only status helper and is not stored on tickets.
+`/insights` (`src/pages/Insights.tsx`) is the monthly support analytics surface. Month selector covers the current month + 11 prior; default = previous month. Tabs: **Report · Topics · Customers · Ticket types · Trends · Channels**. The Refresh button bumps `reportRefreshKey` to refetch month data; "Generate / Regenerate topics" invokes `analyze-intercom-month` (Lovable AI Gateway) to (re)cluster topics for the month.
 
+### Shared data hook — `src/pages/insights/useMonthData.ts`
 
-## Monthly Report — Top accounts grouping
-- Two columns: **Slack** (by channel name) and **Gmail + Intercom** (by sender email domain, Gmail and Intercom contacts combined and summed per domain).
-- The `lovable.dev` domain (internal employees) and the `Personal email` aggregate (consumer providers like gmail.com, outlook.com — see `PERSONAL_DOMAINS` in `useMonthData.ts`) are **excluded** from the Gmail + Intercom column so external company customers surface. Filter is scoped to the Top accounts widget only — totals, source mix, daily volume, CSAT, and product areas are not affected.
-- Slack list includes Slack-routed Intercom cases (no contact email stored locally for those).
-- Manual/other tickets without a resolved channel or email are excluded.
-- Channel-name resolution: Insights tabs pass the actual `channelIds` from this month's tickets to `list-slack-channels`, which falls through `conversations.list` → `conversations.info` → connector gateway so non-member/private channels still resolve.
-- Each list shows top 5 with click-to-expand bug/FR/CSAT details.
+Pulls `conversation_mappings`, `gmail_conversations`, and `manual_conversations` for the month with `is_test = false`, normalizing into a single `NormalizedTicket[]` with `route_source` (origin: slack/gmail/manual) and `display_source` (intercom/slack/gmail/other) on every ticket.
 
-## Insights → Report — Source attribution rule
+- Gmail rows are deduped by `gmail_thread_id` (earliest row wins).
+- Manual rows whose `intercom_conversation_id` already exists in `conversation_mappings` are dropped to avoid double-counting Slack-escalated tickets that were also imported manually.
+- `accountFromEmail` collapses free-mail domains (`gmail.com`, `outlook.com`, …) into a single `Personal email` aggregate via the `PERSONAL_DOMAINS` set. Slack manual imports try to extract a channel ID from the `link` URL via `extractSlackChannelId`.
 
-Tickets are bucketed by **origin** in both `Source mix` and `Source performance` (table). A Slack-originated conversation that was later escalated/mirrored into Intercom still counts as **Slack**, not Intercom.
+### Source attribution rule — `src/pages/insights/sourceBucket.ts`
 
-The shared helper `src/pages/insights/sourceBucket.ts` is the single source of truth:
+Single source of truth used by Source mix and Source performance. Origin always wins — a Slack-originated conversation later escalated to Intercom still counts as **Slack**.
 
 ```ts
 sourceBucketOf(t):
@@ -633,21 +630,54 @@ sourceBucketOf(t):
   else                          → "other"
 ```
 
-Both `ReportTab.tsx` (Source mix donut) and `MonthStatsCards.tsx` (Source performance table) use this helper, so the four buckets always sum to `Total tickets` for the month.
+Invariant: `Slack + Gmail + Intercom + Other = Total tickets` for the month.
+
+### Report tab — `ReportTab.tsx` + `MonthStatsCards.tsx`
+
+- Headline stats: total tickets (with delta vs previous month), median time-to-resolve, resolved %, classification mix, average CSAT, peak day-of-week.
+- Source mix donut and **Top accounts** (Slack channels and Gmail+Intercom domains, top 5 each, `lovable.dev` and `Personal email` aggregate excluded from the email column only).
+- **Source performance** table (see next subsection).
+- Highlights bullets, product-area bar chart, owner load table, classification mix.
+- `UncategorizedPanel` lists tickets missing classification or product area for triage.
+- **PDF export**: `jsPDF` + `html2canvas` snapshot of `reportRef`, multi-page A4, filename `insights-{month}.pdf`.
+- **AI narrative**: pulls the saved `monthly_insights` row (`source = "all"`, falls back to legacy `source = "intercom"`) and renders `overall_summary`.
 
 ### Source performance table (`MonthStatsCards.tsx`)
 
-Single comparison table with rows = metrics, columns = Slack / Gmail / Intercom.
+Single comparison table, rows = metrics, columns = Slack / Gmail / Intercom.
 
-- **Counts** (Received, Resolved, Open, Escalated to human, Median resolution / time to close, Average resolution, Success rate, Bot success rate) come from the **local DB** via `data.tickets`, bucketed with `sourceBucketOf`. This guarantees reconciliation with `Total`.
-- **Slack-only rows**: `Escalated to human` (tickets with `intercom_conversation_id` or `status in ('escalated','escalated_pending')`) and `Bot success rate` (resolved without Intercom / total Slack).
-- **Intercom timing rows** (`Median first response`, `Median response time`, `Median handling time`) are fetched live from the Intercom API via the `intercom-month-stats` edge function — these can't be computed from local data because we don't store admin-side reply timestamps.
-- Footer notes that counts are local and timing is live, with current vs previous month conversation counts from Intercom.
+- **Counts** (Received, Resolved, Open, Escalated to human, Median resolution / time to close, Average resolution, Success rate, Bot success rate) come from the **local DB** via `data.tickets` bucketed with `sourceBucketOf` — guarantees reconciliation with `Total`.
+- **Slack-only rows**: `Escalated to human` (tickets with `intercom_conversation_id` set or `status in ('escalated','escalated_pending')`) and `Bot success rate` (resolved without Intercom / total Slack).
+- **Intercom timing rows** (`Median first response`, `Median response time`, `Median handling time`) are fetched live from the Intercom API via the `intercom-month-stats` edge function — local data lacks admin-side reply timestamps.
+- Footer: counts are local DB (matches Total); response & handling times are live from Intercom API, with current vs previous month conversation counts.
+- **Why not Intercom's live count for the Intercom column**: it includes Slack-escalated conversations (already counted under Slack) and conversations never imported locally — using it as the headline would double-count and break the invariant. Shown only in the footer for context.
 
-### `intercom-month-stats` edge function
+### Topics tab (rendered inline in `Insights.tsx`)
 
-Queries Intercom Conversations Search for the configured enterprise inbox and returns medians of `time_to_admin_reply`, `median_time_to_reply`, and `time_to_last_close` (seconds) plus a `count` for both the selected month and the previous month. Used **only** for timing deltas in the Source performance Intercom column. Auth: `INTERCOM_API_TOKEN` secret. No DB writes.
+Reads from the `monthly_insights` table (`month`, `source`, `buckets`, `overall_summary`, `product_area_summary`, `ticket_count`, `generated_at`). Renders topic-bucket cards with source breakdown, product area badges, and example subjects; click opens a Sheet listing all tickets in the bucket with deep-links to `/conversations/:id`. Generation/regeneration calls `analyze-intercom-month`.
 
-### Why we don't use Intercom's live count for the Intercom column
+### Customers tab — `CustomersTab.tsx`
 
-Intercom's live conversation count includes Slack-escalated conversations (already counted under Slack by the origin rule) and may include Intercom items that were never imported into `manual_conversations` locally. Using it as the headline count would double-count and break the `Slack + Gmail + Intercom + Other = Total` invariant. The live count is shown only in the footer for context.
+Aggregates by Slack channel and email domain (Gmail + Intercom combined, `lovable.dev` and `Personal email` excluded). Resolves Slack channel names via `list-slack-channels` (conversations.list → conversations.info → connector gateway fallback). Top 5 each with bug/FR counts and CSAT.
+
+### Ticket types tab — `TicketTypesTab.tsx`
+
+Buckets tickets by the full `classification` taxonomy used in `Conversations`/`ConversationDetail`: `Issue`, `Configuration`, `Bug`, `FR`, `Question`, plus `Unclassified`. Legacy fallback: if `classification` is empty but `is_bug` or `is_feature_request` is true, the ticket falls into `Bug` or `FR`. KPI cards, avg time-to-resolve per type, type-mix-by-product-area, and owner load all use this 6-bucket model with consistent color tokens. There is no "Incident" classification — incident.io detection is a Slack-only status helper and is not stored on tickets.
+
+### Trends tab — `TrendsTab.tsx`
+
+Multi-month series (volume, median TTR, escalation rate, CSAT) by sequentially calling `useMonthData` for prior months.
+
+### Channels tab — `ChannelsTab.tsx`
+
+Slack-channel-only breakdown of volume, classification mix, and product area split.
+
+### Edge functions
+
+- **`analyze-intercom-month`** — re-clusters the month's tickets via Lovable AI Gateway and upserts the `monthly_insights` row (`source = "all"`).
+- **`intercom-month-stats`** — queries Intercom Conversations Search for the configured enterprise inbox and returns medians of `time_to_admin_reply`, `median_time_to_reply`, and `time_to_last_close` (seconds) plus a `count` for both the selected and previous month. Used only by the Intercom timing rows of Source performance. Auth: `INTERCOM_API_TOKEN`. No DB writes.
+- **`audit-intercom-month`** — audit helper that predates the recent Source-performance changes.
+
+### `monthly_insights` table
+
+Keyed by (`month`, `source`); columns include `buckets jsonb`, `overall_summary text`, `product_area_summary jsonb`, `ticket_count int`, `generated_at timestamptz`. Old rows used `source = "intercom"`; new generations use `source = "all"` (covers Slack + Gmail + Intercom + manual). The Topics tab loader prefers `"all"` and falls back to `"intercom"`.
