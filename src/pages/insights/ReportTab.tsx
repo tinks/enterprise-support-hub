@@ -519,15 +519,12 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
 
   // Top accounts — bucketed by the *resolved account identifier*, not by
   // display_source, so that Slack-routed Intercom cases land under their
-  // Slack channel (where they're recognizable) and only Intercom cases with
-  // a known contact email show up in the Intercom list.
-  //   • Slack list    → any ticket whose account resolves to a Slack channel
-  //   • Gmail list    → display_source=gmail, grouped by email domain
-  //   • Intercom list → display_source=intercom AND account resolves to a
-  //                     domain (i.e. we have the contact email)
+  // Slack channel (where they're recognizable).
+  //   • Slack list → any ticket whose account resolves to a Slack channel
+  //   • Email list → any ticket whose account resolves to an email domain
+  //                  (Gmail + Intercom contacts combined; same domain sums)
   const slackMap = new Map<string, AccountAgg>();
-  const gmailMap = new Map<string, AccountAgg>();
-  const intercomMap = new Map<string, AccountAgg>();
+  const emailMap = new Map<string, AccountAgg>();
   for (const t of tickets) {
     let key = t.customer_key;
     let label = t.customer_label;
@@ -543,9 +540,8 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
     let target: Map<string, AccountAgg> | null = null;
     if (t.customer_kind === "slack") {
       target = slackMap; // includes Slack-routed Intercom cases
-    } else if (t.customer_kind === "domain") {
-      if (t.display_source === "gmail") target = gmailMap;
-      else if (t.display_source === "intercom") target = intercomMap;
+    } else if (t.customer_kind === "domain" && (t.display_source === "gmail" || t.display_source === "intercom")) {
+      target = emailMap;
     }
     if (!target) continue; // skip manual/other with no resolved account
 
@@ -562,9 +558,8 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
   const sortTop = (m: Map<string, AccountAgg>) =>
     Array.from(m.values()).sort((a, b) => b.count - a.count).slice(0, 5);
   const slackAccounts = sortTop(slackMap);
-  const gmailAccounts = sortTop(gmailMap);
-  const intercomAccounts = sortTop(intercomMap);
-  const topAccount = [...slackAccounts, ...gmailAccounts, ...intercomAccounts]
+  const emailAccounts = sortTop(emailMap);
+  const topAccount = [...slackAccounts, ...emailAccounts]
     .sort((a, b) => b.count - a.count)[0] || null;
 
   // Product areas
