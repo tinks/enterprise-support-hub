@@ -69,8 +69,12 @@ export function extractSlackChannelId(link: string | null | undefined): string |
   return m ? m[1].toUpperCase() : null;
 }
 
+type InternalState = { loading: boolean; tickets: NormalizedTicket[]; error?: string };
+
 export function useMonthData(month: string): MonthData {
-  const [state, setState] = useState<MonthData>({ loading: true, tickets: [] });
+  const [state, setState] = useState<InternalState>({ loading: true, tickets: [] });
+  const [nonce, setNonce] = useState(0);
+  const refresh = useCallback(() => setNonce(n => n + 1), []);
 
   useEffect(() => {
     let cancelled = false;
