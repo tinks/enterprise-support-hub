@@ -246,9 +246,9 @@ export function useMonthData(month: string): MonthData {
       }
     })();
     return () => { cancelled = true; };
-  }, [month]);
+  }, [month, nonce]);
 
-  return state;
+  return { ...state, refresh };
 }
 
 export const sourceLabel: Record<string, string> = {
