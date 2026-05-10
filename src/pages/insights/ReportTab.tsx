@@ -326,12 +326,11 @@ export function ReportTab({ data, month }: ReportTabProps) {
           <CardContent className="p-5">
             <h2 className="text-sm font-semibold mb-1">Top accounts</h2>
             <p className="text-xs text-muted-foreground mb-4">
-              Slack by channel · Gmail by email domain · Intercom by contact email domain. Slack-routed Intercom cases are counted under Slack. Click a row for bug/FR/CSAT details.
+              Slack by channel · Email by sender domain (Gmail + Intercom contacts combined). Slack-routed Intercom cases are counted under Slack. Click a row for bug/FR/CSAT details.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <AccountMiniTable title="Slack" accounts={stats.slackAccounts} />
-              <AccountMiniTable title="Gmail" accounts={stats.gmailAccounts} />
-              <AccountMiniTable title="Intercom" accounts={stats.intercomAccounts} />
+              <AccountMiniTable title="Email" accounts={stats.emailAccounts} />
             </div>
           </CardContent>
         </Card>
