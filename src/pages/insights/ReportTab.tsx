@@ -605,7 +605,7 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
   return {
     total, counts, ttrByBucket, medianTtr, resolvedCount: resolved.length, resolvedPct,
     avgCsat, ratedCount: rated.length, daily: dailyTrim, dailyMax, sourceMix,
-    slackAccounts, gmailAccounts, intercomAccounts,
+    slackAccounts, emailAccounts,
     topAccount, productAreasTop, topProductArea, worstCsatPa, owners, peakDow,
   };
 }
