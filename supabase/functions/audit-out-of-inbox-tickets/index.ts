@@ -167,6 +167,7 @@ Deno.serve(async (req) => {
     apiErrors,
     mismatchCount: mismatches.length,
     flagged,
+    purgedMonths,
     mismatches: mismatches.slice(0, 200),
   }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 });
