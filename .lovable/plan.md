@@ -1,51 +1,41 @@
-## Current behaviour
+## Problem
 
-On the Stats page, the Slack "Success rate" card shows `resolved / received` (line 567 in `src/pages/Stats.tsx`):
+Gmail card on the Stats page shows `Received 41 / Resolved 34 / Open 0` for April. The 7 missing threads aren't gone — they're in non-`open`, non-`resolved` statuses (`awaiting_context`, `awaiting_customer`, `awaiting_support`, `active`) that the "Open" tile doesn't count.
+
+DB confirmation for April 2026 (deduped by `gmail_thread_id`, excluding `cancelled` and `is_test`):
+- `resolved`: 50
+- `awaiting_context`: 6
+- `active`: 1
+- `awaiting_customer`: 1
+- `awaiting_support`: 1
+
+(UI shows 41 vs 59 because of the additional internal-only-emails filter, but the ratio is the same.)
+
+## Root cause
+
+`src/pages/Stats.tsx` line 590:
+```ts
+const gmailOpen = filteredGmailThreads.filter((g) => g.status === "open").length;
+```
+
+This is a literal match on `"open"` only, so any thread parked in an in-progress state is silently dropped from both "Resolved" and "Open" — the two tiles don't add up to "Received".
+
+## Fix
+
+Define "Open" as **anything not resolved** (mirroring how Slack does it on line 566: `open = total - resolved`):
 
 ```ts
-const resolvedPct = total ? Math.round((resolved / total) * 100) : 0;
+const gmailOpen = gmailTotal - gmailResolvedCount;
 ```
 
-The problem: when a Slack thread is escalated to a human and later resolved in Intercom, the mapping's status flips to `resolved`. So escalations are silently counted as successes — that's why April reads 96% even with 49 handoffs out of 84.
-
-## Change
-
-Keep the existing "Success rate" card as-is, and **add a new card next to it called "Bot success rate"** that excludes escalations:
-
-```
-botResolved   = filtered where status = 'resolved' AND no intercom_conversation_id
-botSuccessPct = botResolved / total
-```
-
-For April: (84 received − 49 escalated − any still-open) / 84.
-
-### UI
-
-- New card in the Slack stats grid (around line 1435 in `src/pages/Stats.tsx`), placed right after "Success rate".
-- Icon: `Bot` from lucide-react, primary color.
-- Label: "Bot success rate".
-- Value: `stats.botSuccessPct%`.
-- Update the grid from `lg:grid-cols-7` to `lg:grid-cols-8` (or wrap, since current visible count is 5 — fine as-is).
-
-### Logic (in the `stats` useMemo, ~line 555)
-
-Add:
-```ts
-const botResolved = filtered.filter(
-  (m) => m.status === "resolved" && (!m.intercom_conversation_id || m.intercom_conversation_id === "")
-).length;
-const botSuccessPct = total ? Math.round((botResolved / total) * 100) : 0;
-```
-
-Return `botResolved` and `botSuccessPct` from the memo and render in the new card.
+This is one line change. After it, Resolved + Open == Received always.
 
 ### Out of scope
 
-- No changes to "Success rate", "Resolved", "Escalated to human", or any chart.
-- No backfill or schema changes.
-- Gmail / Manual / Intercom cards untouched.
+- No changes to the Gmail status machine or `auto_close_gmail_threads` cron.
+- No changes to Slack/Manual/Intercom cards.
+- No new tiles (e.g., a separate "In progress" breakdown). If you want that later, easy follow-up.
 
-### Follow-ups
+### Files
 
-- Update `.lovable/project-knowledge.md` with the new metric definition.
-- Update the Flow page if the success-rate definition is referenced there (will check during implementation).
+- `src/pages/Stats.tsx` (line 590)
