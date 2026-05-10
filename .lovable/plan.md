@@ -1,31 +1,24 @@
-## Improve PDF row spacing and readability
+## Fix empty Daily volume chart
 
-The PDF is a rasterized snapshot of the on-screen report (html2canvas → jsPDF). Tight row spacing and `line-clamp-2` cause descenders to be clipped (Top topics descriptions appear half-cut) and rows to crowd one another (Top accounts, By product area, Owner load).
+**Root cause:** In `src/pages/insights/TrendsTab.tsx` (lines 67–75) the chart container is `flex items-end h-48`. `items-end` overrides the default `stretch`, so each day column collapses to `height: auto`. The bars inside use `height: X%`, which resolves against a 0-height parent — so nothing renders even though April has 513 rows of data.
 
-### Changes — `src/pages/insights/ReportTab.tsx` only
+### Fix (one block, ~3 lines changed)
 
-1. **Top topics** (lines 310–329)
-   - Container `space-y-3` → `space-y-5`.
-   - Each item: add `py-1` to the wrapper, give the title row `mb-1`.
-   - Description: drop `line-clamp-2`, use `leading-relaxed` so descenders are not clipped.
-   - Product-area badge row: `mt-1` → `mt-2`.
+```tsx
+<div className="flex items-stretch gap-1 h-48">
+  {series.map(s => (
+    <div key={s.day} className="flex-1 h-full flex flex-col-reverse gap-px" title={`Day ${s.day}: ${s.total}`}>
+      {sources.map(src => s[src] > 0 && (
+        <div key={src} style={{ height: `${(s[src] / max) * 100}%`, background: colors[src] }} />
+      ))}
+    </div>
+  ))}
+</div>
+```
 
-2. **Top accounts mini table** (lines 457–478)
-   - `space-y-1` → `space-y-2`.
-   - Button `py-1` → `py-1.5`, add `leading-snug`.
+Changes:
+1. `items-end` → `items-stretch` so each day column fills the 192px row.
+2. Add `h-full` on each column so the inner `height: %` bars resolve correctly.
+3. `flex-col-reverse` already stacks bars from the bottom — no extra alignment needed.
 
-3. **By product area** (lines 353–362)
-   - `space-y-1.5` → `space-y-2.5`.
-   - Bar height `h-4` → `h-5`.
-   - Label cell add `leading-snug`.
-
-4. **Owner load table** (lines 374–402)
-   - All `py-1.5` cells → `py-2.5` and add `align-middle`.
-
-5. **Highlights** (lines 416–419)
-   - `space-y-1.5` → `space-y-2.5`, add `leading-relaxed`.
-
-6. **Export wrapper** (line 199)
-   - `space-y-6` → `space-y-8` for clearer section separation in the PDF.
-
-No data, query, or business-logic changes; spacing-only edits to make the rasterized PDF readable.
+No data, query, or business-logic changes.
