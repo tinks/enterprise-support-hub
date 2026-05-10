@@ -1,45 +1,51 @@
-## Problem
+## Current behaviour
 
-The "Escalated to human" stats on the Stats page show 0 for April 2026, but escalations definitely happened.
-
-I checked the database for April 2026:
-- `conversation_mappings` (Slack) has **55 conversations with an `intercom_conversation_id`** — i.e. they were handed off to a human in Intercom. None still carry status `escalated`/`escalated_pending` because once Sam/Joel/Kristina resolved them in Intercom, the status flipped to `resolved`.
-- The only row in the entire DB still sitting at `status = 'escalated'` is one record from May 2026.
-
-## Root cause
-
-`src/pages/Stats.tsx` counts escalations purely from current status:
+On the Stats page, the Slack "Success rate" card shows `resolved / received` (line 567 in `src/pages/Stats.tsx`):
 
 ```ts
-// line 560 (Overview card)
-const escalated = filtered.filter(m => m.status === "escalated" || m.status === "escalated_pending").length;
-
-// line 464 + 622 + 645 (Intercom card, daily volume, escalation-rate chart)
-m.status === "escalated" || m.status === "escalated_pending"
+const resolvedPct = total ? Math.round((resolved / total) * 100) : 0;
 ```
 
-`escalated` is a **transient** state — it gets overwritten the moment the human resolves the ticket. So the metric structurally cannot reflect history.
+The problem: when a Slack thread is escalated to a human and later resolved in Intercom, the mapping's status flips to `resolved`. So escalations are silently counted as successes — that's why April reads 96% even with 49 handoffs out of 84.
 
-## Fix
+## Change
 
-Redefine "escalated" as **"was ever handed off to a human"**, detected by the presence of `intercom_conversation_id` on a Slack mapping. Apply this in four places in `src/pages/Stats.tsx`:
+Keep the existing "Success rate" card as-is, and **add a new card next to it called "Bot success rate"** that excludes escalations:
 
-1. **Overview "Escalated to human" KPI** (line 560) — count Slack mappings where `intercom_conversation_id` is non-empty (regardless of current status), excluding `cancelled`/`test`.
-2. **Status distribution pie** (lines 502–509 + 672) — bucket those rows under "Escalated" instead of "Resolved"/"Open" so the slices add up correctly.
-3. **Daily volume chart** (lines 617–625) — `isEscalated` becomes "has intercom_conversation_id".
-4. **Escalation-rate trend** (lines 642–658) — same predicate; denominator stays "completed conversations" (resolved + escalated).
+```
+botResolved   = filtered where status = 'resolved' AND no intercom_conversation_id
+botSuccessPct = botResolved / total
+```
 
-The Intercom card (lines 460–488) measures Intercom-imported tickets directly and has no Slack handoff signal, so leave its `escalated`/`escalationPct` as-is but **rename the label** to "Currently escalated" so it's not confused with the Overview metric. (Or hide it — open question below.)
+For April: (84 received − 49 escalated − any still-open) / 84.
 
-## Out of scope
+### UI
 
-- Backfilling a historical "was_escalated" boolean column. Using `intercom_conversation_id` is sufficient and already populated.
-- Changing the live status machine.
+- New card in the Slack stats grid (around line 1435 in `src/pages/Stats.tsx`), placed right after "Success rate".
+- Icon: `Bot` from lucide-react, primary color.
+- Label: "Bot success rate".
+- Value: `stats.botSuccessPct%`.
+- Update the grid from `lg:grid-cols-7` to `lg:grid-cols-8` (or wrap, since current visible count is 5 — fine as-is).
 
-## Open question
+### Logic (in the `stats` useMemo, ~line 555)
 
-For the **Intercom card** (which counts tickets imported directly into Intercom, not Slack escalations), the `escalationPct` will basically always be ~0% with the current data. Should I:
-- (a) Keep it and rename to "Currently escalated", or
-- (b) Drop the escalation tile from that card entirely?
+Add:
+```ts
+const botResolved = filtered.filter(
+  (m) => m.status === "resolved" && (!m.intercom_conversation_id || m.intercom_conversation_id === "")
+).length;
+const botSuccessPct = total ? Math.round((botResolved / total) * 100) : 0;
+```
 
-I'll default to (a) unless you say otherwise.
+Return `botResolved` and `botSuccessPct` from the memo and render in the new card.
+
+### Out of scope
+
+- No changes to "Success rate", "Resolved", "Escalated to human", or any chart.
+- No backfill or schema changes.
+- Gmail / Manual / Intercom cards untouched.
+
+### Follow-ups
+
+- Update `.lovable/project-knowledge.md` with the new metric definition.
+- Update the Flow page if the success-rate definition is referenced there (will check during implementation).

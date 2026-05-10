@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
-import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon, ChevronDown, Timer, AlertCircle, AlertTriangle, ArrowUpRight, Mail, FileDown } from "lucide-react";
+import { RefreshCw, MessageSquare, ThumbsUp, ThumbsDown, Clock, ExternalLink, TrendingUp, TrendingDown, Activity, CalendarIcon, ChevronDown, Timer, AlertCircle, AlertTriangle, ArrowUpRight, Mail, FileDown, Bot } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -565,6 +565,8 @@ const Stats = () => {
     const processing = filtered.filter((m) => m.status === "processing").length;
     const open = total - resolved;
     const resolvedPct = total ? Math.round((resolved / total) * 100) : 0;
+    const botResolved = filtered.filter((m) => m.status === "resolved" && (!m.intercom_conversation_id || m.intercom_conversation_id === "")).length;
+    const botSuccessPct = total ? Math.round((botResolved / total) * 100) : 0;
 
     const manualActive = filteredManual.filter((m) => m.status === "active").length;
     const manualResolved = filteredManual.filter((m) => m.status === "resolved").length;
@@ -587,7 +589,7 @@ const Stats = () => {
     const gmailResolvedCount = filteredGmailThreads.filter((g) => g.status === "resolved").length;
     const gmailOpen = filteredGmailThreads.filter((g) => g.status === "open").length;
 
-    return { total, gmailTotal, gmailDeduped: gmailTotal, emailTotal: gmailUniqueEmails, resolved, escalated, active, awaiting, processing, open, resolvedPct, avgPerDay, gmailResolved: gmailResolvedCount, gmailOpen, manualTotal, manualActive, manualResolved };
+    return { total, gmailTotal, gmailDeduped: gmailTotal, emailTotal: gmailUniqueEmails, resolved, escalated, active, awaiting, processing, open, resolvedPct, botResolved, botSuccessPct, avgPerDay, gmailResolved: gmailResolvedCount, gmailOpen, manualTotal, manualActive, manualResolved };
   }, [filtered, filteredGmailThreads, filteredManual, range, sourceFilter, gmailUniqueEmails]);
 
   // Manual entries by source breakdown
@@ -1437,6 +1439,13 @@ const Stats = () => {
                   <Clock className="mb-2 h-5 w-5 text-muted-foreground" />
                   <p className="text-3xl font-bold text-foreground">{stats.resolvedPct}%</p>
                   <p className="text-xs text-muted-foreground">Success rate</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <Bot className="mb-2 h-5 w-5 text-primary" />
+                  <p className="text-3xl font-bold text-foreground">{stats.botSuccessPct}%</p>
+                  <p className="text-xs text-muted-foreground">Bot success rate</p>
                 </CardContent>
               </Card>
             </div>
