@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { endOfMonth, startOfMonth, parse } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -31,6 +31,7 @@ export interface MonthData {
   loading: boolean;
   tickets: NormalizedTicket[];
   error?: string;
+  refresh: () => void;
 }
 
 const cleanSubject = (s: string | null | undefined) =>
@@ -68,8 +69,12 @@ export function extractSlackChannelId(link: string | null | undefined): string |
   return m ? m[1].toUpperCase() : null;
 }
 
+type InternalState = { loading: boolean; tickets: NormalizedTicket[]; error?: string };
+
 export function useMonthData(month: string): MonthData {
-  const [state, setState] = useState<MonthData>({ loading: true, tickets: [] });
+  const [state, setState] = useState<InternalState>({ loading: true, tickets: [] });
+  const [nonce, setNonce] = useState(0);
+  const refresh = useCallback(() => setNonce(n => n + 1), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -241,9 +246,9 @@ export function useMonthData(month: string): MonthData {
       }
     })();
     return () => { cancelled = true; };
-  }, [month]);
+  }, [month, nonce]);
 
-  return state;
+  return { ...state, refresh };
 }
 
 export const sourceLabel: Record<string, string> = {
