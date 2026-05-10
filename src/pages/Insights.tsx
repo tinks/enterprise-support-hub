@@ -138,6 +138,21 @@ const Insights = () => {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              {activeTab === "report" && (
+                <Button
+                  variant="outline"
+                  onClick={() => setReportRefreshKey(k => k + 1)}
+                  disabled={monthData.loading}
+                  title="Refresh report data"
+                >
+                  {monthData.loading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Refresh
+                </Button>
+              )}
               <Select value={month} onValueChange={setMonth}>
                 <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
