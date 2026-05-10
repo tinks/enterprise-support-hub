@@ -185,7 +185,6 @@ export function useMonthData(month: string, refreshKey: number = 0): MonthData {
           let rawId: string | undefined;
 
           const linkChannelId = m.source === "slack" ? extractSlackChannelId(m.link) : null;
-          const contactEmail = extractEmail(m.contact_name);
 
           if (linkChannelId) {
             key = "channel:" + linkChannelId;
@@ -195,9 +194,15 @@ export function useMonthData(month: string, refreshKey: number = 0): MonthData {
           } else if (m.source === "slack") {
             key = "manual:slack";
             label = "Manual Slack imports";
-          } else if (contactEmail) {
-            const acct = accountFromEmail(contactEmail);
-            key = acct.key; label = acct.label; kind = "domain";
+          } else {
+            // Use shared normaliser so contacts like "McKinsey",
+            // "*@mckinsey.com", and known contractor names roll up
+            // into a single account in the Top accounts panel.
+            const { normalizeManualContact } = await import("./manualAccounts");
+            const acct = normalizeManualContact(m.contact_name);
+            key = acct.key;
+            label = acct.label;
+            kind = acct.key.startsWith("domain:") ? "domain" : "manual";
           }
 
           tickets.push({
