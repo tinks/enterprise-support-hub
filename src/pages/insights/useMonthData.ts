@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { endOfMonth, startOfMonth, parse } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -31,7 +31,6 @@ export interface MonthData {
   loading: boolean;
   tickets: NormalizedTicket[];
   error?: string;
-  refresh: () => void;
 }
 
 const cleanSubject = (s: string | null | undefined) =>
@@ -69,12 +68,8 @@ export function extractSlackChannelId(link: string | null | undefined): string |
   return m ? m[1].toUpperCase() : null;
 }
 
-type InternalState = { loading: boolean; tickets: NormalizedTicket[]; error?: string };
-
 export function useMonthData(month: string): MonthData {
-  const [state, setState] = useState<InternalState>({ loading: true, tickets: [] });
-  const [nonce, setNonce] = useState(0);
-  const refresh = useCallback(() => setNonce(n => n + 1), []);
+  const [state, setState] = useState<MonthData>({ loading: true, tickets: [] });
 
   useEffect(() => {
     let cancelled = false;
@@ -203,18 +198,6 @@ export function useMonthData(month: string): MonthData {
           } else if (contactEmail) {
             const acct = accountFromEmail(contactEmail);
             key = acct.key; label = acct.label; kind = "domain";
-          } else if (m.intercom_conversation_id) {
-            // Intercom-originated ticket without a parseable email — keep the contact distinct
-            const name = (m.contact_name || "").trim();
-            if (name) {
-              const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-              key = "intercom:contact:" + (slug || "unknown");
-              label = name;
-            } else {
-              key = "intercom:contact:unknown";
-              label = "Intercom contact";
-            }
-            kind = "manual";
           }
 
           tickets.push({
@@ -246,9 +229,9 @@ export function useMonthData(month: string): MonthData {
       }
     })();
     return () => { cancelled = true; };
-  }, [month, nonce]);
+  }, [month]);
 
-  return { ...state, refresh };
+  return state;
 }
 
 export const sourceLabel: Record<string, string> = {

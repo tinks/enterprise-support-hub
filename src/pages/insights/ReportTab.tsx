@@ -1,13 +1,11 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format, parse, startOfMonth, subMonths } from "date-fns";
-import { Loader2, FileDown, Sparkles, RefreshCw, ChevronDown } from "lucide-react";
+import { Loader2, FileDown, Sparkles } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { channelNameOverrides } from "@/lib/channelOverrides";
 import { MonthData, NormalizedTicket, useMonthData, sourceLabel } from "./useMonthData";
@@ -64,8 +62,6 @@ export function ReportTab({ data, month }: ReportTabProps) {
   const [insight, setInsight] = useState<Insight | null>(null);
   const [channelMap, setChannelMap] = useState<Record<string, string>>({});
   const [exporting, setExporting] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [insightNonce, setInsightNonce] = useState(0);
 
   const prevMonth = useMemo(() => {
     const d = startOfMonth(parse(month + "-01", "yyyy-MM-dd", new Date()));
@@ -87,34 +83,7 @@ export function ReportTab({ data, month }: ReportTabProps) {
       setInsight(row as unknown as Insight | null);
     })();
     return () => { cancelled = true; };
-  }, [month, insightNonce]);
-
-  const handleRefreshData = useCallback(() => {
-    setRefreshing(true);
-    data.refresh();
-    prev.refresh();
-    setInsightNonce(n => n + 1);
-    toast.success("Data refreshed");
-    setTimeout(() => setRefreshing(false), 600);
-  }, [data, prev]);
-
-  const handleRefreshAll = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      const { data: res, error } = await supabase.functions.invoke("analyze-intercom-month", { body: { month } });
-      if (error) throw error;
-      if ((res as { error?: string })?.error) throw new Error((res as { error: string }).error);
-      const count = (res as { ticket_count?: number })?.ticket_count;
-      data.refresh();
-      prev.refresh();
-      setInsightNonce(n => n + 1);
-      toast.success("Report refreshed", { description: count != null ? `${count} tickets analyzed.` : undefined });
-    } catch (e) {
-      toast.error("AI refresh failed", { description: (e as Error).message });
-    } finally {
-      setRefreshing(false);
-    }
-  }, [month, data, prev]);
+  }, [month]);
 
   // Resolve Slack channel IDs → names
   useEffect(() => {
@@ -202,24 +171,7 @@ export function ReportTab({ data, month }: ReportTabProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end gap-2">
-        <div className="flex">
-          <Button onClick={handleRefreshData} disabled={refreshing} size="sm" variant="outline" className="rounded-r-none">
-            {refreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-            Refresh
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" disabled={refreshing} className="rounded-l-none border-l-0 px-2">
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleRefreshData}>Refresh data</DropdownMenuItem>
-              <DropdownMenuItem onClick={handleRefreshAll}>Refresh data + AI topics</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+      <div className="flex justify-end">
         <Button onClick={exportPdf} disabled={exporting} size="sm">
           {exporting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Exporting…</> : <><FileDown className="h-4 w-4 mr-2" />Download PDF</>}
         </Button>
