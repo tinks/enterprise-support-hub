@@ -42,23 +42,36 @@ export function CustomersTab({ data }: { data: MonthData }) {
   const [openCust, setOpenCust] = useState<CustomerAgg | null>(null);
   const [channelMap, setChannelMap] = useState<Record<string, string>>({});
 
-  // Resolve Slack channel IDs → names once on mount
+  const channelIdsKey = useMemo(() => {
+    const ids = new Set<string>();
+    for (const t of data.tickets) {
+      if (t.customer_kind === "slack" && t.customer_raw_id) ids.add(t.customer_raw_id);
+    }
+    return Array.from(ids).sort().join(",");
+  }, [data.tickets]);
+
+  // Resolve Slack channel IDs → names. Pass actual IDs from tickets so the
+  // edge function falls back to conversations.info for non-member channels.
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const channelIds = channelIdsKey ? channelIdsKey.split(",") : [];
       try {
-        const { data: res } = await supabase.functions.invoke("list-slack-channels", { body: {} });
+        const { data: res } = await supabase.functions.invoke("list-slack-channels", {
+          body: channelIds.length ? { channelIds } : {},
+        });
         if (cancelled) return;
-        const map: Record<string, string> = { ...channelNameOverrides };
         const list = (res as { channels?: { id: string; name: string }[] })?.channels || [];
-        for (const ch of list) map[ch.id] = ch.name;
+        const map: Record<string, string> = {};
+        for (const ch of list) if (ch.name) map[ch.id] = ch.name;
+        Object.assign(map, channelNameOverrides);
         setChannelMap(map);
       } catch {
         if (!cancelled) setChannelMap({ ...channelNameOverrides });
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [channelIdsKey]);
 
   const resolveLabel = (t: NormalizedTicket): { key: string; label: string } => {
     if (t.customer_kind === "slack" && t.customer_raw_id) {
