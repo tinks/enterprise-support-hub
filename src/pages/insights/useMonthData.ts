@@ -42,6 +42,32 @@ const firstLine = (s: string | null | undefined) => {
   return line.slice(0, 160) || "(no subject)";
 };
 
+const PERSONAL_DOMAINS = new Set([
+  "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com",
+  "yahoo.com", "icloud.com", "me.com", "proton.me", "protonmail.com", "aol.com",
+]);
+
+export function accountFromEmail(email: string | null | undefined): { key: string; label: string } {
+  const e = (email || "").trim().toLowerCase();
+  const at = e.lastIndexOf("@");
+  if (at < 0 || at === e.length - 1) return { key: "domain:unknown", label: "Unknown sender" };
+  const domain = e.slice(at + 1).replace(/^www\./, "");
+  if (PERSONAL_DOMAINS.has(domain)) return { key: "domain:_personal", label: "Personal email" };
+  return { key: "domain:" + domain, label: domain };
+}
+
+export function extractEmail(s: string | null | undefined): string | null {
+  if (!s) return null;
+  const m = s.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+  return m ? m[0].toLowerCase() : null;
+}
+
+export function extractSlackChannelId(link: string | null | undefined): string | null {
+  if (!link) return null;
+  const m = link.match(/\/archives\/(C[A-Z0-9]+)/i);
+  return m ? m[1].toUpperCase() : null;
+}
+
 export function useMonthData(month: string): MonthData {
   const [state, setState] = useState<MonthData>({ loading: true, tickets: [] });
 
