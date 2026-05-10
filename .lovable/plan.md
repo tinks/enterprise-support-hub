@@ -1,31 +1,28 @@
-## Problem
+## Goal
 
-Clicking "Unassigned · 21" in Insights → Owner load opens Conversations with the right `owner=unassigned&from=…&to=…` filter, but the table is empty.
+Make it easy to drill into "Unclassified" tickets for a given month (e.g. April 2026) from Insights → Ticket types.
 
-Two reasons the counts don't agree:
+## Approach
 
-1. **Status filter** — Conversations hides `test`, `cancelled`, and `resolved` by default. The Insights Owner load count includes all of those. Most of the 21 unassigned tickets in April are likely resolved/cancelled, so they get filtered out.
-2. **Gmail date field** — Conversations filters Gmail by `received_at`, while `useMonthData` uses `created_at`. Usually identical, but can differ for backfilled rows.
+Make the per-bucket KPI cards in the Ticket types tab clickable. Each card deep-links to Conversations filtered to that month and that classification (with `showAll=1` so resolved/cancelled aren't hidden, matching the Owner load drilldown behavior).
+
+For "Unclassified" we'll use the existing `classificationFilter=unassigned` mode in Conversations (rows with no `classification` value), filtered to the April 2026 date range.
 
 ## Changes
 
-**1. `src/pages/Conversations.tsx` — honor a `showAll` deep-link signal**
+**`src/pages/insights/TicketTypesTab.tsx`**
+- Wrap each bucket KPI card in a `Link` to:
+  `/conversations?from=<monthStart>&to=<monthEnd>&classification=<bucket|unassigned>&showAll=1`
+- Add hover affordance (cursor + subtle ring).
+- Pass `month` prop down from `Insights.tsx` so the tab knows the date range.
 
-- Read `const paramShowAll = searchParams.get("showAll") === "1"`.
-- When `paramShowAll` is true on first render, initialize `hiddenStatuses` to an empty Set instead of `DEFAULT_HIDDEN` (and skip writing to localStorage so it doesn't stick after the user leaves).
+**`src/pages/Insights.tsx`**
+- Pass the currently selected `month` into `<TicketTypesTab />`.
 
-**2. `src/pages/Conversations.tsx` — align Gmail date field with the report**
-
-In the date-range query block (around lines 713–724), filter Gmail by `created_at` instead of `received_at` so the count matches `useMonthData`.
-
-**3. `src/pages/insights/ReportTab.tsx` — add `showAll=1` to Owner load links**
-
-Append `&showAll=1` to the href built for each Owner load row, so the Conversations view loads with no status filters hidden.
+**`src/pages/Conversations.tsx`**
+- Read `classification` query param on first render and seed `classificationFilter` from it (treated like the existing owner/showAll drilldown — bypasses localStorage).
+- Include `paramClassification` in the `isReportOwnerDrilldown`-style reset effect so it lands clean.
 
 ## Result
 
-Clicking "Unassigned · 21" lands on Conversations with all 21 rows visible (including resolved/cancelled), filtered to the month, ready for reassignment.
-
-## Out of scope
-
-- Existing Conversations entry points (sidebar, dashboard owner pages) keep their current default-hidden behavior — only the Insights deep-link opts into showing everything.
+From `/insights` → Ticket types tab, clicking the **Unclassified** card (or any bucket) opens Conversations scoped to that month and classification, ready to triage. For April 2026 you'll see exactly the unclassified rows that make up the count.
