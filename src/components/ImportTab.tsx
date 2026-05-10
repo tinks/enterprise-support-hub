@@ -170,6 +170,17 @@ const ImportTab = () => {
           } catch {}
         }
 
+        if (errorBody?.error === "not_in_enterprise_inbox") {
+          toast.error("Not in enterprise inbox", {
+            description: `Ticket is in team ${errorBody.currentTeamId} (enterprise inbox: ${errorBody.enterpriseInboxId}).`,
+            action: {
+              label: "Import anyway",
+              onClick: () => handleIntercomImport(force, true),
+            },
+          });
+          return;
+        }
+
         if (errorBody?.existingId) {
           const source = errorBody.existingSource || "manual";
           const intercomId = errorBody.intercomConversationId || trimmed.match(/\/conversation\/(\d+)/)?.[1];
