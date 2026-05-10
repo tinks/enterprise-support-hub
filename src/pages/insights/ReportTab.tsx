@@ -486,47 +486,55 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
     return { source: s, count, pct: total ? Math.round((count / total) * 100) : 0, color: sourceColors[s] };
   }).filter(s => s.count > 0);
 
-  // Top accounts — grouped per source so each ticket is bucketed by its
-  // source-appropriate identifier:
-  //   • Slack    → channel name
-  //   • Gmail    → email domain (via from_email; thread-deduped upstream)
-  //   • Intercom → email domain of the contact that created the case
-  //                (manual imports carry contact email; Slack-routed Intercom
-  //                cases fall back to the Slack channel name since the contact
-  //                email isn't stored locally)
-  const bucketAccount = (kind: "slack" | "gmail" | "intercom") => {
-    const m = new Map<string, AccountAgg>();
-    const filtered = tickets.filter(t => t.display_source === kind);
-    for (const t of filtered) {
-      let key = t.customer_key;
-      let label = t.customer_label;
-      let aKind: string = t.customer_kind;
-      if (t.customer_kind === "slack" && t.customer_raw_id) {
-        const name = channelMap[t.customer_raw_id];
-        if (name) { key = "channel:" + name.toLowerCase(); label = "#" + name; }
-        aKind = "Channel";
-      } else if (t.customer_kind === "domain") {
-        aKind = "Domain";
-      }
-      let a = m.get(key);
-      if (!a) {
-        a = { key, label, kind: aKind, count: 0, bugs: 0, features: 0, csatSum: 0, csatN: 0 };
-        m.set(key, a);
-      }
-      a.count++;
-      if (t.is_bug) a.bugs++;
-      if (t.is_feature_request) a.features++;
-      if (t.csat_rating) { a.csatSum += t.csat_rating; a.csatN++; }
+  // Top accounts — bucketed by the *resolved account identifier*, not by
+  // display_source, so that Slack-routed Intercom cases land under their
+  // Slack channel (where they're recognizable) and only Intercom cases with
+  // a known contact email show up in the Intercom list.
+  //   • Slack list    → any ticket whose account resolves to a Slack channel
+  //   • Gmail list    → display_source=gmail, grouped by email domain
+  //   • Intercom list → display_source=intercom AND account resolves to a
+  //                     domain (i.e. we have the contact email)
+  const slackMap = new Map<string, AccountAgg>();
+  const gmailMap = new Map<string, AccountAgg>();
+  const intercomMap = new Map<string, AccountAgg>();
+  for (const t of tickets) {
+    let key = t.customer_key;
+    let label = t.customer_label;
+    let aKind: string = t.customer_kind;
+    if (t.customer_kind === "slack" && t.customer_raw_id) {
+      const name = channelMap[t.customer_raw_id];
+      if (name) { key = "channel:" + name.toLowerCase(); label = "#" + name; }
+      aKind = "Channel";
+    } else if (t.customer_kind === "domain") {
+      aKind = "Domain";
     }
-    return Array.from(m.values()).sort((a, b) => b.count - a.count);
-  };
-  const slackAccounts = bucketAccount("slack").slice(0, 5);
-  const gmailAccounts = bucketAccount("gmail").slice(0, 5);
-  const intercomAccounts = bucketAccount("intercom").slice(0, 5);
-  // Combined for highlights ("most active account") — uses the same per-source bucketing.
-  const combinedAccounts = [...slackAccounts, ...gmailAccounts, ...intercomAccounts]
-    .sort((a, b) => b.count - a.count);
-  const topAccount = combinedAccounts[0] || null;
+
+    let target: Map<string, AccountAgg> | null = null;
+    if (t.customer_kind === "slack") {
+      target = slackMap; // includes Slack-routed Intercom cases
+    } else if (t.customer_kind === "domain") {
+      if (t.display_source === "gmail") target = gmailMap;
+      else if (t.display_source === "intercom") target = intercomMap;
+    }
+    if (!target) continue; // skip manual/other with no resolved account
+
+    let a = target.get(key);
+    if (!a) {
+      a = { key, label, kind: aKind, count: 0, bugs: 0, features: 0, csatSum: 0, csatN: 0 };
+      target.set(key, a);
+    }
+    a.count++;
+    if (t.is_bug) a.bugs++;
+    if (t.is_feature_request) a.features++;
+    if (t.csat_rating) { a.csatSum += t.csat_rating; a.csatN++; }
+  }
+  const sortTop = (m: Map<string, AccountAgg>) =>
+    Array.from(m.values()).sort((a, b) => b.count - a.count).slice(0, 5);
+  const slackAccounts = sortTop(slackMap);
+  const gmailAccounts = sortTop(gmailMap);
+  const intercomAccounts = sortTop(intercomMap);
+  const topAccount = [...slackAccounts, ...gmailAccounts, ...intercomAccounts]
+    .sort((a, b) => b.count - a.count)[0] || null;
 
   // Product areas
   const paMap = new Map<string, { count: number; csatSum: number; csatN: number }>();
