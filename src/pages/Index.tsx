@@ -173,7 +173,41 @@ const Index = () => {
     setBackfillRunning(false);
   };
 
-  const pollIntercomInbox = async () => {
+  const runInboxAudit = async (apply: boolean) => {
+    if (apply && !confirm("Flag every Intercom-linked ticket that is NOT currently in the enterprise inbox as is_test=true? They will be hidden from analytics but remain viewable. Continue?")) return;
+    setAuditRunning(true);
+    const all: Array<{ table: string; id: string; intercomId: string; currentTeamId: string; subject: string; contact: string }> = [];
+    let total = 0;
+    let totalChecked = 0;
+    let totalFlagged = 0;
+    let offset = 0;
+    let batchNum = 0;
+    try {
+      while (true) {
+        batchNum++;
+        const res = await fetch(`${edgeFunctionBaseUrl}/audit-out-of-inbox-tickets`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apply, batchSize: 80, offset }),
+        });
+        const data = await res.json();
+        if (data.error) { toast.error("Audit failed: " + data.error); break; }
+        total = data.total || 0;
+        totalChecked += data.checked || 0;
+        totalFlagged += data.flagged || 0;
+        if (Array.isArray(data.mismatches)) all.push(...data.mismatches);
+        toast.info(`Batch ${batchNum}: ${data.checked} checked, ${data.mismatchCount} mismatches${apply ? `, ${data.flagged} flagged` : ""}`);
+        if (data.done) break;
+        offset = data.nextOffset || 0;
+        if (batchNum > 100) { toast.error("Stopped after 100 batches as a safety guard"); break; }
+      }
+      setAuditReport({ total, mismatches: all });
+      toast.success(`Audit ${apply ? "applied" : "scan"} complete: ${totalChecked} checked, ${all.length} mismatches${apply ? `, ${totalFlagged} flagged` : ""}`);
+    } catch (err) {
+      toast.error("Audit request failed: " + (err instanceof Error ? err.message : "Unknown"));
+    }
+    setAuditRunning(false);
+  };
     setIntercomPolling(true);
     try {
       const res = await fetch(`${edgeFunctionBaseUrl}/poll-intercom-inbox`, {
