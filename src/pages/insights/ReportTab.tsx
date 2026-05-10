@@ -354,6 +354,8 @@ export function ReportTab({ data, month }: ReportTabProps) {
           </CardContent>
         </Card>
 
+        <UncategorizedPanel tickets={data.tickets} />
+
         {/* Owner load */}
         <Card>
           <CardContent className="p-5">
