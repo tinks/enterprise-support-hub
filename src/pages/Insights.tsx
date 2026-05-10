@@ -299,7 +299,7 @@ const Insights = () => {
               <CustomersTab data={monthData} />
             </TabsContent>
             <TabsContent value="types" className="mt-4">
-              <TicketTypesTab data={monthData} />
+              <TicketTypesTab data={monthData} month={month} />
             </TabsContent>
             <TabsContent value="trends" className="mt-4">
               <TrendsTab data={monthData} month={month} />

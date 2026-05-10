@@ -212,7 +212,10 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const paramProductArea = searchParams.get("productArea");
   const paramOwner = searchParams.get("owner");
   const paramShowAll = searchParams.get("showAll") === "1";
-  const isReportOwnerDrilldown = paramShowAll && !!paramOwner && !!paramFrom && !!paramTo;
+  const paramClassification = searchParams.get("classification");
+  const isOwnerDrilldown = paramShowAll && !!paramOwner && !!paramFrom && !!paramTo;
+  const isClassificationDrilldown = paramShowAll && !!paramClassification && !!paramFrom && !!paramTo;
+  const isReportDrilldown = isOwnerDrilldown || isClassificationDrilldown;
   const isResolutionMode = resolutionMin !== null && resolutionMax !== null;
 
   const [mappings, setMappings] = useState<ConversationMapping[]>([]);
@@ -229,15 +232,15 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const [loadingMore, setLoadingMore] = useState(false);
   const savedSource = localStorage.getItem("conv-source-filter") as SourceFilter | null;
   // When linked here from the manual-channel drilldown, force source=manual so manual rows actually load.
-  const initialSource: SourceFilter = paramManualChannel ? "manual" : (paramSource || (isReportOwnerDrilldown ? "all" : savedSource) || "all");
+  const initialSource: SourceFilter = paramManualChannel ? "manual" : (paramSource || (isReportDrilldown ? "all" : savedSource) || "all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>(initialSource);
-  const [searchQuery, setSearchQuery] = useState(() => isReportOwnerDrilldown ? "" : (localStorage.getItem("conv-search") || ""));
+  const [searchQuery, setSearchQuery] = useState(() => isReportDrilldown ? "" : (localStorage.getItem("conv-search") || ""));
   const savedOwner = localStorage.getItem("conv-owner-filter") as OwnerFilter | null;
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(forceOwner as OwnerFilter || (paramOwner as OwnerFilter) || savedOwner || "all");
   const savedPaFilter = localStorage.getItem("conv-pa-filter");
-  const [productAreaFilter, setProductAreaFilter] = useState<string>(paramProductArea || (isReportOwnerDrilldown ? "all" : savedPaFilter) || "all");
+  const [productAreaFilter, setProductAreaFilter] = useState<string>(paramProductArea || (isReportDrilldown ? "all" : savedPaFilter) || "all");
   const savedClassFilter = localStorage.getItem("conv-class-filter");
-  const [classificationFilter, setClassificationFilter] = useState<string>(isReportOwnerDrilldown ? "all" : (savedClassFilter || "all"));
+  const [classificationFilter, setClassificationFilter] = useState<string>(paramClassification || (isReportDrilldown ? "all" : (savedClassFilter || "all")));
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [searchResults, setSearchResults] = useState<{ slack: ConversationMapping[]; gmail: GmailConversation[]; manual: ManualConversation[]; pending: PendingIntercomLink[] } | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -428,26 +431,30 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const [dragOverCol, setDragOverCol] = useState<ColKey | null>(null);
 
   useEffect(() => { localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(columnOrder)); }, [columnOrder]);
-  useEffect(() => { if (!isReportOwnerDrilldown) localStorage.setItem("conv-source-filter", sourceFilter); }, [sourceFilter, isReportOwnerDrilldown]);
+  useEffect(() => { if (!isReportDrilldown) localStorage.setItem("conv-source-filter", sourceFilter); }, [sourceFilter, isReportDrilldown]);
   useEffect(() => { if (!forceOwner && !paramOwner) localStorage.setItem("conv-owner-filter", ownerFilter); }, [ownerFilter, forceOwner, paramOwner]);
-  useEffect(() => { if (!isReportOwnerDrilldown) localStorage.setItem("conv-pa-filter", productAreaFilter); }, [productAreaFilter, isReportOwnerDrilldown]);
-  useEffect(() => { if (!isReportOwnerDrilldown) localStorage.setItem("conv-class-filter", classificationFilter); }, [classificationFilter, isReportOwnerDrilldown]);
+  useEffect(() => { if (!isReportDrilldown) localStorage.setItem("conv-pa-filter", productAreaFilter); }, [productAreaFilter, isReportDrilldown]);
+  useEffect(() => { if (!isReportDrilldown) localStorage.setItem("conv-class-filter", classificationFilter); }, [classificationFilter, isReportDrilldown]);
   useEffect(() => { if (!paramShowAll) localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses, paramShowAll]);
   useEffect(() => {
-    if (isReportOwnerDrilldown) return;
+    if (isReportDrilldown) return;
     if (searchQuery) localStorage.setItem("conv-search", searchQuery);
     else localStorage.removeItem("conv-search");
-  }, [searchQuery, isReportOwnerDrilldown]);
+  }, [searchQuery, isReportDrilldown]);
 
   useEffect(() => {
-    if (!isReportOwnerDrilldown) return;
+    if (!isReportDrilldown) return;
     setSourceFilter("all");
     setSearchQuery("");
     setSearchResults(null);
     setProductAreaFilter("all");
-    setClassificationFilter("all");
+    if (isClassificationDrilldown) {
+      setClassificationFilter(paramClassification || "all");
+    } else {
+      setClassificationFilter("all");
+    }
     setHiddenStatuses(new Set());
-  }, [isReportOwnerDrilldown]);
+  }, [isReportDrilldown, isClassificationDrilldown, paramClassification]);
   useEffect(() => {
     if (dateFrom) localStorage.setItem("conv-date-from", dateFrom.toISOString());
     else localStorage.removeItem("conv-date-from");
@@ -708,7 +715,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       setGmailOffset(0);
     }
 
-    const pageSize = (isHeatmapMode || isResolutionMode || isDayOnlyMode || isReportOwnerDrilldown || paramChannel || paramChannelGroup || paramManualChannel) ? 1000 : 50;
+    const pageSize = (isHeatmapMode || isResolutionMode || isDayOnlyMode || isReportDrilldown || paramChannel || paramChannelGroup || paramManualChannel) ? 1000 : 50;
 
     let slackQuery = supabase
       .from("conversation_mappings")
@@ -723,7 +730,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (isReportOwnerDrilldown) {
+    if (isReportDrilldown) {
       slackQuery = slackQuery.eq("is_test", false);
       gmailQuery = gmailQuery.eq("is_test", false);
       manualQuery = manualQuery.eq("is_test", false);
@@ -889,7 +896,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       for (const [key, group] of Object.entries(gmailGroups)) {
         // Report owner drilldowns use the same Gmail representative as Insights: earliest created row per thread.
         // The normal inbox keeps the latest message as primary for day-to-day triage.
-        group.sort((a, b) => isReportOwnerDrilldown
+        group.sort((a, b) => isReportDrilldown
           ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
           : new Date(b.received_at || b.created_at).getTime() - new Date(a.received_at || a.created_at).getTime()
         );
@@ -1009,7 +1016,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     }
 
     return classFiltered;
-  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, paramChannel, paramChannelGroup, paramManualChannel, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter, isResolutionMode, isReportOwnerDrilldown, resolutionMin, resolutionMax]);
+  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, paramChannel, paramChannelGroup, paramManualChannel, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter, isResolutionMode, isReportDrilldown, resolutionMin, resolutionMax]);
 
   // Persist the visible navigable list (id + source) so the conversation
   // detail page can offer Prev / Next that follow the current Inbox order.

@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
+import { endOfMonth, parse, startOfMonth } from "date-fns";
 import { Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { MonthData, NormalizedTicket } from "./useMonthData";
@@ -40,7 +42,16 @@ function bucketOf(t: NormalizedTicket): Bucket {
   return "Unclassified";
 }
 
-export function TicketTypesTab({ data }: { data: MonthData }) {
+export function TicketTypesTab({ data, month }: { data: MonthData; month: string }) {
+  const monthStart = startOfMonth(parse(month + "-01", "yyyy-MM-dd", new Date()));
+  const monthEnd = endOfMonth(monthStart);
+  const fromIso = monthStart.toISOString();
+  const toIso = monthEnd.toISOString();
+  const hrefForBucket = (b: Bucket) => {
+    const cls = b === "Unclassified" ? "unassigned" : b;
+    const params = new URLSearchParams({ from: fromIso, to: toIso, classification: cls, showAll: "1" });
+    return `/conversations?${params.toString()}`;
+  };
   const stats = useMemo(() => {
     const total = data.tickets.length;
 
@@ -111,15 +122,17 @@ export function TicketTypesTab({ data }: { data: MonthData }) {
           </CardContent>
         </Card>
         {BUCKETS.map(b => (
-          <Card key={b}>
-            <CardContent className="p-4">
-              <div className={`text-2xl font-bold ${bucketText[b]}`}>{stats.counts[b]}</div>
-              <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
-                <span className={`inline-block w-2 h-2 rounded-sm ${bucketColor[b]}`} />
-                {b} · {pct(stats.counts[b])}%
-              </div>
-            </CardContent>
-          </Card>
+          <Link key={b} to={hrefForBucket(b)} className="block">
+            <Card className="hover:ring-2 hover:ring-primary/40 transition cursor-pointer h-full">
+              <CardContent className="p-4">
+                <div className={`text-2xl font-bold ${bucketText[b]}`}>{stats.counts[b]}</div>
+                <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
+                  <span className={`inline-block w-2 h-2 rounded-sm ${bucketColor[b]}`} />
+                  {b} · {pct(stats.counts[b])}%
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
 
