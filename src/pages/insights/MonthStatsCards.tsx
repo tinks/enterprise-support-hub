@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { differenceInMinutes, parseISO } from "date-fns";
-import {
-  MessageSquare, ThumbsUp, AlertCircle, ArrowUpRight, Clock, Bot, Mail,
-  Timer, Info, ArrowDown, ArrowUp,
-} from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { ArrowDown, ArrowUp } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { MonthData, NormalizedTicket } from "./useMonthData";
 
@@ -102,50 +100,23 @@ function computeGmailStats(tickets: NormalizedTicket[]) {
   };
 }
 
-function Kpi({ icon: Icon, value, label, iconColor }: { icon: any; value: React.ReactNode; label: string; iconColor: string }) {
-  return (
-    <Card className="border-border/60">
-      <CardContent className="p-5 flex flex-col items-center justify-center text-center min-h-[140px]">
-        <Icon className={`h-6 w-6 mb-2 ${iconColor}`} />
-        <p className="text-3xl font-bold leading-tight">{value}</p>
-        <p className="text-xs text-muted-foreground mt-1">{label}</p>
-      </CardContent>
-    </Card>
-  );
-}
+const MUTED = <span className="text-muted-foreground">—</span>;
 
-function DeltaCard({ label, valueSec, prevSec }: { label: string; valueSec: number | null; prevSec: number | null }) {
-  let chip: React.ReactNode = null;
-  if (valueSec != null && prevSec != null) {
-    const diff = valueSec - prevSec;
-    const absLabel = formatSeconds(Math.abs(diff));
-    if (Math.abs(diff) > 0 && absLabel !== "—") {
-      const isWorse = diff > 0; // for time metrics, more = worse
-      chip = (
-        <span
-          className={`inline-flex items-center gap-1 text-xs font-medium ${
-            isWorse ? "text-destructive" : "text-emerald-600"
-          }`}
-        >
-          {isWorse ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
-          {absLabel}
-        </span>
-      );
-    }
-  }
+function DeltaChip({ valueSec, prevSec }: { valueSec: number | null; prevSec: number | null }) {
+  if (valueSec == null || prevSec == null) return null;
+  const diff = valueSec - prevSec;
+  const absLabel = formatSeconds(Math.abs(diff));
+  if (Math.abs(diff) === 0 || absLabel === "—") return null;
+  const isWorse = diff > 0;
   return (
-    <Card className="border-border/60">
-      <CardContent className="p-5 min-h-[140px]">
-        <div className="flex items-center gap-1.5 text-sm font-medium mb-3">
-          <Info className="h-3.5 w-3.5 text-muted-foreground" />
-          <span>{label}</span>
-        </div>
-        <div className="flex items-baseline gap-3">
-          <span className="text-3xl font-bold">{formatSeconds(valueSec)}</span>
-          {chip}
-        </div>
-      </CardContent>
-    </Card>
+    <span
+      className={`ml-2 inline-flex items-center gap-0.5 text-xs font-medium ${
+        isWorse ? "text-destructive" : "text-emerald-600"
+      }`}
+    >
+      {isWorse ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+      {absLabel}
+    </span>
   );
 }
 
@@ -191,62 +162,127 @@ export function MonthStatsCards({ data, month }: Props) {
     };
   }, [month]);
 
+  const ic = intercom?.current ?? null;
+  const ip = intercom?.previous ?? null;
+
+  const intercomCell = (key: keyof Stat) => {
+    if (intercomLoading) return <span className="text-muted-foreground">…</span>;
+    if (intercomError) return MUTED;
+    if (!ic) return MUTED;
+    const v = ic[key];
+    if (key === "count") return <>{v as number}</>;
+    return (
+      <>
+        {formatSeconds(v as number | null)}
+        <DeltaChip valueSec={v as number | null} prevSec={ip ? (ip[key] as number | null) : null} />
+      </>
+    );
+  };
+
+  const rows: { label: string; slack: React.ReactNode; gmail: React.ReactNode; intercom: React.ReactNode }[] = [
+    {
+      label: "Received",
+      slack: slack.received,
+      gmail: gmail.total,
+      intercom: intercomCell("count"),
+    },
+    {
+      label: "Resolved",
+      slack: slack.resolved,
+      gmail: gmail.resolved,
+      intercom: MUTED,
+    },
+    {
+      label: "Open",
+      slack: slack.open,
+      gmail: gmail.open,
+      intercom: MUTED,
+    },
+    {
+      label: "Escalated to human",
+      slack: slack.escalated,
+      gmail: MUTED,
+      intercom: MUTED,
+    },
+    {
+      label: "Success rate",
+      slack: `${slack.successPct}%`,
+      gmail: gmail.total ? `${Math.round((gmail.resolved / gmail.total) * 100)}%` : MUTED,
+      intercom: MUTED,
+    },
+    {
+      label: "Bot success rate",
+      slack: `${slack.botSuccessPct}%`,
+      gmail: MUTED,
+      intercom: MUTED,
+    },
+    {
+      label: "Median first response",
+      slack: MUTED,
+      gmail: MUTED,
+      intercom: intercomCell("medianFirstResponseSec"),
+    },
+    {
+      label: "Median response time",
+      slack: MUTED,
+      gmail: MUTED,
+      intercom: intercomCell("medianResponseSec"),
+    },
+    {
+      label: "Median resolution / time to close",
+      slack: formatMinutes(slack.medianResolutionMin),
+      gmail: formatMinutes(gmail.medianResolutionMin),
+      intercom: intercomCell("medianTimeToCloseSec"),
+    },
+    {
+      label: "Average resolution",
+      slack: formatMinutes(slack.avgResolutionMin),
+      gmail: formatMinutes(gmail.avgResolutionMin),
+      intercom: MUTED,
+    },
+    {
+      label: "Median handling time",
+      slack: MUTED,
+      gmail: MUTED,
+      intercom: intercomCell("medianHandlingTimeSec"),
+    },
+  ];
+
   return (
-    <div className="space-y-8">
-      {/* Slack */}
-      <section>
-        <h2 className="text-lg font-bold mb-4 pb-2 border-b">Slack</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          <Kpi icon={MessageSquare} iconColor="text-primary" value={slack.received} label="Received" />
-          <Kpi icon={ThumbsUp} iconColor="text-purple-500" value={slack.resolved} label="Resolved" />
-          <Kpi icon={AlertCircle} iconColor="text-orange-500" value={slack.open} label="Open" />
-          <Kpi icon={ArrowUpRight} iconColor="text-amber-500" value={slack.escalated} label="Escalated to human" />
-          <Kpi icon={Clock} iconColor="text-muted-foreground" value={`${slack.successPct}%`} label="Success rate" />
-          <Kpi icon={Bot} iconColor="text-primary" value={`${slack.botSuccessPct}%`} label="Bot success rate" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-          <Kpi icon={Timer} iconColor="text-primary" value={formatMinutes(slack.medianResolutionMin)} label="Median resolution time" />
-          <Kpi icon={Clock} iconColor="text-muted-foreground" value={formatMinutes(slack.avgResolutionMin)} label="Average resolution time" />
-        </div>
-      </section>
-
-      {/* Gmail */}
-      <section>
-        <h2 className="text-lg font-bold mb-4 pb-2 border-b">Gmail</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Kpi icon={Mail} iconColor="text-orange-500" value={gmail.total} label="Email total" />
-          <Kpi icon={ThumbsUp} iconColor="text-purple-500" value={gmail.resolved} label="Gmail resolved" />
-          <Kpi icon={AlertCircle} iconColor="text-orange-500" value={gmail.open} label="Gmail open" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-          <Kpi icon={Timer} iconColor="text-orange-500" value={formatMinutes(gmail.medianResolutionMin)} label="Gmail median resolution" />
-          <Kpi icon={Clock} iconColor="text-muted-foreground" value={formatMinutes(gmail.avgResolutionMin)} label="Gmail avg resolution" />
-        </div>
-      </section>
-
-      {/* Intercom */}
-      <section>
-        <h2 className="text-lg font-bold mb-4 pb-2 border-b">Intercom</h2>
-        {intercomLoading && (
-          <p className="text-sm text-muted-foreground">Loading Intercom stats…</p>
-        )}
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Source performance</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[40%]">Metric</TableHead>
+              <TableHead className="text-right">Slack</TableHead>
+              <TableHead className="text-right">Gmail</TableHead>
+              <TableHead className="text-right">Intercom</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((r) => (
+              <TableRow key={r.label}>
+                <TableCell className="font-medium">{r.label}</TableCell>
+                <TableCell className="text-right tabular-nums">{r.slack}</TableCell>
+                <TableCell className="text-right tabular-nums">{r.gmail}</TableCell>
+                <TableCell className="text-right tabular-nums">{r.intercom}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
         {intercomError && (
-          <p className="text-sm text-destructive">Failed to load Intercom stats: {intercomError}</p>
+          <p className="text-xs text-destructive mt-3">Intercom: {intercomError}</p>
         )}
         {intercom && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            <DeltaCard label="Median first response time" valueSec={intercom.current.medianFirstResponseSec} prevSec={intercom.previous.medianFirstResponseSec} />
-            <DeltaCard label="Median response time" valueSec={intercom.current.medianResponseSec} prevSec={intercom.previous.medianResponseSec} />
-            <DeltaCard label="Median time to close" valueSec={intercom.current.medianTimeToCloseSec} prevSec={intercom.previous.medianTimeToCloseSec} />
-            <DeltaCard label="Median handling time" valueSec={intercom.current.medianHandlingTimeSec} prevSec={intercom.previous.medianHandlingTimeSec} />
-          </div>
-        )}
-        {intercom && (
-          <p className="text-xs text-muted-foreground mt-2">
-            Live from Intercom · {intercom.current.count} conversations this month vs {intercom.previous.count} previous month
+          <p className="text-xs text-muted-foreground mt-3">
+            Intercom live · {intercom.current.count} conversations this month vs {intercom.previous.count} previous month
           </p>
         )}
-      </section>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

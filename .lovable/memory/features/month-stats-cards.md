@@ -1,9 +1,9 @@
 ---
 name: Month Stats Cards
-description: Insights Report tab shows Slack/Gmail (DB-derived) and Intercom (live API) KPI cards scoped to the selected month
+description: Insights Report tab shows a single source-performance comparison table (Slack/Gmail DB-derived, Intercom live API) scoped to the selected month
 type: feature
 ---
-The `MonthStatsCards` component on the Insights Report tab renders three KPI sections after the Source mix card, all scoped to the currently selected report month:
+The `MonthStatsCards` component on the Insights Report tab renders one comparison table after the Source mix card — rows are metrics, columns are Slack / Gmail / Intercom — all scoped to the currently selected report month. Cells where a metric does not apply to a source render as a muted "—":
 
 - **Slack** (computed in the browser from `MonthData.tickets` where `route_source === "slack"`): Received, Resolved, Open, Escalated to human (counts tickets with linked `intercom_conversation_id` or status escalated/escalated_pending), Success rate, Bot success rate (resolved without Intercom link), Median + Average resolution time.
 - **Gmail** (from `MonthData.tickets` where `route_source === "gmail"`, already deduplicated by `gmail_thread_id` upstream): Email total, Gmail resolved, Gmail open, Gmail median + avg resolution.
