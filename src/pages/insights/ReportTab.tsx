@@ -85,23 +85,38 @@ export function ReportTab({ data, month }: ReportTabProps) {
     return () => { cancelled = true; };
   }, [month]);
 
-  // Resolve Slack channel IDs → names
+  // Resolve Slack channel IDs → names. Pass the actual channel IDs from this
+  // month + previous month so the edge function falls back to conversations.info
+  // for channels the bot isn't in (otherwise IDs render raw).
+  const channelIdsKey = useMemo(() => {
+    const ids = new Set<string>();
+    for (const t of [...data.tickets, ...prev.tickets]) {
+      if (t.customer_kind === "slack" && t.customer_raw_id) ids.add(t.customer_raw_id);
+    }
+    return Array.from(ids).sort().join(",");
+  }, [data.tickets, prev.tickets]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const channelIds = channelIdsKey ? channelIdsKey.split(",") : [];
       try {
-        const { data: res } = await supabase.functions.invoke("list-slack-channels", { body: {} });
+        const { data: res } = await supabase.functions.invoke("list-slack-channels", {
+          body: channelIds.length ? { channelIds } : {},
+        });
         if (cancelled) return;
-        const map: Record<string, string> = { ...channelNameOverrides };
         const list = (res as { channels?: { id: string; name: string }[] })?.channels || [];
-        for (const ch of list) map[ch.id] = ch.name;
+        const map: Record<string, string> = {};
+        for (const ch of list) if (ch.name) map[ch.id] = ch.name;
+        // overrides win
+        Object.assign(map, channelNameOverrides);
         setChannelMap(map);
       } catch {
         if (!cancelled) setChannelMap({ ...channelNameOverrides });
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [channelIdsKey]);
 
   const stats = useMemo(() => computeStats(data.tickets, channelMap), [data.tickets, channelMap]);
   const prevStats = useMemo(() => computeStats(prev.tickets, channelMap), [prev.tickets, channelMap]);
