@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
     const { data: settingsRow } = await sb.from("settings").select("intercom_inbox_id").limit(1).single();
     const enterpriseInboxId = String(settingsRow?.intercom_inbox_id || "");
 
-    const results: Array<{ id: string; status: "imported" | "skipped" | "failed"; error?: string; dbId?: string }> = [];
+    const results: Array<{ id: string; status: "imported" | "skipped" | "failed" | "out_of_inbox"; error?: string; dbId?: string; currentTeamId?: string }> = [];
 
     const SKIP_PART_TYPES = new Set(["open", "close", "away_mode_assignment"]);
     const mapRole = (type: string) => (type === "user" || type === "lead") ? "user" : "admin";
