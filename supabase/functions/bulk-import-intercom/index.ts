@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { ids, owner } = await req.json();
+    const { ids, owner, forceInbox } = await req.json();
     if (!Array.isArray(ids) || ids.length === 0) {
       return new Response(
         JSON.stringify({ error: "Missing ids array" }),
@@ -65,7 +65,11 @@ Deno.serve(async (req) => {
 
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const results: Array<{ id: string; status: "imported" | "skipped" | "failed"; error?: string; dbId?: string }> = [];
+    // Load enterprise inbox once
+    const { data: settingsRow } = await sb.from("settings").select("intercom_inbox_id").limit(1).single();
+    const enterpriseInboxId = String(settingsRow?.intercom_inbox_id || "");
+
+    const results: Array<{ id: string; status: "imported" | "skipped" | "failed" | "out_of_inbox"; error?: string; dbId?: string; currentTeamId?: string }> = [];
 
     const SKIP_PART_TYPES = new Set(["open", "close", "away_mode_assignment"]);
     const mapRole = (type: string) => (type === "user" || type === "lead") ? "user" : "admin";
@@ -103,6 +107,14 @@ Deno.serve(async (req) => {
         }
 
         const icData = await icRes.json();
+
+        // Enterprise-inbox guard
+        const currentTeamId = String(icData.team_assignee_id || "");
+        if (enterpriseInboxId && currentTeamId !== enterpriseInboxId && !forceInbox) {
+          results.push({ id: String(intercomConvId), status: "out_of_inbox", currentTeamId });
+          await new Promise(r => setTimeout(r, 100));
+          continue;
+        }
 
         // Extract metadata
         let contactName = "";
@@ -227,9 +239,10 @@ Deno.serve(async (req) => {
     const imported = results.filter(r => r.status === "imported").length;
     const skipped = results.filter(r => r.status === "skipped").length;
     const failed = results.filter(r => r.status === "failed").length;
+    const outOfInbox = results.filter(r => r.status === "out_of_inbox").length;
 
     return new Response(
-      JSON.stringify({ results, summary: { imported, skipped, failed, total: ids.length } }),
+      JSON.stringify({ results, summary: { imported, skipped, failed, outOfInbox, total: ids.length, enterpriseInboxId } }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {

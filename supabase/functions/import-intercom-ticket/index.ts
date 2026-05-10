@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { url, force } = await req.json();
+    const { url, force, forceInbox } = await req.json();
     if (!url || typeof url !== "string") {
       return new Response(
         JSON.stringify({ error: "Missing url field" }),
@@ -107,6 +107,28 @@ Deno.serve(async (req) => {
     }
 
     const icData = await icRes.json();
+
+    // Enterprise-inbox guard: refuse if not currently in configured inbox unless forceInbox=true
+    {
+      const { data: settings } = await sb.from("settings").select("intercom_inbox_id").limit(1).single();
+      const enterpriseInboxId = String(settings?.intercom_inbox_id || "");
+      const currentTeamId = String(icData.team_assignee_id || "");
+      if (enterpriseInboxId && currentTeamId !== enterpriseInboxId && !forceInbox) {
+        return new Response(
+          JSON.stringify({
+            error: "not_in_enterprise_inbox",
+            currentTeamId,
+            enterpriseInboxId,
+            intercomConversationId: intercomConvId,
+            subject: stripHtml(icData.source?.subject || icData.title || ""),
+          }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (currentTeamId !== enterpriseInboxId) {
+        console.warn(`forceInbox override: importing ${intercomConvId} from team ${currentTeamId} (enterprise=${enterpriseInboxId})`);
+      }
+    }
 
     // Extract contact name
     let contactName = "";

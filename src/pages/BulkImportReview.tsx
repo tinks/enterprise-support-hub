@@ -44,9 +44,10 @@ interface ReviewRow extends CsvRow {
 
 interface ImportResult {
   id: string;
-  status: "imported" | "skipped" | "failed";
+  status: "imported" | "skipped" | "failed" | "out_of_inbox";
   error?: string;
   dbId?: string;
+  currentTeamId?: string;
 }
 
 function parseCSV(text: string): string[][] {
@@ -296,8 +297,10 @@ const BulkImportReview = () => {
     });
   };
 
-  const handleBulkImport = async () => {
-    const selected = reviewRows.filter(r => r.selected && r.status !== "tracked");
+  const handleBulkImport = async (forceInbox = false, onlyIds?: string[]) => {
+    const selected = onlyIds
+      ? reviewRows.filter(r => onlyIds.includes(r.conversationId))
+      : reviewRows.filter(r => r.selected && r.status !== "tracked");
     if (selected.length === 0) {
       toast.error("No conversations selected");
       return;
@@ -305,10 +308,10 @@ const BulkImportReview = () => {
 
     setImporting(true);
     setImportProgress({ done: 0, total: selected.length });
-    setImportResults([]);
+    if (!onlyIds) setImportResults([]);
 
     const BATCH_SIZE = 10;
-    const allResults: ImportResult[] = [];
+    const allResults: ImportResult[] = onlyIds ? [...importResults.filter(r => !onlyIds.includes(r.id))] : [];
 
     for (let i = 0; i < selected.length; i += BATCH_SIZE) {
       const batch = selected.slice(i, i + BATCH_SIZE);
@@ -317,7 +320,7 @@ const BulkImportReview = () => {
 
       try {
         const { data, error } = await supabase.functions.invoke("bulk-import-intercom", {
-          body: { ids, owner },
+          body: { ids, owner, forceInbox },
         });
 
         if (error) {
@@ -339,7 +342,8 @@ const BulkImportReview = () => {
 
     const imported = allResults.filter(r => r.status === "imported").length;
     const failed = allResults.filter(r => r.status === "failed").length;
-    toast.success(`Import complete: ${imported} imported, ${failed} failed`);
+    const outOfInbox = allResults.filter(r => r.status === "out_of_inbox").length;
+    toast.success(`Import complete: ${imported} imported, ${failed} failed${outOfInbox ? `, ${outOfInbox} outside enterprise inbox` : ""}`);
 
     const importedIds = new Set(allResults.filter(r => r.status === "imported").map(r => r.id));
     setReviewRows(prev => prev.map(r =>
@@ -347,6 +351,15 @@ const BulkImportReview = () => {
     ));
 
     setImporting(false);
+  };
+
+  const handleForceOutOfInbox = () => {
+    const ids = importResults.filter(r => r.status === "out_of_inbox").map(r => r.id);
+    if (ids.length === 0) {
+      toast.error("No out-of-inbox rows to retry");
+      return;
+    }
+    handleBulkImport(true, ids);
   };
 
   const statusBadge = (status: MatchStatus) => {
@@ -470,12 +483,17 @@ const BulkImportReview = () => {
 
             {/* Import controls */}
             <div className="flex items-center gap-4">
-              <Button onClick={handleBulkImport} disabled={importing || selectedCount === 0}>
+              <Button onClick={() => handleBulkImport()} disabled={importing || selectedCount === 0}>
                 {importing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Import {selectedCount} selected
               </Button>
               <Button variant="outline" onClick={() => toggleSelectAll("missing", true)}>Select all missing</Button>
               <Button variant="outline" onClick={() => toggleSelectAll("missing", false)}>Deselect all</Button>
+              {importResults.some(r => r.status === "out_of_inbox") && (
+                <Button variant="outline" onClick={handleForceOutOfInbox} disabled={importing}>
+                  Import {importResults.filter(r => r.status === "out_of_inbox").length} outside-inbox anyway
+                </Button>
+              )}
             </div>
 
             {/* Progress */}
@@ -553,6 +571,8 @@ const BulkImportReview = () => {
                                   <Badge className="bg-green-100 text-green-800 border-green-200">Imported</Badge>
                                 ) : result?.status === "failed" ? (
                                   <Badge className="bg-red-100 text-red-800 border-red-200">Failed</Badge>
+                                ) : result?.status === "out_of_inbox" ? (
+                                  <Badge className="bg-amber-100 text-amber-800 border-amber-200" title={`Currently in team ${result.currentTeamId}`}>Outside enterprise inbox</Badge>
                                 ) : (
                                   statusBadge(row.status)
                                 )}

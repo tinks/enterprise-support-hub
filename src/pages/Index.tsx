@@ -56,6 +56,8 @@ const Index = () => {
   const [lastPolledIntercom, setLastPolledIntercom] = useState<string | null>(null);
   const [cleanupRunning, setCleanupRunning] = useState(false);
   const [backfillRunning, setBackfillRunning] = useState(false);
+  const [auditRunning, setAuditRunning] = useState(false);
+  const [auditReport, setAuditReport] = useState<{ total: number; mismatches: Array<{ table: string; id: string; intercomId: string; currentTeamId: string; subject: string; contact: string }> } | null>(null);
 
   const edgeFunctionBaseUrl = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1`;
 
@@ -169,6 +171,42 @@ const Index = () => {
       toast.error("Backfill request failed: " + (err instanceof Error ? err.message : "Unknown"));
     }
     setBackfillRunning(false);
+  };
+
+  const runInboxAudit = async (apply: boolean) => {
+    if (apply && !confirm("Flag every Intercom-linked ticket that is NOT currently in the enterprise inbox as is_test=true? They will be hidden from analytics but remain viewable. Continue?")) return;
+    setAuditRunning(true);
+    const all: Array<{ table: string; id: string; intercomId: string; currentTeamId: string; subject: string; contact: string }> = [];
+    let total = 0;
+    let totalChecked = 0;
+    let totalFlagged = 0;
+    let offset = 0;
+    let batchNum = 0;
+    try {
+      while (true) {
+        batchNum++;
+        const res = await fetch(`${edgeFunctionBaseUrl}/audit-out-of-inbox-tickets`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apply, batchSize: 80, offset }),
+        });
+        const data = await res.json();
+        if (data.error) { toast.error("Audit failed: " + data.error); break; }
+        total = data.total || 0;
+        totalChecked += data.checked || 0;
+        totalFlagged += data.flagged || 0;
+        if (Array.isArray(data.mismatches)) all.push(...data.mismatches);
+        toast.info(`Batch ${batchNum}: ${data.checked} checked, ${data.mismatchCount} mismatches${apply ? `, ${data.flagged} flagged` : ""}`);
+        if (data.done) break;
+        offset = data.nextOffset || 0;
+        if (batchNum > 100) { toast.error("Stopped after 100 batches as a safety guard"); break; }
+      }
+      setAuditReport({ total, mismatches: all });
+      toast.success(`Audit ${apply ? "applied" : "scan"} complete: ${totalChecked} checked, ${all.length} mismatches${apply ? `, ${totalFlagged} flagged` : ""}`);
+    } catch (err) {
+      toast.error("Audit request failed: " + (err instanceof Error ? err.message : "Unknown"));
+    }
+    setAuditRunning(false);
   };
 
   const pollIntercomInbox = async () => {
@@ -609,6 +647,41 @@ const Index = () => {
                   <>Run backfill</>
                 )}
               </Button>
+            </div>
+
+            <div className="flex flex-col gap-3 rounded-lg border border-amber-300/60 bg-amber-50/50 p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Inbox audit (flag, don't delete)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Scans every Intercom-linked ticket across all sources. Mismatches can be flagged as <code>is_test=true</code> so they drop out of analytics but stay viewable.
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => runInboxAudit(false)} disabled={auditRunning}>
+                  {auditRunning ? <><RefreshCw className="mr-2 h-3 w-3 animate-spin" /> Scanning...</> : <>Scan</>}
+                </Button>
+                <Button size="sm" variant="destructive" onClick={() => runInboxAudit(true)} disabled={auditRunning}>
+                  Flag all as test
+                </Button>
+              </div>
+              {auditReport && (
+                <div className="text-xs">
+                  <p className="font-medium mb-2">{auditReport.mismatches.length} of {auditReport.total} tickets are outside the enterprise inbox</p>
+                  {auditReport.mismatches.length > 0 && (
+                    <div className="max-h-48 overflow-auto rounded border bg-background p-2 space-y-1">
+                      {auditReport.mismatches.slice(0, 100).map(m => (
+                        <div key={m.id} className="flex gap-2 font-mono text-[11px]">
+                          <span className="text-muted-foreground">{m.table.replace("_conversations","").replace("conversation_","")}</span>
+                          <span>#{m.intercomId}</span>
+                          <span className="text-muted-foreground">team {m.currentTeamId}</span>
+                          <span className="truncate flex-1">{m.subject || m.contact}</span>
+                        </div>
+                      ))}
+                      {auditReport.mismatches.length > 100 && <p className="text-muted-foreground">+{auditReport.mismatches.length - 100} more</p>}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

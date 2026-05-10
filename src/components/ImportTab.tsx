@@ -137,7 +137,7 @@ const ImportTab = () => {
     }
   };
 
-  const handleIntercomImport = async (force = false) => {
+  const handleIntercomImport = async (force = false, forceInbox = false) => {
     const trimmed = intercomUrl.trim() || lastIntercomUrl;
     if (!trimmed) {
       toast.error("Please paste an Intercom URL");
@@ -152,7 +152,7 @@ const ImportTab = () => {
     try {
       setLastIntercomUrl(trimmed);
       const { data, error } = await supabase.functions.invoke("import-intercom-ticket", {
-        body: { url: trimmed, force },
+        body: { url: trimmed, force, forceInbox },
       });
 
       if (error) {
@@ -168,6 +168,17 @@ const ImportTab = () => {
           try {
             errorBody = JSON.parse(error.message);
           } catch {}
+        }
+
+        if (errorBody?.error === "not_in_enterprise_inbox") {
+          toast.error("Not in enterprise inbox", {
+            description: `Ticket is in team ${errorBody.currentTeamId} (enterprise inbox: ${errorBody.enterpriseInboxId}).`,
+            action: {
+              label: "Import anyway",
+              onClick: () => handleIntercomImport(force, true),
+            },
+          });
+          return;
         }
 
         if (errorBody?.existingId) {
