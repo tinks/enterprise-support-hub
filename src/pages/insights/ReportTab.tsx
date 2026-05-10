@@ -373,14 +373,14 @@ export function ReportTab({ data, month }: ReportTabProps) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-muted-foreground border-b">
-                  <th className="py-1.5 font-medium">Owner</th>
-                  <th className="py-1.5 font-medium">Total</th>
-                  <th className="py-1.5 font-medium">Issue</th>
-                  <th className="py-1.5 font-medium">Bug</th>
-                  <th className="py-1.5 font-medium">FR</th>
-                  <th className="py-1.5 font-medium">Config</th>
-                  <th className="py-1.5 font-medium">Question</th>
-                  <th className="py-1.5 font-medium">CSAT</th>
+                  <th className="py-2.5 font-medium">Owner</th>
+                  <th className="py-2.5 font-medium">Total</th>
+                  <th className="py-2.5 font-medium">Issue</th>
+                  <th className="py-2.5 font-medium">Bug</th>
+                  <th className="py-2.5 font-medium">FR</th>
+                  <th className="py-2.5 font-medium">Config</th>
+                  <th className="py-2.5 font-medium">Question</th>
+                  <th className="py-2.5 font-medium">CSAT</th>
                 </tr>
               </thead>
               <tbody>
@@ -392,14 +392,14 @@ export function ReportTab({ data, month }: ReportTabProps) {
                   const href = `/conversations?owner=${encodeURIComponent(ownerParam)}&from=${from}&to=${to}&showAll=1`;
                   return (
                     <tr key={o.name} className="border-b last:border-0 hover:bg-accent/40 cursor-pointer">
-                      <td className="py-1.5"><Link to={href} className="block">{o.name === "CSM" ? "CSM/Self-resolved" : o.name}</Link></td>
-                      <td className="py-1.5 font-medium"><Link to={href} className="block">{o.total}</Link></td>
-                      <td className="py-1.5"><Link to={href} className="block">{o.Issue}</Link></td>
-                      <td className="py-1.5"><Link to={href} className="block">{o.Bug}</Link></td>
-                      <td className="py-1.5"><Link to={href} className="block">{o.FR}</Link></td>
-                      <td className="py-1.5"><Link to={href} className="block">{o.Configuration}</Link></td>
-                      <td className="py-1.5"><Link to={href} className="block">{o.Question}</Link></td>
-                      <td className="py-1.5"><Link to={href} className="block">{o.csatN ? (o.csatSum / o.csatN).toFixed(1) : "—"}</Link></td>
+                      <td className="py-2.5 align-middle"><Link to={href} className="block">{o.name === "CSM" ? "CSM/Self-resolved" : o.name}</Link></td>
+                      <td className="py-2.5 align-middle font-medium"><Link to={href} className="block">{o.total}</Link></td>
+                      <td className="py-2.5 align-middle"><Link to={href} className="block">{o.Issue}</Link></td>
+                      <td className="py-2.5 align-middle"><Link to={href} className="block">{o.Bug}</Link></td>
+                      <td className="py-2.5 align-middle"><Link to={href} className="block">{o.FR}</Link></td>
+                      <td className="py-2.5 align-middle"><Link to={href} className="block">{o.Configuration}</Link></td>
+                      <td className="py-2.5 align-middle"><Link to={href} className="block">{o.Question}</Link></td>
+                      <td className="py-2.5 align-middle"><Link to={href} className="block">{o.csatN ? (o.csatSum / o.csatN).toFixed(1) : "—"}</Link></td>
                     </tr>
                   );
                 })}
