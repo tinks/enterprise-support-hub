@@ -171,7 +171,7 @@ const Insights = () => {
             </div>
           </div>
 
-          <Tabs defaultValue="report">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList>
               <TabsTrigger value="report">Report</TabsTrigger>
               <TabsTrigger value="topics">Topics</TabsTrigger>
