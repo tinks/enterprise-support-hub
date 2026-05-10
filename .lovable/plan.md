@@ -1,31 +1,31 @@
-## Goal
+## Problem
 
-From the Insights → Report → Owner load table, let you click a row (e.g. "Unassigned · 21") and land on the Conversations page already filtered to exactly those tickets so you can reassign them.
+Clicking "Unassigned · 21" in Insights → Owner load opens Conversations with the right `owner=unassigned&from=…&to=…` filter, but the table is empty.
+
+Two reasons the counts don't agree:
+
+1. **Status filter** — Conversations hides `test`, `cancelled`, and `resolved` by default. The Insights Owner load count includes all of those. Most of the 21 unassigned tickets in April are likely resolved/cancelled, so they get filtered out.
+2. **Gmail date field** — Conversations filters Gmail by `received_at`, while `useMonthData` uses `created_at`. Usually identical, but can differ for backfilled rows.
 
 ## Changes
 
-**1. `src/pages/Conversations.tsx` — read `owner` from the URL**
+**1. `src/pages/Conversations.tsx` — honor a `showAll` deep-link signal**
 
-- Add `const paramOwner = searchParams.get("owner")` next to the other params.
-- When `paramOwner` is present, use it as the owner filter instead of the localStorage value (and skip writing it to localStorage so it does not stick after you leave).
-  - Values: any owner name (e.g. `Kristina`), `unassigned`, or `all`.
-- Include `paramOwner` in the filter `useMemo` deps.
+- Read `const paramShowAll = searchParams.get("showAll") === "1"`.
+- When `paramShowAll` is true on first render, initialize `hiddenStatuses` to an empty Set instead of `DEFAULT_HIDDEN` (and skip writing to localStorage so it doesn't stick after the user leaves).
 
-**2. `src/pages/insights/ReportTab.tsx` — make Owner load rows clickable**
+**2. `src/pages/Conversations.tsx` — align Gmail date field with the report**
 
-- Each `<tr>` in the Owner load table becomes a link to:
-  ```
-  /conversations?owner=<name|unassigned>&from=<monthStart>&to=<monthEnd>
-  ```
-  using the same month range the report is built from (already available via `month` / `data`).
-- Style: hover row highlight + cursor pointer, keep the same columns.
-- "Unassigned" maps to `owner=unassigned`; everything else to `owner=<Name>` exactly as displayed.
+In the date-range query block (around lines 713–724), filter Gmail by `created_at` instead of `received_at` so the count matches `useMonthData`.
+
+**3. `src/pages/insights/ReportTab.tsx` — add `showAll=1` to Owner load links**
+
+Append `&showAll=1` to the href built for each Owner load row, so the Conversations view loads with no status filters hidden.
 
 ## Result
 
-Clicking the "Unassigned · 21" row in Owner load opens Conversations pre-filtered to those 21 tickets for the selected month, where you can update each owner inline.
+Clicking "Unassigned · 21" lands on Conversations with all 21 rows visible (including resolved/cancelled), filtered to the month, ready for reassignment.
 
 ## Out of scope
 
-- No DB or aggregation changes — the count in Owner load and the count in Conversations come from the same source already, so they will match.
-- No changes to other Report cards.
+- Existing Conversations entry points (sidebar, dashboard owner pages) keep their current default-hidden behavior — only the Insights deep-link opts into showing everything.

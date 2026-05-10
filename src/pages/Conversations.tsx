@@ -211,6 +211,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const paramTo = searchParams.get("to");
   const paramProductArea = searchParams.get("productArea");
   const paramOwner = searchParams.get("owner");
+  const paramShowAll = searchParams.get("showAll") === "1";
   const isResolutionMode = resolutionMin !== null && resolutionMax !== null;
 
   const [mappings, setMappings] = useState<ConversationMapping[]>([]);
