@@ -877,8 +877,12 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         gmailGroups[key].push(g);
       }
       for (const [key, group] of Object.entries(gmailGroups)) {
-        // Sort group by date descending, use most recent as primary
-        group.sort((a, b) => new Date(b.received_at || b.created_at).getTime() - new Date(a.received_at || a.created_at).getTime());
+        // Report owner drilldowns use the same Gmail representative as Insights: earliest created row per thread.
+        // The normal inbox keeps the latest message as primary for day-to-day triage.
+        group.sort((a, b) => isReportOwnerDrilldown
+          ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          : new Date(b.received_at || b.created_at).getTime() - new Date(a.received_at || a.created_at).getTime()
+        );
         const primary = group[0];
         rows.push({
           source: "gmail",
@@ -995,7 +999,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     }
 
     return classFiltered;
-  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, paramChannel, paramChannelGroup, paramManualChannel, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter, isResolutionMode, resolutionMin, resolutionMax]);
+  }, [mappings, gmailRows, manualRows, searchResults, sourceFilter, paramDay, paramHour, paramChannel, paramChannelGroup, paramManualChannel, hiddenStatuses, ownerFilter, productAreaFilter, classificationFilter, isResolutionMode, isReportOwnerDrilldown, resolutionMin, resolutionMax]);
 
   // Persist the visible navigable list (id + source) so the conversation
   // detail page can offer Prev / Next that follow the current Inbox order.
