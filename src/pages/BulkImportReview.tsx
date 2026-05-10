@@ -297,8 +297,10 @@ const BulkImportReview = () => {
     });
   };
 
-  const handleBulkImport = async () => {
-    const selected = reviewRows.filter(r => r.selected && r.status !== "tracked");
+  const handleBulkImport = async (forceInbox = false, onlyIds?: string[]) => {
+    const selected = onlyIds
+      ? reviewRows.filter(r => onlyIds.includes(r.conversationId))
+      : reviewRows.filter(r => r.selected && r.status !== "tracked");
     if (selected.length === 0) {
       toast.error("No conversations selected");
       return;
@@ -306,10 +308,10 @@ const BulkImportReview = () => {
 
     setImporting(true);
     setImportProgress({ done: 0, total: selected.length });
-    setImportResults([]);
+    if (!onlyIds) setImportResults([]);
 
     const BATCH_SIZE = 10;
-    const allResults: ImportResult[] = [];
+    const allResults: ImportResult[] = onlyIds ? [...importResults.filter(r => !onlyIds.includes(r.id))] : [];
 
     for (let i = 0; i < selected.length; i += BATCH_SIZE) {
       const batch = selected.slice(i, i + BATCH_SIZE);
@@ -318,7 +320,7 @@ const BulkImportReview = () => {
 
       try {
         const { data, error } = await supabase.functions.invoke("bulk-import-intercom", {
-          body: { ids, owner },
+          body: { ids, owner, forceInbox },
         });
 
         if (error) {
@@ -340,7 +342,8 @@ const BulkImportReview = () => {
 
     const imported = allResults.filter(r => r.status === "imported").length;
     const failed = allResults.filter(r => r.status === "failed").length;
-    toast.success(`Import complete: ${imported} imported, ${failed} failed`);
+    const outOfInbox = allResults.filter(r => r.status === "out_of_inbox").length;
+    toast.success(`Import complete: ${imported} imported, ${failed} failed${outOfInbox ? `, ${outOfInbox} outside enterprise inbox` : ""}`);
 
     const importedIds = new Set(allResults.filter(r => r.status === "imported").map(r => r.id));
     setReviewRows(prev => prev.map(r =>
@@ -348,6 +351,15 @@ const BulkImportReview = () => {
     ));
 
     setImporting(false);
+  };
+
+  const handleForceOutOfInbox = () => {
+    const ids = importResults.filter(r => r.status === "out_of_inbox").map(r => r.id);
+    if (ids.length === 0) {
+      toast.error("No out-of-inbox rows to retry");
+      return;
+    }
+    handleBulkImport(true, ids);
   };
 
   const statusBadge = (status: MatchStatus) => {
