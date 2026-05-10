@@ -589,7 +589,7 @@ const Stats = () => {
     const gmailResolvedCount = filteredGmailThreads.filter((g) => g.status === "resolved").length;
     const gmailOpen = filteredGmailThreads.filter((g) => g.status === "open").length;
 
-    return { total, gmailTotal, gmailDeduped: gmailTotal, emailTotal: gmailUniqueEmails, resolved, escalated, active, awaiting, processing, open, resolvedPct, avgPerDay, gmailResolved: gmailResolvedCount, gmailOpen, manualTotal, manualActive, manualResolved };
+    return { total, gmailTotal, gmailDeduped: gmailTotal, emailTotal: gmailUniqueEmails, resolved, escalated, active, awaiting, processing, open, resolvedPct, botResolved, botSuccessPct, avgPerDay, gmailResolved: gmailResolvedCount, gmailOpen, manualTotal, manualActive, manualResolved };
   }, [filtered, filteredGmailThreads, filteredManual, range, sourceFilter, gmailUniqueEmails]);
 
   // Manual entries by source breakdown
