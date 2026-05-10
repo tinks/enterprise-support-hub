@@ -1809,6 +1809,37 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                   <RotateCcw className="h-3 w-3" /> Reset filters
                 </Button>
               )}
+              {isClassificationDrilldown && paramClassification === "unassigned" && paramFrom && paramTo && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="gap-1"
+                  disabled={autoClassifying}
+                  onClick={async () => {
+                    const visible = filteredRows.length;
+                    if (!confirm(`Auto-classify ${visible} unclassified ticket(s) using AI?\n\nLow-confidence rows (<40%) will be skipped.`)) return;
+                    setAutoClassifying(true);
+                    try {
+                      const { data, error } = await supabase.functions.invoke("auto-classify-conversations", {
+                        body: { from: paramFrom, to: paramTo },
+                      });
+                      if (error) throw error;
+                      const r = data as { total: number; written: number; lowConfidence: number; failed: number };
+                      toast.success(`Classified ${r.written} of ${r.total}`, {
+                        description: `${r.lowConfidence} needs review · ${r.failed} failed`,
+                      });
+                      await loadData().then((rows) => loadLookups(rows));
+                    } catch (e) {
+                      toast.error("Auto-classify failed", { description: (e as Error).message });
+                    } finally {
+                      setAutoClassifying(false);
+                    }
+                  }}
+                >
+                  {autoClassifying ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                  {autoClassifying ? "Classifying…" : "Auto-classify with AI"}
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={() => { loadData().then((rows) => loadLookups(rows)); }} disabled={loading}>
                 <RefreshCw className={`mr-1 h-3 w-3 ${loading ? "animate-spin" : ""}`} />
                 Refresh
