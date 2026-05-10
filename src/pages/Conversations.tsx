@@ -428,15 +428,16 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const [dragOverCol, setDragOverCol] = useState<ColKey | null>(null);
 
   useEffect(() => { localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(columnOrder)); }, [columnOrder]);
-  useEffect(() => { localStorage.setItem("conv-source-filter", sourceFilter); }, [sourceFilter]);
+  useEffect(() => { if (!isReportOwnerDrilldown) localStorage.setItem("conv-source-filter", sourceFilter); }, [sourceFilter, isReportOwnerDrilldown]);
   useEffect(() => { if (!forceOwner && !paramOwner) localStorage.setItem("conv-owner-filter", ownerFilter); }, [ownerFilter, forceOwner, paramOwner]);
-  useEffect(() => { localStorage.setItem("conv-pa-filter", productAreaFilter); }, [productAreaFilter]);
-  useEffect(() => { localStorage.setItem("conv-class-filter", classificationFilter); }, [classificationFilter]);
+  useEffect(() => { if (!isReportOwnerDrilldown) localStorage.setItem("conv-pa-filter", productAreaFilter); }, [productAreaFilter, isReportOwnerDrilldown]);
+  useEffect(() => { if (!isReportOwnerDrilldown) localStorage.setItem("conv-class-filter", classificationFilter); }, [classificationFilter, isReportOwnerDrilldown]);
   useEffect(() => { if (!paramShowAll) localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses, paramShowAll]);
   useEffect(() => {
+    if (isReportOwnerDrilldown) return;
     if (searchQuery) localStorage.setItem("conv-search", searchQuery);
     else localStorage.removeItem("conv-search");
-  }, [searchQuery]);
+  }, [searchQuery, isReportOwnerDrilldown]);
   useEffect(() => {
     if (dateFrom) localStorage.setItem("conv-date-from", dateFrom.toISOString());
     else localStorage.removeItem("conv-date-from");
