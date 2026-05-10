@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { MonthData, NormalizedTicket } from "./useMonthData";
+import { sourceBucketOf } from "./sourceBucket";
 
 function formatMinutes(minutes: number | null): string {
   if (minutes == null || !isFinite(minutes)) return "—";
