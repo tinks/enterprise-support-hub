@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { format, parse, startOfMonth, subMonths } from "date-fns";
+import { Link } from "react-router-dom";
+import { format, parse, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { Loader2, FileDown, Sparkles, AlertTriangle, CheckCircle2 } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -383,18 +384,25 @@ export function ReportTab({ data, month }: ReportTabProps) {
                 </tr>
               </thead>
               <tbody>
-                {stats.owners.map(o => (
-                  <tr key={o.name} className="border-b last:border-0">
-                    <td className="py-1.5">{o.name}</td>
-                    <td className="py-1.5 font-medium">{o.total}</td>
-                    <td className="py-1.5">{o.Issue}</td>
-                    <td className="py-1.5">{o.Bug}</td>
-                    <td className="py-1.5">{o.FR}</td>
-                    <td className="py-1.5">{o.Configuration}</td>
-                    <td className="py-1.5">{o.Question}</td>
-                    <td className="py-1.5">{o.csatN ? (o.csatSum / o.csatN).toFixed(1) : "—"}</td>
-                  </tr>
-                ))}
+                {stats.owners.map(o => {
+                  const monthDate = parse(month + "-01", "yyyy-MM-dd", new Date());
+                  const from = format(startOfMonth(monthDate), "yyyy-MM-dd");
+                  const to = format(endOfMonth(monthDate), "yyyy-MM-dd");
+                  const ownerParam = o.name === "Unassigned" ? "unassigned" : o.name;
+                  const href = `/conversations?owner=${encodeURIComponent(ownerParam)}&from=${from}&to=${to}`;
+                  return (
+                    <tr key={o.name} className="border-b last:border-0 hover:bg-accent/40 cursor-pointer">
+                      <td className="py-1.5"><Link to={href} className="block">{o.name}</Link></td>
+                      <td className="py-1.5 font-medium"><Link to={href} className="block">{o.total}</Link></td>
+                      <td className="py-1.5"><Link to={href} className="block">{o.Issue}</Link></td>
+                      <td className="py-1.5"><Link to={href} className="block">{o.Bug}</Link></td>
+                      <td className="py-1.5"><Link to={href} className="block">{o.FR}</Link></td>
+                      <td className="py-1.5"><Link to={href} className="block">{o.Configuration}</Link></td>
+                      <td className="py-1.5"><Link to={href} className="block">{o.Question}</Link></td>
+                      <td className="py-1.5"><Link to={href} className="block">{o.csatN ? (o.csatSum / o.csatN).toFixed(1) : "—"}</Link></td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </CardContent>

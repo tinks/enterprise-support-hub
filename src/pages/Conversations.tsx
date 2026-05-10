@@ -210,6 +210,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const paramFrom = searchParams.get("from");
   const paramTo = searchParams.get("to");
   const paramProductArea = searchParams.get("productArea");
+  const paramOwner = searchParams.get("owner");
   const isResolutionMode = resolutionMin !== null && resolutionMax !== null;
 
   const [mappings, setMappings] = useState<ConversationMapping[]>([]);
@@ -230,7 +231,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>(initialSource);
   const [searchQuery, setSearchQuery] = useState(() => localStorage.getItem("conv-search") || "");
   const savedOwner = localStorage.getItem("conv-owner-filter") as OwnerFilter | null;
-  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(forceOwner as OwnerFilter || savedOwner || "all");
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(forceOwner as OwnerFilter || (paramOwner as OwnerFilter) || savedOwner || "all");
   const savedPaFilter = localStorage.getItem("conv-pa-filter");
   const [productAreaFilter, setProductAreaFilter] = useState<string>(paramProductArea || savedPaFilter || "all");
   const savedClassFilter = localStorage.getItem("conv-class-filter");
@@ -426,7 +427,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 
   useEffect(() => { localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(columnOrder)); }, [columnOrder]);
   useEffect(() => { localStorage.setItem("conv-source-filter", sourceFilter); }, [sourceFilter]);
-  useEffect(() => { if (!forceOwner) localStorage.setItem("conv-owner-filter", ownerFilter); }, [ownerFilter, forceOwner]);
+  useEffect(() => { if (!forceOwner && !paramOwner) localStorage.setItem("conv-owner-filter", ownerFilter); }, [ownerFilter, forceOwner, paramOwner]);
   useEffect(() => { localStorage.setItem("conv-pa-filter", productAreaFilter); }, [productAreaFilter]);
   useEffect(() => { localStorage.setItem("conv-class-filter", classificationFilter); }, [classificationFilter]);
   useEffect(() => { localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses]);
