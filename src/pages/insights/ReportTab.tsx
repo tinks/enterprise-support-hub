@@ -196,7 +196,7 @@ export function ReportTab({ data, month }: ReportTabProps) {
         </Button>
       </div>
 
-      <div ref={reportRef} className="space-y-6 bg-background p-6 rounded-lg border">
+      <div ref={reportRef} className="space-y-8 bg-background p-6 rounded-lg border">
         {/* Header */}
         <div className="border-b pb-4">
           <h1 className="text-3xl font-bold">Monthly support report</h1>
