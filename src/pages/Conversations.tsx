@@ -443,14 +443,18 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   }, [searchQuery, isReportOwnerDrilldown]);
 
   useEffect(() => {
-    if (!isReportOwnerDrilldown) return;
+    if (!isReportDrilldown) return;
     setSourceFilter("all");
     setSearchQuery("");
     setSearchResults(null);
     setProductAreaFilter("all");
-    setClassificationFilter("all");
+    if (isClassificationDrilldown) {
+      setClassificationFilter(paramClassification || "all");
+    } else {
+      setClassificationFilter("all");
+    }
     setHiddenStatuses(new Set());
-  }, [isReportOwnerDrilldown]);
+  }, [isReportDrilldown, isClassificationDrilldown, paramClassification]);
   useEffect(() => {
     if (dateFrom) localStorage.setItem("conv-date-from", dateFrom.toISOString());
     else localStorage.removeItem("conv-date-from");
