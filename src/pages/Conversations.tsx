@@ -212,6 +212,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const paramProductArea = searchParams.get("productArea");
   const paramOwner = searchParams.get("owner");
   const paramShowAll = searchParams.get("showAll") === "1";
+  const isReportOwnerDrilldown = paramShowAll && !!paramOwner && !!paramFrom && !!paramTo;
   const isResolutionMode = resolutionMin !== null && resolutionMax !== null;
 
   const [mappings, setMappings] = useState<ConversationMapping[]>([]);
@@ -228,15 +229,15 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const [loadingMore, setLoadingMore] = useState(false);
   const savedSource = localStorage.getItem("conv-source-filter") as SourceFilter | null;
   // When linked here from the manual-channel drilldown, force source=manual so manual rows actually load.
-  const initialSource: SourceFilter = paramManualChannel ? "manual" : (paramSource || savedSource || "all");
+  const initialSource: SourceFilter = paramManualChannel ? "manual" : (paramSource || (isReportOwnerDrilldown ? "all" : savedSource) || "all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>(initialSource);
-  const [searchQuery, setSearchQuery] = useState(() => localStorage.getItem("conv-search") || "");
+  const [searchQuery, setSearchQuery] = useState(() => isReportOwnerDrilldown ? "" : (localStorage.getItem("conv-search") || ""));
   const savedOwner = localStorage.getItem("conv-owner-filter") as OwnerFilter | null;
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(forceOwner as OwnerFilter || (paramOwner as OwnerFilter) || savedOwner || "all");
   const savedPaFilter = localStorage.getItem("conv-pa-filter");
-  const [productAreaFilter, setProductAreaFilter] = useState<string>(paramProductArea || savedPaFilter || "all");
+  const [productAreaFilter, setProductAreaFilter] = useState<string>(paramProductArea || (isReportOwnerDrilldown ? "all" : savedPaFilter) || "all");
   const savedClassFilter = localStorage.getItem("conv-class-filter");
-  const [classificationFilter, setClassificationFilter] = useState<string>(savedClassFilter || "all");
+  const [classificationFilter, setClassificationFilter] = useState<string>(isReportOwnerDrilldown ? "all" : (savedClassFilter || "all"));
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [searchResults, setSearchResults] = useState<{ slack: ConversationMapping[]; gmail: GmailConversation[]; manual: ManualConversation[]; pending: PendingIntercomLink[] } | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
