@@ -201,6 +201,12 @@ export function MonthStatsCards({ data, month }: Props) {
       intercom: MUTED,
     },
     {
+      label: "Escalated to human",
+      slack: slack.escalated,
+      gmail: MUTED,
+      intercom: MUTED,
+    },
+    {
       label: "Success rate",
       slack: `${slack.successPct}%`,
       gmail: gmail.total ? `${Math.round((gmail.resolved / gmail.total) * 100)}%` : MUTED,
