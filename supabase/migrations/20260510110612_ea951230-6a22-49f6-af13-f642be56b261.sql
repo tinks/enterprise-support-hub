@@ -1,0 +1,1 @@
+UPDATE manual_conversations SET csat_rating = NULL, csat_remark = NULL, csat_rated_at = NULL WHERE id = '02c3ec8c-ca91-48cd-9c03-fd0132fc932d';
