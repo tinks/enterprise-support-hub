@@ -698,7 +698,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       setGmailOffset(0);
     }
 
-    const pageSize = (isHeatmapMode || isResolutionMode || isDayOnlyMode || paramChannel || paramChannelGroup || paramManualChannel) ? 1000 : 50;
+    const pageSize = (isHeatmapMode || isResolutionMode || isDayOnlyMode || isReportOwnerDrilldown || paramChannel || paramChannelGroup || paramManualChannel) ? 1000 : 50;
 
     let slackQuery = supabase
       .from("conversation_mappings")
@@ -712,6 +712,12 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       .from("manual_conversations")
       .select("*")
       .order("created_at", { ascending: false });
+
+    if (isReportOwnerDrilldown) {
+      slackQuery = slackQuery.eq("is_test", false);
+      gmailQuery = gmailQuery.eq("is_test", false);
+      manualQuery = manualQuery.eq("is_test", false);
+    }
 
     if (dateFrom) {
       const fromIso = startOfDay(dateFrom).toISOString();
