@@ -327,6 +327,30 @@ export function MonthStatsCards({ data, month }: Props) {
     );
   };
 
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">Source performance</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[40%]">Metric</TableHead>
+              <TableHead className="text-right">Slack</TableHead>
+              <TableHead className="text-right">Gmail</TableHead>
+              <TableHead className="text-right">Intercom</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((r) => (
+              <TableRow key={r.label}>
+                <TableCell className="font-medium">{r.label}</TableCell>
+                <Cell tip={r.tips.slack}>{r.slack}</Cell>
+                <Cell tip={r.tips.gmail}>{r.gmail}</Cell>
+                <Cell tip={r.tips.intercom}>{r.intercom}</Cell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
         {intercomError && (
@@ -334,10 +358,11 @@ export function MonthStatsCards({ data, month }: Props) {
         )}
         {intercom && (
           <p className="text-xs text-muted-foreground mt-3">
-            Counts from local DB (matches Total). Response &amp; handling times live from Intercom API · {intercom.current.count} conversations this month vs {intercom.previous.count} previous month.
+            Counts from local DB (matches Total). Response &amp; handling times live from Intercom API · {intercom.current.count} conversations this month vs {intercom.previous.count} previous month. Hover any value for its definition.
           </p>
         )}
       </CardContent>
     </Card>
   );
 }
+
