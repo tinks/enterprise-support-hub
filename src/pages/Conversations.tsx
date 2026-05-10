@@ -427,7 +427,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 
   useEffect(() => { localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(columnOrder)); }, [columnOrder]);
   useEffect(() => { localStorage.setItem("conv-source-filter", sourceFilter); }, [sourceFilter]);
-  useEffect(() => { if (!forceOwner) localStorage.setItem("conv-owner-filter", ownerFilter); }, [ownerFilter, forceOwner]);
+  useEffect(() => { if (!forceOwner && !paramOwner) localStorage.setItem("conv-owner-filter", ownerFilter); }, [ownerFilter, forceOwner, paramOwner]);
   useEffect(() => { localStorage.setItem("conv-pa-filter", productAreaFilter); }, [productAreaFilter]);
   useEffect(() => { localStorage.setItem("conv-class-filter", classificationFilter); }, [classificationFilter]);
   useEffect(() => { localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses]);
