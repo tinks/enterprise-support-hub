@@ -212,7 +212,10 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const paramProductArea = searchParams.get("productArea");
   const paramOwner = searchParams.get("owner");
   const paramShowAll = searchParams.get("showAll") === "1";
+  const paramClassification = searchParams.get("classification");
   const isReportOwnerDrilldown = paramShowAll && !!paramOwner && !!paramFrom && !!paramTo;
+  const isClassificationDrilldown = paramShowAll && !!paramClassification && !!paramFrom && !!paramTo;
+  const isReportDrilldown = isReportOwnerDrilldown || isClassificationDrilldown;
   const isResolutionMode = resolutionMin !== null && resolutionMax !== null;
 
   const [mappings, setMappings] = useState<ConversationMapping[]>([]);
