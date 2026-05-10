@@ -454,7 +454,7 @@ function AccountMiniTable({ title, accounts }: { title: string; accounts: Accoun
       {accounts.length === 0 ? (
         <p className="text-xs text-muted-foreground">No tickets</p>
       ) : (
-        <ul className="space-y-1">
+        <ul className="space-y-2">
           {accounts.map(a => {
             const open = expanded === a.key;
             return (
@@ -462,7 +462,7 @@ function AccountMiniTable({ title, accounts }: { title: string; accounts: Accoun
                 <button
                   type="button"
                   onClick={() => setExpanded(open ? null : a.key)}
-                  className="w-full flex items-center justify-between gap-2 py-1 px-1 rounded hover:bg-muted/60 text-left"
+                  className="w-full flex items-center justify-between gap-2 py-1.5 px-1 rounded hover:bg-muted/60 text-left leading-snug"
                 >
                   <span className="truncate flex-1" title={a.label}>{a.label}</span>
                   <span className="font-medium tabular-nums">{a.count}</span>
