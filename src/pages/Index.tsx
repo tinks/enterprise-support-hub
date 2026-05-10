@@ -208,6 +208,8 @@ const Index = () => {
     }
     setAuditRunning(false);
   };
+
+  const pollIntercomInbox = async () => {
     setIntercomPolling(true);
     try {
       const res = await fetch(`${edgeFunctionBaseUrl}/poll-intercom-inbox`, {
