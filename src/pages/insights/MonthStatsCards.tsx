@@ -254,7 +254,7 @@ export function MonthStatsCards({ data, month }: Props) {
       label: "Median resolution / time to close",
       slack: formatMinutes(slack.medianResolutionMin),
       gmail: formatMinutes(gmail.medianResolutionMin),
-      intercom: intercomCell("medianTimeToCloseSec"),
+      intercom: formatMinutes(intercomLocal.medianResolutionMin),
     },
     {
       label: "Average resolution",
