@@ -138,23 +138,53 @@ export function ReportTab({ data, month }: ReportTabProps) {
     if (!reportRef.current) return;
     setExporting(true);
     try {
-      const canvas = await html2canvas(reportRef.current, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
-      const img = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
-      const pdfW = pdf.internal.pageSize.getWidth();
-      const pdfH = pdf.internal.pageSize.getHeight();
-      const imgW = pdfW;
-      const imgH = (canvas.height * imgW) / canvas.width;
-      let heightLeft = imgH;
-      let position = 0;
-      pdf.addImage(img, "PNG", 0, position, imgW, imgH);
-      heightLeft -= pdfH;
-      while (heightLeft > 0) {
-        position = heightLeft - imgH;
-        pdf.addPage();
-        pdf.addImage(img, "PNG", 0, position, imgW, imgH);
-        heightLeft -= pdfH;
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 6; // mm
+      const contentW = pageW - margin * 2;
+      const usableH = pageH - margin * 2;
+      let cursorY = margin;
+      let isFirst = true;
+
+      const sections = Array.from(reportRef.current.children) as HTMLElement[];
+
+      for (const section of sections) {
+        // Rasterize this section only
+        const canvas = await html2canvas(section, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+        const imgData = canvas.toDataURL("image/png");
+        const imgH = (canvas.height * contentW) / canvas.width;
+
+        if (imgH <= usableH) {
+          // Fits as a single block — start a new page if it would overflow
+          if (!isFirst && cursorY + imgH > pageH - margin) {
+            pdf.addPage();
+            cursorY = margin;
+          }
+          pdf.addImage(imgData, "PNG", margin, cursorY, contentW, imgH);
+          cursorY += imgH + 4; // small gap between sections
+          isFirst = false;
+        } else {
+          // Section taller than a full page — slice it across pages
+          if (!isFirst) {
+            pdf.addPage();
+            cursorY = margin;
+          }
+          let heightLeft = imgH;
+          let position = 0; // y offset (negative as we advance)
+          pdf.addImage(imgData, "PNG", margin, margin, contentW, imgH);
+          heightLeft -= usableH;
+          while (heightLeft > 0) {
+            position = heightLeft - imgH;
+            pdf.addPage();
+            pdf.addImage(imgData, "PNG", margin, position + margin, contentW, imgH);
+            heightLeft -= usableH;
+          }
+          cursorY = pageH; // force next section to a new page
+          isFirst = false;
+        }
       }
+
       pdf.save(`monthly-report-${month}.pdf`);
     } finally {
       setExporting(false);
