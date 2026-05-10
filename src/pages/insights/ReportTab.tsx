@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { channelNameOverrides } from "@/lib/channelOverrides";
 import { MonthData, NormalizedTicket, useMonthData, sourceLabel } from "./useMonthData";
+import { UncategorizedPanel } from "./UncategorizedPanel";
 
 const BUCKETS = ["Issue", "Configuration", "Bug", "FR", "Question", "Unclassified"] as const;
 type Bucket = typeof BUCKETS[number];
