@@ -413,19 +413,36 @@ function KpiCard({ label, value, sub, delta }: { label: string; value: string; s
 }
 
 function AccountMiniTable({ title, accounts }: { title: string; accounts: AccountAgg[] }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
   return (
     <div>
       <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{title}</h3>
       {accounts.length === 0 ? (
         <p className="text-xs text-muted-foreground">No tickets</p>
       ) : (
-        <ul className="space-y-1.5">
-          {accounts.map(a => (
-            <li key={a.key} className="flex items-center justify-between gap-2 text-sm">
-              <span className="truncate flex-1" title={a.label}>{a.label}</span>
-              <span className="font-medium tabular-nums">{a.count}</span>
-            </li>
-          ))}
+        <ul className="space-y-1">
+          {accounts.map(a => {
+            const open = expanded === a.key;
+            return (
+              <li key={a.key} className="text-sm">
+                <button
+                  type="button"
+                  onClick={() => setExpanded(open ? null : a.key)}
+                  className="w-full flex items-center justify-between gap-2 py-1 px-1 rounded hover:bg-muted/60 text-left"
+                >
+                  <span className="truncate flex-1" title={a.label}>{a.label}</span>
+                  <span className="font-medium tabular-nums">{a.count}</span>
+                </button>
+                {open && (
+                  <div className="pl-1 pb-1 text-[11px] text-muted-foreground flex gap-3">
+                    <span>Bugs <span className="text-foreground font-medium">{a.bugs}</span></span>
+                    <span>FRs <span className="text-foreground font-medium">{a.features}</span></span>
+                    <span>CSAT <span className="text-foreground font-medium">{a.csatN ? (a.csatSum / a.csatN).toFixed(1) : "—"}</span></span>
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
