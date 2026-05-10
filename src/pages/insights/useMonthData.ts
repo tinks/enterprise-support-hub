@@ -4,14 +4,17 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type SourceKey = "intercom" | "slack" | "gmail" | "other";
 export type RouteSource = "slack" | "gmail" | "manual";
+export type AccountKind = "domain" | "slack" | "manual";
 
 export interface NormalizedTicket {
   id: string;
   route_source: RouteSource;
   display_source: SourceKey;
   subject: string;
-  customer_key: string; // dedupe key for customer (lowercased email or name)
-  customer_label: string; // display label
+  customer_key: string; // account-level dedupe key
+  customer_label: string; // display label (may be refined async)
+  customer_kind: AccountKind;
+  customer_raw_id?: string; // raw slack channel id for async name resolution
   product_area: string;
   is_bug: boolean;
   is_feature_request: boolean;
