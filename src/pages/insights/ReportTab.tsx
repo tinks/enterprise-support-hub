@@ -410,6 +410,8 @@ function KpiCard({ label, value, sub, delta }: { label: string; value: string; s
       </CardContent>
     </Card>
   );
+}
+
 function AccountMiniTable({ title, accounts }: { title: string; accounts: AccountAgg[] }) {
   return (
     <div>
