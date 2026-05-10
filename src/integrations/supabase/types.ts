@@ -451,6 +451,39 @@ export type Database = {
           },
         ]
       }
+      monthly_insights: {
+        Row: {
+          buckets: Json
+          generated_at: string
+          id: string
+          month: string
+          overall_summary: string
+          product_area_summary: Json
+          source: string
+          ticket_count: number
+        }
+        Insert: {
+          buckets?: Json
+          generated_at?: string
+          id?: string
+          month: string
+          overall_summary?: string
+          product_area_summary?: Json
+          source?: string
+          ticket_count?: number
+        }
+        Update: {
+          buckets?: Json
+          generated_at?: string
+          id?: string
+          month?: string
+          overall_summary?: string
+          product_area_summary?: Json
+          source?: string
+          ticket_count?: number
+        }
+        Relationships: []
+      }
       pending_intercom_links: {
         Row: {
           attempts: number

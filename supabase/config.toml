@@ -79,3 +79,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.audit-intercom-month]
 verify_jwt = false
+[functions.analyze-intercom-month]
+verify_jwt = false
