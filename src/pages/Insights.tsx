@@ -16,6 +16,7 @@ import { CustomersTab } from "./insights/CustomersTab";
 import { TicketTypesTab } from "./insights/TicketTypesTab";
 import { TrendsTab } from "./insights/TrendsTab";
 import { ChannelsTab } from "./insights/ChannelsTab";
+import { ReportTab } from "./insights/ReportTab";
 
 interface BucketTicket {
   id: string;
@@ -153,14 +154,19 @@ const Insights = () => {
             </div>
           </div>
 
-          <Tabs defaultValue="topics">
+          <Tabs defaultValue="report">
             <TabsList>
+              <TabsTrigger value="report">Report</TabsTrigger>
               <TabsTrigger value="topics">Topics</TabsTrigger>
               <TabsTrigger value="customers">Customers</TabsTrigger>
               <TabsTrigger value="types">Ticket types</TabsTrigger>
               <TabsTrigger value="trends">Trends</TabsTrigger>
               <TabsTrigger value="channels">Channels</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="report" className="mt-4">
+              <ReportTab data={monthData} month={month} />
+            </TabsContent>
 
             <TabsContent value="topics" className="space-y-6 mt-4">
               {loading && (

@@ -1,42 +1,91 @@
-## Goal
+# Monthly report template
 
-Replace the three-bucket view (Bug / Feature / Other) on the **Ticket types** tab with the full classification taxonomy used everywhere else in the app.
+A single-page, print/PDF-friendly "Monthly report" that consolidates the highest-signal numbers from Stats and Insights for a given month. Designed to be readable top-to-bottom by an exec in under 2 minutes, with deeper sections below.
 
-## On "incidents"
+## Where it lives
 
-We don't have an `incident` classification today. The five options used across `Conversations` and `ConversationDetail` are:
+New tab on the Insights page called **Report** (becomes the first tab, since it's the natural landing for a monthly review). Same month selector as today. A "Download PDF" button reuses the existing `jspdf` + `html2canvas` pattern already in `Stats.tsx`.
 
-`Issue`, `Configuration`, `Bug`, `FR`, `Question`
+No new edge functions, no new tables — it composes data already loaded by `useMonthData` plus the saved AI `monthly_insights` row (overall summary + topic buckets).
 
-Anything with no value falls into a sixth `Unclassified` bucket. Incident.io activity is detected on Slack for status posting but it's never written to `classification` or any ticket-type column, so it can't be charted as a type. If you want incidents as a real bucket, we'd need to add it as a classification option (separate task — let me know).
+## Template structure
 
-## Changes — `src/pages/insights/TicketTypesTab.tsx` only
+### 1. Header band
 
-1. **Bucketing rule** (per ticket): use `classification` as the primary type. If null/empty, fall back to `is_bug → "Bug"`, `is_feature_request → "FR"`, else `"Unclassified"`. This keeps legacy rows that have the boolean toggles set but no classification still attributed correctly and matches what users see in the tables.
+- Month label (e.g. "March 2026")
+- Generated-on timestamp
+- One-line headline auto-built from the data, e.g. *"412 tickets · ↓8% vs prev month · 4.6★ CSAT · 62% resolved within 24h"*
 
-2. **KPI cards** (top row): swap the 4 cards for a responsive grid of 6 cards — Total + one per bucket — each showing count and % of total. Color-code consistently:
-   - Bug → destructive
-   - FR → primary
-   - Issue → amber/warning
-   - Configuration → blue accent
-   - Question → muted-foreground
-   - Unclassified → border/ghost
+### 2. Executive summary (4 hero KPIs)
 
-3. **Avg time to resolve** card: list TTR per classification (All resolved + 5 buckets + Unclassified), not just Bugs/FR.
+Big-number cards, each with a delta vs previous month:
 
-4. **Type mix by product area**: stacked bar uses all 6 segments instead of 3, with the same color tokens. Update legend to match.
+- **Total tickets** (with prev-month delta)
+- **Avg CSAT** (and rated count)
+- **Median time to resolve**
+- **% resolved this month**
 
-5. **Owner load**: extend the right-side micro-stats from `Nb · Nfr` to a compact dotted breakdown (e.g. `12 · 4i · 3b · 2fr · 2q · 1c`) using the same color dots as the legend, so you can see each owner's mix at a glance.
+### 3. AI overall summary
 
-6. **CSAT card**: unchanged.
+The `overall_summary` paragraph from the saved `monthly_insights` row, if present. Falls back to "Generate topics to populate" CTA.
+
+### 4. Volume & mix
+
+Two-column row:
+
+- **Daily volume sparkline** (stacked by source) — reused from TrendsTab
+- **Source mix** donut/bar — reused from ChannelsTab (Slack / Gmail / Intercom / Other with %)
+
+### 5. Ticket type breakdown
+
+Compact 6-bucket row (Issue, Configuration, Bug, FR, Question, Unclassified) with counts + % share, plus avg time-to-resolve per bucket. Pulled straight from `TicketTypesTab` logic.
+
+### 6. Top topics (from AI)
+
+Top 5 topic buckets from `monthly_insights.buckets` sorted by ticket count. For each: name, count, 1-line description, top 2 product areas.
+
+### 7. Top accounts
+
+Top 8 accounts (domain / Slack channel) by ticket count, from `CustomersTab` logic. Columns: account, kind badge, tickets, bugs, FRs, CSAT.
+
+### 8. Product areas
+
+Horizontal bar chart of tickets per product area (top 10), reused from existing Insights "By product area" card.
+
+### 9. Owner load
+
+Compact table: owner, total, bug/FR/issue/config/question split, avg CSAT. Sourced from TicketTypesTab owner aggregation.
+
+### 10. Highlights & watch-outs (auto-generated bullets)
+
+Rule-based callouts derived from the same data, e.g.:
+
+- Largest topic bucket and its share
+- Account with biggest jump vs prev month
+- Product area with worst CSAT (if ≥3 ratings)
+- Bug share trending up/down
+- Day-of-week peak
+- Any owner over X tickets
+
+These are deterministic strings built from existing aggregations — no extra AI call.
+
+## Export
+
+- **Download PDF** button: renders the report container with `html2canvas` and saves via `jsPDF` (same pattern as Stats export).
+- Page uses print-friendly spacing so `Ctrl+P` also works cleanly.
+
+## Technical notes
+
+- New file `src/pages/insights/ReportTab.tsx` composing the existing aggregation helpers. Where logic lives in tab files today (e.g. owner aggregation in `TicketTypesTab`), extract small pure helpers into `useMonthData.ts` (or a sibling `aggregations.ts`) so both tabs share them — no duplicated math.
+- For prev-month deltas, call `useMonthData` twice (current month + previous month). Both queries are already capped at 5000 rows and indexed by `created_at`.
+- Add `<TabsTrigger value="report">Report</TabsTrigger>` first in the list and set `defaultValue="report"` on `Tabs` in `Insights.tsx`.
+- No DB/edge changes. No new dependencies.
 
 ## Out of scope
 
-- No DB or edge-function changes.
-- No new classification options (e.g. `Incident`) — flagged above as a follow-up if you want it.
-- Other tabs (Customers, Trends, Channels, Topics) untouched.
+- Email delivery / scheduling
+- Saving report snapshots to DB
+- Multi-month comparison views beyond the single prev-month delta
+- Editable report (it's a generated view, not a document)
 
-## Files
-
-- `src/pages/insights/TicketTypesTab.tsx` (rewrite the stats memo + 4 sections above)
-- `.lovable/project-knowledge.md` (note that Insights → Ticket types now uses the full classification taxonomy with boolean fallback)
+**default to last month** (typical "monthly review" flow)  Today the Insights page defaults to last month, and I'd keep that — but let me know if you want MTD instead
