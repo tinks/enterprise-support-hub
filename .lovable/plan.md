@@ -1,19 +1,14 @@
-## Apply April + "Unassigned product area" filter via URL params
+## Add Refresh button to Insights → Report tab
 
-On the Conversations page, the date range and product-area filters live in component state and `localStorage` only — there's no URL way to set them, so I can't just hand you a link. I'll add lightweight support for three new URL search params and then navigate your preview to a pre-filtered URL.
+### What
+Add a "Refresh" button visible only on the Report tab that re-fetches the month's tickets so freshly corrected classifications show up immediately.
 
-### Code change (small)
-In `src/pages/Conversations.tsx`:
-- Read three new search params on mount: `from` (ISO date), `to` (ISO date), `productArea` (string, e.g. `unassigned` or a specific area).
-- If any are present, seed `dateFrom`, `dateTo`, and `productAreaFilter` from them (overriding the localStorage-restored defaults). Existing localStorage persistence keeps working afterwards, so the filter sticks.
-- No UI changes; existing filter chips and "Clear filters" button continue to work.
+### How
+1. Add a `refreshKey` (number) to `useMonthData(month)` — bump it to force re-fetch. Update the hook signature to `useMonthData(month, refreshKey?)` and include it in the effect deps. Existing callers unaffected.
+2. In `src/pages/Insights.tsx`:
+   - Add `reportRefreshKey` state and pass it to `useMonthData`.
+   - Render a small "Refresh" button (ghost/outline, with `RefreshCw` icon) inside the `ReportTab` panel header area, or alongside the existing top-right controls but only when `report` tab is active.
+   - On click: bump `reportRefreshKey`. Show spinning icon while `monthData.loading`.
 
-### Then
-Navigate the preview to:
-```
-/conversations?from=2026-04-01&to=2026-04-30&productArea=unassigned&source=all
-```
-That gives you all April tickets with product area set to "Unassigned" across Slack, Gmail, and manual.
-
-### Bonus
-After this you can bookmark filtered views (e.g. share a "March bugs without an owner" link). I won't touch the existing UI bug right now — once you can see the data we can decide whether the filter UI needs a follow-up fix.
+### Scope
+Frontend only. No backend or schema changes.

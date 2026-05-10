@@ -68,7 +68,7 @@ export function extractSlackChannelId(link: string | null | undefined): string |
   return m ? m[1].toUpperCase() : null;
 }
 
-export function useMonthData(month: string): MonthData {
+export function useMonthData(month: string, refreshKey: number = 0): MonthData {
   const [state, setState] = useState<MonthData>({ loading: true, tickets: [] });
 
   useEffect(() => {
@@ -229,7 +229,7 @@ export function useMonthData(month: string): MonthData {
       }
     })();
     return () => { cancelled = true; };
-  }, [month]);
+  }, [month, refreshKey]);
 
   return state;
 }

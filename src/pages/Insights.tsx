@@ -67,8 +67,10 @@ const Insights = () => {
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [openBucket, setOpenBucket] = useState<Bucket | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("report");
+  const [reportRefreshKey, setReportRefreshKey] = useState(0);
 
-  const monthData = useMonthData(month);
+  const monthData = useMonthData(month, reportRefreshKey);
 
   const loadInsight = async (m: string) => {
     setLoading(true);
@@ -136,6 +138,21 @@ const Insights = () => {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              {activeTab === "report" && (
+                <Button
+                  variant="outline"
+                  onClick={() => setReportRefreshKey(k => k + 1)}
+                  disabled={monthData.loading}
+                  title="Refresh report data"
+                >
+                  {monthData.loading ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Refresh
+                </Button>
+              )}
               <Select value={month} onValueChange={setMonth}>
                 <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -154,7 +171,7 @@ const Insights = () => {
             </div>
           </div>
 
-          <Tabs defaultValue="report">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList>
               <TabsTrigger value="report">Report</TabsTrigger>
               <TabsTrigger value="topics">Topics</TabsTrigger>
