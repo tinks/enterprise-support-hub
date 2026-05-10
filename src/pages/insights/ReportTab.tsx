@@ -306,37 +306,18 @@ export function ReportTab({ data, month }: ReportTabProps) {
           </Card>
         )}
 
-        {/* Top accounts */}
+        {/* Top accounts — per source */}
         <Card>
           <CardContent className="p-5">
-            <h2 className="text-sm font-semibold mb-3">Top accounts</h2>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-muted-foreground border-b">
-                  <th className="py-1.5 font-medium">Account</th>
-                  <th className="py-1.5 font-medium">Tickets</th>
-                  <th className="py-1.5 font-medium">Bugs</th>
-                  <th className="py-1.5 font-medium">FRs</th>
-                  <th className="py-1.5 font-medium">CSAT</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.topAccounts.map(a => (
-                  <tr key={a.key} className="border-b last:border-0">
-                    <td className="py-1.5 max-w-[300px]">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">{a.kind}</Badge>
-                        <span className="truncate">{a.label}</span>
-                      </div>
-                    </td>
-                    <td className="py-1.5 font-medium">{a.count}</td>
-                    <td className="py-1.5">{a.bugs}</td>
-                    <td className="py-1.5">{a.features}</td>
-                    <td className="py-1.5">{a.csatN ? (a.csatSum / a.csatN).toFixed(1) : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <h2 className="text-sm font-semibold mb-1">Top accounts</h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              Slack grouped by channel · Gmail grouped by email domain (thread-deduped) · Intercom grouped by contact email domain.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <AccountMiniTable title="Slack" accounts={stats.slackAccounts} />
+              <AccountMiniTable title="Gmail" accounts={stats.gmailAccounts} />
+              <AccountMiniTable title="Intercom" accounts={stats.intercomAccounts} />
+            </div>
           </CardContent>
         </Card>
 
