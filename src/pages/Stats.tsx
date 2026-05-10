@@ -1441,6 +1441,13 @@ const Stats = () => {
                   <p className="text-xs text-muted-foreground">Success rate</p>
                 </CardContent>
               </Card>
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center p-5">
+                  <Bot className="mb-2 h-5 w-5 text-primary" />
+                  <p className="text-3xl font-bold text-foreground">{stats.botSuccessPct}%</p>
+                  <p className="text-xs text-muted-foreground">Bot success rate</p>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Slack resolution time */}
