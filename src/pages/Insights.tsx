@@ -11,13 +11,23 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 
+interface BucketTicket {
+  id: string;
+  route_source: "slack" | "gmail" | "manual";
+  display_source: "intercom" | "slack" | "gmail" | "other";
+  subject: string;
+  product_area: string;
+}
+
 interface Bucket {
   name: string;
   description: string;
   ticket_count: number;
   product_areas: Record<string, number>;
+  source_breakdown?: Record<string, number>;
   example_subjects: string[];
-  ticket_ids: string[];
+  tickets?: BucketTicket[];
+  ticket_ids?: string[];
 }
 
 interface Insight {
@@ -27,15 +37,8 @@ interface Insight {
   generated_at: string;
   ticket_count: number;
   buckets: Bucket[];
-  product_area_summary: Record<string, number>;
+  product_area_summary: Record<string, number> & { _source_totals?: Record<string, number> };
   overall_summary: string;
-}
-
-interface TicketRow {
-  id: string;
-  subject: string | null;
-  contact_name: string | null;
-  status: string | null;
 }
 
 function buildMonthOptions(): { value: string; label: string }[] {
@@ -48,31 +51,44 @@ function buildMonthOptions(): { value: string; label: string }[] {
   return opts;
 }
 
+const sourceLabel: Record<string, string> = {
+  intercom: "Intercom",
+  slack: "Slack",
+  gmail: "Gmail",
+  other: "Other",
+};
+
 const Insights = () => {
   const { toast } = useToast();
   const monthOptions = useMemo(buildMonthOptions, []);
-  const defaultMonth = monthOptions[1]?.value || monthOptions[0].value; // last completed month
+  const defaultMonth = monthOptions[1]?.value || monthOptions[0].value;
   const [month, setMonth] = useState<string>(defaultMonth);
   const [insight, setInsight] = useState<Insight | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [openBucket, setOpenBucket] = useState<Bucket | null>(null);
-  const [bucketTickets, setBucketTickets] = useState<TicketRow[]>([]);
 
   const loadInsight = async (m: string) => {
     setLoading(true);
-    const { data, error } = await supabase
+    // Prefer 'all'; fall back to legacy 'intercom' if no combined report exists yet
+    const { data: allRow } = await supabase
       .from("monthly_insights")
       .select("*")
       .eq("month", m)
-      .eq("source", "intercom")
+      .eq("source", "all")
       .maybeSingle();
-    setLoading(false);
-    if (error) {
-      toast({ title: "Failed to load insights", description: error.message, variant: "destructive" });
-      return;
+    let row = allRow;
+    if (!row) {
+      const { data: legacy } = await supabase
+        .from("monthly_insights")
+        .select("*")
+        .eq("month", m)
+        .eq("source", "intercom")
+        .maybeSingle();
+      row = legacy;
     }
-    setInsight(data as unknown as Insight | null);
+    setLoading(false);
+    setInsight(row as unknown as Insight | null);
   };
 
   useEffect(() => { loadInsight(month); }, [month]);
@@ -80,9 +96,7 @@ const Insights = () => {
   const generate = async () => {
     setGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("analyze-intercom-month", {
-        body: { month },
-      });
+      const { data, error } = await supabase.functions.invoke("analyze-intercom-month", { body: { month } });
       if (error) throw error;
       if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
       toast({ title: "Insights generated", description: `${(data as { ticket_count: number }).ticket_count} tickets analyzed.` });
@@ -94,22 +108,17 @@ const Insights = () => {
     }
   };
 
-  const openBucketDetail = async (b: Bucket) => {
-    setOpenBucket(b);
-    setBucketTickets([]);
-    if (!b.ticket_ids?.length) return;
-    const { data } = await supabase
-      .from("manual_conversations")
-      .select("id, subject, contact_name, status")
-      .in("id", b.ticket_ids);
-    setBucketTickets((data || []) as TicketRow[]);
-  };
+  const sourceTotals = insight?.product_area_summary?._source_totals || null;
 
   const productAreaSorted = useMemo(() => {
     if (!insight) return [];
-    return Object.entries(insight.product_area_summary).sort((a, b) => b[1] - a[1]);
+    return Object.entries(insight.product_area_summary)
+      .filter(([k]) => k !== "_source_totals")
+      .sort((a, b) => (b[1] as number) - (a[1] as number)) as [string, number][];
   }, [insight]);
   const maxPa = productAreaSorted[0]?.[1] || 1;
+
+  const ticketHref = (t: BucketTicket) => `/conversations/${t.id}?source=${t.route_source}`;
 
   return (
     <AppLayout>
@@ -122,14 +131,12 @@ const Insights = () => {
                 Insights
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
-                AI-clustered topic buckets across all Intercom tickets for the selected month.
+                AI-clustered topic buckets across Intercom, Slack, Gmail and other channels for the selected month.
               </p>
             </div>
             <div className="flex items-center gap-2">
               <Select value={month} onValueChange={setMonth}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {monthOptions.map(o => (
                     <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
@@ -157,7 +164,7 @@ const Insights = () => {
               <CardContent className="p-10 text-center space-y-3">
                 <Sparkles className="h-10 w-10 mx-auto text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">
-                  No insights yet for this month. Click Generate to run the analysis.
+                  No insights yet for this month. Click Generate to run the analysis across all channels.
                 </p>
               </CardContent>
             </Card>
@@ -167,9 +174,18 @@ const Insights = () => {
             <>
               <Card>
                 <CardContent className="p-6 space-y-3">
-                  <div className="flex items-baseline gap-3">
+                  <div className="flex items-baseline gap-3 flex-wrap">
                     <span className="text-3xl font-bold">{insight.ticket_count}</span>
-                    <span className="text-sm text-muted-foreground">Intercom tickets analyzed</span>
+                    <span className="text-sm text-muted-foreground">tickets analyzed</span>
+                    {sourceTotals && (
+                      <div className="flex gap-1 flex-wrap">
+                        {Object.entries(sourceTotals).map(([s, n]) => (
+                          <Badge key={s} variant="outline" className="text-xs">
+                            {sourceLabel[s] || s} · {n}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                     <span className="text-xs text-muted-foreground ml-auto">
                       Generated {format(new Date(insight.generated_at), "MMM d, yyyy 'at' h:mm a")}
                     </span>
@@ -186,13 +202,24 @@ const Insights = () => {
                 <h2 className="text-lg font-semibold mb-3">Topic buckets</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {insight.buckets.map(b => (
-                    <Card key={b.name} className="hover:border-primary/40 transition-colors cursor-pointer" onClick={() => openBucketDetail(b)}>
+                    <Card key={b.name} className="hover:border-primary/40 transition-colors cursor-pointer" onClick={() => setOpenBucket(b)}>
                       <CardContent className="p-5 space-y-3">
                         <div className="flex items-start justify-between gap-2">
                           <h3 className="font-semibold text-foreground">{b.name}</h3>
                           <Badge variant="secondary">{b.ticket_count}</Badge>
                         </div>
                         <p className="text-xs text-muted-foreground line-clamp-2">{b.description}</p>
+                        {b.source_breakdown && (
+                          <div className="flex flex-wrap gap-1">
+                            {Object.entries(b.source_breakdown)
+                              .sort((a, b) => b[1] - a[1])
+                              .map(([s, n]) => (
+                                <Badge key={s} variant="outline" className="text-[10px] px-1.5 py-0">
+                                  {sourceLabel[s] || s} {n}
+                                </Badge>
+                              ))}
+                          </div>
+                        )}
                         <div className="flex flex-wrap gap-1">
                           {Object.entries(b.product_areas)
                             .sort((a, b) => b[1] - a[1])
@@ -223,10 +250,7 @@ const Insights = () => {
                       <div key={area} className="flex items-center gap-3">
                         <div className="w-32 text-sm truncate">{area}</div>
                         <div className="flex-1 bg-muted rounded h-5 relative overflow-hidden">
-                          <div
-                            className="absolute inset-y-0 left-0 bg-primary/70"
-                            style={{ width: `${(count / maxPa) * 100}%` }}
-                          />
+                          <div className="absolute inset-y-0 left-0 bg-primary/70" style={{ width: `${(count / maxPa) * 100}%` }} />
                         </div>
                         <div className="w-10 text-right text-sm font-medium">{count}</div>
                       </div>
@@ -250,17 +274,24 @@ const Insights = () => {
               <div className="mt-4 space-y-2">
                 <p className="text-sm text-muted-foreground">{openBucket.ticket_count} tickets</p>
                 <ul className="space-y-2">
-                  {bucketTickets.map(t => (
+                  {(openBucket.tickets || []).map(t => (
                     <li key={t.id} className="text-sm border rounded p-2 hover:bg-accent/40">
-                      <Link to={`/conversations/${t.id}?source=manual`} className="block">
-                        <div className="font-medium truncate">{(t.subject || "(no subject)").replace(/<[^>]+>/g, "")}</div>
-                        <div className="text-xs text-muted-foreground flex gap-2 mt-0.5">
-                          {t.contact_name && <span className="truncate">{t.contact_name}</span>}
-                          {t.status && <span>· {t.status}</span>}
+                      <Link to={ticketHref(t)} className="block">
+                        <div className="flex items-start gap-2">
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 mt-0.5 shrink-0">
+                            {sourceLabel[t.display_source] || t.display_source}
+                          </Badge>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium truncate">{(t.subject || "(no subject)").replace(/<[^>]+>/g, "")}</div>
+                            <div className="text-xs text-muted-foreground mt-0.5">{t.product_area}</div>
+                          </div>
                         </div>
                       </Link>
                     </li>
                   ))}
+                  {!openBucket.tickets?.length && (
+                    <li className="text-xs text-muted-foreground">No ticket details available — regenerate to populate.</li>
+                  )}
                 </ul>
               </div>
             </>
