@@ -3,6 +3,7 @@ import { differenceInMinutes, parseISO } from "date-fns";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { MonthData, NormalizedTicket } from "./useMonthData";
 import { sourceBucketOf } from "./sourceBucket";
@@ -201,74 +202,130 @@ export function MonthStatsCards({ data, month }: Props) {
     );
   };
 
-  const rows: { label: string; slack: React.ReactNode; gmail: React.ReactNode; intercom: React.ReactNode }[] = [
+  // Tooltips: explain origin (local DB vs live Intercom API) and which statuses count.
+  const T = {
+    slack: {
+      received: "Local DB · all Slack-originated tickets (route_source = slack), includes any later escalated to Intercom.",
+      resolved: "Local DB · Slack-originated tickets where status = 'resolved'.",
+      open: "Local DB · Slack-originated tickets where status ≠ 'resolved' (includes new, in_progress, escalated, escalated_pending).",
+      escalated: "Local DB · Slack tickets handed off to a human: intercom_conversation_id is set OR status in (escalated, escalated_pending).",
+      successRate: "Local DB · resolved / received for Slack-originated tickets.",
+      botSuccessRate: "Local DB · Slack tickets resolved without ever reaching Intercom (no intercom_conversation_id) / total Slack received.",
+      median: "Local DB · median(resolved_at − created_at) over resolved Slack tickets.",
+      avg: "Local DB · mean(resolved_at − created_at) over resolved Slack tickets.",
+    },
+    gmail: {
+      received: "Local DB · Gmail-originated tickets (route_source = gmail), deduped by gmail_thread_id.",
+      resolved: "Local DB · Gmail tickets where status = 'resolved' (hourly cron auto-resolves after 24h of inactivity).",
+      open: "Local DB · Gmail tickets where status ≠ 'resolved'.",
+      successRate: "Local DB · resolved / received for Gmail tickets.",
+      median: "Local DB · median(resolved_at − created_at) over resolved Gmail tickets.",
+      avg: "Local DB · mean(resolved_at − created_at) over resolved Gmail tickets.",
+    },
+    intercom: {
+      received: "Local DB · Intercom-origin tickets (display_source = intercom and not Slack/Gmail-originated). Excludes Slack-escalated conversations to keep Slack + Gmail + Intercom + Other = Total.",
+      resolved: "Local DB · Intercom-origin tickets where status = 'resolved'.",
+      open: "Local DB · Intercom-origin tickets where status ≠ 'resolved'.",
+      median: "Local DB · median(resolved_at − created_at) over resolved Intercom-origin tickets.",
+      firstResponse: "Live Intercom API · median time_to_admin_reply across all conversations in the Intercom enterprise inbox for the month (includes Slack-escalated convos).",
+      response: "Live Intercom API · median_time_to_reply across all admin replies in the Intercom enterprise inbox for the month.",
+      handling: "Live Intercom API · median time_to_last_close (handling time until conversation closed) across the Intercom enterprise inbox for the month.",
+    },
+  };
+
+  const rows: { label: string; slack: React.ReactNode; gmail: React.ReactNode; intercom: React.ReactNode; tips: { slack?: string; gmail?: string; intercom?: string } }[] = [
     {
       label: "Received",
       slack: slack.received,
       gmail: gmail.total,
       intercom: intercomLocal.total,
+      tips: { slack: T.slack.received, gmail: T.gmail.received, intercom: T.intercom.received },
     },
     {
       label: "Resolved",
       slack: slack.resolved,
       gmail: gmail.resolved,
       intercom: intercomLocal.resolved,
+      tips: { slack: T.slack.resolved, gmail: T.gmail.resolved, intercom: T.intercom.resolved },
     },
     {
       label: "Open",
       slack: slack.open,
       gmail: gmail.open,
       intercom: intercomLocal.open,
+      tips: { slack: T.slack.open, gmail: T.gmail.open, intercom: T.intercom.open },
     },
     {
       label: "Escalated to human",
       slack: slack.escalated,
       gmail: MUTED,
       intercom: MUTED,
+      tips: { slack: T.slack.escalated },
     },
     {
       label: "Success rate",
       slack: `${slack.successPct}%`,
       gmail: gmail.total ? `${Math.round((gmail.resolved / gmail.total) * 100)}%` : MUTED,
       intercom: MUTED,
+      tips: { slack: T.slack.successRate, gmail: T.gmail.successRate },
     },
     {
       label: "Bot success rate",
       slack: `${slack.botSuccessPct}%`,
       gmail: MUTED,
       intercom: MUTED,
+      tips: { slack: T.slack.botSuccessRate },
     },
     {
       label: "Median first response",
       slack: MUTED,
       gmail: MUTED,
       intercom: intercomCell("medianFirstResponseSec"),
+      tips: { intercom: T.intercom.firstResponse },
     },
     {
       label: "Median response time",
       slack: MUTED,
       gmail: MUTED,
       intercom: intercomCell("medianResponseSec"),
+      tips: { intercom: T.intercom.response },
     },
     {
       label: "Median resolution / time to close",
       slack: formatMinutes(slack.medianResolutionMin),
       gmail: formatMinutes(gmail.medianResolutionMin),
       intercom: formatMinutes(intercomLocal.medianResolutionMin),
+      tips: { slack: T.slack.median, gmail: T.gmail.median, intercom: T.intercom.median },
     },
     {
       label: "Average resolution",
       slack: formatMinutes(slack.avgResolutionMin),
       gmail: formatMinutes(gmail.avgResolutionMin),
       intercom: MUTED,
+      tips: { slack: T.slack.avg, gmail: T.gmail.avg },
     },
     {
       label: "Median handling time",
       slack: MUTED,
       gmail: MUTED,
       intercom: intercomCell("medianHandlingTimeSec"),
+      tips: { intercom: T.intercom.handling },
     },
   ];
+
+  const Cell = ({ tip, children }: { tip?: string; children: React.ReactNode }) => {
+    if (!tip) return <TableCell className="text-right tabular-nums">{children}</TableCell>;
+    return (
+      <TableCell className="text-right tabular-nums">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="cursor-help border-b border-dotted border-muted-foreground/40">{children}</span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs text-xs">{tip}</TooltipContent>
+        </Tooltip>
+      </TableCell>
+    );
+  };
 
   return (
     <Card>
@@ -289,9 +346,9 @@ export function MonthStatsCards({ data, month }: Props) {
             {rows.map((r) => (
               <TableRow key={r.label}>
                 <TableCell className="font-medium">{r.label}</TableCell>
-                <TableCell className="text-right tabular-nums">{r.slack}</TableCell>
-                <TableCell className="text-right tabular-nums">{r.gmail}</TableCell>
-                <TableCell className="text-right tabular-nums">{r.intercom}</TableCell>
+                <Cell tip={r.tips.slack}>{r.slack}</Cell>
+                <Cell tip={r.tips.gmail}>{r.gmail}</Cell>
+                <Cell tip={r.tips.intercom}>{r.intercom}</Cell>
               </TableRow>
             ))}
           </TableBody>
@@ -301,10 +358,11 @@ export function MonthStatsCards({ data, month }: Props) {
         )}
         {intercom && (
           <p className="text-xs text-muted-foreground mt-3">
-            Counts from local DB (matches Total). Response &amp; handling times live from Intercom API · {intercom.current.count} conversations this month vs {intercom.previous.count} previous month.
+            Counts from local DB (matches Total). Response &amp; handling times live from Intercom API · {intercom.current.count} conversations this month vs {intercom.previous.count} previous month. Hover any value for its definition.
           </p>
         )}
       </CardContent>
     </Card>
   );
 }
+
