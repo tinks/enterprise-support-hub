@@ -306,37 +306,18 @@ export function ReportTab({ data, month }: ReportTabProps) {
           </Card>
         )}
 
-        {/* Top accounts */}
+        {/* Top accounts — per source */}
         <Card>
           <CardContent className="p-5">
-            <h2 className="text-sm font-semibold mb-3">Top accounts</h2>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs text-muted-foreground border-b">
-                  <th className="py-1.5 font-medium">Account</th>
-                  <th className="py-1.5 font-medium">Tickets</th>
-                  <th className="py-1.5 font-medium">Bugs</th>
-                  <th className="py-1.5 font-medium">FRs</th>
-                  <th className="py-1.5 font-medium">CSAT</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.topAccounts.map(a => (
-                  <tr key={a.key} className="border-b last:border-0">
-                    <td className="py-1.5 max-w-[300px]">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">{a.kind}</Badge>
-                        <span className="truncate">{a.label}</span>
-                      </div>
-                    </td>
-                    <td className="py-1.5 font-medium">{a.count}</td>
-                    <td className="py-1.5">{a.bugs}</td>
-                    <td className="py-1.5">{a.features}</td>
-                    <td className="py-1.5">{a.csatN ? (a.csatSum / a.csatN).toFixed(1) : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <h2 className="text-sm font-semibold mb-1">Top accounts</h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              Slack grouped by channel · Gmail grouped by email domain (thread-deduped) · Intercom grouped by contact email domain.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <AccountMiniTable title="Slack" accounts={stats.slackAccounts} />
+              <AccountMiniTable title="Gmail" accounts={stats.gmailAccounts} />
+              <AccountMiniTable title="Intercom" accounts={stats.intercomAccounts} />
+            </div>
           </CardContent>
         </Card>
 
@@ -431,6 +412,26 @@ function KpiCard({ label, value, sub, delta }: { label: string; value: string; s
   );
 }
 
+function AccountMiniTable({ title, accounts }: { title: string; accounts: AccountAgg[] }) {
+  return (
+    <div>
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{title}</h3>
+      {accounts.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No tickets</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {accounts.map(a => (
+            <li key={a.key} className="flex items-center justify-between gap-2 text-sm">
+              <span className="truncate flex-1" title={a.label}>{a.label}</span>
+              <span className="font-medium tabular-nums">{a.count}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 interface AccountAgg {
   key: string;
   label: string;
@@ -485,28 +486,47 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
     return { source: s, count, pct: total ? Math.round((count / total) * 100) : 0, color: sourceColors[s] };
   }).filter(s => s.count > 0);
 
-  // Top accounts (resolve slack channel names)
-  const accMap = new Map<string, AccountAgg>();
-  for (const t of tickets) {
-    let key = t.customer_key;
-    let label = t.customer_label;
-    if (t.customer_kind === "slack" && t.customer_raw_id) {
-      const name = channelMap[t.customer_raw_id];
-      if (name) { key = "channel:" + name.toLowerCase(); label = "#" + name; }
+  // Top accounts — grouped per source so each ticket is bucketed by its
+  // source-appropriate identifier:
+  //   • Slack    → channel name
+  //   • Gmail    → email domain (via from_email; thread-deduped upstream)
+  //   • Intercom → email domain of the contact that created the case
+  //                (manual imports carry contact email; Slack-routed Intercom
+  //                cases fall back to the Slack channel name since the contact
+  //                email isn't stored locally)
+  const bucketAccount = (kind: "slack" | "gmail" | "intercom") => {
+    const m = new Map<string, AccountAgg>();
+    const filtered = tickets.filter(t => t.display_source === kind);
+    for (const t of filtered) {
+      let key = t.customer_key;
+      let label = t.customer_label;
+      let aKind: string = t.customer_kind;
+      if (t.customer_kind === "slack" && t.customer_raw_id) {
+        const name = channelMap[t.customer_raw_id];
+        if (name) { key = "channel:" + name.toLowerCase(); label = "#" + name; }
+        aKind = "Channel";
+      } else if (t.customer_kind === "domain") {
+        aKind = "Domain";
+      }
+      let a = m.get(key);
+      if (!a) {
+        a = { key, label, kind: aKind, count: 0, bugs: 0, features: 0, csatSum: 0, csatN: 0 };
+        m.set(key, a);
+      }
+      a.count++;
+      if (t.is_bug) a.bugs++;
+      if (t.is_feature_request) a.features++;
+      if (t.csat_rating) { a.csatSum += t.csat_rating; a.csatN++; }
     }
-    let a = accMap.get(key);
-    if (!a) {
-      a = { key, label, kind: t.customer_kind, count: 0, bugs: 0, features: 0, csatSum: 0, csatN: 0 };
-      accMap.set(key, a);
-    }
-    a.count++;
-    if (t.is_bug) a.bugs++;
-    if (t.is_feature_request) a.features++;
-    if (t.csat_rating) { a.csatSum += t.csat_rating; a.csatN++; }
-  }
-  const accountsArr = Array.from(accMap.values()).sort((a, b) => b.count - a.count);
-  const topAccounts = accountsArr.slice(0, 8);
-  const topAccount = accountsArr[0] || null;
+    return Array.from(m.values()).sort((a, b) => b.count - a.count);
+  };
+  const slackAccounts = bucketAccount("slack").slice(0, 5);
+  const gmailAccounts = bucketAccount("gmail").slice(0, 5);
+  const intercomAccounts = bucketAccount("intercom").slice(0, 5);
+  // Combined for highlights ("most active account") — uses the same per-source bucketing.
+  const combinedAccounts = [...slackAccounts, ...gmailAccounts, ...intercomAccounts]
+    .sort((a, b) => b.count - a.count);
+  const topAccount = combinedAccounts[0] || null;
 
   // Product areas
   const paMap = new Map<string, { count: number; csatSum: number; csatN: number }>();
@@ -551,6 +571,7 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
   return {
     total, counts, ttrByBucket, medianTtr, resolvedCount: resolved.length, resolvedPct,
     avgCsat, ratedCount: rated.length, daily: dailyTrim, dailyMax, sourceMix,
-    topAccounts, topAccount, productAreasTop, topProductArea, worstCsatPa, owners, peakDow,
+    slackAccounts, gmailAccounts, intercomAccounts,
+    topAccount, productAreasTop, topProductArea, worstCsatPa, owners, peakDow,
   };
 }
