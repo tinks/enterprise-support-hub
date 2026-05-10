@@ -207,6 +207,9 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const paramManualChannel = searchParams.get("manualChannel");
   const resolutionMin = searchParams.get("resolutionMin") !== null ? parseInt(searchParams.get("resolutionMin")!) : null;
   const resolutionMax = searchParams.get("resolutionMax") !== null ? parseInt(searchParams.get("resolutionMax")!) : null;
+  const paramFrom = searchParams.get("from");
+  const paramTo = searchParams.get("to");
+  const paramProductArea = searchParams.get("productArea");
   const isResolutionMode = resolutionMin !== null && resolutionMax !== null;
 
   const [mappings, setMappings] = useState<ConversationMapping[]>([]);
@@ -229,7 +232,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const savedOwner = localStorage.getItem("conv-owner-filter") as OwnerFilter | null;
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(forceOwner as OwnerFilter || savedOwner || "all");
   const savedPaFilter = localStorage.getItem("conv-pa-filter");
-  const [productAreaFilter, setProductAreaFilter] = useState<string>(savedPaFilter || "all");
+  const [productAreaFilter, setProductAreaFilter] = useState<string>(paramProductArea || savedPaFilter || "all");
   const savedClassFilter = localStorage.getItem("conv-class-filter");
   const [classificationFilter, setClassificationFilter] = useState<string>(savedClassFilter || "all");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -237,10 +240,12 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dateFrom, setDateFrom] = useState<Date | undefined>(() => {
+    if (paramFrom) { const d = new Date(paramFrom); if (!isNaN(d.getTime())) return d; }
     const v = localStorage.getItem("conv-date-from");
     return v ? new Date(v) : undefined;
   });
   const [dateTo, setDateTo] = useState<Date | undefined>(() => {
+    if (paramTo) { const d = new Date(paramTo); if (!isNaN(d.getTime())) return d; }
     const v = localStorage.getItem("conv-date-to");
     return v ? new Date(v) : undefined;
   });
