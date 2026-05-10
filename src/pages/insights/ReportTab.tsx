@@ -606,6 +606,13 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
       if (key.startsWith("manual:")) continue;
       if (INTERNAL_MANUAL_KEYS.has(key)) continue;
       target = manualMap;
+    } else if (t.customer_kind === "domain" && t.route_source === "manual") {
+      // Manual-route domain row that didn't qualify for emailMap above
+      // (e.g. display_source = "other" because no intercom_conversation_id).
+      // Don't drop it — surface in Manual contacts instead.
+      if (key === "domain:lovable.dev" || label.toLowerCase() === "lovable.dev") continue;
+      if (key === "domain:_personal") continue;
+      target = manualMap;
     }
     if (!target) continue; // skip anything else with no resolved account
 
