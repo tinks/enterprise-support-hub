@@ -231,7 +231,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>(initialSource);
   const [searchQuery, setSearchQuery] = useState(() => localStorage.getItem("conv-search") || "");
   const savedOwner = localStorage.getItem("conv-owner-filter") as OwnerFilter | null;
-  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(forceOwner as OwnerFilter || savedOwner || "all");
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(forceOwner as OwnerFilter || (paramOwner as OwnerFilter) || savedOwner || "all");
   const savedPaFilter = localStorage.getItem("conv-pa-filter");
   const [productAreaFilter, setProductAreaFilter] = useState<string>(paramProductArea || savedPaFilter || "all");
   const savedClassFilter = localStorage.getItem("conv-class-filter");
