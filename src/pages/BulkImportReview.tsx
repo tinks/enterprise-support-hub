@@ -44,9 +44,10 @@ interface ReviewRow extends CsvRow {
 
 interface ImportResult {
   id: string;
-  status: "imported" | "skipped" | "failed";
+  status: "imported" | "skipped" | "failed" | "out_of_inbox";
   error?: string;
   dbId?: string;
+  currentTeamId?: string;
 }
 
 function parseCSV(text: string): string[][] {
