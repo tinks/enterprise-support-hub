@@ -42,7 +42,16 @@ function bucketOf(t: NormalizedTicket): Bucket {
   return "Unclassified";
 }
 
-export function TicketTypesTab({ data }: { data: MonthData }) {
+export function TicketTypesTab({ data, month }: { data: MonthData; month: string }) {
+  const monthStart = startOfMonth(parse(month + "-01", "yyyy-MM-dd", new Date()));
+  const monthEnd = endOfMonth(monthStart);
+  const fromIso = monthStart.toISOString();
+  const toIso = monthEnd.toISOString();
+  const hrefForBucket = (b: Bucket) => {
+    const cls = b === "Unclassified" ? "unassigned" : b;
+    const params = new URLSearchParams({ from: fromIso, to: toIso, classification: cls, showAll: "1" });
+    return `/conversations?${params.toString()}`;
+  };
   const stats = useMemo(() => {
     const total = data.tickets.length;
 
