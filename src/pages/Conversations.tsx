@@ -213,9 +213,9 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const paramOwner = searchParams.get("owner");
   const paramShowAll = searchParams.get("showAll") === "1";
   const paramClassification = searchParams.get("classification");
-  const isReportDrilldown = paramShowAll && !!paramOwner && !!paramFrom && !!paramTo;
+  const isOwnerDrilldown = paramShowAll && !!paramOwner && !!paramFrom && !!paramTo;
   const isClassificationDrilldown = paramShowAll && !!paramClassification && !!paramFrom && !!paramTo;
-  const isReportDrilldown = isReportDrilldown || isClassificationDrilldown;
+  const isReportDrilldown = isOwnerDrilldown || isClassificationDrilldown;
   const isResolutionMode = resolutionMin !== null && resolutionMax !== null;
 
   const [mappings, setMappings] = useState<ConversationMapping[]>([]);
