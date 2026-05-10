@@ -13,6 +13,7 @@ import { MonthData, NormalizedTicket, useMonthData, sourceLabel } from "./useMon
 import { UncategorizedPanel } from "./UncategorizedPanel";
 import { MonthStatsCards } from "./MonthStatsCards";
 import { sourceBucketOf, reconcileSources } from "./sourceBucket";
+import { INTERNAL_MANUAL_KEYS } from "./manualAccounts";
 
 const BUCKETS = ["Issue", "Configuration", "Bug", "FR", "Question", "Unclassified"] as const;
 type Bucket = typeof BUCKETS[number];
@@ -367,11 +368,12 @@ export function ReportTab({ data, month }: ReportTabProps) {
           <CardContent className="p-5">
             <h2 className="text-sm font-semibold mb-1">Top accounts</h2>
             <p className="text-xs text-muted-foreground mb-4">
-              Slack by channel · Gmail + Intercom by sender email domain (internal lovable.dev and the consumer "Personal email" bucket excluded). Slack-routed Intercom cases are counted under Slack. Click a row for bug/FR/CSAT details.
+              Slack by channel · Gmail + Intercom by sender email domain · Manual contacts grouped by normalised account (e.g. "McKinsey" rolls up name + email + known contractors). Internal lovable.dev traffic and the consumer "Personal email" bucket are excluded. Click a row for bug/FR/CSAT details.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <AccountMiniTable title="Slack" accounts={stats.slackAccounts} />
               <AccountMiniTable title="Gmail + Intercom" accounts={stats.emailAccounts} />
+              <AccountMiniTable title="Manual contacts" accounts={stats.manualAccounts} />
             </div>
           </CardContent>
         </Card>
@@ -575,6 +577,7 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
   //                  (Gmail + Intercom contacts combined; same domain sums)
   const slackMap = new Map<string, AccountAgg>();
   const emailMap = new Map<string, AccountAgg>();
+  const manualMap = new Map<string, AccountAgg>();
   for (const t of tickets) {
     let key = t.customer_key;
     let label = t.customer_label;
@@ -585,6 +588,8 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
       aKind = "Channel";
     } else if (t.customer_kind === "domain") {
       aKind = "Domain";
+    } else if (t.customer_kind === "manual") {
+      aKind = "Contact";
     }
 
     let target: Map<string, AccountAgg> | null = null;
@@ -596,8 +601,13 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
       if (key === "domain:lovable.dev" || label.toLowerCase() === "lovable.dev") continue;
       if (key === "domain:_personal") continue;
       target = emailMap;
+    } else if (t.customer_kind === "manual") {
+      // Skip generic placeholder buckets and internal lovable.dev contacts.
+      if (key.startsWith("manual:")) continue;
+      if (INTERNAL_MANUAL_KEYS.has(key)) continue;
+      target = manualMap;
     }
-    if (!target) continue; // skip manual/other with no resolved account
+    if (!target) continue; // skip anything else with no resolved account
 
     let a = target.get(key);
     if (!a) {
@@ -610,10 +620,11 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
     if (t.csat_rating) { a.csatSum += t.csat_rating; a.csatN++; }
   }
   const sortTop = (m: Map<string, AccountAgg>) =>
-    Array.from(m.values()).sort((a, b) => b.count - a.count).slice(0, 5);
+    Array.from(m.values()).sort((a, b) => b.count - a.count).slice(0, 10);
   const slackAccounts = sortTop(slackMap);
   const emailAccounts = sortTop(emailMap);
-  const topAccount = [...slackAccounts, ...emailAccounts]
+  const manualAccounts = sortTop(manualMap);
+  const topAccount = [...slackAccounts, ...emailAccounts, ...manualAccounts]
     .sort((a, b) => b.count - a.count)[0] || null;
 
   // Product areas
@@ -659,7 +670,7 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
   return {
     total, counts, ttrByBucket, medianTtr, resolvedCount: resolved.length, resolvedPct,
     avgCsat, ratedCount: rated.length, daily: dailyTrim, dailyMax, sourceMix,
-    slackAccounts, emailAccounts,
+    slackAccounts, emailAccounts, manualAccounts,
     topAccount, productAreasTop, topProductArea, worstCsatPa, owners, peakDow,
   };
 }

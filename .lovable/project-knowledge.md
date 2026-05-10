@@ -682,3 +682,7 @@ Slack-channel-only breakdown of volume, classification mix, and product area spl
 ### `monthly_insights` table
 
 Keyed by (`month`, `source`); columns include `buckets jsonb`, `overall_summary text`, `product_area_summary jsonb`, `ticket_count int`, `generated_at timestamptz`. Old rows used `source = "intercom"`; new generations use `source = "all"` (covers Slack + Gmail + Intercom + manual). The Topics tab loader prefers `"all"` and falls back to `"intercom"`.
+
+### Manual contact normalisation — `src/pages/insights/manualAccounts.ts`
+
+Free-text `manual_conversations.contact_name` is normalised into a stable account key via `normalizeManualContact()` for Top accounts aggregation. Order: (1) email-in-name → domain bucket via `accountFromEmail`; (2) alias map (e.g., `McKinsey`, `Sergey Gorchichko-WROC`, `pulkit_agarwal@mckinsey.com` → `account:mckinsey`); (3) fallback `contact:<lowercased name>`. Internal lovable.dev contacts map to `account:lovable_internal` and are filtered out by `INTERNAL_MANUAL_KEYS` (mirrors the existing Top accounts filter). The Insights → Report "Top accounts" card has a third `Manual contacts` mini-table fed by `stats.manualAccounts`. Extend `ALIAS_MAP` as new accounts surface.
