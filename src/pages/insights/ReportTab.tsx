@@ -307,18 +307,18 @@ export function ReportTab({ data, month }: ReportTabProps) {
           <Card>
             <CardContent className="p-5">
               <h2 className="text-sm font-semibold mb-3">Top topics</h2>
-              <div className="space-y-3">
+              <div className="space-y-5">
                 {[...insight.buckets].sort((a, b) => b.ticket_count - a.ticket_count).slice(0, 5).map(b => {
                   const topPas = Object.entries(b.product_areas).sort((a, b) => b[1] - a[1]).slice(0, 2);
                   return (
-                    <div key={b.name} className="border-l-2 border-primary/40 pl-3">
-                      <div className="flex items-baseline gap-2">
+                    <div key={b.name} className="border-l-2 border-primary/40 pl-3 py-1">
+                      <div className="flex items-baseline gap-2 mb-1">
                         <span className="font-semibold text-sm">{b.name}</span>
                         <Badge variant="secondary" className="text-[10px]">{b.ticket_count}</Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{b.description}</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{b.description}</p>
                       {topPas.length > 0 && (
-                        <div className="flex gap-1 mt-1">
+                        <div className="flex gap-1 mt-2">
                           {topPas.map(([pa, n]) => (
                             <Badge key={pa} variant="outline" className="text-[10px] px-1.5 py-0">{pa} · {n}</Badge>
                           ))}
