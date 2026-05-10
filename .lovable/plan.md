@@ -1,100 +1,66 @@
 ## Goal
 
-A new repeatable monthly view that buckets all Intercom tickets into topics + product areas using AI. Built into the app so you can re-run it on the 1st of every month without copy-pasting.
+Extend the Insights tab so monthly AI clustering covers **all conversation sources** — Intercom (`conversation_mappings`), Gmail (`gmail_conversations`), and Manual/DM (`manual_conversations`) — not just Intercom.
 
-## Where it lives
+## Approach
 
-New left-nav item **Insights** → page at `/insights`. Top of page: a month picker (defaults to last completed month). Below: the bucketed analysis for that month.
+Keep the same 3-pass AI flow (discover buckets → assign tickets → executive summary), but feed it a unified ticket list from all sources.
 
-If results already exist for that month, show them instantly. A "Regenerate" button re-runs the AI.
+### 1. Edge function `analyze-intercom-month` → rename behavior to `analyze-month`
 
-## Data model (new table)
+Keep the same function name to avoid breaking anything, but change its internals:
 
-```sql
-monthly_insights
-  id uuid pk
-  month text          -- 'YYYY-MM', unique
-  source text         -- 'intercom' for now (extensible later to slack/gmail)
-  generated_at timestamptz
-  ticket_count int
-  buckets jsonb       -- [{name, description, ticket_count, product_areas: {area: count}, example_subjects: [...], ticket_ids: [uuid,...]}]
-  product_area_summary jsonb  -- {"SSO": 12, "Cloud/AI": 9, ...}
-  overall_summary text        -- 2-3 paragraph executive summary
+- Pull from three tables for the month window (using `created_at` for Intercom/Manual, `received_at` for Gmail), excluding `is_test`.
+- Normalize each row into a common shape:
+  ```
+  { id, source: 'intercom'|'gmail'|'manual', subject, body, product_area, created_at }
+  ```
+  - Intercom: `subject` = first line of `original_message_text`, `body` = `original_message_text`
+  - Gmail: `subject` = `subject`, `body` = `snippet` (or first message body if available)
+  - Manual: `subject` = `subject`, `body` = first `manual_messages.message_text` for that conversation (one extra query)
+- Deduplicate Gmail by `gmail_thread_id` (per existing memory rule), keep earliest row per thread.
+- Run the same 3 AI passes against the unified list.
+- Store `source` per ticket in the bucket's `tickets` array so the UI can deep-link correctly.
+
+### 2. `monthly_insights` table
+
+Change `source` semantics:
+- Use `source = 'all'` for the new combined report (keeps the unique key `(month, source)` working and preserves any existing Intercom-only rows).
+- No schema migration needed — `source` is already a free text column.
+
+Bucket JSON shape gains per-ticket source:
+```json
+{
+  "name": "...",
+  "description": "...",
+  "count": 12,
+  "product_areas": { "SSO": 4, "Other": 8 },
+  "tickets": [
+    { "id": "uuid", "source": "intercom", "subject": "...", "product_area": "SSO" }
+  ]
+}
 ```
 
-RLS: authenticated read/insert/update.
+### 3. UI — `src/pages/Insights.tsx`
 
-## Edge function: `analyze-intercom-month`
+- Default fetch: `source = 'all'`.
+- Header: show total count split as `Intercom 153 · Gmail 41 · Manual 12`.
+- Bucket cards: add a small source breakdown chip row (e.g. `Intercom 8 · Gmail 3 · Manual 1`).
+- Drawer ticket list: show a source badge next to each subject, and route to the correct conversation detail page based on `source`.
+- "Regenerate" button calls the same edge function (now multi-source).
 
-Input: `{ month: 'YYYY-04' }`
+### 4. Out of scope
 
-Steps:
-1. Pull all `manual_conversations` where `source='intercom'`, `is_test=false`, `status != 'cancelled'`, created_at in month → ~153 rows for April.
-2. For each ticket, pull the first 1–2 `manual_messages` (user role, not internal note) so the AI sees the real question, not just the subject.
-3. Build a compact JSON list `[{id, subject, first_message (truncated to 800 chars), current_product_area, current_classification}, ...]`.
-4. Call Lovable AI (`google/gemini-3-flash-preview`) with structured output (Zod schema) in **two passes**:
-   - **Pass A — Discover buckets**: send all tickets, ask the model to propose 6–10 topic buckets that cover the full set with short names + 1-line descriptions. No assignment yet.
-   - **Pass B — Assign tickets**: send the bucket list + tickets in chunks of ~50, ask the model to return `[{ticket_id, bucket_name, product_area}]`. Product area constrained to the existing list from `settings.product_areas` plus "Other".
-5. Aggregate counts, pick 3 example subjects per bucket, write a short overall summary (third AI call).
-6. Upsert into `monthly_insights` keyed by `(month, source)`.
+- No Slack-only standalone source (Slack tickets are already represented via `conversation_mappings`, which is the Intercom-bridged record — that's what "Slack+DM" maps to in this app).
+- No changes to other pages (Stats, Conversations, etc.).
+- No auto-cron yet.
 
-This is the "two-pass" pattern because asking one call to both discover taxonomy and assign is unreliable on 150+ items.
+## Files to change
 
-## UI: Insights page
+- `supabase/functions/analyze-intercom-month/index.ts` — add Gmail + Manual fetching, unify, keep AI logic
+- `src/pages/Insights.tsx` — source filter defaults to `'all'`, render source breakdowns + correct deep links
+- `.lovable/project-knowledge.md` + memory index — note multi-source coverage
 
-```
-┌──────────────────────────────────────────┐
-│ Insights                                 │
-│ [Month: April 2026 ▼]  [Regenerate]      │
-├──────────────────────────────────────────┤
-│ 153 Intercom tickets analyzed            │
-│ Generated 2 hours ago                    │
-│                                          │
-│ Executive summary                        │
-│ <2-3 paragraph AI overview>              │
-├──────────────────────────────────────────┤
-│ Topic buckets                            │
-│ ┌────────────────────────────────────┐   │
-│ │ SSO / SAML setup        38 tickets │   │
-│ │ Most cover SCIM provisioning…       │   │
-│ │ Top areas: SSO (32), Other (6)     │   │
-│ │ ▸ Help - SAML configuration not... │   │
-│ │ ▸ SCIM sync failing for…           │   │
-│ │ [View all 38 →]                    │   │
-│ └────────────────────────────────────┘   │
-│ <one card per bucket, sorted by count>   │
-├──────────────────────────────────────────┤
-│ By product area (bar chart)              │
-└──────────────────────────────────────────┘
-```
+## Open question
 
-- Bucket card click → modal/drawer with all ticket subjects + links to Conversation Detail.
-- Bar chart uses existing `chart` shadcn component with brand colors.
-
-## Repeatability
-
-- Page defaults month picker to previous calendar month.
-- Optional follow-up (not in this plan unless you want it now): pg_cron job on the 1st of each month auto-calling `analyze-intercom-month` for the prior month so insights are pre-warmed.
-
-## Files to create / change
-
-- `supabase/migrations/<ts>_monthly_insights.sql` — table + RLS
-- `supabase/functions/analyze-intercom-month/index.ts` — the AI clustering function
-- `src/pages/Insights.tsx` — new page
-- `src/App.tsx` — add `/insights` route
-- `src/components/AppLayout.tsx` — add "Insights" nav link
-- `.lovable/project-knowledge.md` + memory file describing the new feature
-
-## Out of scope
-
-- Other sources (Slack, Gmail). Intercom only for v1; the table column `source` is there to extend later.
-- Auto-cron. Manual run button is enough until you want it pre-warmed.
-- Editing buckets manually. v1 is read-only AI output.
-
-## Cost note
-
-Two AI passes per regeneration on ~150 tickets ≈ a few cents in Lovable AI credits. Cached after first run.
-
-## Open question (one)
-
-For the **product area** the AI assigns: should it (a) overwrite the existing `product_area` on the ticket if missing, or (b) stay purely in the insights view and never touch ticket records? I default to **(b)** unless you say otherwise — keeps insights non-destructive.
+The existing April Intercom-only report (`source = 'intercom'`) — keep it as a separate historical row, or overwrite by switching the default view to `'all'` and leaving the old row untouched? Default plan: **leave old row untouched, generate a new `'all'` row**, UI only shows `'all'`.
