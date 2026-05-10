@@ -233,45 +233,30 @@ export function ReportTab({ data, month }: ReportTabProps) {
           </Card>
         )}
 
-        {/* Volume + Source mix */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card>
-            <CardContent className="p-5">
-              <h2 className="text-sm font-semibold mb-3">Daily volume</h2>
-              <div className="flex items-end gap-1 h-32">
-                {stats.daily.map((s, i) => (
-                  <div key={i} className="flex-1 bg-primary/60 rounded-t" style={{ height: `${(s / Math.max(1, stats.dailyMax)) * 100}%` }} title={`Day ${i + 1}: ${s}`} />
-                ))}
-              </div>
-              <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-                <span>1</span><span>{Math.ceil(stats.daily.length / 2)}</span><span>{stats.daily.length}</span>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-5">
-              <h2 className="text-sm font-semibold mb-3">Source mix</h2>
-              <div className="flex h-6 rounded overflow-hidden bg-muted mb-3">
-                {stats.sourceMix.map(s => (
-                  <div key={s.source} style={{ width: `${s.pct}%`, background: s.color }} className="flex items-center justify-center text-[10px] text-primary-foreground font-medium">
-                    {s.pct >= 8 && `${s.pct}%`}
-                  </div>
-                ))}
-              </div>
-              <div className="space-y-1 text-xs">
-                {stats.sourceMix.map(s => (
-                  <div key={s.source} className="flex justify-between">
-                    <span className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-sm" style={{ background: s.color }} />
-                      {sourceLabel[s.source]}
-                    </span>
-                    <span className="font-medium">{s.count} ({s.pct}%)</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Source mix */}
+        <Card>
+          <CardContent className="p-5">
+            <h2 className="text-sm font-semibold mb-3">Source mix</h2>
+            <div className="flex h-6 rounded overflow-hidden bg-muted mb-3">
+              {stats.sourceMix.map(s => (
+                <div key={s.source} style={{ width: `${s.pct}%`, background: s.color }} className="flex items-center justify-center text-[10px] text-primary-foreground font-medium">
+                  {s.pct >= 8 && `${s.pct}%`}
+                </div>
+              ))}
+            </div>
+            <div className="space-y-1 text-xs">
+              {stats.sourceMix.map(s => (
+                <div key={s.source} className="flex justify-between">
+                  <span className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-sm" style={{ background: s.color }} />
+                    {sourceLabel[s.source]}
+                  </span>
+                  <span className="font-medium">{s.count} ({s.pct}%)</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Ticket types */}
         <Card>
