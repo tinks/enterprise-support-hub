@@ -1,67 +1,57 @@
 ## Goal
 
-Surface a third "Top accounts" mini-table on **Insights → Report** that aggregates `manual_conversations` rows by **normalised account**, so multi-variant contacts like McKinsey (8 "McKinsey" + 6 `*@mckinsey.com` + known contractors) roll up into a single row instead of fragmenting across 8+ buckets.
+Make Top accounts roll **all McKinsey traffic** (and any other multi-domain account) into a single row, regardless of whether the contact was logged as a name, an email, or a contractor variant. Fix three current leaks.
 
-Scope is read-only: no schema changes, no edits to the Manual log form, no backfill. Pure aggregation logic + UI panel.
+## Three fixes
 
-## What ships
+### 1. Add a `DOMAIN_TO_ACCOUNT` override in `manualAccounts.ts`
 
-### 1. Normalisation helper (`src/pages/insights/manualAccounts.ts`, new)
+Currently the email path returns the raw domain bucket (e.g. `domain:mckinsey.com`). Add a one-line override map applied **after** `accountFromEmail`:
 
-Single pure function `normalizeManualContact(contactName: string): { key: string; label: string }` that runs in this order:
-
-1. **Email in contact_name** → extract domain, run through existing `accountFromEmail` (already filters personal domains & lovable.dev — see `useMonthData.ts:50`). Returns `{ key: "domain:mckinsey.com", label: "mckinsey.com" }`.
-2. **Alias map lookup** (case-insensitive, exact match on trimmed name) → maps known free-text labels to a canonical key. Seeded from the April data:
-   - `McKinsey`, `Sergey Gorchichko-WROC`, `pulkit_agarwal@mckinsey.com` → `account:mckinsey`
-   - `Lovable Support`, `Lovable`, `enterprise-support@lovable.dev`, `joel@lovable.dev`, `kristina@…`, `diana@…`, `jeff@…`, `monica@…`, `fadi@…`, `dan@…` → `account:lovable_internal` (will be filtered out, same as existing top-accounts filter)
-   - `Zendesk` → `account:zendesk`
-   - `McKinsey` etc. (full alias seed kept in the file, easy to extend)
-3. **Fallback** → `{ key: "contact:" + lowercased name, label: original name }`.
-
-Also exports `INTERNAL_KEYS = new Set(["account:lovable_internal", "domain:lovable.dev"])` so the panel can hide internal traffic, mirroring the existing **Top accounts filter** memory rule.
-
-### 2. Wire normalisation into `useMonthData.ts`
-
-In the `manual_conversations` branch (lines ~178-201), when no Slack channel ID and no extractable email is found, call `normalizeManualContact(m.contact_name)` instead of falling back to the generic `"manual:" + source` key. Also call it when the email path produces a personal/unknown bucket so contractor names still roll up.
-
-`customer_kind` becomes `"manual"` for these rolled-up rows; existing email-domain path keeps `kind = "domain"` so they continue to land in the Gmail+Intercom column.
-
-### 3. New mini-table on `ReportTab.tsx`
-
-In the existing Top accounts grid (line 365-374), change from 2 columns to **3 columns** on `lg:` breakpoint:
-
-```text
-[ Slack ]   [ Gmail + Intercom ]   [ Manual contacts ]
+```ts
+const DOMAIN_TO_ACCOUNT: Record<string, { key: string; label: string }> = {
+  "mckinsey.com": { key: "account:mckinsey", label: "McKinsey" },
+};
 ```
 
-`stats.manualAccounts` is built in the same `useMemo` as `slackAccounts` / `emailAccounts` (around line 576). Aggregation rules:
+In `normalizeManualContact`, after step 1 (`accountFromEmail`), if the resolved key is `domain:<d>` and `<d>` is in `DOMAIN_TO_ACCOUNT`, swap to the override. This collapses all 6 `*@mckinsey.com` manual rows into the same `account:mckinsey` bucket as `"McKinsey"` and `"Sergey Gorchichko-WROC"`.
 
-- Iterate same ticket list.
-- Include only tickets where `customer_kind === "manual"` AND the resolved key is **not** in `INTERNAL_KEYS`.
-- Same sort (count desc, top 10), same `AccountMiniTable` component — zero new UI primitives.
+### 2. Extend `ALIAS_MAP` for the remaining contractor variants
 
-Also update the `topAccount` highlight (line 209, 616) to consider `manualAccounts` so "Most active account" can be McKinsey when applicable.
+Add the two stragglers found in April data:
 
-### 4. PDF export
+- `pulkit agarwal` → `account:mckinsey`
+- `sergey gorchichko` → `account:mckinsey` (variant without "-WROC" suffix)
 
-No changes needed — the new card is a child of `reportRef`, so the per-section pagination logic added previously will pick it up automatically.
+### 3. Fix the lost-row bug in `useMonthData.ts`
 
-### 5. Project knowledge
+When the email path resolves to a domain (e.g. `Sergey_Gorchichko-WROC@mckinsey.com`), the manual branch sets `kind = "domain"`. In `ReportTab.tsx`, domain rows only land in `emailMap` if `display_source === "gmail" || "intercom"` — manual rows without `intercom_conversation_id` get `display_source = "other"` and are silently dropped from every Top accounts column.
 
-Append a one-liner to `.lovable/project-knowledge.md` and add a new memory file `mem://logic/manual-account-normalization` describing the alias map + where to extend it. Update `mem://index.md`.
+Fix: in `useMonthData.ts` manual branch, after calling `normalizeManualContact`, set `kind = "manual"` whenever the resolved key starts with `account:` (overrides), so those rows always land in the Manual contacts column. Keep `kind = "domain"` only for plain `domain:*` keys (those should still route to Gmail+Intercom when an intercom_conv_id is present, otherwise we need to also include them in manualMap — see below).
 
-## Out of scope
+Then in `ReportTab.tsx` Top accounts aggregation, add a fallback: any manual-route ticket with `customer_kind === "domain"` AND `display_source === "other"` (i.e., not surfaced in emailMap) should also be aggregated into manualMap so it isn't dropped. Internal/personal exclusions still apply.
 
-- No new column on `manual_conversations`.
-- No edit to the manual log form on `/import`.
-- No retroactive UPDATE of existing rows.
-- No change to **Conversations** table or detail page (still show raw `contact_name`).
-- No change to Slack/Gmail/Intercom routing.
+### 4. Update "Most active account" highlight
+
+Already includes `manualAccounts` in the spread (done in last change), so once McKinsey rolls up to ~21 it will correctly show as the top account, with `#workday-lovable` (14) second. No code change needed beyond fixes 1-3.
+
+## Verification
+
+After the fix, with April selected:
+
+- **Manual contacts** column row #1 = `McKinsey` with **21** tickets (8 + 4 + 5 + 1 + 1 + 1 + 1).
+- **Gmail+Intercom** column no longer shows `mckinsey.com`.
+- **Highlights → "Most active account"** = `McKinsey · 21 tickets`.
+- `#workday-lovable` stays in the Slack column at 14.
 
 ## Files touched
 
-- `src/pages/insights/manualAccounts.ts` (new)
-- `src/pages/insights/useMonthData.ts` (manual branch normalisation)
-- `src/pages/insights/ReportTab.tsx` (3-column grid + `manualAccounts` aggregation + highlight)
-- `.lovable/project-knowledge.md` (append note)
-- `mem://logic/manual-account-normalization` (new) + `mem://index.md` (add reference)
+- `src/pages/insights/manualAccounts.ts` — add `DOMAIN_TO_ACCOUNT` map; extend `ALIAS_MAP` with Pulkit Agarwal & Sergey Gorchichko variant.
+- `src/pages/insights/useMonthData.ts` — set `kind = "manual"` for `account:*` overrides.
+- `src/pages/insights/ReportTab.tsx` — fallback routing of orphaned manual `domain:*` rows into `manualMap`.
+- `.lovable/memory/logic/manual-account-normalization.md` — document the new domain override.
+
+## Out of scope
+
+- Gmail-table rows (`gmail_conversations`) from `@mckinsey.com`. These are a separate channel; a future change can apply the same domain override to the Gmail+Intercom column if you want full cross-channel rollup.
+- No schema changes, no manual log form changes.
