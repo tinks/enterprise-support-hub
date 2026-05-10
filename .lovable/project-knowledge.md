@@ -638,6 +638,7 @@ Invariant: `Slack + Gmail + Intercom + Other = Total tickets` for the month.
 - Source mix donut and **Top accounts** (Slack channels and Gmail+Intercom domains, top 5 each, `lovable.dev` and `Personal email` aggregate excluded from the email column only).
 - **Source performance** table (see next subsection).
 - Highlights bullets, product-area bar chart, owner load table, classification mix.
+- Owner load rows deep-link to `/conversations` with owner/month filters, `showAll=1`, and a clean drilldown state: source/product/classification/search filters are ignored, status hiding is disabled, test rows are excluded, and Gmail threads use the same earliest-created representative row as `useMonthData` so the visible rows reconcile with the report count.
 - `UncategorizedPanel` lists tickets missing classification or product area for triage.
 - **PDF export**: `jsPDF` + `html2canvas` snapshot of `reportRef`, multi-page A4, filename `insights-{month}.pdf`.
 - **AI narrative**: pulls the saved `monthly_insights` row (`source = "all"`, falls back to legacy `source = "intercom"`) and renders `overall_summary`.
