@@ -4,14 +4,17 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type SourceKey = "intercom" | "slack" | "gmail" | "other";
 export type RouteSource = "slack" | "gmail" | "manual";
+export type AccountKind = "domain" | "slack" | "manual";
 
 export interface NormalizedTicket {
   id: string;
   route_source: RouteSource;
   display_source: SourceKey;
   subject: string;
-  customer_key: string; // dedupe key for customer (lowercased email or name)
-  customer_label: string; // display label
+  customer_key: string; // account-level dedupe key
+  customer_label: string; // display label (may be refined async)
+  customer_kind: AccountKind;
+  customer_raw_id?: string; // raw slack channel id for async name resolution
   product_area: string;
   is_bug: boolean;
   is_feature_request: boolean;
@@ -39,6 +42,32 @@ const firstLine = (s: string | null | undefined) => {
   return line.slice(0, 160) || "(no subject)";
 };
 
+const PERSONAL_DOMAINS = new Set([
+  "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "live.com",
+  "yahoo.com", "icloud.com", "me.com", "proton.me", "protonmail.com", "aol.com",
+]);
+
+export function accountFromEmail(email: string | null | undefined): { key: string; label: string } {
+  const e = (email || "").trim().toLowerCase();
+  const at = e.lastIndexOf("@");
+  if (at < 0 || at === e.length - 1) return { key: "domain:unknown", label: "Unknown sender" };
+  const domain = e.slice(at + 1).replace(/^www\./, "");
+  if (PERSONAL_DOMAINS.has(domain)) return { key: "domain:_personal", label: "Personal email" };
+  return { key: "domain:" + domain, label: domain };
+}
+
+export function extractEmail(s: string | null | undefined): string | null {
+  if (!s) return null;
+  const m = s.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+  return m ? m[0].toLowerCase() : null;
+}
+
+export function extractSlackChannelId(link: string | null | undefined): string | null {
+  if (!link) return null;
+  const m = link.match(/\/archives\/(C[A-Z0-9]+)/i);
+  return m ? m[1].toUpperCase() : null;
+}
+
 export function useMonthData(month: string): MonthData {
   const [state, setState] = useState<MonthData>({ loading: true, tickets: [] });
 
@@ -55,7 +84,7 @@ export function useMonthData(month: string): MonthData {
         const [cmRes, gmRes, mcRes] = await Promise.all([
           supabase
             .from("conversation_mappings")
-            .select("id,original_message_text,product_area,is_bug,is_feature_request,classification,owner,status,csat_rating,created_at,resolved_at,intercom_conversation_id,slack_user_name,slack_user_id,is_test")
+            .select("id,original_message_text,product_area,is_bug,is_feature_request,classification,owner,status,csat_rating,created_at,resolved_at,intercom_conversation_id,slack_channel_id,slack_user_name,slack_user_id,is_test")
             .gte("created_at", fromIso)
             .lte("created_at", toIso)
             .eq("is_test", false)
@@ -69,7 +98,7 @@ export function useMonthData(month: string): MonthData {
             .limit(5000),
           supabase
             .from("manual_conversations")
-            .select("id,subject,product_area,is_bug,is_feature_request,classification,owner,status,csat_rating,created_at,resolved_at,intercom_conversation_id,contact_name,source,is_test")
+            .select("id,subject,product_area,is_bug,is_feature_request,classification,owner,status,csat_rating,created_at,resolved_at,intercom_conversation_id,contact_name,source,link,is_test")
             .gte("created_at", fromIso)
             .lte("created_at", toIso)
             .eq("is_test", false)
@@ -80,7 +109,6 @@ export function useMonthData(month: string): MonthData {
         if (gmRes.error) throw gmRes.error;
         if (mcRes.error) throw mcRes.error;
 
-        // Dedupe gmail by gmail_thread_id (keep earliest)
         const gmailByThread = new Map<string, typeof gmRes.data[number]>();
         for (const g of gmRes.data || []) {
           const key = g.gmail_thread_id || g.id;
@@ -90,7 +118,6 @@ export function useMonthData(month: string): MonthData {
           }
         }
 
-        // Intercom IDs already represented in conversation_mappings — to dedupe manual
         const cmIntercomIds = new Set(
           (cmRes.data || [])
             .map(c => c.intercom_conversation_id)
@@ -99,17 +126,18 @@ export function useMonthData(month: string): MonthData {
 
         const tickets: NormalizedTicket[] = [];
 
-        // Slack-bridged conversation_mappings → display as "intercom" if has intercom id, else "slack"
         for (const c of cmRes.data || []) {
           const display: SourceKey = c.intercom_conversation_id ? "intercom" : "slack";
-          const label = c.slack_user_name || c.slack_user_id || "Unknown";
+          const cid = c.slack_channel_id || "unknown";
           tickets.push({
             id: c.id,
             route_source: "slack",
             display_source: display,
             subject: firstLine(c.original_message_text),
-            customer_key: ("slack:" + label).toLowerCase(),
-            customer_label: label,
+            customer_key: "channel:" + cid,
+            customer_label: "#" + cid,
+            customer_kind: "slack",
+            customer_raw_id: cid,
             product_area: c.product_area || "Uncategorized",
             is_bug: !!c.is_bug,
             is_feature_request: !!c.is_feature_request,
@@ -125,14 +153,15 @@ export function useMonthData(month: string): MonthData {
 
         for (const g of gmailByThread.values()) {
           const email = (g.from_email || "").toLowerCase();
-          const label = g.from_name || g.from_email || "Unknown";
+          const acct = accountFromEmail(email);
           tickets.push({
             id: g.id,
             route_source: "gmail",
             display_source: "gmail",
             subject: cleanSubject(g.subject) || firstLine(g.snippet),
-            customer_key: email ? "email:" + email : "name:" + label.toLowerCase(),
-            customer_label: label,
+            customer_key: acct.key,
+            customer_label: acct.label,
+            customer_kind: "domain",
             product_area: g.product_area || "Uncategorized",
             is_bug: !!g.is_bug,
             is_feature_request: !!g.is_feature_request,
@@ -149,14 +178,37 @@ export function useMonthData(month: string): MonthData {
         for (const m of mcRes.data || []) {
           if (m.intercom_conversation_id && cmIntercomIds.has(m.intercom_conversation_id)) continue;
           const display: SourceKey = m.source === "slack" ? "slack" : m.intercom_conversation_id ? "intercom" : "other";
-          const label = m.contact_name || "Unknown";
+
+          let key = "manual:" + (m.source || "other");
+          let label = "Manual / " + (m.source || "other");
+          let kind: AccountKind = "manual";
+          let rawId: string | undefined;
+
+          const linkChannelId = m.source === "slack" ? extractSlackChannelId(m.link) : null;
+          const contactEmail = extractEmail(m.contact_name);
+
+          if (linkChannelId) {
+            key = "channel:" + linkChannelId;
+            label = "#" + linkChannelId;
+            kind = "slack";
+            rawId = linkChannelId;
+          } else if (m.source === "slack") {
+            key = "manual:slack";
+            label = "Manual Slack imports";
+          } else if (contactEmail) {
+            const acct = accountFromEmail(contactEmail);
+            key = acct.key; label = acct.label; kind = "domain";
+          }
+
           tickets.push({
             id: m.id,
             route_source: "manual",
             display_source: display,
             subject: cleanSubject(m.subject),
-            customer_key: ("name:" + label).toLowerCase(),
+            customer_key: key,
             customer_label: label,
+            customer_kind: kind,
+            customer_raw_id: rawId,
             product_area: m.product_area || "Uncategorized",
             is_bug: !!m.is_bug,
             is_feature_request: !!m.is_feature_request,
@@ -169,6 +221,7 @@ export function useMonthData(month: string): MonthData {
             intercom_conversation_id: m.intercom_conversation_id,
           });
         }
+
 
         if (!cancelled) setState({ loading: false, tickets });
       } catch (e) {

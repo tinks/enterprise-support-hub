@@ -1,15 +1,18 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { MonthData, NormalizedTicket, sourceLabel, ticketHref } from "./useMonthData";
+import { supabase } from "@/integrations/supabase/client";
+import { channelNameOverrides } from "@/lib/channelOverrides";
+import { AccountKind, MonthData, NormalizedTicket, sourceLabel, ticketHref } from "./useMonthData";
 
 interface CustomerAgg {
   key: string;
   label: string;
+  kind: AccountKind;
   count: number;
   sources: Set<string>;
   bugs: number;
@@ -29,16 +32,50 @@ const buckets = [
   { label: "10+", test: (n: number) => n > 10 },
 ];
 
+const kindLabel: Record<AccountKind, string> = {
+  domain: "Domain",
+  slack: "Slack",
+  manual: "Manual",
+};
+
 export function CustomersTab({ data }: { data: MonthData }) {
   const [openCust, setOpenCust] = useState<CustomerAgg | null>(null);
+  const [channelMap, setChannelMap] = useState<Record<string, string>>({});
+
+  // Resolve Slack channel IDs → names once on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: res } = await supabase.functions.invoke("list-slack-channels", { body: {} });
+        if (cancelled) return;
+        const map: Record<string, string> = { ...channelNameOverrides };
+        const list = (res as { channels?: { id: string; name: string }[] })?.channels || [];
+        for (const ch of list) map[ch.id] = ch.name;
+        setChannelMap(map);
+      } catch {
+        if (!cancelled) setChannelMap({ ...channelNameOverrides });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const resolveLabel = (t: NormalizedTicket): { key: string; label: string } => {
+    if (t.customer_kind === "slack" && t.customer_raw_id) {
+      const name = channelMap[t.customer_raw_id];
+      if (name) return { key: "channel:" + name.toLowerCase(), label: "#" + name };
+    }
+    return { key: t.customer_key, label: t.customer_label };
+  };
 
   const customers = useMemo<CustomerAgg[]>(() => {
     const map = new Map<string, CustomerAgg>();
     for (const t of data.tickets) {
-      let c = map.get(t.customer_key);
+      const { key, label } = resolveLabel(t);
+      let c = map.get(key);
       if (!c) {
-        c = { key: t.customer_key, label: t.customer_label, count: 0, sources: new Set(), bugs: 0, features: 0, csatSum: 0, csatN: 0, productAreas: {}, tickets: [] };
-        map.set(t.customer_key, c);
+        c = { key, label, kind: t.customer_kind, count: 0, sources: new Set(), bugs: 0, features: 0, csatSum: 0, csatN: 0, productAreas: {}, tickets: [] };
+        map.set(key, c);
       }
       c.count++;
       c.sources.add(t.display_source);
@@ -49,7 +86,8 @@ export function CustomersTab({ data }: { data: MonthData }) {
       c.tickets.push(t);
     }
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
-  }, [data.tickets]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.tickets, channelMap]);
 
   const totalUnique = customers.length;
   const repeat = customers.filter(c => c.count >= 2).length;
@@ -65,14 +103,15 @@ export function CustomersTab({ data }: { data: MonthData }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card><CardContent className="p-5"><div className="text-3xl font-bold">{totalUnique}</div><div className="text-xs text-muted-foreground mt-1">Unique customers</div></CardContent></Card>
-        <Card><CardContent className="p-5"><div className="text-3xl font-bold">{repeat}</div><div className="text-xs text-muted-foreground mt-1">Repeat customers (≥2 tickets)</div></CardContent></Card>
-        <Card><CardContent className="p-5"><div className="text-3xl font-bold">{single}</div><div className="text-xs text-muted-foreground mt-1">Single-ticket customers</div></CardContent></Card>
+        <Card><CardContent className="p-5"><div className="text-3xl font-bold">{totalUnique}</div><div className="text-xs text-muted-foreground mt-1">Unique accounts</div></CardContent></Card>
+        <Card><CardContent className="p-5"><div className="text-3xl font-bold">{repeat}</div><div className="text-xs text-muted-foreground mt-1">Repeat accounts (≥2 tickets)</div></CardContent></Card>
+        <Card><CardContent className="p-5"><div className="text-3xl font-bold">{single}</div><div className="text-xs text-muted-foreground mt-1">Single-ticket accounts</div></CardContent></Card>
       </div>
 
       <Card>
         <CardContent className="p-5">
-          <h3 className="text-sm font-semibold mb-3">Tickets per customer distribution</h3>
+          <h3 className="text-sm font-semibold mb-1">Tickets per account distribution</h3>
+          <p className="text-xs text-muted-foreground mb-3">Accounts grouped by email domain (Gmail) or Slack channel name.</p>
           <div className="space-y-2">
             {histogram.map(h => (
               <div key={h.label} className="flex items-center gap-3">
@@ -92,7 +131,7 @@ export function CustomersTab({ data }: { data: MonthData }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[220px]">Customer</TableHead>
+                <TableHead className="w-[260px]">Account</TableHead>
                 <TableHead>Tickets</TableHead>
                 <TableHead>Sources</TableHead>
                 <TableHead>Bugs</TableHead>
@@ -107,7 +146,12 @@ export function CustomersTab({ data }: { data: MonthData }) {
                 const csat = c.csatN ? (c.csatSum / c.csatN).toFixed(1) : "—";
                 return (
                   <TableRow key={c.key} className="cursor-pointer" onClick={() => setOpenCust(c)}>
-                    <TableCell className="font-medium truncate max-w-[220px]">{c.label}</TableCell>
+                    <TableCell className="font-medium max-w-[260px]">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">{kindLabel[c.kind]}</Badge>
+                        <span className="truncate">{c.label}</span>
+                      </div>
+                    </TableCell>
                     <TableCell>{c.count}</TableCell>
                     <TableCell>
                       <div className="flex gap-1 flex-wrap">
@@ -136,7 +180,10 @@ export function CustomersTab({ data }: { data: MonthData }) {
           {openCust && (
             <>
               <SheetHeader>
-                <SheetTitle>{openCust.label}</SheetTitle>
+                <SheetTitle className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">{kindLabel[openCust.kind]}</Badge>
+                  {openCust.label}
+                </SheetTitle>
                 <p className="text-xs text-muted-foreground pt-1">{openCust.count} tickets this month</p>
               </SheetHeader>
               <ul className="mt-4 space-y-2">
