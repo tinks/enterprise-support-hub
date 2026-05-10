@@ -202,6 +202,9 @@ export function useMonthData(month: string, refreshKey: number = 0): MonthData {
             const acct = normalizeManualContact(m.contact_name);
             key = acct.key;
             label = acct.label;
+            // `account:*` overrides (e.g. McKinsey alias / domain rollup) are
+            // treated as manual contacts so they always land in the Manual
+            // contacts column regardless of display_source.
             kind = acct.key.startsWith("domain:") ? "domain" : "manual";
           }
 
