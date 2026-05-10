@@ -199,7 +199,6 @@ export function useMonthData(month: string, refreshKey: number = 0): MonthData {
             // Use shared normaliser so contacts like "McKinsey",
             // "*@mckinsey.com", and known contractor names roll up
             // into a single account in the Top accounts panel.
-            const { normalizeManualContact } = await import("./manualAccounts");
             const acct = normalizeManualContact(m.contact_name);
             key = acct.key;
             label = acct.label;
