@@ -483,12 +483,17 @@ const BulkImportReview = () => {
 
             {/* Import controls */}
             <div className="flex items-center gap-4">
-              <Button onClick={handleBulkImport} disabled={importing || selectedCount === 0}>
+              <Button onClick={() => handleBulkImport()} disabled={importing || selectedCount === 0}>
                 {importing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Import {selectedCount} selected
               </Button>
               <Button variant="outline" onClick={() => toggleSelectAll("missing", true)}>Select all missing</Button>
               <Button variant="outline" onClick={() => toggleSelectAll("missing", false)}>Deselect all</Button>
+              {importResults.some(r => r.status === "out_of_inbox") && (
+                <Button variant="outline" onClick={handleForceOutOfInbox} disabled={importing}>
+                  Import {importResults.filter(r => r.status === "out_of_inbox").length} outside-inbox anyway
+                </Button>
+              )}
             </div>
 
             {/* Progress */}
