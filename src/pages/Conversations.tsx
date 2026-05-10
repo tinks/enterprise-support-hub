@@ -240,7 +240,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const savedPaFilter = localStorage.getItem("conv-pa-filter");
   const [productAreaFilter, setProductAreaFilter] = useState<string>(paramProductArea || (isReportOwnerDrilldown ? "all" : savedPaFilter) || "all");
   const savedClassFilter = localStorage.getItem("conv-class-filter");
-  const [classificationFilter, setClassificationFilter] = useState<string>(isReportOwnerDrilldown ? "all" : (savedClassFilter || "all"));
+  const [classificationFilter, setClassificationFilter] = useState<string>(paramClassification || (isReportOwnerDrilldown ? "all" : (savedClassFilter || "all")));
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [searchResults, setSearchResults] = useState<{ slack: ConversationMapping[]; gmail: GmailConversation[]; manual: ManualConversation[]; pending: PendingIntercomLink[] } | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
