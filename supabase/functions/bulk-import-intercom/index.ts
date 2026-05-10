@@ -108,6 +108,14 @@ Deno.serve(async (req) => {
 
         const icData = await icRes.json();
 
+        // Enterprise-inbox guard
+        const currentTeamId = String(icData.team_assignee_id || "");
+        if (enterpriseInboxId && currentTeamId !== enterpriseInboxId && !forceInbox) {
+          results.push({ id: String(intercomConvId), status: "out_of_inbox", currentTeamId });
+          await new Promise(r => setTimeout(r, 100));
+          continue;
+        }
+
         // Extract metadata
         let contactName = "";
         const sourceContact = icData.source?.author;
