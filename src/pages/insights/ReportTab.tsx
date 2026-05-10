@@ -326,7 +326,7 @@ export function ReportTab({ data, month }: ReportTabProps) {
           <CardContent className="p-5">
             <h2 className="text-sm font-semibold mb-1">Top accounts</h2>
             <p className="text-xs text-muted-foreground mb-4">
-              Slack by channel · Email by sender domain (Gmail + Intercom contacts combined). Slack-routed Intercom cases are counted under Slack. Click a row for bug/FR/CSAT details.
+              Slack by channel · Gmail + Intercom by sender email domain (internal lovable.dev traffic excluded). Slack-routed Intercom cases are counted under Slack. Click a row for bug/FR/CSAT details.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <AccountMiniTable title="Slack" accounts={stats.slackAccounts} />
@@ -541,6 +541,8 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
     if (t.customer_kind === "slack") {
       target = slackMap; // includes Slack-routed Intercom cases
     } else if (t.customer_kind === "domain" && (t.display_source === "gmail" || t.display_source === "intercom")) {
+      // Exclude internal lovable.dev traffic so external customers surface in Top accounts.
+      if (key === "domain:lovable.dev" || label.toLowerCase() === "lovable.dev") continue;
       target = emailMap;
     }
     if (!target) continue; // skip manual/other with no resolved account
