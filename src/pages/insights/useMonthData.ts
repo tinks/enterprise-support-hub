@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { endOfMonth, startOfMonth, parse } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeManualContact } from "./manualAccounts";
 
 export type SourceKey = "intercom" | "slack" | "gmail" | "other";
 export type RouteSource = "slack" | "gmail" | "manual";
