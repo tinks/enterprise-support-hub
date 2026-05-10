@@ -1,16 +1,13 @@
-## Exclude `lovable.dev` from Top accounts (Gmail + Intercom)
+## Exclude "Personal email" bucket from Top accounts (Gmail + Intercom)
 
 ### Change
-In `src/pages/insights/ReportTab.tsx` `computeStats` (~line 540-545), when assigning a ticket to `emailMap`, skip it if the resolved email domain is `lovable.dev`. This applies to both Gmail (`from_email` domain) and Intercom (`contact_name` email domain) tickets, since both feed `customer_kind === "domain"`.
-
-The Slack list is untouched. Ticket totals, source mix, daily volume, and other stats are untouched — this filter only affects the Top accounts widget.
+In `src/pages/insights/ReportTab.tsx` `computeStats`, extend the existing email-domain skip filter to also skip the personal-email aggregate (`customer_key === "domain:_personal"`). The bucket still exists in the underlying data — we just don't show it in the Top accounts widget because it lumps unrelated consumer senders together.
 
 ### Subtitle
-Update the Top accounts subtitle to mention that internal `lovable.dev` traffic is excluded from the Gmail + Intercom column.
+Update the Top accounts subtitle to mention that both internal `lovable.dev` and the consumer "Personal email" bucket are excluded.
 
 ### Memory + knowledge
-- Save a project memory under `mem://logic/top-accounts-filter` recording: "Top accounts (Gmail + Intercom) excludes domain `lovable.dev` (internal employees) so external customers surface."
-- Add a one-line entry under Core in `mem://index.md`.
-- Update `.lovable/project-knowledge.md` "Monthly Report — Top accounts grouping" section with the same rule.
+- Update `mem://logic/top-accounts-filter` to add the Personal email exclusion.
+- Update `.lovable/project-knowledge.md` "Monthly Report — Top accounts grouping" section to match.
 
-No DB or edge function changes.
+No DB or other UI changes. Other widgets (Source mix, totals, CSAT, etc.) keep showing personal-email tickets.
