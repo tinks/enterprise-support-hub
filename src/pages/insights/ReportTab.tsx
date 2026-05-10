@@ -258,6 +258,8 @@ export function ReportTab({ data, month }: ReportTabProps) {
           </CardContent>
         </Card>
 
+        <MonthStatsCards data={data} month={month} />
+
         {/* Ticket types */}
         <Card>
           <CardContent className="p-5">
