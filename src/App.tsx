@@ -16,6 +16,7 @@ import NotFound from "./pages/NotFound";
 import OwnerDashboard from "./pages/OwnerDashboard";
 import BulkImportReview from "./pages/BulkImportReview";
 import TestChannelReview from "./pages/TestChannelReview";
+import Insights from "./pages/Insights";
 
 const queryClient = new QueryClient();
 
