@@ -612,7 +612,8 @@ On `/stats`, a Slack conversation counts as escalated if it has a non-empty `int
 
 
 ## Monthly Report — Top accounts grouping
-- Slack list: any ticket whose resolved customer is a Slack channel (includes Slack-routed Intercom cases).
-- Gmail list: display_source=gmail, grouped by sender email domain (thread-deduped upstream).
-- Intercom list: display_source=intercom AND contact email known (manual imports / polled inbox with email in contact_name). Slack-routed Intercom cases are intentionally counted under Slack since contact email is not stored locally.
+- Two columns: **Slack** (by channel name) and **Email** (by sender domain, Gmail + Intercom contacts combined and summed per domain).
+- Slack list includes Slack-routed Intercom cases (no contact email stored locally for those).
+- Manual/other tickets without a resolved channel or email are excluded.
+- Channel-name resolution: Insights tabs pass the actual `channelIds` from this month's tickets to `list-slack-channels`, which falls through `conversations.list` → `conversations.info` → connector gateway so non-member/private channels still resolve.
 - Each list shows top 5 with click-to-expand bug/FR/CSAT details.

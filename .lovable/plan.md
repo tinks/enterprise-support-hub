@@ -1,54 +1,40 @@
 ## Goal
 
-Restructure the Report tab "Top accounts" card so it's split into three clear per-channel sections instead of one mixed list.
+Two refinements to the Report's Top accounts card:
 
-## What changes
+1. Resolve raw Slack channel IDs (e.g. `#C08Q0B29A79`) to their actual channel names.
+2. Merge the Gmail and Intercom columns into a single "Email" column (deduped by domain).
 
-In `src/pages/insights/ReportTab.tsx`, replace the single Top accounts table with three side-by-side compact lists:
+## Changes
 
-- **Slack** — grouped by Slack channel name (e.g. `#workday-lovable`). Includes Slack-routed Intercom cases (since we don't have the contact email for those — they fall back to channel here).
-- **Gmail** — grouped by sender email domain (e.g. `mckinsey.com`), thread-deduped (already done upstream).
-- **Intercom** — grouped by contact email domain, using only Intercom cases where the email is known (manual imports, polled inbox cases with `contact_name` containing an email).
+### 1. Resolve Slack channel names (ReportTab + CustomersTab)
 
-Each list shows top 5 by ticket count, compact rows: `Account · Tickets`. Clicking a row expands an inline details panel showing Bugs, FRs, and Avg CSAT for that account.
+Currently both tabs invoke `list-slack-channels` with `body: {}`, which only returns channels the bot is currently a member of (plus public channels visible via `conversations.list`). Channels the bot was kicked from, archived channels, or some private channels are missing — so their IDs render raw.
 
-## Layout
+The edge function already supports a `channelIds` param with a 3-tier resolver (`conversations.list` → `conversations.info` direct → connector-gateway fallback). We just need to pass the actual IDs from this month's tickets.
 
-```text
-┌─ Top accounts ─────────────────────────────────────────────┐
-│  Slack              Gmail              Intercom            │
-│  #workday-lovable 14   lovable.dev   93   acme.com    7    │
-│  #ext-bts-lovable 12   mckinsey.com   7   foo.com     5    │
-│  #team-ent...    11   Personal email 8   ...               │
-│  ...               ...               ...                   │
-│  ▼ (expanded row)                                          │
-│    Bugs 2 · FRs 0 · CSAT 4.5                              │
-└────────────────────────────────────────────────────────────┘
-```
+Changes in `src/pages/insights/ReportTab.tsx` and `src/pages/insights/CustomersTab.tsx`:
+- After tickets load, collect the unique set of `customer_raw_id` values where `customer_kind === "slack"`.
+- Invoke `list-slack-channels` with `{ channelIds: [...] }` instead of `{}`.
+- Merge resolved names into `channelMap` (preserving `channelNameOverrides` as the highest priority).
+- Re-run the call when the ticket set changes (e.g., when the user switches month).
 
-Brief subtitle under the heading: "Slack by channel · Gmail by email domain · Intercom by contact email domain (Slack-routed Intercom cases counted under Slack)."
+This guarantees per-channel-id resolution, even for channels the bot isn't in.
 
-## Bucketing rules (per ticket)
+### 2. Merge Intercom + Gmail into one "Email" column
 
-| Source           | Account key                                              |
-|------------------|----------------------------------------------------------|
-| Slack only       | Slack channel name                                       |
-| Slack + Intercom | Slack channel name (counted in Slack list)               |
-| Gmail            | Email domain from `from_email`                           |
-| Manual / Intercom with email | Email domain from `contact_name`             |
-| Manual / Slack with channel link | Slack channel (counted in Slack list)    |
-| Manual / other (no email, no channel) | Excluded from per-channel lists     |
+In `src/pages/insights/ReportTab.tsx` `computeStats`:
+- Collapse `gmailMap` and `intercomMap` into a single `emailMap` keyed by domain.
+- Any ticket with `customer_kind === "domain"` and `display_source` in `("gmail", "intercom")` is added to `emailMap`. Same domain across both sources sums into one row (e.g. `lovable.dev` Gmail 58 + Intercom 35 = 93).
+- Drop the `intercomAccounts` field; rename to `emailAccounts`.
 
-The "Most active account" highlight bullet uses the max across all three lists.
-
-## Technical notes
-
-- `computeStats` already produces `slackAccounts`, `gmailAccounts`, `intercomAccounts` from a `bucketAccount(kind)` helper that filters by `display_source`. The bucketing change: stop classifying purely by `display_source === "intercom"` for Slack-routed cases — instead, group any ticket whose resolved account key is a Slack channel into the Slack list (regardless of display_source). This keeps `#workday-lovable` Intercom-linked tickets in the Slack column where they're recognizable.
-- Add a small expand state per list (`useState<string | null>`) for the click-to-expand row.
-- Drop the unused `topAccounts` shape; keep `topAccount` for the highlights bullet.
-- No backend / schema changes. Intercom email backfill is intentionally deferred.
+Layout change in the Top accounts card:
+- Replace the 3-column grid (`Slack | Gmail | Intercom`) with a 2-column grid (`Slack | Email`).
+- Subtitle becomes: "Slack by channel · Email by sender domain (Gmail + Intercom contacts combined). Slack-routed Intercom cases are counted under Slack."
+- Click-to-expand row still shows Bugs / FRs / CSAT.
 
 ## Files touched
 
-- `src/pages/insights/ReportTab.tsx` — restructure Top accounts card + `computeStats` bucketing.
-- `.lovable/project-knowledge.md` — note the per-channel grouping rule for the monthly report.
+- `src/pages/insights/ReportTab.tsx` — pass `channelIds` to `list-slack-channels`; merge gmail+intercom buckets; switch to 2-column layout.
+- `src/pages/insights/CustomersTab.tsx` — pass `channelIds` to `list-slack-channels` so the customers table also resolves all referenced channels.
+- `.lovable/project-knowledge.md` — update the per-channel grouping note to reflect the merged Email column.

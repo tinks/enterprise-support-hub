@@ -85,23 +85,38 @@ export function ReportTab({ data, month }: ReportTabProps) {
     return () => { cancelled = true; };
   }, [month]);
 
-  // Resolve Slack channel IDs → names
+  // Resolve Slack channel IDs → names. Pass the actual channel IDs from this
+  // month + previous month so the edge function falls back to conversations.info
+  // for channels the bot isn't in (otherwise IDs render raw).
+  const channelIdsKey = useMemo(() => {
+    const ids = new Set<string>();
+    for (const t of [...data.tickets, ...prev.tickets]) {
+      if (t.customer_kind === "slack" && t.customer_raw_id) ids.add(t.customer_raw_id);
+    }
+    return Array.from(ids).sort().join(",");
+  }, [data.tickets, prev.tickets]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const channelIds = channelIdsKey ? channelIdsKey.split(",") : [];
       try {
-        const { data: res } = await supabase.functions.invoke("list-slack-channels", { body: {} });
+        const { data: res } = await supabase.functions.invoke("list-slack-channels", {
+          body: channelIds.length ? { channelIds } : {},
+        });
         if (cancelled) return;
-        const map: Record<string, string> = { ...channelNameOverrides };
         const list = (res as { channels?: { id: string; name: string }[] })?.channels || [];
-        for (const ch of list) map[ch.id] = ch.name;
+        const map: Record<string, string> = {};
+        for (const ch of list) if (ch.name) map[ch.id] = ch.name;
+        // overrides win
+        Object.assign(map, channelNameOverrides);
         setChannelMap(map);
       } catch {
         if (!cancelled) setChannelMap({ ...channelNameOverrides });
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [channelIdsKey]);
 
   const stats = useMemo(() => computeStats(data.tickets, channelMap), [data.tickets, channelMap]);
   const prevStats = useMemo(() => computeStats(prev.tickets, channelMap), [prev.tickets, channelMap]);
@@ -311,12 +326,11 @@ export function ReportTab({ data, month }: ReportTabProps) {
           <CardContent className="p-5">
             <h2 className="text-sm font-semibold mb-1">Top accounts</h2>
             <p className="text-xs text-muted-foreground mb-4">
-              Slack by channel · Gmail by email domain · Intercom by contact email domain. Slack-routed Intercom cases are counted under Slack. Click a row for bug/FR/CSAT details.
+              Slack by channel · Email by sender domain (Gmail + Intercom contacts combined). Slack-routed Intercom cases are counted under Slack. Click a row for bug/FR/CSAT details.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <AccountMiniTable title="Slack" accounts={stats.slackAccounts} />
-              <AccountMiniTable title="Gmail" accounts={stats.gmailAccounts} />
-              <AccountMiniTable title="Intercom" accounts={stats.intercomAccounts} />
+              <AccountMiniTable title="Email" accounts={stats.emailAccounts} />
             </div>
           </CardContent>
         </Card>
@@ -505,15 +519,12 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
 
   // Top accounts — bucketed by the *resolved account identifier*, not by
   // display_source, so that Slack-routed Intercom cases land under their
-  // Slack channel (where they're recognizable) and only Intercom cases with
-  // a known contact email show up in the Intercom list.
-  //   • Slack list    → any ticket whose account resolves to a Slack channel
-  //   • Gmail list    → display_source=gmail, grouped by email domain
-  //   • Intercom list → display_source=intercom AND account resolves to a
-  //                     domain (i.e. we have the contact email)
+  // Slack channel (where they're recognizable).
+  //   • Slack list → any ticket whose account resolves to a Slack channel
+  //   • Email list → any ticket whose account resolves to an email domain
+  //                  (Gmail + Intercom contacts combined; same domain sums)
   const slackMap = new Map<string, AccountAgg>();
-  const gmailMap = new Map<string, AccountAgg>();
-  const intercomMap = new Map<string, AccountAgg>();
+  const emailMap = new Map<string, AccountAgg>();
   for (const t of tickets) {
     let key = t.customer_key;
     let label = t.customer_label;
@@ -529,9 +540,8 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
     let target: Map<string, AccountAgg> | null = null;
     if (t.customer_kind === "slack") {
       target = slackMap; // includes Slack-routed Intercom cases
-    } else if (t.customer_kind === "domain") {
-      if (t.display_source === "gmail") target = gmailMap;
-      else if (t.display_source === "intercom") target = intercomMap;
+    } else if (t.customer_kind === "domain" && (t.display_source === "gmail" || t.display_source === "intercom")) {
+      target = emailMap;
     }
     if (!target) continue; // skip manual/other with no resolved account
 
@@ -548,9 +558,8 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
   const sortTop = (m: Map<string, AccountAgg>) =>
     Array.from(m.values()).sort((a, b) => b.count - a.count).slice(0, 5);
   const slackAccounts = sortTop(slackMap);
-  const gmailAccounts = sortTop(gmailMap);
-  const intercomAccounts = sortTop(intercomMap);
-  const topAccount = [...slackAccounts, ...gmailAccounts, ...intercomAccounts]
+  const emailAccounts = sortTop(emailMap);
+  const topAccount = [...slackAccounts, ...emailAccounts]
     .sort((a, b) => b.count - a.count)[0] || null;
 
   // Product areas
@@ -596,7 +605,7 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
   return {
     total, counts, ttrByBucket, medianTtr, resolvedCount: resolved.length, resolvedPct,
     avgCsat, ratedCount: rated.length, daily: dailyTrim, dailyMax, sourceMix,
-    slackAccounts, gmailAccounts, intercomAccounts,
+    slackAccounts, emailAccounts,
     topAccount, productAreasTop, topProductArea, worstCsatPa, owners, peakDow,
   };
 }
