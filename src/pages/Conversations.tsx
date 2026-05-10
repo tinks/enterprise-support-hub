@@ -714,13 +714,13 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     if (dateFrom) {
       const fromIso = startOfDay(dateFrom).toISOString();
       slackQuery = slackQuery.gte("created_at", fromIso);
-      gmailQuery = gmailQuery.gte("received_at", fromIso);
+      gmailQuery = gmailQuery.gte("created_at", fromIso);
       manualQuery = manualQuery.gte("created_at", fromIso);
     }
     if (dateTo) {
       const toIso = endOfDay(dateTo).toISOString();
       slackQuery = slackQuery.lte("created_at", toIso);
-      gmailQuery = gmailQuery.lte("received_at", toIso);
+      gmailQuery = gmailQuery.lte("created_at", toIso);
       manualQuery = manualQuery.lte("created_at", toIso);
     }
 
