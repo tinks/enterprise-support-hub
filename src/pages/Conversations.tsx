@@ -431,7 +431,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   useEffect(() => { if (!forceOwner && !paramOwner) localStorage.setItem("conv-owner-filter", ownerFilter); }, [ownerFilter, forceOwner, paramOwner]);
   useEffect(() => { localStorage.setItem("conv-pa-filter", productAreaFilter); }, [productAreaFilter]);
   useEffect(() => { localStorage.setItem("conv-class-filter", classificationFilter); }, [classificationFilter]);
-  useEffect(() => { localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses]);
+  useEffect(() => { if (!paramShowAll) localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses, paramShowAll]);
   useEffect(() => {
     if (searchQuery) localStorage.setItem("conv-search", searchQuery);
     else localStorage.removeItem("conv-search");
