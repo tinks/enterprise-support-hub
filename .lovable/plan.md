@@ -1,32 +1,39 @@
-# Reverse the fix: count by origin (route_source) everywhere
+# Reconcile Source performance counts with Total tickets
 
-## New rule
+## Why 85 + 60 + 200 ≠ 334
 
-A conversation belongs to the source it **originated from**, regardless of whether it was later mirrored/escalated into another tool. So a Slack ticket escalated to Intercom counts as **Slack** in both Source mix and Source performance.
+- **Total (334)** is local DB only: Slack rows + Gmail rows + manual imports.
+- **Slack 85** and **Gmail 60** are local DB by origin.
+- **Intercom 200** is fetched live from the Intercom API, NOT from our DB. It includes:
+  - Slack-escalated conversations (already counted in Slack = 85 → double count)
+  - Intercom conversations that were never imported as `manual_conversations` locally
 
-## Changes
+That's where the +11 comes from.
 
-### 1. `src/pages/insights/MonthStatsCards.tsx`
-- Revert `computeSlackStats` / `computeGmailStats` back to filtering by `route_source` ("slack" / "gmail").
-- Restore the **Escalated to human** row for Slack (count of Slack-origin tickets that have an `intercom_conversation_id` or escalated status).
-- Restore the real **Bot success rate** (resolved-without-Intercom / total Slack) — distinct from overall success rate again.
+## Fix
 
-### 2. `src/pages/insights/ReportTab.tsx` — Source mix
-- Change `sourceMix` to bucket by `route_source` instead of `display_source`:
-  - `slack` = `route_source === "slack"` (includes escalated-to-Intercom)
-  - `gmail` = `route_source === "gmail"`
-  - `intercom` = `route_source === "manual"` AND `display_source === "intercom"` (Intercom-origin imports)
-  - `other` = everything else (manual/other)
-- Keep colors and ordering as-is.
+Use the **local DB** for the Intercom count column so all four buckets share the same population as Total. Keep the live Intercom API only for the response-time / handling-time medians which we can't compute locally.
 
-### 3. Intercom column in Source performance
-- The live Intercom API count covers all Intercom conversations in the inbox, which includes Slack-escalated ones. With the new rule those should be attributed to Slack, so the Intercom column now overstates Intercom-origin volume.
-- Two options — recommend **Option A** for simplicity:
-  - **A. Leave Intercom column as live-API totals** and add a small footnote: "Intercom totals include Slack-escalated conversations." Simple, no backend change.
-  - **B. Subtract the Slack-escalated count** (number of Slack-origin tickets in the month with an `intercom_conversation_id`) from the Intercom `count` column so totals reconcile.
-- Going with A unless you prefer B.
+### Files
 
-### 4. Docs
-- Update `.lovable/memory/features/month-stats-cards.md` and `.lovable/project-knowledge.md` to state the new rule: **source = origin (route_source)**, and note the Intercom footnote.
+1. `src/pages/insights/sourceBucket.ts` (new) — single source of truth:
+   ```ts
+   export function sourceBucketOf(t: NormalizedTicket): "slack" | "gmail" | "intercom" | "other" {
+     if (t.route_source === "slack") return "slack";
+     if (t.route_source === "gmail") return "gmail";
+     if (t.display_source === "intercom") return "intercom";
+     return "other";
+   }
+   ```
 
-No backend, schema, or edge-function changes.
+2. `src/pages/insights/ReportTab.tsx` — drop the inline `sourceBucketOf` and import from the new util.
+
+3. `src/pages/insights/MonthStatsCards.tsx`:
+   - Add `computeIntercomStats(tickets)` filtering by `sourceBucketOf(t) === "intercom"` → local Received / Resolved / Open / median resolution.
+   - Replace the **Received**, **Resolved**, **Open**, **Median resolution / time to close** Intercom cells with local values.
+   - Keep `intercomCell(...)` only for `Median first response`, `Median response time`, `Median handling time` (live Intercom API).
+   - Update the footer line to: "Response/handling times from Intercom API ({n} live conversations)" and clarify counts are local.
+
+After this change Slack + Gmail + Intercom + Other in both Source mix and Source performance Received row equal Total.
+
+No backend or schema changes.
