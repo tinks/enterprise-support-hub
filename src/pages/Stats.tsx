@@ -621,7 +621,7 @@ const Stats = () => {
       const day = format(parseISO(m.created_at), "yyyy-MM-dd");
       if (!byDay[day]) byDay[day] = { date: day, total: 0, resolved: 0, open: 0, escalated: 0 };
       byDay[day].total++;
-      const isEscalated = m.status === "escalated" || m.status === "escalated_pending";
+      const isEscalated = (m.intercom_conversation_id && m.intercom_conversation_id !== "") || m.status === "escalated" || m.status === "escalated_pending";
       if (m.status === "resolved") byDay[day].resolved++;
       else byDay[day].open++;
       if (isEscalated) byDay[day].escalated++;
