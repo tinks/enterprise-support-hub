@@ -67,8 +67,10 @@ const Insights = () => {
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [openBucket, setOpenBucket] = useState<Bucket | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("report");
+  const [reportRefreshKey, setReportRefreshKey] = useState(0);
 
-  const monthData = useMonthData(month);
+  const monthData = useMonthData(month, reportRefreshKey);
 
   const loadInsight = async (m: string) => {
     setLoading(true);
