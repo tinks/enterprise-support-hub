@@ -102,6 +102,24 @@ function computeGmailStats(tickets: NormalizedTicket[]) {
   };
 }
 
+function computeIntercomStats(tickets: NormalizedTicket[]) {
+  // Intercom-origin local rows (manual imports flagged as Intercom source).
+  const ic = tickets.filter((t) => sourceBucketOf(t) === "intercom");
+  const total = ic.length;
+  const resolved = ic.filter((t) => t.status === "resolved").length;
+  const open = total - resolved;
+  const times = ic
+    .filter((t) => t.status === "resolved" && t.resolved_at)
+    .map((t) => differenceInMinutes(parseISO(t.resolved_at!), parseISO(t.created_at)))
+    .filter((n) => n >= 0);
+  return {
+    total,
+    resolved,
+    open,
+    medianResolutionMin: median(times),
+  };
+}
+
 const MUTED = <span className="text-muted-foreground">—</span>;
 
 function DeltaChip({ valueSec, prevSec }: { valueSec: number | null; prevSec: number | null }) {
