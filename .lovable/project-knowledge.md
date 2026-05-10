@@ -601,3 +601,7 @@ Intercom delivers an admin's assign-and-reply text on `part_type === "assignment
 ## Inline editing of messages and notes
 
 On the conversation detail page, hovering a manual message or internal note (either source: `conversation_notes` row or `manual_messages` with `is_internal_note=true`) reveals a pencil icon. Clicking opens an inline `Textarea` with Save / Cancel; ⌘+Enter saves, Esc cancels. Saves write to `manual_messages.message_text` or `conversation_notes.note_text` respectively. Author / role / timestamp are read-only. RLS: `conversation_notes` now has an authenticated UPDATE policy (added 2026-05).
+
+## "Escalated to human" stat definition
+
+On `/stats`, a Slack conversation counts as escalated if it has a non-empty `intercom_conversation_id` (i.e. was ever handed off to a human in Intercom), in addition to current `status in ('escalated','escalated_pending')`. This avoids zero counts when humans resolve the ticket in Intercom and the status flips to `resolved`. Applies to: Overview KPI, status pie, daily volume bar, and escalation-rate trend.

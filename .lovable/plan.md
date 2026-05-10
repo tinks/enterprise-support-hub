@@ -1,38 +1,45 @@
-## Goal
+## Problem
 
-Inbox filters should survive navigating into a conversation and back. They should only clear when the user clicks an explicit Reset filters button.
+The "Escalated to human" stats on the Stats page show 0 for April 2026, but escalations definitely happened.
 
-## Current state
+I checked the database for April 2026:
+- `conversation_mappings` (Slack) has **55 conversations with an `intercom_conversation_id`** — i.e. they were handed off to a human in Intercom. None still carry status `escalated`/`escalated_pending` because once Sam/Joel/Kristina resolved them in Intercom, the status flipped to `resolved`.
+- The only row in the entire DB still sitting at `status = 'escalated'` is one record from May 2026.
 
-Most filters already persist to `localStorage` and rehydrate on mount: `sourceFilter`, `ownerFilter`, `productAreaFilter`, `classificationFilter`, `hiddenStatuses`, and `columnOrder`. There is also a `resetAll()` function and a `Reset` button — but the button lives inside the collapsible Filter panel, so it's easy to miss, and it does not clear the localStorage entries it leaves behind.
+## Root cause
 
-Two filter inputs do NOT persist today:
-- `searchQuery`
-- `dateFrom` / `dateTo`
+`src/pages/Stats.tsx` counts escalations purely from current status:
 
-So when you go to a conversation and hit Back, the search box and the date range are lost.
+```ts
+// line 560 (Overview card)
+const escalated = filtered.filter(m => m.status === "escalated" || m.status === "escalated_pending").length;
 
-## Changes (all in `src/pages/Conversations.tsx`)
+// line 464 + 622 + 645 (Intercom card, daily volume, escalation-rate chart)
+m.status === "escalated" || m.status === "escalated_pending"
+```
 
-1. **Persist `searchQuery`**
-   - Initialize `useState` from `localStorage.getItem("conv-search")`.
-   - Add a `useEffect` that writes `searchQuery` to `localStorage` on change (empty string clears the key).
+`escalated` is a **transient** state — it gets overwritten the moment the human resolves the ticket. So the metric structurally cannot reflect history.
 
-2. **Persist `dateFrom` / `dateTo`**
-   - Initialize from `localStorage.getItem("conv-date-from") / "conv-date-to"` (parse ISO strings to `Date`).
-   - Add `useEffect`s that write them on change (or remove the key when undefined).
+## Fix
 
-3. **Make `resetAll` actually reset everything**
-   - Also clear `searchQuery`, `dateFrom`, `dateTo`.
-   - Explicitly `localStorage.removeItem(...)` for every persisted key (`conv-source-filter`, `conv-owner-filter`, `conv-pa-filter`, `conv-class-filter`, `conv-hidden-statuses`, `conv-search`, `conv-date-from`, `conv-date-to`, plus the column order keys). The existing per-state `useEffect`s will then re-write the cleared defaults, which is fine.
-   - Update `anyFilterActive` to also consider `searchQuery.length > 0`.
+Redefine "escalated" as **"was ever handed off to a human"**, detected by the presence of `intercom_conversation_id` on a Slack mapping. Apply this in four places in `src/pages/Stats.tsx`:
 
-4. **Surface a top-level Reset filters button**
-   - Add a `Reset filters` button (`RotateCcw` icon, ghost/outline) to the always-visible Search & Refresh bar (around line 1730), shown only when `anyFilterActive` is true.
-   - Keep the existing one inside the Filter accordion as-is so both entry points work.
+1. **Overview "Escalated to human" KPI** (line 560) — count Slack mappings where `intercom_conversation_id` is non-empty (regardless of current status), excluding `cancelled`/`test`.
+2. **Status distribution pie** (lines 502–509 + 672) — bucket those rows under "Escalated" instead of "Resolved"/"Open" so the slices add up correctly.
+3. **Daily volume chart** (lines 617–625) — `isEscalated` becomes "has intercom_conversation_id".
+4. **Escalation-rate trend** (lines 642–658) — same predicate; denominator stays "completed conversations" (resolved + escalated).
+
+The Intercom card (lines 460–488) measures Intercom-imported tickets directly and has no Slack handoff signal, so leave its `escalated`/`escalationPct` as-is but **rename the label** to "Currently escalated" so it's not confused with the Overview metric. (Or hide it — open question below.)
 
 ## Out of scope
 
-- Persisting query-string driven filters (`paramDay`, `paramHour`, `paramChannel`, etc.) — those are link-driven, not user filters.
-- Persisting expanded gmail groups or expanded message previews.
-- Cross-tab sync.
+- Backfilling a historical "was_escalated" boolean column. Using `intercom_conversation_id` is sufficient and already populated.
+- Changing the live status machine.
+
+## Open question
+
+For the **Intercom card** (which counts tickets imported directly into Intercom, not Slack escalations), the `escalationPct` will basically always be ~0% with the current data. Should I:
+- (a) Keep it and rename to "Currently escalated", or
+- (b) Drop the escalation tile from that card entirely?
+
+I'll default to (a) unless you say otherwise.

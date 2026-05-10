@@ -557,7 +557,9 @@ const Stats = () => {
     const gmailTotal = filteredGmailThreads.length;
     const manualTotal = filteredManual.length;
     const resolved = filtered.filter((m) => m.status === "resolved").length;
-    const escalated = filtered.filter((m) => m.status === "escalated" || m.status === "escalated_pending").length;
+    // Escalated = ever handed off to a human (has Intercom conversation linked),
+    // since current 'escalated' status is transient and gets overwritten on resolve.
+    const escalated = filtered.filter((m) => (m.intercom_conversation_id && m.intercom_conversation_id !== "") || m.status === "escalated" || m.status === "escalated_pending").length;
     const active = filtered.filter((m) => m.status === "active" || m.status === "active_pending").length;
     const awaiting = filtered.filter((m) => m.status === "awaiting_context" || m.status === "awaiting_support" || m.status === "awaiting_engineering").length;
     const processing = filtered.filter((m) => m.status === "processing").length;
@@ -619,7 +621,7 @@ const Stats = () => {
       const day = format(parseISO(m.created_at), "yyyy-MM-dd");
       if (!byDay[day]) byDay[day] = { date: day, total: 0, resolved: 0, open: 0, escalated: 0 };
       byDay[day].total++;
-      const isEscalated = m.status === "escalated" || m.status === "escalated_pending";
+      const isEscalated = (m.intercom_conversation_id && m.intercom_conversation_id !== "") || m.status === "escalated" || m.status === "escalated_pending";
       if (m.status === "resolved") byDay[day].resolved++;
       else byDay[day].open++;
       if (isEscalated) byDay[day].escalated++;
@@ -642,7 +644,7 @@ const Stats = () => {
   const escalationRateData = useMemo(() => {
     const escalatedByDay: Record<string, number> = {};
     filtered.forEach((m) => {
-      if (m.status === "escalated" || m.status === "escalated_pending") {
+      if ((m.intercom_conversation_id && m.intercom_conversation_id !== "") || m.status === "escalated" || m.status === "escalated_pending") {
         const day = format(parseISO(m.created_at), "yyyy-MM-dd");
         escalatedByDay[day] = (escalatedByDay[day] || 0) + 1;
       }
@@ -667,12 +669,19 @@ const Stats = () => {
   }, [volumeData]);
 
   const pieData = useMemo(() => {
+    let resolvedNoEsc = 0, openNoEsc = 0, escalatedAll = 0;
+    filtered.forEach((m) => {
+      const wasEscalated = (m.intercom_conversation_id && m.intercom_conversation_id !== "") || m.status === "escalated" || m.status === "escalated_pending";
+      if (wasEscalated) escalatedAll++;
+      else if (m.status === "resolved") resolvedNoEsc++;
+      else openNoEsc++;
+    });
     return [
-      { name: "Resolved", value: stats.resolved, fill: chartConfig.resolved.color },
-      { name: "Open", value: stats.open - stats.escalated, fill: chartConfig.open.color },
-      { name: "Escalated to human", value: stats.escalated, fill: chartConfig.escalated.color },
+      { name: "Resolved", value: resolvedNoEsc, fill: chartConfig.resolved.color },
+      { name: "Open", value: openNoEsc, fill: chartConfig.open.color },
+      { name: "Escalated to human", value: escalatedAll, fill: chartConfig.escalated.color },
     ].filter((d) => d.value > 0);
-  }, [stats]);
+  }, [filtered]);
 
   // Channel breakdown data — group all DMs (D…) into one synthetic "Direct message" bucket.
   // Includes manual Slack imports keyed by normalized link; slack_dm rows fold into "Direct message".
