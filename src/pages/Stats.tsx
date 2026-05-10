@@ -565,6 +565,8 @@ const Stats = () => {
     const processing = filtered.filter((m) => m.status === "processing").length;
     const open = total - resolved;
     const resolvedPct = total ? Math.round((resolved / total) * 100) : 0;
+    const botResolved = filtered.filter((m) => m.status === "resolved" && (!m.intercom_conversation_id || m.intercom_conversation_id === "")).length;
+    const botSuccessPct = total ? Math.round((botResolved / total) * 100) : 0;
 
     const manualActive = filteredManual.filter((m) => m.status === "active").length;
     const manualResolved = filteredManual.filter((m) => m.status === "resolved").length;
