@@ -410,6 +410,24 @@ function KpiCard({ label, value, sub, delta }: { label: string; value: string; s
       </CardContent>
     </Card>
   );
+function AccountMiniTable({ title, accounts }: { title: string; accounts: AccountAgg[] }) {
+  return (
+    <div>
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{title}</h3>
+      {accounts.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No tickets</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {accounts.map(a => (
+            <li key={a.key} className="flex items-center justify-between gap-2 text-sm">
+              <span className="truncate flex-1" title={a.label}>{a.label}</span>
+              <span className="font-medium tabular-nums">{a.count}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 interface AccountAgg {
