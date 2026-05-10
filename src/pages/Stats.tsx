@@ -669,12 +669,19 @@ const Stats = () => {
   }, [volumeData]);
 
   const pieData = useMemo(() => {
+    let resolvedNoEsc = 0, openNoEsc = 0, escalatedAll = 0;
+    filtered.forEach((m) => {
+      const wasEscalated = (m.intercom_conversation_id && m.intercom_conversation_id !== "") || m.status === "escalated" || m.status === "escalated_pending";
+      if (wasEscalated) escalatedAll++;
+      else if (m.status === "resolved") resolvedNoEsc++;
+      else openNoEsc++;
+    });
     return [
-      { name: "Resolved", value: stats.resolved, fill: chartConfig.resolved.color },
-      { name: "Open", value: stats.open - stats.escalated, fill: chartConfig.open.color },
-      { name: "Escalated to human", value: stats.escalated, fill: chartConfig.escalated.color },
+      { name: "Resolved", value: resolvedNoEsc, fill: chartConfig.resolved.color },
+      { name: "Open", value: openNoEsc, fill: chartConfig.open.color },
+      { name: "Escalated to human", value: escalatedAll, fill: chartConfig.escalated.color },
     ].filter((d) => d.value > 0);
-  }, [stats]);
+  }, [filtered]);
 
   // Channel breakdown data — group all DMs (D…) into one synthetic "Direct message" bucket.
   // Includes manual Slack imports keyed by normalized link; slack_dm rows fold into "Direct message".
