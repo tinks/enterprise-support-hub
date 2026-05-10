@@ -64,9 +64,9 @@ export function TrendsTab({ data, month }: { data: MonthData; month: string }) {
               ))}
             </div>
           </div>
-          <div className="flex items-end gap-1 h-48">
+          <div className="flex items-stretch gap-1 h-48">
             {series.map(s => (
-              <div key={s.day} className="flex-1 flex flex-col-reverse gap-px" title={`Day ${s.day}: ${s.total}`}>
+              <div key={s.day} className="flex-1 h-full flex flex-col-reverse gap-px" title={`Day ${s.day}: ${s.total}`}>
                 {sources.map(src => s[src] > 0 && (
                   <div key={src} style={{ height: `${(s[src] / max) * 100}%`, background: colors[src] }} />
                 ))}
