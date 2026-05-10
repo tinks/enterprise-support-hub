@@ -301,7 +301,7 @@ export function MonthStatsCards({ data, month }: Props) {
         )}
         {intercom && (
           <p className="text-xs text-muted-foreground mt-3">
-            Intercom live · {intercom.current.count} conversations this month vs {intercom.previous.count} previous month
+            Counts from local DB (matches Total). Response &amp; handling times live from Intercom API · {intercom.current.count} conversations this month vs {intercom.previous.count} previous month.
           </p>
         )}
       </CardContent>
