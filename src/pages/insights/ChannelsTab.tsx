@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MonthData, SourceKey, sourceLabel } from "./useMonthData";
+import { sourceBucketOf } from "./sourceBucket";
 
 const orderedSources: SourceKey[] = ["intercom", "slack", "gmail", "other"];
 
@@ -10,7 +11,7 @@ export function ChannelsTab({ data }: { data: MonthData }) {
   const stats = useMemo(() => {
     const total = data.tickets.length;
     return orderedSources.map(s => {
-      const rows = data.tickets.filter(t => t.display_source === s);
+      const rows = data.tickets.filter(t => sourceBucketOf(t) === s);
       const rated = rows.filter(t => t.csat_rating);
       const paMap = new Map<string, number>();
       for (const t of rows) paMap.set(t.product_area, (paMap.get(t.product_area) || 0) + 1);
