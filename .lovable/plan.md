@@ -1,62 +1,42 @@
 ## Goal
 
-Change the **Customers** tab so it groups by **organization/account** (the natural "customer" unit) instead of by individual person:
+Replace the three-bucket view (Bug / Feature / Other) on the **Ticket types** tab with the full classification taxonomy used everywhere else in the app.
 
-- **Gmail tickets** → group by **email domain** (e.g. `acme.com`).
-- **Slack tickets** (whether in `conversation_mappings` or `manual_conversations` with `source = 'slack'`) → group by **Slack channel name** (e.g. `#acme-support`).
-- **Manual / Intercom-only tickets** → group by email domain if the contact is identifiable, otherwise fall back to a single bucket per source.
+## On "incidents"
 
-Other tabs (Topics, Ticket types, Trends, Channels) stay as they are.
+We don't have an `incident` classification today. The five options used across `Conversations` and `ConversationDetail` are:
 
-## Customer key rules (per ticket)
+`Issue`, `Configuration`, `Bug`, `FR`, `Question`
 
-| Source row | Key |
-|---|---|
-| `gmail_conversations` | `domain:` + lowercased part of `from_email` after `@`. Strip leading `www.`. |
-| `conversation_mappings` (Slack-bridged) | `channel:` + resolved channel name (lowercase). |
-| `manual_conversations` with `source = 'slack'` | `channel:` + resolved channel name **if** we can extract the channel ID from `link` (Slack permalinks include `/archives/<CID>/`); otherwise `manual:slack`. |
-| `manual_conversations` other | If `contact_name` looks like an email → `domain:` + its domain. Otherwise → `manual:` + `source` (one bucket per import source). |
+Anything with no value falls into a sixth `Unclassified` bucket. Incident.io activity is detected on Slack for status posting but it's never written to `classification` or any ticket-type column, so it can't be charted as a type. If you want incidents as a real bucket, we'd need to add it as a classification option (separate task — let me know).
 
-Display labels:
-- `domain:acme.com` → "acme.com"
-- `channel:acme-support` → "#acme-support"
-- `manual:slack` → "Manual Slack imports"
-- `manual:other` → "Manual / DM"
+## Changes — `src/pages/insights/TicketTypesTab.tsx` only
 
-## Channel name resolution
+1. **Bucketing rule** (per ticket): use `classification` as the primary type. If null/empty, fall back to `is_bug → "Bug"`, `is_feature_request → "FR"`, else `"Unclassified"`. This keeps legacy rows that have the boolean toggles set but no classification still attributed correctly and matches what users see in the tables.
 
-`conversation_mappings.slack_channel_id` and Slack permalinks only contain channel IDs. To turn them into names:
+2. **KPI cards** (top row): swap the 4 cards for a responsive grid of 6 cards — Total + one per bucket — each showing count and % of total. Color-code consistently:
+   - Bug → destructive
+   - FR → primary
+   - Issue → amber/warning
+   - Configuration → blue accent
+   - Question → muted-foreground
+   - Unclassified → border/ghost
 
-1. Build a `channelNameMap` once per page load by calling the existing `list-slack-channels` edge function (already used by `src/pages/Index.tsx`).
-2. Layer the static `channelNameOverrides` map from `src/lib/channelOverrides.ts` on top.
-3. If still unresolved → fall back to displaying the raw channel ID prefixed with `#` so nothing is lost.
+3. **Avg time to resolve** card: list TTR per classification (All resolved + 5 buckets + Unclassified), not just Bugs/FR.
 
-The map fetch is async; the Customers tab will show its existing loading state until both `useMonthData` and the channel map have resolved.
+4. **Type mix by product area**: stacked bar uses all 6 segments instead of 3, with the same color tokens. Update legend to match.
 
-## UI changes
+5. **Owner load**: extend the right-side micro-stats from `Nb · Nfr` to a compact dotted breakdown (e.g. `12 · 4i · 3b · 2fr · 2q · 1c`) using the same color dots as the legend, so you can see each owner's mix at a glance.
 
-- Rename column "Customer" → "Account" in the table.
-- Show a small **type badge** on each row: `Domain` (Gmail) / `Slack` (channel) / `Manual`.
-- Tickets-per-account histogram bucket labels stay the same (1, 2, 3, 4–5, 6–10, 10+) — meaning shifts from "per person" to "per account", which is more useful.
-- KPIs become "Unique accounts", "Repeat accounts (≥2 tickets)", "Single-ticket accounts".
-- Drawer header: account label + type badge; ticket list unchanged.
-
-## Things to discard
-
-- Aggregating by `from_name`, `slack_user_name`, `contact_name`. These become noise once accounts are grouped.
+6. **CSAT card**: unchanged.
 
 ## Out of scope
 
-- No backfill or storage of resolved domain/channel — purely derived in the client per page load.
-- No fuzzy domain → company-name mapping (acme.com stays "acme.com" until you give us an explicit map).
-- No changes to the Topics / Ticket types / Trends / Channels tabs.
+- No DB or edge-function changes.
+- No new classification options (e.g. `Incident`) — flagged above as a follow-up if you want it.
+- Other tabs (Customers, Trends, Channels, Topics) untouched.
 
-## Files to change
+## Files
 
-- `src/pages/insights/useMonthData.ts` — replace `customer_key` / `customer_label` derivation with the rules above. Add a small Slack permalink → channel-ID parser. Export a helper for the account type (`domain` / `slack` / `manual`).
-- `src/pages/insights/CustomersTab.tsx` — fetch channel name map (via `list-slack-channels` + `channelNameOverrides`), rename labels, add type badge, re-resolve `customer_label` for Slack rows once the map arrives.
-- `.lovable/project-knowledge.md` + memory index — add a short note about account bucketing rule.
-
-## Open question
-
-For Gmail, should we **exclude common personal-email domains** (`gmail.com`, `outlook.com`, `hotmail.com`, `yahoo.com`, `icloud.com`) from being treated as accounts and instead bucket them as a single "Personal email" account? Default plan: **yes**, group all personal-email senders into one "Personal email" bucket so real B2B accounts surface clearly. Say the word if you'd rather keep them per-individual.
+- `src/pages/insights/TicketTypesTab.tsx` (rewrite the stats memo + 4 sections above)
+- `.lovable/project-knowledge.md` (note that Insights → Ticket types now uses the full classification taxonomy with boolean fallback)

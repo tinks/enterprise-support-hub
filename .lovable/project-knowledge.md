@@ -605,3 +605,7 @@ On the conversation detail page, hovering a manual message or internal note (eit
 ## "Escalated to human" stat definition
 
 On `/stats`, a Slack conversation counts as escalated if it has a non-empty `intercom_conversation_id` (i.e. was ever handed off to a human in Intercom), in addition to current `status in ('escalated','escalated_pending')`. This avoids zero counts when humans resolve the ticket in Intercom and the status flips to `resolved`. Applies to: Overview KPI, status pie, daily volume bar, and escalation-rate trend.
+
+## Insights → Ticket types tab (full classification breakdown)
+
+`src/pages/insights/TicketTypesTab.tsx` buckets tickets by the full `classification` taxonomy used in `Conversations`/`ConversationDetail`: `Issue`, `Configuration`, `Bug`, `FR`, `Question`, plus `Unclassified` for nulls. If `classification` is empty but `is_bug` or `is_feature_request` is true, the ticket falls into `Bug` or `FR` respectively (legacy boolean fallback). KPI cards, avg-time-to-resolve, type-mix-by-product-area, and owner-load all use this 6-bucket model with consistent color tokens. There is no "Incident" classification — incident.io detection is a Slack-only status helper and is not stored on tickets.
