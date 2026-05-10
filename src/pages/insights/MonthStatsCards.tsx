@@ -3,6 +3,7 @@ import { differenceInMinutes, parseISO } from "date-fns";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { MonthData, NormalizedTicket } from "./useMonthData";
 import { sourceBucketOf } from "./sourceBucket";
