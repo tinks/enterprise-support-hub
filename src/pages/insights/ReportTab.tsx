@@ -202,7 +202,24 @@ export function ReportTab({ data, month }: ReportTabProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <div className="flex">
+          <Button onClick={handleRefreshData} disabled={refreshing} size="sm" variant="outline" className="rounded-r-none">
+            {refreshing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Refresh
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" disabled={refreshing} className="rounded-l-none border-l-0 px-2">
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleRefreshData}>Refresh data</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleRefreshAll}>Refresh data + AI topics</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <Button onClick={exportPdf} disabled={exporting} size="sm">
           {exporting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Exporting…</> : <><FileDown className="h-4 w-4 mr-2" />Download PDF</>}
         </Button>
