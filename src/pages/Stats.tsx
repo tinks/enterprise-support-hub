@@ -557,7 +557,9 @@ const Stats = () => {
     const gmailTotal = filteredGmailThreads.length;
     const manualTotal = filteredManual.length;
     const resolved = filtered.filter((m) => m.status === "resolved").length;
-    const escalated = filtered.filter((m) => m.status === "escalated" || m.status === "escalated_pending").length;
+    // Escalated = ever handed off to a human (has Intercom conversation linked),
+    // since current 'escalated' status is transient and gets overwritten on resolve.
+    const escalated = filtered.filter((m) => (m.intercom_conversation_id && m.intercom_conversation_id !== "") || m.status === "escalated" || m.status === "escalated_pending").length;
     const active = filtered.filter((m) => m.status === "active" || m.status === "active_pending").length;
     const awaiting = filtered.filter((m) => m.status === "awaiting_context" || m.status === "awaiting_support" || m.status === "awaiting_engineering").length;
     const processing = filtered.filter((m) => m.status === "processing").length;
