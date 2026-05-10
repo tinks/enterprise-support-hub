@@ -1,66 +1,80 @@
 ## Goal
 
-Extend the Insights tab so monthly AI clustering covers **all conversation sources** — Intercom (`conversation_mappings`), Gmail (`gmail_conversations`), and Manual/DM (`manual_conversations`) — not just Intercom.
+Keep the existing AI-clustered topic buckets exactly as they are, and layer additional analytical views on top so the monthly Insights page becomes a richer "state of support" report.
 
-## Approach
+## Proposed structure
 
-Keep the same 3-pass AI flow (discover buckets → assign tickets → executive summary), but feed it a unified ticket list from all sources.
+Convert the Insights page into a **tabbed view** with the existing AI clusters as the default tab, plus new tabs that surface dimensions the current view doesn't show.
 
-### 1. Edge function `analyze-intercom-month` → rename behavior to `analyze-month`
+```text
+Insights  [ Month: April 2026 ▼ ] [ Regenerate ]
 
-Keep the same function name to avoid breaking anything, but change its internals:
-
-- Pull from three tables for the month window (using `created_at` for Intercom/Manual, `received_at` for Gmail), excluding `is_test`.
-- Normalize each row into a common shape:
-  ```
-  { id, source: 'intercom'|'gmail'|'manual', subject, body, product_area, created_at }
-  ```
-  - Intercom: `subject` = first line of `original_message_text`, `body` = `original_message_text`
-  - Gmail: `subject` = `subject`, `body` = `snippet` (or first message body if available)
-  - Manual: `subject` = `subject`, `body` = first `manual_messages.message_text` for that conversation (one extra query)
-- Deduplicate Gmail by `gmail_thread_id` (per existing memory rule), keep earliest row per thread.
-- Run the same 3 AI passes against the unified list.
-- Store `source` per ticket in the bucket's `tickets` array so the UI can deep-link correctly.
-
-### 2. `monthly_insights` table
-
-Change `source` semantics:
-- Use `source = 'all'` for the new combined report (keeps the unique key `(month, source)` working and preserves any existing Intercom-only rows).
-- No schema migration needed — `source` is already a free text column.
-
-Bucket JSON shape gains per-ticket source:
-```json
-{
-  "name": "...",
-  "description": "...",
-  "count": 12,
-  "product_areas": { "SSO": 4, "Other": 8 },
-  "tickets": [
-    { "id": "uuid", "source": "intercom", "subject": "...", "product_area": "SSO" }
-  ]
-}
+┌ Tabs ──────────────────────────────────────────────────────────┐
+│  Topics  │  Customers  │  Ticket types  │  Trends  │  Channels │
+└────────────────────────────────────────────────────────────────┘
 ```
 
-### 3. UI — `src/pages/Insights.tsx`
+### Tab 1 — Topics (unchanged)
+Current buckets, summary, and product-area chart. No changes.
 
-- Default fetch: `source = 'all'`.
-- Header: show total count split as `Intercom 153 · Gmail 41 · Manual 12`.
-- Bucket cards: add a small source breakdown chip row (e.g. `Intercom 8 · Gmail 3 · Manual 1`).
-- Drawer ticket list: show a source badge next to each subject, and route to the correct conversation detail page based on `source`.
-- "Regenerate" button calls the same edge function (now multi-source).
+### Tab 2 — Customers
+Aggregates tickets by customer identity across all sources:
+- **Identity key**: Gmail `from_email`, Slack `slack_user_name`, Manual `contact_name`. Intercom (via `conversation_mappings`) joins on `intercom_contact_id` → cached name from Intercom contact lookup (or fall back to `slack_user_name`).
+- **Top customers table**: name/email · ticket count · sources used · #bugs · #feature requests · avg CSAT · top product area · top topic bucket.
+- **Header KPIs**: total unique customers, % repeat customers (≥2 tickets), single-ticket customers count.
+- **Histogram**: distribution of "tickets per customer" (1, 2, 3, 4–5, 6–10, 10+).
+- Click row → side drawer with that customer's tickets for the month (linked to ConversationDetail).
 
-### 4. Out of scope
+### Tab 3 — Ticket types
+Cross-cuts by classification metadata already in DB (no AI needed):
+- **Stacked bars** of bug vs feature request vs question/other per product area.
+- **Counts**: bugs, feature requests, neither — with % of month.
+- **Resolution stats**: avg time-to-resolve (resolved_at − created_at) overall and by type.
+- **CSAT panel**: avg rating, rating distribution (1–5), count rated vs unrated, lowest-CSAT bucket.
+- **Owner load**: tickets per owner, with bug/FR split.
 
-- No Slack-only standalone source (Slack tickets are already represented via `conversation_mappings`, which is the Intercom-bridged record — that's what "Slack+DM" maps to in this app).
-- No changes to other pages (Stats, Conversations, etc.).
-- No auto-cron yet.
+### Tab 4 — Trends (single derived chart)
+- **Daily volume line** for the selected month, split by source.
+- **Week-over-week delta** vs the previous month (same days).
+- **Movers**: product areas / topic buckets that grew or shrank most vs prior month's stored insight (uses `monthly_insights` history — only shown when prior month exists).
+
+### Tab 5 — Channels
+- Source mix donut (Intercom / Slack / Gmail / Other).
+- Per-source: ticket count, % of total, avg CSAT, % bugs, % feature requests, top 3 product areas.
+- (Lightweight — mostly re-pivots data already aggregated for other tabs.)
+
+## How the data is produced
+
+Two-track approach so we don't pay AI cost for things SQL can do:
+
+1. **Deterministic stats (Customers, Ticket types, Trends, Channels)**: computed on the **client** from a single combined fetch of the month's rows from `conversation_mappings`, `gmail_conversations`, `manual_conversations` (+ `manual_messages` for first-message text only if needed). Same dedup rules as the existing edge function (intercom by `intercom_conversation_id`, gmail by `gmail_thread_id`). No new tables, no new edge function, no AI call. Re-derives instantly when the month changes.
+2. **Topics tab (existing)**: still served from `monthly_insights` row produced by `analyze-intercom-month`. Unchanged.
+
+This means **Customers / Ticket types / Trends / Channels work for any month immediately**, even months that haven't been "Generated" yet — only the AI cluster tab requires Generate.
+
+## Why tabs (vs. one long page)
+
+- Keeps the current Topics view uncluttered and primary.
+- Each tab answers a different stakeholder question (PM vs. CSM vs. eng lead).
+- Cheap to add a 6th tab later (e.g. "Escalations", "SLA misses") without redesigning.
+
+## Alternative considered
+
+A single scrollable dashboard with all sections stacked. Rejected because the page is already content-heavy and customer/ticket-type tables can be long; tabs give clean focus and let us deep-link (`/insights?tab=customers`) from elsewhere later.
+
+## Out of scope
+
+- No schema changes.
+- No new edge function (the existing one keeps powering Topics).
+- No CSV export in this pass (can add later if useful).
+- No customer-level AI summaries (deterministic aggregates only).
 
 ## Files to change
 
-- `supabase/functions/analyze-intercom-month/index.ts` — add Gmail + Manual fetching, unify, keep AI logic
-- `src/pages/Insights.tsx` — source filter defaults to `'all'`, render source breakdowns + correct deep links
-- `.lovable/project-knowledge.md` + memory index — note multi-source coverage
+- `src/pages/Insights.tsx` — wrap current content in `<Tabs>`, add 4 new tab components.
+- `src/pages/insights/` (new folder) — `CustomersTab.tsx`, `TicketTypesTab.tsx`, `TrendsTab.tsx`, `ChannelsTab.tsx`, plus a shared `useMonthData.ts` hook that fetches+normalizes the month's rows once and feeds all four tabs.
+- `.lovable/project-knowledge.md` + memory index — note the new multi-tab Insights structure.
 
 ## Open question
 
-The existing April Intercom-only report (`source = 'intercom'`) — keep it as a separate historical row, or overwrite by switching the default view to `'all'` and leaving the old row untouched? Default plan: **leave old row untouched, generate a new `'all'` row**, UI only shows `'all'`.
+Anything you'd specifically like surfaced that isn't in the five tabs above (e.g. response-time SLAs, first-touch owner, tag/keyword frequency)? If not, I'll proceed with the structure as described.
