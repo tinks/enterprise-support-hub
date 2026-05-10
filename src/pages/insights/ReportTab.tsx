@@ -413,7 +413,7 @@ export function ReportTab({ data, month }: ReportTabProps) {
           <Card>
             <CardContent className="p-5">
               <h2 className="text-sm font-semibold mb-3">Highlights & watch-outs</h2>
-              <ul className="space-y-1.5 text-sm">
+              <ul className="space-y-2.5 text-sm leading-relaxed">
                 {highlights.map((h, i) => (
                   <li key={i} className="flex gap-2"><span className="text-primary">▸</span><span>{h}</span></li>
                 ))}
