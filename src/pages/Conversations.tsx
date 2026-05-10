@@ -1816,7 +1816,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                   className="gap-1"
                   disabled={autoClassifying}
                   onClick={async () => {
-                    const visible = filteredRows.length;
+                    const visible = unified.length;
                     if (!confirm(`Auto-classify ${visible} unclassified ticket(s) using AI?\n\nLow-confidence rows (<40%) will be skipped.`)) return;
                     setAutoClassifying(true);
                     try {
