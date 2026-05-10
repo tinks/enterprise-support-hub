@@ -108,6 +108,7 @@ Deno.serve(async (req) => {
   }
 
   let flagged = 0;
+  const affectedMonths = new Set<string>();
   if (apply && mismatches.length > 0) {
     for (const m of mismatches) {
       const { error: upErr } = await sb.from(m.table).update({ is_test: true }).eq("id", m.id);
@@ -116,6 +117,12 @@ Deno.serve(async (req) => {
         continue;
       }
       flagged++;
+      if (m.created_at) {
+        const d = new Date(m.created_at);
+        if (!isNaN(d.getTime())) {
+          affectedMonths.add(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`);
+        }
+      }
       await sb.from("conversation_audit_logs").insert({
         conversation_id: m.id,
         conversation_source: m.table === "manual_conversations" ? "manual" : m.table === "gmail_conversations" ? "gmail" : "slack",
@@ -124,6 +131,22 @@ Deno.serve(async (req) => {
         new_value: "true",
         performed_by: "audit-out-of-inbox-tickets",
       });
+    }
+  }
+
+  const purgedMonths: string[] = [];
+  if (apply && affectedMonths.size > 0) {
+    const months = Array.from(affectedMonths);
+    const { error: delErr, data: del } = await sb
+      .from("monthly_insights")
+      .delete()
+      .eq("source", "intercom")
+      .in("month", months)
+      .select("month");
+    if (delErr) {
+      console.error("purge insights failed", delErr);
+    } else {
+      for (const r of del || []) purgedMonths.push(r.month);
     }
   }
 
