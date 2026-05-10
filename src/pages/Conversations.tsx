@@ -242,6 +242,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const savedClassFilter = localStorage.getItem("conv-class-filter");
   const [classificationFilter, setClassificationFilter] = useState<string>(paramClassification || (isReportDrilldown ? "all" : (savedClassFilter || "all")));
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [autoClassifying, setAutoClassifying] = useState(false);
   const [searchResults, setSearchResults] = useState<{ slack: ConversationMapping[]; gmail: GmailConversation[]; manual: ManualConversation[]; pending: PendingIntercomLink[] } | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
