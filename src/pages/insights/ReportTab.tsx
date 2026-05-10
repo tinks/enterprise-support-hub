@@ -330,7 +330,7 @@ export function ReportTab({ data, month }: ReportTabProps) {
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <AccountMiniTable title="Slack" accounts={stats.slackAccounts} />
-              <AccountMiniTable title="Email" accounts={stats.emailAccounts} />
+              <AccountMiniTable title="Gmail + Intercom" accounts={stats.emailAccounts} />
             </div>
           </CardContent>
         </Card>
