@@ -644,7 +644,7 @@ const Stats = () => {
   const escalationRateData = useMemo(() => {
     const escalatedByDay: Record<string, number> = {};
     filtered.forEach((m) => {
-      if (m.status === "escalated" || m.status === "escalated_pending") {
+      if ((m.intercom_conversation_id && m.intercom_conversation_id !== "") || m.status === "escalated" || m.status === "escalated_pending") {
         const day = format(parseISO(m.created_at), "yyyy-MM-dd");
         escalatedByDay[day] = (escalatedByDay[day] || 0) + 1;
       }
