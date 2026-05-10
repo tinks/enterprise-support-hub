@@ -56,6 +56,8 @@ const Index = () => {
   const [lastPolledIntercom, setLastPolledIntercom] = useState<string | null>(null);
   const [cleanupRunning, setCleanupRunning] = useState(false);
   const [backfillRunning, setBackfillRunning] = useState(false);
+  const [auditRunning, setAuditRunning] = useState(false);
+  const [auditReport, setAuditReport] = useState<{ total: number; mismatches: Array<{ table: string; id: string; intercomId: string; currentTeamId: string; subject: string; contact: string }> } | null>(null);
 
   const edgeFunctionBaseUrl = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1`;
 
