@@ -9,7 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { useMonthData, sourceLabel as srcLabel } from "./insights/useMonthData";
+import { CustomersTab } from "./insights/CustomersTab";
+import { TicketTypesTab } from "./insights/TicketTypesTab";
+import { TrendsTab } from "./insights/TrendsTab";
+import { ChannelsTab } from "./insights/ChannelsTab";
 
 interface BucketTicket {
   id: string;
@@ -51,13 +57,6 @@ function buildMonthOptions(): { value: string; label: string }[] {
   return opts;
 }
 
-const sourceLabel: Record<string, string> = {
-  intercom: "Intercom",
-  slack: "Slack",
-  gmail: "Gmail",
-  other: "Other",
-};
-
 const Insights = () => {
   const { toast } = useToast();
   const monthOptions = useMemo(buildMonthOptions, []);
@@ -68,9 +67,10 @@ const Insights = () => {
   const [generating, setGenerating] = useState(false);
   const [openBucket, setOpenBucket] = useState<Bucket | null>(null);
 
+  const monthData = useMonthData(month);
+
   const loadInsight = async (m: string) => {
     setLoading(true);
-    // Prefer 'all'; fall back to legacy 'intercom' if no combined report exists yet
     const { data: allRow } = await supabase
       .from("monthly_insights")
       .select("*")
@@ -131,7 +131,7 @@ const Insights = () => {
                 Insights
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
-                AI-clustered topic buckets across Intercom, Slack, Gmail and other channels for the selected month.
+                Monthly support analysis across Intercom, Slack, Gmail and other channels.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -147,119 +147,144 @@ const Insights = () => {
                 {generating ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Analyzing…</>
                 ) : (
-                  <><RefreshCw className="h-4 w-4 mr-2" />{insight ? "Regenerate" : "Generate"}</>
+                  <><RefreshCw className="h-4 w-4 mr-2" />{insight ? "Regenerate topics" : "Generate topics"}</>
                 )}
               </Button>
             </div>
           </div>
 
-          {loading && (
-            <div className="flex items-center justify-center py-20 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin mr-2" />Loading…
-            </div>
-          )}
+          <Tabs defaultValue="topics">
+            <TabsList>
+              <TabsTrigger value="topics">Topics</TabsTrigger>
+              <TabsTrigger value="customers">Customers</TabsTrigger>
+              <TabsTrigger value="types">Ticket types</TabsTrigger>
+              <TabsTrigger value="trends">Trends</TabsTrigger>
+              <TabsTrigger value="channels">Channels</TabsTrigger>
+            </TabsList>
 
-          {!loading && !insight && (
-            <Card>
-              <CardContent className="p-10 text-center space-y-3">
-                <Sparkles className="h-10 w-10 mx-auto text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  No insights yet for this month. Click Generate to run the analysis across all channels.
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-          {!loading && insight && (
-            <>
-              <Card>
-                <CardContent className="p-6 space-y-3">
-                  <div className="flex items-baseline gap-3 flex-wrap">
-                    <span className="text-3xl font-bold">{insight.ticket_count}</span>
-                    <span className="text-sm text-muted-foreground">tickets analyzed</span>
-                    {sourceTotals && (
-                      <div className="flex gap-1 flex-wrap">
-                        {Object.entries(sourceTotals).map(([s, n]) => (
-                          <Badge key={s} variant="outline" className="text-xs">
-                            {sourceLabel[s] || s} · {n}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                    <span className="text-xs text-muted-foreground ml-auto">
-                      Generated {format(new Date(insight.generated_at), "MMM d, yyyy 'at' h:mm a")}
-                    </span>
-                  </div>
-                  {insight.overall_summary && (
-                    <p className="text-sm leading-relaxed text-foreground whitespace-pre-line pt-2 border-t">
-                      {insight.overall_summary}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-
-              <div>
-                <h2 className="text-lg font-semibold mb-3">Topic buckets</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {insight.buckets.map(b => (
-                    <Card key={b.name} className="hover:border-primary/40 transition-colors cursor-pointer" onClick={() => setOpenBucket(b)}>
-                      <CardContent className="p-5 space-y-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <h3 className="font-semibold text-foreground">{b.name}</h3>
-                          <Badge variant="secondary">{b.ticket_count}</Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground line-clamp-2">{b.description}</p>
-                        {b.source_breakdown && (
-                          <div className="flex flex-wrap gap-1">
-                            {Object.entries(b.source_breakdown)
-                              .sort((a, b) => b[1] - a[1])
-                              .map(([s, n]) => (
-                                <Badge key={s} variant="outline" className="text-[10px] px-1.5 py-0">
-                                  {sourceLabel[s] || s} {n}
-                                </Badge>
-                              ))}
-                          </div>
-                        )}
-                        <div className="flex flex-wrap gap-1">
-                          {Object.entries(b.product_areas)
-                            .sort((a, b) => b[1] - a[1])
-                            .slice(0, 4)
-                            .map(([area, n]) => (
-                              <Badge key={area} variant="outline" className="text-xs">{area} · {n}</Badge>
-                            ))}
-                        </div>
-                        <ul className="text-xs text-muted-foreground space-y-1 pt-1">
-                          {b.example_subjects.slice(0, 3).map((s, i) => (
-                            <li key={i} className="truncate">▸ {s}</li>
-                          ))}
-                        </ul>
-                        <div className="text-xs text-primary flex items-center gap-1 pt-1">
-                          View all {b.ticket_count} <ChevronRight className="h-3 w-3" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+            <TabsContent value="topics" className="space-y-6 mt-4">
+              {loading && (
+                <div className="flex items-center justify-center py-20 text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />Loading…
                 </div>
-              </div>
+              )}
 
-              <div>
-                <h2 className="text-lg font-semibold mb-3">By product area</h2>
+              {!loading && !insight && (
                 <Card>
-                  <CardContent className="p-5 space-y-2">
-                    {productAreaSorted.map(([area, count]) => (
-                      <div key={area} className="flex items-center gap-3">
-                        <div className="w-32 text-sm truncate">{area}</div>
-                        <div className="flex-1 bg-muted rounded h-5 relative overflow-hidden">
-                          <div className="absolute inset-y-0 left-0 bg-primary/70" style={{ width: `${(count / maxPa) * 100}%` }} />
-                        </div>
-                        <div className="w-10 text-right text-sm font-medium">{count}</div>
-                      </div>
-                    ))}
+                  <CardContent className="p-10 text-center space-y-3">
+                    <Sparkles className="h-10 w-10 mx-auto text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">
+                      No AI topic clusters yet for this month. Click Generate to run the analysis.
+                    </p>
                   </CardContent>
                 </Card>
-              </div>
-            </>
-          )}
+              )}
+
+              {!loading && insight && (
+                <>
+                  <Card>
+                    <CardContent className="p-6 space-y-3">
+                      <div className="flex items-baseline gap-3 flex-wrap">
+                        <span className="text-3xl font-bold">{insight.ticket_count}</span>
+                        <span className="text-sm text-muted-foreground">tickets analyzed</span>
+                        {sourceTotals && (
+                          <div className="flex gap-1 flex-wrap">
+                            {Object.entries(sourceTotals).map(([s, n]) => (
+                              <Badge key={s} variant="outline" className="text-xs">
+                                {srcLabel[s] || s} · {n}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                        <span className="text-xs text-muted-foreground ml-auto">
+                          Generated {format(new Date(insight.generated_at), "MMM d, yyyy 'at' h:mm a")}
+                        </span>
+                      </div>
+                      {insight.overall_summary && (
+                        <p className="text-sm leading-relaxed text-foreground whitespace-pre-line pt-2 border-t">
+                          {insight.overall_summary}
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <div>
+                    <h2 className="text-lg font-semibold mb-3">Topic buckets</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {insight.buckets.map(b => (
+                        <Card key={b.name} className="hover:border-primary/40 transition-colors cursor-pointer" onClick={() => setOpenBucket(b)}>
+                          <CardContent className="p-5 space-y-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <h3 className="font-semibold text-foreground">{b.name}</h3>
+                              <Badge variant="secondary">{b.ticket_count}</Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground line-clamp-2">{b.description}</p>
+                            {b.source_breakdown && (
+                              <div className="flex flex-wrap gap-1">
+                                {Object.entries(b.source_breakdown)
+                                  .sort((a, b) => b[1] - a[1])
+                                  .map(([s, n]) => (
+                                    <Badge key={s} variant="outline" className="text-[10px] px-1.5 py-0">
+                                      {srcLabel[s] || s} {n}
+                                    </Badge>
+                                  ))}
+                              </div>
+                            )}
+                            <div className="flex flex-wrap gap-1">
+                              {Object.entries(b.product_areas)
+                                .sort((a, b) => b[1] - a[1])
+                                .slice(0, 4)
+                                .map(([area, n]) => (
+                                  <Badge key={area} variant="outline" className="text-xs">{area} · {n}</Badge>
+                                ))}
+                            </div>
+                            <ul className="text-xs text-muted-foreground space-y-1 pt-1">
+                              {b.example_subjects.slice(0, 3).map((s, i) => (
+                                <li key={i} className="truncate">▸ {s}</li>
+                              ))}
+                            </ul>
+                            <div className="text-xs text-primary flex items-center gap-1 pt-1">
+                              View all {b.ticket_count} <ChevronRight className="h-3 w-3" />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h2 className="text-lg font-semibold mb-3">By product area</h2>
+                    <Card>
+                      <CardContent className="p-5 space-y-2">
+                        {productAreaSorted.map(([area, count]) => (
+                          <div key={area} className="flex items-center gap-3">
+                            <div className="w-32 text-sm truncate">{area}</div>
+                            <div className="flex-1 bg-muted rounded h-5 relative overflow-hidden">
+                              <div className="absolute inset-y-0 left-0 bg-primary/70" style={{ width: `${(count / maxPa) * 100}%` }} />
+                            </div>
+                            <div className="w-10 text-right text-sm font-medium">{count}</div>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  </div>
+                </>
+              )}
+            </TabsContent>
+
+            <TabsContent value="customers" className="mt-4">
+              <CustomersTab data={monthData} />
+            </TabsContent>
+            <TabsContent value="types" className="mt-4">
+              <TicketTypesTab data={monthData} />
+            </TabsContent>
+            <TabsContent value="trends" className="mt-4">
+              <TrendsTab data={monthData} month={month} />
+            </TabsContent>
+            <TabsContent value="channels" className="mt-4">
+              <ChannelsTab data={monthData} />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
 
@@ -279,7 +304,7 @@ const Insights = () => {
                       <Link to={ticketHref(t)} className="block">
                         <div className="flex items-start gap-2">
                           <Badge variant="outline" className="text-[10px] px-1.5 py-0 mt-0.5 shrink-0">
-                            {sourceLabel[t.display_source] || t.display_source}
+                            {srcLabel[t.display_source] || t.display_source}
                           </Badge>
                           <div className="min-w-0 flex-1">
                             <div className="font-medium truncate">{(t.subject || "(no subject)").replace(/<[^>]+>/g, "")}</div>
