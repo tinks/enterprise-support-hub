@@ -8,4 +8,8 @@ export const channelNameOverrides: Record<string, string> = {
   C09A5GSHDGQ: "ext-bts-lovable",
   C09ANBJBYN5: "ext-lovable-tool-support-remote",
   C0ABTS31KM1: "McKinsey",
+  C08Q0B29A79: "ext-hubspot-lovable",
+  C0970Q752E8: "uber-lovable-external",
+  C09ATLCF9LK: "paymentology-lovable",
+  C0A6PSTENRM: "autodesk-lovable",
 };
