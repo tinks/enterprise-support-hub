@@ -11,7 +11,8 @@ import { channelNameOverrides } from "@/lib/channelOverrides";
 import { MonthData, NormalizedTicket, useMonthData, sourceLabel } from "./useMonthData";
 import { UncategorizedPanel } from "./UncategorizedPanel";
 import { MonthStatsCards } from "./MonthStatsCards";
-import { sourceBucketOf } from "./sourceBucket";
+import { sourceBucketOf, reconcileSources } from "./sourceBucket";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
 
 const BUCKETS = ["Issue", "Configuration", "Bug", "FR", "Question", "Unclassified"] as const;
 type Bucket = typeof BUCKETS[number];
