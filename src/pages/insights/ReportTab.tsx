@@ -577,6 +577,7 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
   //                  (Gmail + Intercom contacts combined; same domain sums)
   const slackMap = new Map<string, AccountAgg>();
   const emailMap = new Map<string, AccountAgg>();
+  const manualMap = new Map<string, AccountAgg>();
   for (const t of tickets) {
     let key = t.customer_key;
     let label = t.customer_label;
@@ -587,6 +588,8 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
       aKind = "Channel";
     } else if (t.customer_kind === "domain") {
       aKind = "Domain";
+    } else if (t.customer_kind === "manual") {
+      aKind = "Contact";
     }
 
     let target: Map<string, AccountAgg> | null = null;
@@ -598,8 +601,13 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
       if (key === "domain:lovable.dev" || label.toLowerCase() === "lovable.dev") continue;
       if (key === "domain:_personal") continue;
       target = emailMap;
+    } else if (t.customer_kind === "manual") {
+      // Skip generic placeholder buckets and internal lovable.dev contacts.
+      if (key.startsWith("manual:")) continue;
+      if (INTERNAL_MANUAL_KEYS.has(key)) continue;
+      target = manualMap;
     }
-    if (!target) continue; // skip manual/other with no resolved account
+    if (!target) continue; // skip anything else with no resolved account
 
     let a = target.get(key);
     if (!a) {
@@ -612,10 +620,11 @@ function computeStats(tickets: NormalizedTicket[], channelMap: Record<string, st
     if (t.csat_rating) { a.csatSum += t.csat_rating; a.csatN++; }
   }
   const sortTop = (m: Map<string, AccountAgg>) =>
-    Array.from(m.values()).sort((a, b) => b.count - a.count).slice(0, 5);
+    Array.from(m.values()).sort((a, b) => b.count - a.count).slice(0, 10);
   const slackAccounts = sortTop(slackMap);
   const emailAccounts = sortTop(emailMap);
-  const topAccount = [...slackAccounts, ...emailAccounts]
+  const manualAccounts = sortTop(manualMap);
+  const topAccount = [...slackAccounts, ...emailAccounts, ...manualAccounts]
     .sort((a, b) => b.count - a.count)[0] || null;
 
   // Product areas
