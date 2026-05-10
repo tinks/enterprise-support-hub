@@ -198,6 +198,18 @@ export function useMonthData(month: string): MonthData {
           } else if (contactEmail) {
             const acct = accountFromEmail(contactEmail);
             key = acct.key; label = acct.label; kind = "domain";
+          } else if (m.intercom_conversation_id) {
+            // Intercom-originated ticket without a parseable email — keep the contact distinct
+            const name = (m.contact_name || "").trim();
+            if (name) {
+              const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+              key = "intercom:contact:" + (slug || "unknown");
+              label = name;
+            } else {
+              key = "intercom:contact:unknown";
+              label = "Intercom contact";
+            }
+            kind = "manual";
           }
 
           tickets.push({
