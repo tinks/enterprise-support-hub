@@ -158,8 +158,8 @@ Deno.serve(async (req) => {
     const results: Array<{ id: string; source: string; classification?: string; confidence?: number; reason?: string; written: boolean; error?: string }> = [];
     let written = 0, lowConfidence = 0, failed = 0;
 
-    // Sequential to avoid rate limits; ~55 calls is fine
-    for (const c of candidates) {
+    const CONCURRENCY = 8;
+    const processOne = async (c: Candidate) => {
       try {
         const out = await classifyOne(LOVABLE_API_KEY, c);
         if (!CLASSIFICATIONS.includes(out.classification)) throw new Error(`invalid classification: ${out.classification}`);
@@ -180,6 +180,9 @@ Deno.serve(async (req) => {
         failed++;
         results.push({ id: c.id, source: c.source, written: false, error: (e as Error).message });
       }
+    };
+    for (let i = 0; i < candidates.length; i += CONCURRENCY) {
+      await Promise.all(candidates.slice(i, i + CONCURRENCY).map(processOne));
     }
 
     return new Response(JSON.stringify({
