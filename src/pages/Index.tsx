@@ -648,6 +648,41 @@ const Index = () => {
                 )}
               </Button>
             </div>
+
+            <div className="flex flex-col gap-3 rounded-lg border border-amber-300/60 bg-amber-50/50 p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Inbox audit (flag, don't delete)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Scans every Intercom-linked ticket across all sources. Mismatches can be flagged as <code>is_test=true</code> so they drop out of analytics but stay viewable.
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => runInboxAudit(false)} disabled={auditRunning}>
+                  {auditRunning ? <><RefreshCw className="mr-2 h-3 w-3 animate-spin" /> Scanning...</> : <>Scan</>}
+                </Button>
+                <Button size="sm" variant="destructive" onClick={() => runInboxAudit(true)} disabled={auditRunning}>
+                  Flag all as test
+                </Button>
+              </div>
+              {auditReport && (
+                <div className="text-xs">
+                  <p className="font-medium mb-2">{auditReport.mismatches.length} of {auditReport.total} tickets are outside the enterprise inbox</p>
+                  {auditReport.mismatches.length > 0 && (
+                    <div className="max-h-48 overflow-auto rounded border bg-background p-2 space-y-1">
+                      {auditReport.mismatches.slice(0, 100).map(m => (
+                        <div key={m.id} className="flex gap-2 font-mono text-[11px]">
+                          <span className="text-muted-foreground">{m.table.replace("_conversations","").replace("conversation_","")}</span>
+                          <span>#{m.intercomId}</span>
+                          <span className="text-muted-foreground">team {m.currentTeamId}</span>
+                          <span className="truncate flex-1">{m.subject || m.contact}</span>
+                        </div>
+                      ))}
+                      {auditReport.mismatches.length > 100 && <p className="text-muted-foreground">+{auditReport.mismatches.length - 100} more</p>}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
