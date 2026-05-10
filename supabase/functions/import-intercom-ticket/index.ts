@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { url, force } = await req.json();
+    const { url, force, forceInbox } = await req.json();
     if (!url || typeof url !== "string") {
       return new Response(
         JSON.stringify({ error: "Missing url field" }),
