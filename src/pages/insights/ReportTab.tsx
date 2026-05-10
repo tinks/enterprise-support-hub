@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { format, parse, startOfMonth, subMonths } from "date-fns";
-import { Loader2, FileDown, Sparkles } from "lucide-react";
+import { Loader2, FileDown, Sparkles, RefreshCw, ChevronDown } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { channelNameOverrides } from "@/lib/channelOverrides";
 import { MonthData, NormalizedTicket, useMonthData, sourceLabel } from "./useMonthData";
