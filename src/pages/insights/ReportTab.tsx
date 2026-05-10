@@ -64,6 +64,8 @@ export function ReportTab({ data, month }: ReportTabProps) {
   const [insight, setInsight] = useState<Insight | null>(null);
   const [channelMap, setChannelMap] = useState<Record<string, string>>({});
   const [exporting, setExporting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [insightNonce, setInsightNonce] = useState(0);
 
   const prevMonth = useMemo(() => {
     const d = startOfMonth(parse(month + "-01", "yyyy-MM-dd", new Date()));
