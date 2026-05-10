@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { MonthData, NormalizedTicket } from "./useMonthData";
+import { sourceBucketOf } from "./sourceBucket";
 
 function formatMinutes(minutes: number | null): string {
   if (minutes == null || !isFinite(minutes)) return "—";
@@ -102,6 +103,24 @@ function computeGmailStats(tickets: NormalizedTicket[]) {
   };
 }
 
+function computeIntercomStats(tickets: NormalizedTicket[]) {
+  // Intercom-origin local rows (manual imports flagged as Intercom source).
+  const ic = tickets.filter((t) => sourceBucketOf(t) === "intercom");
+  const total = ic.length;
+  const resolved = ic.filter((t) => t.status === "resolved").length;
+  const open = total - resolved;
+  const times = ic
+    .filter((t) => t.status === "resolved" && t.resolved_at)
+    .map((t) => differenceInMinutes(parseISO(t.resolved_at!), parseISO(t.created_at)))
+    .filter((n) => n >= 0);
+  return {
+    total,
+    resolved,
+    open,
+    medianResolutionMin: median(times),
+  };
+}
+
 const MUTED = <span className="text-muted-foreground">—</span>;
 
 function DeltaChip({ valueSec, prevSec }: { valueSec: number | null; prevSec: number | null }) {
@@ -130,6 +149,7 @@ interface Props {
 export function MonthStatsCards({ data, month }: Props) {
   const slack = useMemo(() => computeSlackStats(data.tickets), [data.tickets]);
   const gmail = useMemo(() => computeGmailStats(data.tickets), [data.tickets]);
+  const intercomLocal = useMemo(() => computeIntercomStats(data.tickets), [data.tickets]);
 
   const [intercom, setIntercom] = useState<IntercomResponse | null>(null);
   const [intercomLoading, setIntercomLoading] = useState(false);
@@ -186,19 +206,19 @@ export function MonthStatsCards({ data, month }: Props) {
       label: "Received",
       slack: slack.received,
       gmail: gmail.total,
-      intercom: intercomCell("count"),
+      intercom: intercomLocal.total,
     },
     {
       label: "Resolved",
       slack: slack.resolved,
       gmail: gmail.resolved,
-      intercom: MUTED,
+      intercom: intercomLocal.resolved,
     },
     {
       label: "Open",
       slack: slack.open,
       gmail: gmail.open,
-      intercom: MUTED,
+      intercom: intercomLocal.open,
     },
     {
       label: "Escalated to human",
@@ -234,7 +254,7 @@ export function MonthStatsCards({ data, month }: Props) {
       label: "Median resolution / time to close",
       slack: formatMinutes(slack.medianResolutionMin),
       gmail: formatMinutes(gmail.medianResolutionMin),
-      intercom: intercomCell("medianTimeToCloseSec"),
+      intercom: formatMinutes(intercomLocal.medianResolutionMin),
     },
     {
       label: "Average resolution",
@@ -281,7 +301,7 @@ export function MonthStatsCards({ data, month }: Props) {
         )}
         {intercom && (
           <p className="text-xs text-muted-foreground mt-3">
-            Intercom live · {intercom.current.count} conversations this month vs {intercom.previous.count} previous month
+            Counts from local DB (matches Total). Response &amp; handling times live from Intercom API · {intercom.current.count} conversations this month vs {intercom.previous.count} previous month.
           </p>
         )}
       </CardContent>
