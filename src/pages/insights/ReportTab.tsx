@@ -196,7 +196,7 @@ export function ReportTab({ data, month }: ReportTabProps) {
         </Button>
       </div>
 
-      <div ref={reportRef} className="space-y-6 bg-background p-6 rounded-lg border">
+      <div ref={reportRef} className="space-y-8 bg-background p-6 rounded-lg border">
         {/* Header */}
         <div className="border-b pb-4">
           <h1 className="text-3xl font-bold">Monthly support report</h1>
@@ -307,18 +307,18 @@ export function ReportTab({ data, month }: ReportTabProps) {
           <Card>
             <CardContent className="p-5">
               <h2 className="text-sm font-semibold mb-3">Top topics</h2>
-              <div className="space-y-3">
+              <div className="space-y-5">
                 {[...insight.buckets].sort((a, b) => b.ticket_count - a.ticket_count).slice(0, 5).map(b => {
                   const topPas = Object.entries(b.product_areas).sort((a, b) => b[1] - a[1]).slice(0, 2);
                   return (
-                    <div key={b.name} className="border-l-2 border-primary/40 pl-3">
-                      <div className="flex items-baseline gap-2">
+                    <div key={b.name} className="border-l-2 border-primary/40 pl-3 py-1">
+                      <div className="flex items-baseline gap-2 mb-1">
                         <span className="font-semibold text-sm">{b.name}</span>
                         <Badge variant="secondary" className="text-[10px]">{b.ticket_count}</Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{b.description}</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{b.description}</p>
                       {topPas.length > 0 && (
-                        <div className="flex gap-1 mt-1">
+                        <div className="flex gap-1 mt-2">
                           {topPas.map(([pa, n]) => (
                             <Badge key={pa} variant="outline" className="text-[10px] px-1.5 py-0">{pa} · {n}</Badge>
                           ))}
@@ -350,11 +350,11 @@ export function ReportTab({ data, month }: ReportTabProps) {
         <Card>
           <CardContent className="p-5">
             <h2 className="text-sm font-semibold mb-3">By product area</h2>
-            <div className="space-y-1.5">
+            <div className="space-y-2.5">
               {stats.productAreasTop.map(pa => (
                 <div key={pa.name} className="flex items-center gap-3">
-                  <div className="w-32 text-xs truncate">{pa.name}</div>
-                  <div className="flex-1 bg-muted rounded h-4 relative overflow-hidden">
+                  <div className="w-32 text-xs truncate leading-snug">{pa.name}</div>
+                  <div className="flex-1 bg-muted rounded h-5 relative overflow-hidden">
                     <div className="absolute inset-y-0 left-0 bg-primary/70" style={{ width: `${(pa.count / Math.max(1, stats.productAreasTop[0]?.count || 1)) * 100}%` }} />
                   </div>
                   <div className="w-10 text-right text-xs font-medium">{pa.count}</div>
@@ -373,14 +373,14 @@ export function ReportTab({ data, month }: ReportTabProps) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-xs text-muted-foreground border-b">
-                  <th className="py-1.5 font-medium">Owner</th>
-                  <th className="py-1.5 font-medium">Total</th>
-                  <th className="py-1.5 font-medium">Issue</th>
-                  <th className="py-1.5 font-medium">Bug</th>
-                  <th className="py-1.5 font-medium">FR</th>
-                  <th className="py-1.5 font-medium">Config</th>
-                  <th className="py-1.5 font-medium">Question</th>
-                  <th className="py-1.5 font-medium">CSAT</th>
+                  <th className="py-2.5 font-medium">Owner</th>
+                  <th className="py-2.5 font-medium">Total</th>
+                  <th className="py-2.5 font-medium">Issue</th>
+                  <th className="py-2.5 font-medium">Bug</th>
+                  <th className="py-2.5 font-medium">FR</th>
+                  <th className="py-2.5 font-medium">Config</th>
+                  <th className="py-2.5 font-medium">Question</th>
+                  <th className="py-2.5 font-medium">CSAT</th>
                 </tr>
               </thead>
               <tbody>
@@ -392,14 +392,14 @@ export function ReportTab({ data, month }: ReportTabProps) {
                   const href = `/conversations?owner=${encodeURIComponent(ownerParam)}&from=${from}&to=${to}&showAll=1`;
                   return (
                     <tr key={o.name} className="border-b last:border-0 hover:bg-accent/40 cursor-pointer">
-                      <td className="py-1.5"><Link to={href} className="block">{o.name === "CSM" ? "CSM/Self-resolved" : o.name}</Link></td>
-                      <td className="py-1.5 font-medium"><Link to={href} className="block">{o.total}</Link></td>
-                      <td className="py-1.5"><Link to={href} className="block">{o.Issue}</Link></td>
-                      <td className="py-1.5"><Link to={href} className="block">{o.Bug}</Link></td>
-                      <td className="py-1.5"><Link to={href} className="block">{o.FR}</Link></td>
-                      <td className="py-1.5"><Link to={href} className="block">{o.Configuration}</Link></td>
-                      <td className="py-1.5"><Link to={href} className="block">{o.Question}</Link></td>
-                      <td className="py-1.5"><Link to={href} className="block">{o.csatN ? (o.csatSum / o.csatN).toFixed(1) : "—"}</Link></td>
+                      <td className="py-2.5 align-middle"><Link to={href} className="block">{o.name === "CSM" ? "CSM/Self-resolved" : o.name}</Link></td>
+                      <td className="py-2.5 align-middle font-medium"><Link to={href} className="block">{o.total}</Link></td>
+                      <td className="py-2.5 align-middle"><Link to={href} className="block">{o.Issue}</Link></td>
+                      <td className="py-2.5 align-middle"><Link to={href} className="block">{o.Bug}</Link></td>
+                      <td className="py-2.5 align-middle"><Link to={href} className="block">{o.FR}</Link></td>
+                      <td className="py-2.5 align-middle"><Link to={href} className="block">{o.Configuration}</Link></td>
+                      <td className="py-2.5 align-middle"><Link to={href} className="block">{o.Question}</Link></td>
+                      <td className="py-2.5 align-middle"><Link to={href} className="block">{o.csatN ? (o.csatSum / o.csatN).toFixed(1) : "—"}</Link></td>
                     </tr>
                   );
                 })}
@@ -413,7 +413,7 @@ export function ReportTab({ data, month }: ReportTabProps) {
           <Card>
             <CardContent className="p-5">
               <h2 className="text-sm font-semibold mb-3">Highlights & watch-outs</h2>
-              <ul className="space-y-1.5 text-sm">
+              <ul className="space-y-2.5 text-sm leading-relaxed">
                 {highlights.map((h, i) => (
                   <li key={i} className="flex gap-2"><span className="text-primary">▸</span><span>{h}</span></li>
                 ))}
@@ -454,7 +454,7 @@ function AccountMiniTable({ title, accounts }: { title: string; accounts: Accoun
       {accounts.length === 0 ? (
         <p className="text-xs text-muted-foreground">No tickets</p>
       ) : (
-        <ul className="space-y-1">
+        <ul className="space-y-2">
           {accounts.map(a => {
             const open = expanded === a.key;
             return (
@@ -462,7 +462,7 @@ function AccountMiniTable({ title, accounts }: { title: string; accounts: Accoun
                 <button
                   type="button"
                   onClick={() => setExpanded(open ? null : a.key)}
-                  className="w-full flex items-center justify-between gap-2 py-1 px-1 rounded hover:bg-muted/60 text-left"
+                  className="w-full flex items-center justify-between gap-2 py-1.5 px-1 rounded hover:bg-muted/60 text-left leading-snug"
                 >
                   <span className="truncate flex-1" title={a.label}>{a.label}</span>
                   <span className="font-medium tabular-nums">{a.count}</span>
