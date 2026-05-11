@@ -189,6 +189,7 @@ export function ReportTab({ data, month }: ReportTabProps) {
 
       pdf.save(`monthly-report-${month}.pdf`);
     } finally {
+      reportRef.current?.removeAttribute("data-pdf-export");
       setExporting(false);
     }
   };
