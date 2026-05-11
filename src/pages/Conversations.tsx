@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug, Filter, GripVertical, RotateCcw, Search, CalendarIcon, Ticket, ChevronRight, ChevronDown, Pencil, ChevronsUpDown, Sparkles, Loader2 } from "lucide-react";
+import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug, Filter, GripVertical, RotateCcw, Search, CalendarIcon, Ticket, ChevronLeft, ChevronRight, ChevronDown, Pencil, ChevronsUpDown, Sparkles, Loader2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
