@@ -2136,13 +2136,14 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${mc.is_test ? "o
                 </Table>
               </div>
               )}
-              {canLoadMore && unified.length > 0 && (
-                <div className="flex justify-center pt-4">
-                  <Button variant="outline" size="sm" onClick={() => loadData(true)} disabled={loadingMore}>
-                    {loadingMore ? "Loading…" : "Load more"}
-                  </Button>
-                </div>
-              )}
+              {unified.length > PAGE_SIZE || (canLoadMore && unified.length > 0) ? (
+                <ConversationsPagination
+                  page={page}
+                  totalPages={totalPages}
+                  hasMoreServer={canLoadMore}
+                  onChange={setPage}
+                />
+              ) : null}
             </CardContent>
           </Card>
           </div>
