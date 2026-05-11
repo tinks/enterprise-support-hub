@@ -1093,10 +1093,10 @@ const Stats = () => {
           </Select>
           </div>
           {range === "custom" && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               <Popover open={customDatePopoverOpen} onOpenChange={(open) => { setCustomDatePopoverOpen(open); if (!open) setCustomDateStep("from"); }}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !customFrom && !customTo && "text-muted-foreground")}>
+                  <Button variant="outline" size="sm" className={cn("w-full sm:w-auto justify-start text-left font-normal", !customFrom && !customTo && "text-muted-foreground")}>
                     <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
                     {customFrom && customTo
                       ? `${format(customFrom, "MMM dd")} – ${format(customTo, "MMM dd, yyyy")}`
@@ -1137,11 +1137,11 @@ const Stats = () => {
             </div>
           )}
           {allChannelIds.length > 1 && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-1 w-full sm:w-auto sm:flex-row sm:items-center sm:gap-2">
               <span className="text-sm font-medium text-muted-foreground">Channel(s):</span>
               <Popover open={channelPopoverOpen} onOpenChange={setChannelPopoverOpen}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-9 min-w-[180px] justify-between text-sm font-normal">
+                  <Button variant="outline" size="sm" className="h-9 w-full sm:min-w-[180px] sm:w-auto justify-between text-sm font-normal">
                     {selectedChannels.length === allChannelIds.length
                       ? "All channels"
                       : selectedChannels.length === 0
