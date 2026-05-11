@@ -805,12 +805,14 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const loadData = async (append = false) => {
     const currentOffset = append ? offset : 0;
     const currentGmailOffset = append ? gmailOffset : 0;
+    const currentManualOffset = append ? manualOffset : 0;
     if (append) {
       setLoadingMore(true);
     } else {
       setLoading(true);
       setOffset(0);
       setGmailOffset(0);
+      setManualOffset(0);
     }
 
     const pageSize = (isHeatmapMode || isResolutionMode || isDayOnlyMode || isReportDrilldown || paramChannel || paramChannelGroup || paramManualChannel) ? 1000 : 50;
@@ -850,7 +852,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     const [slackRes, gmailRes, manualRes] = await Promise.all([
       slackQuery.range(currentOffset, currentOffset + pageSize - 1),
       gmailQuery.range(currentGmailOffset, currentGmailOffset + pageSize - 1),
-      manualQuery.limit(pageSize),
+      manualQuery.range(currentManualOffset, currentManualOffset + pageSize - 1),
     ]);
 
     const slackRows = (slackRes.data ?? []) as unknown as ConversationMapping[];
@@ -859,13 +861,15 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 
     setHasMore(slackRows.length === pageSize);
     setHasMoreGmail(gmailData.length === pageSize);
+    setHasMoreManual(manualData.length === pageSize);
 
     if (append) {
       setMappings((prev) => [...prev, ...slackRows]);
       setGmailRows((prev) => [...prev, ...gmailData]);
-      setManualRows(manualData);
+      setManualRows((prev) => [...prev, ...manualData]);
       setOffset(currentOffset + pageSize);
       setGmailOffset(currentGmailOffset + pageSize);
+      setManualOffset(currentManualOffset + pageSize);
       setLoadingMore(false);
     } else {
       setMappings(slackRows);
@@ -873,6 +877,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       setManualRows(manualData);
       setOffset(pageSize);
       setGmailOffset(pageSize);
+      setManualOffset(pageSize);
       setLoading(false);
     }
     return slackRows;
