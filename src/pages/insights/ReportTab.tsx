@@ -492,13 +492,13 @@ function AccountMiniTable({ title, accounts }: { title: string; accounts: Accoun
           {accounts.map(a => {
             const open = expanded === a.key;
             return (
-              <li key={a.key} className="text-sm">
+              <li key={a.key} className="text-sm [[data-pdf-export]_&]:text-[13px]">
                 <button
                   type="button"
                   onClick={() => setExpanded(open ? null : a.key)}
-                  className="w-full flex items-center justify-between gap-2 py-1.5 px-1 rounded hover:bg-muted/60 text-left leading-snug"
+                  className="w-full flex items-center justify-between gap-2 py-1.5 px-1 rounded hover:bg-muted/60 text-left leading-snug [[data-pdf-export]_&]:py-1 [[data-pdf-export]_&]:hover:bg-transparent"
                 >
-                  <span className="truncate flex-1" title={a.label}>{a.label}</span>
+                  <span className="truncate flex-1 [[data-pdf-export]_&]:!whitespace-normal [[data-pdf-export]_&]:!overflow-visible [[data-pdf-export]_&]:!text-clip [[data-pdf-export]_&]:break-words" title={a.label}>{a.label}</span>
                   <span className="font-medium tabular-nums">{a.count}</span>
                 </button>
                 {open && (
