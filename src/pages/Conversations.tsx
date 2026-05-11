@@ -191,6 +191,100 @@ const ColumnFilter = ({ value, options, onChange, label }: { value: string; opti
 const COLUMN_STORAGE_KEY = "conv-column-order";
 const COLUMN_ORDER_VERSION_KEY = "conv-column-order-version";
 const COLUMN_ORDER_VERSION = 2;
+const PAGE_SIZE = 25;
+
+interface ConversationsPaginationProps {
+  page: number;
+  totalPages: number;
+  hasMoreServer: boolean;
+  onChange: (page: number) => void;
+}
+
+const ConversationsPagination = ({ page, totalPages, hasMoreServer, onChange }: ConversationsPaginationProps) => {
+  // Effective last page accounts for unloaded server rows: allow advancing one past loaded.
+  const effectiveLast = hasMoreServer ? totalPages + 1 : totalPages;
+  const showPrev = page > 1;
+  const showNext = page < effectiveLast;
+
+  // Sliding window of up to 5 numbered pages centred on current page.
+  const windowSize = 5;
+  let start = Math.max(1, page - 2);
+  let end = Math.min(totalPages, start + windowSize - 1);
+  start = Math.max(1, end - windowSize + 1);
+  const numbers: number[] = [];
+  for (let i = start; i <= end; i++) numbers.push(i);
+
+  const showLeadingEllipsis = start > 1;
+  const showTrailingEllipsis = end < totalPages;
+
+  const go = (e: React.MouseEvent, p: number) => {
+    e.preventDefault();
+    if (p < 1) return;
+    onChange(p);
+  };
+
+  return (
+    <nav role="navigation" aria-label="pagination" className="mx-auto flex w-full justify-center pt-4">
+      <ul className="flex flex-row items-center gap-1">
+        {showPrev && (
+          <li>
+            <a
+              href="#"
+              aria-label="Go to previous page"
+              onClick={(e) => go(e, page - 1)}
+              className="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground h-10 px-3 pl-2.5"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span>Previous</span>
+            </a>
+          </li>
+        )}
+        {showLeadingEllipsis && (
+          <li>
+            <span aria-hidden className="flex h-9 w-9 items-center justify-center text-muted-foreground">…</span>
+          </li>
+        )}
+        {numbers.map((n) => {
+          const isActive = n === page;
+          return (
+            <li key={n}>
+              <a
+                href="#"
+                aria-current={isActive ? "page" : undefined}
+                onClick={(e) => go(e, n)}
+                className={`inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors h-10 w-10 ${
+                  isActive
+                    ? "bg-primary text-primary-foreground font-bold hover:bg-primary/90"
+                    : "font-medium hover:bg-accent hover:text-accent-foreground"
+                }`}
+              >
+                {n}
+              </a>
+            </li>
+          );
+        })}
+        {showTrailingEllipsis && (
+          <li>
+            <span aria-hidden className="flex h-9 w-9 items-center justify-center text-muted-foreground">…</span>
+          </li>
+        )}
+        {showNext && (
+          <li>
+            <a
+              href="#"
+              aria-label="Go to next page"
+              onClick={(e) => go(e, page + 1)}
+              className="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground h-10 px-3 pr-2.5"
+            >
+              <span>Next</span>
+              <ChevronRight className="h-4 w-4" />
+            </a>
+          </li>
+        )}
+      </ul>
+    </nav>
+  );
+};
 
 interface ConversationsProps {
   forceOwner?: string;
