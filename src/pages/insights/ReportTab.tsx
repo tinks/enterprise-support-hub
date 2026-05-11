@@ -138,6 +138,7 @@ export function ReportTab({ data, month }: ReportTabProps) {
   const exportPdf = async () => {
     if (!reportRef.current) return;
     setExporting(true);
+    reportRef.current.setAttribute("data-pdf-export", "true");
     try {
       const pdf = new jsPDF("p", "mm", "a4");
       const pageW = pdf.internal.pageSize.getWidth();
@@ -152,7 +153,7 @@ export function ReportTab({ data, month }: ReportTabProps) {
 
       for (const section of sections) {
         // Rasterize this section only
-        const canvas = await html2canvas(section, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+        const canvas = await html2canvas(section, { scale: 3, backgroundColor: "#ffffff", useCORS: true });
         const imgData = canvas.toDataURL("image/png");
         const imgH = (canvas.height * contentW) / canvas.width;
 
@@ -188,6 +189,7 @@ export function ReportTab({ data, month }: ReportTabProps) {
 
       pdf.save(`monthly-report-${month}.pdf`);
     } finally {
+      reportRef.current?.removeAttribute("data-pdf-export");
       setExporting(false);
     }
   };
@@ -370,7 +372,7 @@ export function ReportTab({ data, month }: ReportTabProps) {
             <p className="text-xs text-muted-foreground mb-4">
               Slack by channel · Gmail + Intercom by sender email domain · Manual contacts grouped by normalised account (e.g. "McKinsey" rolls up name + email + known contractors). Internal lovable.dev traffic and the consumer "Personal email" bucket are excluded. Click a row for bug/FR/CSAT details.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 [[data-pdf-export]_&]:!grid-cols-3 [[data-pdf-export]_&]:gap-4">
               <AccountMiniTable title="Slack" accounts={stats.slackAccounts} />
               <AccountMiniTable title="Gmail + Intercom" accounts={stats.emailAccounts} />
               <AccountMiniTable title="Manual contacts" accounts={stats.manualAccounts} />
@@ -490,13 +492,13 @@ function AccountMiniTable({ title, accounts }: { title: string; accounts: Accoun
           {accounts.map(a => {
             const open = expanded === a.key;
             return (
-              <li key={a.key} className="text-sm">
+              <li key={a.key} className="text-sm [[data-pdf-export]_&]:text-[13px]">
                 <button
                   type="button"
                   onClick={() => setExpanded(open ? null : a.key)}
-                  className="w-full flex items-center justify-between gap-2 py-1.5 px-1 rounded hover:bg-muted/60 text-left leading-snug"
+                  className="w-full flex items-center justify-between gap-2 py-1.5 px-1 rounded hover:bg-muted/60 text-left leading-snug [[data-pdf-export]_&]:py-1 [[data-pdf-export]_&]:hover:bg-transparent"
                 >
-                  <span className="truncate flex-1" title={a.label}>{a.label}</span>
+                  <span className="truncate flex-1 [[data-pdf-export]_&]:!whitespace-normal [[data-pdf-export]_&]:!overflow-visible [[data-pdf-export]_&]:!text-clip [[data-pdf-export]_&]:break-words" title={a.label}>{a.label}</span>
                   <span className="font-medium tabular-nums">{a.count}</span>
                 </button>
                 {open && (
