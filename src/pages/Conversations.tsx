@@ -227,9 +227,12 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
   const [offset, setOffset] = useState(0);
   const [gmailOffset, setGmailOffset] = useState(0);
+  const [manualOffset, setManualOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [hasMoreGmail, setHasMoreGmail] = useState(true);
+  const [hasMoreManual, setHasMoreManual] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
   const savedSource = localStorage.getItem("conv-source-filter") as SourceFilter | null;
   // When linked here from the manual-channel drilldown, force source=manual so manual rows actually load.
   const initialSource: SourceFilter = paramManualChannel ? "manual" : (paramSource || (isReportDrilldown ? "all" : savedSource) || "all");
