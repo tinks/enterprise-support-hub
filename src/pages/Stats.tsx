@@ -1024,17 +1024,17 @@ const Stats = () => {
 
   return (
     <AppLayout>
-      <div ref={statsContentRef} className="mx-auto max-w-5xl space-y-6 p-6">
+      <div ref={statsContentRef} className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
         {/* Hero banner */}
-        <div className="flex items-center justify-between rounded-xl border border-border bg-gradient-to-br from-card via-card to-accent p-6">
-          <div className="flex items-center gap-4">
-            <img src="/lovable-logo.png" alt="Lovable logo" className="h-12 w-12 rounded-lg" />
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">Lovable Enterprise Support Hub</h1>
+        <div className="flex flex-col gap-4 rounded-xl border border-border bg-gradient-to-br from-card via-card to-accent p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div className="flex items-center gap-4 min-w-0">
+            <img src="/lovable-logo.png" alt="Lovable logo" className="h-12 w-12 rounded-lg shrink-0" />
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground break-words">Lovable Enterprise Support Hub</h1>
               <p className="text-sm text-muted-foreground">Inbox Management and Real-time analytics</p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent">
               <ExternalLink className="h-3.5 w-3.5" /> Slack App
@@ -1047,11 +1047,11 @@ const Stats = () => {
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+          <div className="flex flex-col gap-1 w-full sm:w-auto sm:flex-row sm:items-center sm:gap-2">
             <span className="text-sm font-medium text-muted-foreground">Environment:</span>
             <Select value={view} onValueChange={(v) => setView(v as "real" | "test")}>
-              <SelectTrigger className="w-[180px] h-9">
+              <SelectTrigger className="w-full sm:w-[180px] h-9">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1060,10 +1060,10 @@ const Stats = () => {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-1 w-full sm:w-auto sm:flex-row sm:items-center sm:gap-2">
             <span className="text-sm font-medium text-muted-foreground">Source:</span>
             <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as SourceFilter)}>
-              <SelectTrigger className="w-[180px] h-9">
+              <SelectTrigger className="w-full sm:w-[180px] h-9">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1075,10 +1075,10 @@ const Stats = () => {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-1 w-full sm:w-auto sm:flex-row sm:items-center sm:gap-2">
             <span className="text-sm font-medium text-muted-foreground">Timeframe:</span>
             <Select value={range} onValueChange={(v) => { setRange(v as TimeRange); }}>
-            <SelectTrigger className="w-[180px] h-9">
+            <SelectTrigger className="w-full sm:w-[180px] h-9">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -1093,10 +1093,10 @@ const Stats = () => {
           </Select>
           </div>
           {range === "custom" && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               <Popover open={customDatePopoverOpen} onOpenChange={(open) => { setCustomDatePopoverOpen(open); if (!open) setCustomDateStep("from"); }}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className={cn("justify-start text-left font-normal", !customFrom && !customTo && "text-muted-foreground")}>
+                  <Button variant="outline" size="sm" className={cn("w-full sm:w-auto justify-start text-left font-normal", !customFrom && !customTo && "text-muted-foreground")}>
                     <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
                     {customFrom && customTo
                       ? `${format(customFrom, "MMM dd")} – ${format(customTo, "MMM dd, yyyy")}`
@@ -1137,11 +1137,11 @@ const Stats = () => {
             </div>
           )}
           {allChannelIds.length > 1 && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-1 w-full sm:w-auto sm:flex-row sm:items-center sm:gap-2">
               <span className="text-sm font-medium text-muted-foreground">Channel(s):</span>
               <Popover open={channelPopoverOpen} onOpenChange={setChannelPopoverOpen}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-9 min-w-[180px] justify-between text-sm font-normal">
+                  <Button variant="outline" size="sm" className="h-9 w-full sm:min-w-[180px] sm:w-auto justify-between text-sm font-normal">
                     {selectedChannels.length === allChannelIds.length
                       ? "All channels"
                       : selectedChannels.length === 0
@@ -1196,7 +1196,7 @@ const Stats = () => {
               </Popover>
             </div>
           )}
-          <Button variant="outline" size="sm" className="h-9" onClick={exportPDF} disabled={exporting}>
+          <Button variant="outline" size="sm" className="h-9 w-full sm:w-auto" onClick={exportPDF} disabled={exporting}>
             {exporting ? <RefreshCw className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <FileDown className="mr-1.5 h-3.5 w-3.5" />}
             {exporting ? "Exporting…" : "Export PDF"}
           </Button>
