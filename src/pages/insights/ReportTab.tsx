@@ -372,7 +372,7 @@ export function ReportTab({ data, month }: ReportTabProps) {
             <p className="text-xs text-muted-foreground mb-4">
               Slack by channel · Gmail + Intercom by sender email domain · Manual contacts grouped by normalised account (e.g. "McKinsey" rolls up name + email + known contractors). Internal lovable.dev traffic and the consumer "Personal email" bucket are excluded. Click a row for bug/FR/CSAT details.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 [[data-pdf-export]_&]:!grid-cols-3 [[data-pdf-export]_&]:gap-4">
               <AccountMiniTable title="Slack" accounts={stats.slackAccounts} />
               <AccountMiniTable title="Gmail + Intercom" accounts={stats.emailAccounts} />
               <AccountMiniTable title="Manual contacts" accounts={stats.manualAccounts} />
