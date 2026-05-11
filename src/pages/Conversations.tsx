@@ -2031,7 +2031,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {unified.map((row) => {
+                    {pagedRows.map((row) => {
                       if (row.source === "slack") {
                         const m = row.data;
                         return (
