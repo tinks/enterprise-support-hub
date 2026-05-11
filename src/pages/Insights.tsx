@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { format, startOfMonth, subMonths } from "date-fns";
 import { Sparkles, RefreshCw, Loader2, ChevronRight } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
