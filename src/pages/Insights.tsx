@@ -184,7 +184,7 @@ const Insights = () => {
                 {generating ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Analyzing…</>
                 ) : (
-                  <><RefreshCw className="h-4 w-4 mr-2" />{insight ? "Regenerate topics" : "Generate topics"}</>
+                  <><RefreshCw className="h-4 w-4 mr-2" />Generate new report</>
                 )}
               </Button>
             </div>
