@@ -1153,8 +1153,33 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const canLoadMore =
     !isHeatmapMode && !isResolutionMode && !isDayOnlyMode && !searchResults && (
       ((sourceFilter === "all" || sourceFilter === "slack" || sourceFilter === "slack_import") && hasMore) ||
-      ((sourceFilter === "all" || sourceFilter === "gmail") && hasMoreGmail)
+      ((sourceFilter === "all" || sourceFilter === "gmail") && hasMoreGmail) ||
+      ((sourceFilter === "all" || sourceFilter === "manual") && hasMoreManual)
     );
+
+  const totalPages = Math.max(1, Math.ceil(unified.length / PAGE_SIZE));
+  const pagedRows = useMemo(
+    () => unified.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [unified, page],
+  );
+
+  // Reset to page 1 whenever filters or the underlying dataset shape change.
+  useEffect(() => {
+    setPage(1);
+  }, [sourceFilter, ownerFilter, productAreaFilter, classificationFilter, hiddenStatuses, dateFrom, dateTo, searchResults]);
+
+  // Clamp page if the dataset shrinks below current page.
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  // Background fetch more rows when navigating near the end of loaded data.
+  useEffect(() => {
+    if (canLoadMore && !loadingMore && page >= totalPages) {
+      loadData(true).then((rows) => loadLookups(rows));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, totalPages, canLoadMore]);
 
   // Column definitions
   const columnHeaders: Record<ColKey, string> = {
