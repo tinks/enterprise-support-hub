@@ -138,6 +138,7 @@ export function ReportTab({ data, month }: ReportTabProps) {
   const exportPdf = async () => {
     if (!reportRef.current) return;
     setExporting(true);
+    reportRef.current.setAttribute("data-pdf-export", "true");
     try {
       const pdf = new jsPDF("p", "mm", "a4");
       const pageW = pdf.internal.pageSize.getWidth();
