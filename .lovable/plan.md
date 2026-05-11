@@ -1,19 +1,17 @@
-## What
+## Finding
 
-The Top Slack channels panel in Insights → Report shows raw channel IDs for 4 external Slack-Connect channels instead of human names. I resolved them via `conversations.info`:
+The `/insights` route exists in the app and is correctly registered. The 404 is happening before the app loads because the published site visibility is currently `private`. Browser testing showed the URL redirects to Lovable’s workspace authentication bridge first, not to the app itself.
 
-| ID | Channel name |
-|---|---|
-| `C08Q0B29A79` | `ext-hubspot-lovable` |
-| `C0970Q752E8` | `uber-lovable-external` |
-| `C09ATLCF9LK` | `paymentology-lovable` |
-| `C0A6PSTENRM` | `autodesk-lovable` |
+## Plan
 
-## Change
+1. Change the published site visibility from `private` to `public`.
+2. Keep the app’s own login protection unchanged, so users still need to authenticate inside Enterprise Support Hub before seeing insights data.
+3. Retest `https://enterprise-support-hub.lovable.app/insights` after the visibility change to confirm it reaches the app/login flow instead of Lovable’s 404 gate.
 
-Append these 4 entries to the existing `channelNameOverrides` map in `src/lib/channelOverrides.ts`. This is the established pattern (`McKinsey`, `workday-lovable`, etc. are already in there) and `ReportTab.tsx` already applies the overrides on top of API results, so they'll render correctly everywhere channel names are shown.
+## Result
 
-## Files
-- `src/lib/channelOverrides.ts` — add 4 entries
+After this, the shareable link should be:
 
-No business-logic changes, no schema changes, no edge-function redeploys.
+`https://enterprise-support-hub.lovable.app/insights`
+
+Collaborators will be able to open the URL directly, then sign in to the app if needed.
