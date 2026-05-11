@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { format, startOfMonth, subMonths } from "date-fns";
 import { Sparkles, RefreshCw, Loader2, ChevronRight } from "lucide-react";
 import AppLayout from "@/components/AppLayout";
@@ -58,17 +58,36 @@ function buildMonthOptions(): { value: string; label: string }[] {
   return opts;
 }
 
+const VALID_TABS = new Set(["report", "topics", "customers", "types", "trends", "channels"]);
+
 const Insights = () => {
   const { toast } = useToast();
   const monthOptions = useMemo(buildMonthOptions, []);
   const defaultMonth = monthOptions[1]?.value || monthOptions[0].value;
-  const [month, setMonth] = useState<string>(defaultMonth);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlMonth = searchParams.get("month");
+  const urlTab = searchParams.get("tab");
+  const [month, setMonth] = useState<string>(
+    urlMonth && monthOptions.some(o => o.value === urlMonth) ? urlMonth : defaultMonth,
+  );
   const [insight, setInsight] = useState<Insight | null>(null);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [openBucket, setOpenBucket] = useState<Bucket | null>(null);
-  const [activeTab, setActiveTab] = useState<string>("report");
+  const [activeTab, setActiveTab] = useState<string>(urlTab && VALID_TABS.has(urlTab) ? urlTab : "report");
   const [reportRefreshKey, setReportRefreshKey] = useState(0);
+
+  // Keep URL in sync with month/tab so links are shareable.
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    if (month === defaultMonth) next.delete("month"); else next.set("month", month);
+    if (activeTab === "report") next.delete("tab"); else next.set("tab", activeTab);
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month, activeTab]);
+
 
   const monthData = useMonthData(month, reportRefreshKey);
 
