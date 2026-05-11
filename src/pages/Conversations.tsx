@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug, Filter, GripVertical, RotateCcw, Search, CalendarIcon, Ticket, ChevronRight, ChevronDown, Pencil, ChevronsUpDown, Sparkles, Loader2 } from "lucide-react";
+import { RefreshCw, ExternalLink, Hash, User, Mail, X, ArrowLeft, Bug, Filter, GripVertical, RotateCcw, Search, CalendarIcon, Ticket, ChevronLeft, ChevronRight, ChevronDown, Pencil, ChevronsUpDown, Sparkles, Loader2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -191,6 +191,100 @@ const ColumnFilter = ({ value, options, onChange, label }: { value: string; opti
 const COLUMN_STORAGE_KEY = "conv-column-order";
 const COLUMN_ORDER_VERSION_KEY = "conv-column-order-version";
 const COLUMN_ORDER_VERSION = 2;
+const PAGE_SIZE = 25;
+
+interface ConversationsPaginationProps {
+  page: number;
+  totalPages: number;
+  hasMoreServer: boolean;
+  onChange: (page: number) => void;
+}
+
+const ConversationsPagination = ({ page, totalPages, hasMoreServer, onChange }: ConversationsPaginationProps) => {
+  // Effective last page accounts for unloaded server rows: allow advancing one past loaded.
+  const effectiveLast = hasMoreServer ? totalPages + 1 : totalPages;
+  const showPrev = page > 1;
+  const showNext = page < effectiveLast;
+
+  // Sliding window of up to 5 numbered pages centred on current page.
+  const windowSize = 5;
+  let start = Math.max(1, page - 2);
+  let end = Math.min(totalPages, start + windowSize - 1);
+  start = Math.max(1, end - windowSize + 1);
+  const numbers: number[] = [];
+  for (let i = start; i <= end; i++) numbers.push(i);
+
+  const showLeadingEllipsis = start > 1;
+  const showTrailingEllipsis = end < totalPages;
+
+  const go = (e: React.MouseEvent, p: number) => {
+    e.preventDefault();
+    if (p < 1) return;
+    onChange(p);
+  };
+
+  return (
+    <nav role="navigation" aria-label="pagination" className="mx-auto flex w-full justify-center pt-4">
+      <ul className="flex flex-row items-center gap-1">
+        {showPrev && (
+          <li>
+            <a
+              href="#"
+              aria-label="Go to previous page"
+              onClick={(e) => go(e, page - 1)}
+              className="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground h-10 px-3 pl-2.5"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <span>Previous</span>
+            </a>
+          </li>
+        )}
+        {showLeadingEllipsis && (
+          <li>
+            <span aria-hidden className="flex h-9 w-9 items-center justify-center text-muted-foreground">…</span>
+          </li>
+        )}
+        {numbers.map((n) => {
+          const isActive = n === page;
+          return (
+            <li key={n}>
+              <a
+                href="#"
+                aria-current={isActive ? "page" : undefined}
+                onClick={(e) => go(e, n)}
+                className={`inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm ring-offset-background transition-colors h-10 w-10 ${
+                  isActive
+                    ? "bg-primary text-primary-foreground font-bold hover:bg-primary/90"
+                    : "font-medium hover:bg-accent hover:text-accent-foreground"
+                }`}
+              >
+                {n}
+              </a>
+            </li>
+          );
+        })}
+        {showTrailingEllipsis && (
+          <li>
+            <span aria-hidden className="flex h-9 w-9 items-center justify-center text-muted-foreground">…</span>
+          </li>
+        )}
+        {showNext && (
+          <li>
+            <a
+              href="#"
+              aria-label="Go to next page"
+              onClick={(e) => go(e, page + 1)}
+              className="inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground h-10 px-3 pr-2.5"
+            >
+              <span>Next</span>
+              <ChevronRight className="h-4 w-4" />
+            </a>
+          </li>
+        )}
+      </ul>
+    </nav>
+  );
+};
 
 interface ConversationsProps {
   forceOwner?: string;
@@ -227,9 +321,12 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
   const [offset, setOffset] = useState(0);
   const [gmailOffset, setGmailOffset] = useState(0);
+  const [manualOffset, setManualOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [hasMoreGmail, setHasMoreGmail] = useState(true);
+  const [hasMoreManual, setHasMoreManual] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
   const savedSource = localStorage.getItem("conv-source-filter") as SourceFilter | null;
   // When linked here from the manual-channel drilldown, force source=manual so manual rows actually load.
   const initialSource: SourceFilter = paramManualChannel ? "manual" : (paramSource || (isReportDrilldown ? "all" : savedSource) || "all");
@@ -708,12 +805,14 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const loadData = async (append = false) => {
     const currentOffset = append ? offset : 0;
     const currentGmailOffset = append ? gmailOffset : 0;
+    const currentManualOffset = append ? manualOffset : 0;
     if (append) {
       setLoadingMore(true);
     } else {
       setLoading(true);
       setOffset(0);
       setGmailOffset(0);
+      setManualOffset(0);
     }
 
     const pageSize = (isHeatmapMode || isResolutionMode || isDayOnlyMode || isReportDrilldown || paramChannel || paramChannelGroup || paramManualChannel) ? 1000 : 50;
@@ -753,7 +852,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     const [slackRes, gmailRes, manualRes] = await Promise.all([
       slackQuery.range(currentOffset, currentOffset + pageSize - 1),
       gmailQuery.range(currentGmailOffset, currentGmailOffset + pageSize - 1),
-      manualQuery.limit(pageSize),
+      manualQuery.range(currentManualOffset, currentManualOffset + pageSize - 1),
     ]);
 
     const slackRows = (slackRes.data ?? []) as unknown as ConversationMapping[];
@@ -762,13 +861,15 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 
     setHasMore(slackRows.length === pageSize);
     setHasMoreGmail(gmailData.length === pageSize);
+    setHasMoreManual(manualData.length === pageSize);
 
     if (append) {
       setMappings((prev) => [...prev, ...slackRows]);
       setGmailRows((prev) => [...prev, ...gmailData]);
-      setManualRows(manualData);
+      setManualRows((prev) => [...prev, ...manualData]);
       setOffset(currentOffset + pageSize);
       setGmailOffset(currentGmailOffset + pageSize);
+      setManualOffset(currentManualOffset + pageSize);
       setLoadingMore(false);
     } else {
       setMappings(slackRows);
@@ -776,6 +877,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       setManualRows(manualData);
       setOffset(pageSize);
       setGmailOffset(pageSize);
+      setManualOffset(pageSize);
       setLoading(false);
     }
     return slackRows;
@@ -1051,8 +1153,33 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const canLoadMore =
     !isHeatmapMode && !isResolutionMode && !isDayOnlyMode && !searchResults && (
       ((sourceFilter === "all" || sourceFilter === "slack" || sourceFilter === "slack_import") && hasMore) ||
-      ((sourceFilter === "all" || sourceFilter === "gmail") && hasMoreGmail)
+      ((sourceFilter === "all" || sourceFilter === "gmail") && hasMoreGmail) ||
+      ((sourceFilter === "all" || sourceFilter === "manual") && hasMoreManual)
     );
+
+  const totalPages = Math.max(1, Math.ceil(unified.length / PAGE_SIZE));
+  const pagedRows = useMemo(
+    () => unified.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [unified, page],
+  );
+
+  // Reset to page 1 whenever filters or the underlying dataset shape change.
+  useEffect(() => {
+    setPage(1);
+  }, [sourceFilter, ownerFilter, productAreaFilter, classificationFilter, hiddenStatuses, dateFrom, dateTo, searchResults]);
+
+  // Clamp page if the dataset shrinks below current page.
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  // Background fetch more rows when navigating near the end of loaded data.
+  useEffect(() => {
+    if (canLoadMore && !loadingMore && page >= totalPages) {
+      loadData(true).then((rows) => loadLookups(rows));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, totalPages, canLoadMore]);
 
   // Column definitions
   const columnHeaders: Record<ColKey, string> = {
@@ -1904,7 +2031,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {unified.map((row) => {
+                    {pagedRows.map((row) => {
                       if (row.source === "slack") {
                         const m = row.data;
                         return (
@@ -2009,13 +2136,14 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${mc.is_test ? "o
                 </Table>
               </div>
               )}
-              {canLoadMore && unified.length > 0 && (
-                <div className="flex justify-center pt-4">
-                  <Button variant="outline" size="sm" onClick={() => loadData(true)} disabled={loadingMore}>
-                    {loadingMore ? "Loading…" : "Load more"}
-                  </Button>
-                </div>
-              )}
+              {unified.length > PAGE_SIZE || (canLoadMore && unified.length > 0) ? (
+                <ConversationsPagination
+                  page={page}
+                  totalPages={totalPages}
+                  hasMoreServer={canLoadMore}
+                  onChange={setPage}
+                />
+              ) : null}
             </CardContent>
           </Card>
           </div>
