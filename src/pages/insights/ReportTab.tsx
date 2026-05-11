@@ -153,7 +153,7 @@ export function ReportTab({ data, month }: ReportTabProps) {
 
       for (const section of sections) {
         // Rasterize this section only
-        const canvas = await html2canvas(section, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+        const canvas = await html2canvas(section, { scale: 3, backgroundColor: "#ffffff", useCORS: true });
         const imgData = canvas.toDataURL("image/png");
         const imgH = (canvas.height * contentW) / canvas.width;
 
