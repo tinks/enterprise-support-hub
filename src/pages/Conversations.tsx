@@ -334,6 +334,8 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const [searchQuery, setSearchQuery] = useState(() => isReportDrilldown ? "" : (localStorage.getItem("conv-search") || ""));
   const savedOwner = localStorage.getItem("conv-owner-filter") as OwnerFilter | null;
   const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(forceOwner as OwnerFilter || (paramOwner as OwnerFilter) || savedOwner || "all");
+  // Sync ownerFilter when forceOwner prop changes (e.g. navigating between /my/<owner> dashboards)
+  useEffect(() => { if (forceOwner) setOwnerFilter(forceOwner as OwnerFilter); }, [forceOwner]);
   const savedPaFilter = localStorage.getItem("conv-pa-filter");
   const [productAreaFilter, setProductAreaFilter] = useState<string>(paramProductArea || (isReportDrilldown ? "all" : savedPaFilter) || "all");
   const savedClassFilter = localStorage.getItem("conv-class-filter");
