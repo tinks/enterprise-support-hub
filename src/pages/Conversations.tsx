@@ -1827,6 +1827,42 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                       <SelectItem value="intercom">Intercom</SelectItem>
                     </SelectContent>
                   </Select>
+                  {forceOwner ? (
+                    <Badge variant="secondary" className="h-9 gap-1 px-3 text-xs font-normal">
+                      <User className="h-3 w-3" /> Owner: {forceOwner}
+                    </Badge>
+                  ) : (
+                    <Select value={ownerFilter} onValueChange={(v) => setOwnerFilter(v as OwnerFilter)}>
+                      <SelectTrigger className="w-[140px] h-9">
+                        <SelectValue placeholder="Owner" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Owner: All</SelectItem>
+                        <SelectItem value="unassigned">Unassigned</SelectItem>
+                        {OWNER_OPTIONS.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <Select value={productAreaFilter} onValueChange={setProductAreaFilter}>
+                    <SelectTrigger className="w-[150px] h-9">
+                      <SelectValue placeholder="Product area" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Product area: All</SelectItem>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {productAreas.map((area) => <SelectItem key={area} value={area}>{area}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select value={classificationFilter} onValueChange={setClassificationFilter}>
+                    <SelectTrigger className="w-[150px] h-9">
+                      <SelectValue placeholder="Classification" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Classification: All</SelectItem>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {CLASSIFICATION_OPTIONS.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button variant="outline" size="sm" className="h-9 gap-1">
