@@ -1806,7 +1806,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                   {(() => {
                     let count = 0;
                     if (sourceFilter !== "all") count++;
-                    if (ownerFilter !== "all") count++;
+                    if (!forceOwner && ownerFilter !== "all") count++;
                     if (productAreaFilter !== "all") count++;
                     if (classificationFilter !== "all") count++;
                     if (hiddenDiffersFromDefault) count++;
@@ -1899,7 +1899,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                           variant="ghost"
                           size="sm"
                           className="mt-2 h-7 w-full text-xs"
-                          onClick={() => setHiddenStatuses(new Set(DEFAULT_HIDDEN))}
+                          onClick={() => setHiddenStatuses(new Set(effectiveDefaultHidden))}
                         >
                           Restore defaults
                         </Button>
