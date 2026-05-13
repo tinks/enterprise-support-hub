@@ -499,11 +499,17 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 
   const ALL_STATUSES = ["active", "awaiting_context", "awaiting_support", "escalated", "resolved", "cancelled", "test"] as const;
   const DEFAULT_HIDDEN = new Set(["test", "cancelled", "resolved"]);
+  const DASHBOARD_HIDDEN = new Set(["resolved"]);
+  const effectiveDefaultHidden = forceOwner ? DASHBOARD_HIDDEN : DEFAULT_HIDDEN;
   const savedHidden = localStorage.getItem("conv-hidden-statuses");
   const [hiddenStatuses, setHiddenStatuses] = useState<Set<string>>(
-    paramShowAll ? new Set() : (savedHidden ? new Set(JSON.parse(savedHidden)) : new Set(DEFAULT_HIDDEN))
+    paramShowAll
+      ? new Set()
+      : forceOwner
+        ? new Set(DASHBOARD_HIDDEN)
+        : (savedHidden ? new Set(JSON.parse(savedHidden)) : new Set(DEFAULT_HIDDEN))
   );
-  const hiddenDiffersFromDefault = hiddenStatuses.size !== DEFAULT_HIDDEN.size || [...hiddenStatuses].some(s => !DEFAULT_HIDDEN.has(s));
+  const hiddenDiffersFromDefault = hiddenStatuses.size !== effectiveDefaultHidden.size || [...hiddenStatuses].some(s => !effectiveDefaultHidden.has(s));
 
   // Column order state
   const savedVersion = localStorage.getItem(COLUMN_ORDER_VERSION_KEY);
@@ -533,9 +539,9 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   useEffect(() => { localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(columnOrder)); }, [columnOrder]);
   useEffect(() => { if (!isReportDrilldown) localStorage.setItem("conv-source-filter", sourceFilter); }, [sourceFilter, isReportDrilldown]);
   useEffect(() => { if (!forceOwner && !paramOwner) localStorage.setItem("conv-owner-filter", ownerFilter); }, [ownerFilter, forceOwner, paramOwner]);
-  useEffect(() => { if (!isReportDrilldown) localStorage.setItem("conv-pa-filter", productAreaFilter); }, [productAreaFilter, isReportDrilldown]);
-  useEffect(() => { if (!isReportDrilldown) localStorage.setItem("conv-class-filter", classificationFilter); }, [classificationFilter, isReportDrilldown]);
-  useEffect(() => { if (!paramShowAll) localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses, paramShowAll]);
+  useEffect(() => { if (!isReportDrilldown && !forceOwner) localStorage.setItem("conv-pa-filter", productAreaFilter); }, [productAreaFilter, isReportDrilldown, forceOwner]);
+  useEffect(() => { if (!isReportDrilldown && !forceOwner) localStorage.setItem("conv-class-filter", classificationFilter); }, [classificationFilter, isReportDrilldown, forceOwner]);
+  useEffect(() => { if (!paramShowAll && !forceOwner) localStorage.setItem("conv-hidden-statuses", JSON.stringify([...hiddenStatuses])); }, [hiddenStatuses, paramShowAll, forceOwner]);
   useEffect(() => {
     if (isReportDrilldown) return;
     if (searchQuery) localStorage.setItem("conv-search", searchQuery);
@@ -1631,14 +1637,14 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   };
 
   const isCustomOrder = JSON.stringify(columnOrder) !== JSON.stringify([...ALL_COLUMNS]);
-  const anyFilterActive = sourceFilter !== "all" || ownerFilter !== "all" || productAreaFilter !== "all" || classificationFilter !== "all" || hiddenDiffersFromDefault || !!dateFrom || !!dateTo || isCustomOrder || searchQuery.trim().length > 0;
+  const anyFilterActive = sourceFilter !== "all" || (!forceOwner && ownerFilter !== "all") || productAreaFilter !== "all" || classificationFilter !== "all" || hiddenDiffersFromDefault || !!dateFrom || !!dateTo || isCustomOrder || searchQuery.trim().length > 0;
   const resetAll = () => {
     setSourceFilter("all");
     // Preserve dashboard-forced owner; only clear owner filter on the general inbox.
     if (!forceOwner) setOwnerFilter("all");
     setProductAreaFilter("all");
     setClassificationFilter("all");
-    setHiddenStatuses(new Set(DEFAULT_HIDDEN));
+    setHiddenStatuses(new Set(effectiveDefaultHidden));
     setDateFrom(undefined);
     setDateTo(undefined);
     setColumnOrder([...ALL_COLUMNS]);
@@ -1800,7 +1806,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                   {(() => {
                     let count = 0;
                     if (sourceFilter !== "all") count++;
-                    if (ownerFilter !== "all") count++;
+                    if (!forceOwner && ownerFilter !== "all") count++;
                     if (productAreaFilter !== "all") count++;
                     if (classificationFilter !== "all") count++;
                     if (hiddenDiffersFromDefault) count++;
@@ -1893,7 +1899,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                           variant="ghost"
                           size="sm"
                           className="mt-2 h-7 w-full text-xs"
-                          onClick={() => setHiddenStatuses(new Set(DEFAULT_HIDDEN))}
+                          onClick={() => setHiddenStatuses(new Set(effectiveDefaultHidden))}
                         >
                           Restore defaults
                         </Button>

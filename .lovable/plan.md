@@ -1,39 +1,45 @@
-What the "3 active" badge means
+## Goal
 
-The Filters header counts every filter that differs from its default, including ones that have no visible control in the Filters panel. On `/my/kristina` the three active items are:
+On dashboard views (`/my/<owner>`), make these the defaults so the page loads clean with no "active filters" badge:
+- **Owner** = the dashboard's owner (already enforced via `forceOwner`)
+- **Status** = hide only `resolved` (everything else visible)
+- All other filters (Source, Product area, Classification, Date) = All / cleared
 
-1. Owner = Kristina — forced by the `/my/<owner>` route, no visible control on owner dashboards.
-2. Status filter modified — the panel shows "0 hidden", but the default for the inbox is 3 hidden statuses (`test`, `cancelled`, `resolved`). Different from default, so it counts.
-3. A persisted Product area or Classification value left over in `localStorage` from a previous session (the conversations page restores `conv-pa-filter` / `conv-class-filter` on every load).
+The inbox view (`/conversations`) keeps its current defaults unchanged (hides `test`, `cancelled`, `resolved`; persists user picks in localStorage).
 
-Items 1 and 3 are not visible in the Filters panel today. Owner is hidden when `forceOwner` is set, and Product area / Classification only have controls in the table column headers, not in the Filters panel. That is why expanding Filters appears empty.
+## Changes (all in `src/pages/Conversations.tsx`)
 
-Fix proposal
+1. **Context-aware defaults**
+   - Introduce `DASHBOARD_HIDDEN = new Set(["resolved"])` alongside the existing `DEFAULT_HIDDEN`.
+   - Compute `effectiveDefaultHidden = forceOwner ? DASHBOARD_HIDDEN : DEFAULT_HIDDEN`.
+   - Initial `hiddenStatuses`: on dashboards, ignore the shared `conv-hidden-statuses` localStorage and start from `DASHBOARD_HIDDEN`. On inbox, behave as today.
+   - `hiddenDiffersFromDefault` compares against `effectiveDefaultHidden`.
+   - The Status popover "Restore defaults" button resets to `effectiveDefaultHidden`.
 
-1. Surface every active filter in the Filters panel.
-   - Add Product area and Classification dropdowns to the Filters panel, identical in behaviour to the column-header filters. They stay in sync with the column-header filters.
-   - On owner dashboards, show a read-only "Owner: Kristina" chip in the Filters panel so the user can see why rows are scoped. No clear button (route owns this).
-   - Keep Source, Status, Date as today.
+2. **Don't pollute inbox storage from dashboards**
+   - Skip the `localStorage.setItem("conv-hidden-statuses", …)` effect when `forceOwner` is set, so toggling status while on a dashboard doesn't change the inbox default. (Same pattern already used for owner filter.)
+   - Same skip for `conv-pa-filter` and `conv-class-filter` writes when `forceOwner` is set, so dashboard tinkering doesn't leak into the inbox.
 
-2. Make the active count match what the panel shows.
-   - Continue counting the forced owner on owner dashboards (it is a real, visible filter chip now).
-   - Continue counting Status when it differs from the default.
-   - Continue counting Product area and Classification (now editable in the panel).
+3. **Active-filter count on dashboards**
+   - Don't count `ownerFilter` when `forceOwner` is set (it's the view, not a filter).
+   - `hiddenDiffersFromDefault` now compares to dashboard default, so hiding only `resolved` reads as 0.
+   - Net effect: a freshly opened `/my/kristina` shows no "active" badge.
 
-3. Reset behaviour
-   - "Reset" inside the Filters panel clears Source, Status (back to default), Date, Product area, Classification.
-   - On owner dashboards Reset still preserves the route-forced owner.
-   - On `/conversations` Reset still clears owner to All.
+4. **Reset behaviour**
+   - On dashboards, `resetAll` resets `hiddenStatuses` to `DASHBOARD_HIDDEN` (instead of `DEFAULT_HIDDEN`), keeps the forced owner, and clears Source/Product area/Classification/Date as today.
+   - On inbox, unchanged.
 
-Out of scope
+5. **Switching between dashboards** already remounts via `key={ownerName}` in `OwnerDashboard`, so each dashboard initialises with its own defaults — no extra work needed.
 
-- No backend or query changes.
-- No changes to the conversations table structure or pagination.
-- No changes to the column-header filter UI; we just add a parallel control in the Filters panel.
+## Out of scope
 
-Validation
+- No changes to data fetching, RLS, edge functions, or the Flow page logic.
+- No changes to column-header filters or table layout.
+- Inbox (`/conversations`) defaults and persistence remain exactly as they are.
 
-- Open `/my/kristina`. The Filters panel shows: read-only Owner = Kristina chip, Source, Status, Date, Product area, Classification. Counted items match the badge.
-- Change Product area in the Filters panel — column-header filter updates too, and rows refilter.
-- Click Reset — Source/Status/Date/Product area/Classification reset, Owner stays Kristina.
-- Open `/conversations` — Owner chip is editable as before, Reset clears it to All.
+## Verification
+
+- Open `/my/kristina` fresh → Owner chip = Kristina, Status shows "1 hidden" tooltip-wise but Filters header shows **no "active" badge** (it equals dashboard default). Rows exclude resolved only.
+- Toggle Source = Slack → badge shows "1 active". Click Reset → back to clean dashboard defaults, owner stays Kristina.
+- Switch to `/my/joel` → reloads with Joel + hide-resolved, no active badge.
+- Open `/conversations` → unchanged: hides test/cancelled/resolved by default, owner = All (or last saved), persistence intact.
