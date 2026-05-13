@@ -508,6 +508,15 @@ Manual rows with `source='slack_thread'` or `source='slack_dm'` are visually tre
 - Empty-state message is channel-aware: when `?manualChannel=` is set and `unified` is empty, the message names the channel and suggests clearing status/owner/classification filters.
 - **Manual channel drilldown overrides defaults**: when `?manualChannel=` is present, the inbox (a) bumps the per-source page size to 1000 so the full manual set is loaded (the default 50-row cap was hiding older rows), and (b) bypasses the default `hiddenStatuses` filter so resolved/test/cancelled rows in the channel are visible. Owner / product area / classification filters still apply and can be cleared from the chip.
 
+## Conversations filter defaults — inbox vs dashboards
+
+Two defaults coexist in `src/pages/Conversations.tsx`:
+
+- `DEFAULT_HIDDEN = {test, cancelled, resolved}` — used on `/conversations` (the inbox). Persists user picks via `conv-hidden-statuses`, `conv-pa-filter`, `conv-class-filter`, `conv-owner-filter`.
+- `DASHBOARD_HIDDEN = {resolved}` — used on `/my/<owner>` whenever `forceOwner` is set. Owner is locked to the route owner. localStorage writes for hidden statuses, product area, and classification are skipped while `forceOwner` is set so dashboards never overwrite inbox defaults.
+
+`effectiveDefaultHidden = forceOwner ? DASHBOARD_HIDDEN : DEFAULT_HIDDEN` drives the "active filter" badge, the Status popover's "Restore defaults" button, and `resetAll`. The forced owner is excluded from the active-filter count.
+
 ## Resolution time — manual override
 
 - The Conversation detail page (`/conversations/:id`) Timeline card lets users edit `resolved_at` for slack, gmail, and manual conversations (alongside the existing editable `created_at`).
