@@ -1637,14 +1637,14 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   };
 
   const isCustomOrder = JSON.stringify(columnOrder) !== JSON.stringify([...ALL_COLUMNS]);
-  const anyFilterActive = sourceFilter !== "all" || ownerFilter !== "all" || productAreaFilter !== "all" || classificationFilter !== "all" || hiddenDiffersFromDefault || !!dateFrom || !!dateTo || isCustomOrder || searchQuery.trim().length > 0;
+  const anyFilterActive = sourceFilter !== "all" || (!forceOwner && ownerFilter !== "all") || productAreaFilter !== "all" || classificationFilter !== "all" || hiddenDiffersFromDefault || !!dateFrom || !!dateTo || isCustomOrder || searchQuery.trim().length > 0;
   const resetAll = () => {
     setSourceFilter("all");
     // Preserve dashboard-forced owner; only clear owner filter on the general inbox.
     if (!forceOwner) setOwnerFilter("all");
     setProductAreaFilter("all");
     setClassificationFilter("all");
-    setHiddenStatuses(new Set(DEFAULT_HIDDEN));
+    setHiddenStatuses(new Set(effectiveDefaultHidden));
     setDateFrom(undefined);
     setDateTo(undefined);
     setColumnOrder([...ALL_COLUMNS]);
