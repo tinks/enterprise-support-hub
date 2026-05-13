@@ -66,7 +66,7 @@ A Slack-to-Intercom support bridge for enterprise customers. When a user @mentio
 | `/` | Stats | Dashboard with per-source metrics. Top-level KPIs aggregate across Slack + Gmail + Manual + Intercom; each source has its own KPI section (total, resolved %, active, avg resolution time, escalation rate, top product area, bug rate) plus volume / status / product-area charts. Source color palette: Slack purple `#9B87F5`, Gmail pink/red, Manual entry teal, Intercom amber `#F59E0B`. The Conversation volume chart renders Manual entry and Intercom as separate Area series with distinct gradients, plus a dashed "Total" line (sourceFilter=all only) so daily totals are visually verifiable. **Dedup rules:** Gmail series dedupes against the full unfiltered dataset by `gmail_thread_id` (earliest row wins) before applying the date filter, so threads bucket on origin date. Intercom series skips any `manual_conversations` row whose `intercom_conversation_id` already appears on a Gmail thread — Gmail wins the attribution to prevent double-counting |
 | `/conversations` | Conversations | Unified inbox — view and monitor active/resolved conversations across Slack, Gmail, manual |
 | `/conversations/:id` | Conversation detail | Individual conversation thread view with metadata sidebar, notes, audit log. Status dropdown supports `active`, `resolved`, `cancelled`, `escalated`, `awaiting_context`, `awaiting_support`, `awaiting_engineering`, `awaiting_customer`. A collapsible section reveals all raw IDs (`intercom_contact_id`, `last_intercom_part_id`, `prompt_message_ts`, etc.). For Gmail rows, an Intercom-linking widget searches Intercom by email and lets the user link an existing conversation or create a new one |
-| `/my/:owner` | Owner dashboard | Per-person dashboard (Joel, Kristina, Sam, CSM, Eren, Tine) |
+| `/my/:owner` | Owner dashboard | Per-person dashboard (Joel, Kristina, Sam, CSM, Eren, Tine). Renders `<Conversations forceOwner={ownerName} key={ownerName} />` so each route remounts with its own state. **Defaults on dashboards:** Owner = route owner (read-only chip, not editable), Status hides only `resolved` (`DASHBOARD_HIDDEN`), all other filters cleared. The Filters panel shows no "active" badge in this clean state. Dashboard tinkering with Status / Product area / Classification does **not** persist to localStorage, so it can't leak into the inbox. `Reset` keeps the forced owner and restores `DASHBOARD_HIDDEN`. |
 | `/import` | Import | Manual ingestion — paste, single URL (Slack thread / Intercom ticket), bulk |
 | `/import/bulk` | Bulk import review | CSV bulk import preview + commit |
 | `/test-review` | Test channel review | Triage view for the dedicated test inbox |
@@ -507,6 +507,15 @@ Manual rows with `source='slack_thread'` or `source='slack_dm'` are visually tre
 - Inbox search (server-side `search_conversations` RPC) already covers `manual_conversations.link`, `subject`, `contact_name`, `status`, `owner`, `classification`, and `manual_messages.message_text` — no separate channel-name search path is needed.
 - Empty-state message is channel-aware: when `?manualChannel=` is set and `unified` is empty, the message names the channel and suggests clearing status/owner/classification filters.
 - **Manual channel drilldown overrides defaults**: when `?manualChannel=` is present, the inbox (a) bumps the per-source page size to 1000 so the full manual set is loaded (the default 50-row cap was hiding older rows), and (b) bypasses the default `hiddenStatuses` filter so resolved/test/cancelled rows in the channel are visible. Owner / product area / classification filters still apply and can be cleared from the chip.
+
+## Conversations filter defaults — inbox vs dashboards
+
+Two defaults coexist in `src/pages/Conversations.tsx`:
+
+- `DEFAULT_HIDDEN = {test, cancelled, resolved}` — used on `/conversations` (the inbox). Persists user picks via `conv-hidden-statuses`, `conv-pa-filter`, `conv-class-filter`, `conv-owner-filter`.
+- `DASHBOARD_HIDDEN = {resolved}` — used on `/my/<owner>` whenever `forceOwner` is set. Owner is locked to the route owner. localStorage writes for hidden statuses, product area, and classification are skipped while `forceOwner` is set so dashboards never overwrite inbox defaults.
+
+`effectiveDefaultHidden = forceOwner ? DASHBOARD_HIDDEN : DEFAULT_HIDDEN` drives the "active filter" badge, the Status popover's "Restore defaults" button, and `resetAll`. The forced owner is excluded from the active-filter count.
 
 ## Resolution time — manual override
 

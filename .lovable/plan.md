@@ -1,45 +1,24 @@
-## Goal
+## Update project-knowledge.md
 
-On dashboard views (`/my/<owner>`), make these the defaults so the page loads clean with no "active filters" badge:
-- **Owner** = the dashboard's owner (already enforced via `forceOwner`)
-- **Status** = hide only `resolved` (everything else visible)
-- All other filters (Source, Product area, Classification, Date) = All / cleared
+Document the new dashboard default-filter behaviour so the knowledge file stays in sync with the code.
 
-The inbox view (`/conversations`) keeps its current defaults unchanged (hides `test`, `cancelled`, `resolved`; persists user picks in localStorage).
+### Edit 1 — `/my/:owner` row in the routes table (line 69)
 
-## Changes (all in `src/pages/Conversations.tsx`)
+Replace the terse description with:
 
-1. **Context-aware defaults**
-   - Introduce `DASHBOARD_HIDDEN = new Set(["resolved"])` alongside the existing `DEFAULT_HIDDEN`.
-   - Compute `effectiveDefaultHidden = forceOwner ? DASHBOARD_HIDDEN : DEFAULT_HIDDEN`.
-   - Initial `hiddenStatuses`: on dashboards, ignore the shared `conv-hidden-statuses` localStorage and start from `DASHBOARD_HIDDEN`. On inbox, behave as today.
-   - `hiddenDiffersFromDefault` compares against `effectiveDefaultHidden`.
-   - The Status popover "Restore defaults" button resets to `effectiveDefaultHidden`.
+> Per-person dashboard (Joel, Kristina, Sam, CSM, Eren, Tine). Renders `<Conversations forceOwner={ownerName} key={ownerName} />` so each route remounts with its own state. **Defaults on dashboards:** Owner = route owner (read-only chip, not editable), Status hides only `resolved` (`DASHBOARD_HIDDEN`), all other filters cleared. The Filters panel shows no "active" badge in this clean state. Dashboard tinkering with Status / Product area / Classification does **not** persist to localStorage, so it can't leak into the inbox. `Reset` keeps the forced owner and restores `DASHBOARD_HIDDEN`.
 
-2. **Don't pollute inbox storage from dashboards**
-   - Skip the `localStorage.setItem("conv-hidden-statuses", …)` effect when `forceOwner` is set, so toggling status while on a dashboard doesn't change the inbox default. (Same pattern already used for owner filter.)
-   - Same skip for `conv-pa-filter` and `conv-class-filter` writes when `forceOwner` is set, so dashboard tinkering doesn't leak into the inbox.
+### Edit 2 — append a new short section after the existing inbox/dashboard notes (around line 511, before "Resolution time — manual override")
 
-3. **Active-filter count on dashboards**
-   - Don't count `ownerFilter` when `forceOwner` is set (it's the view, not a filter).
-   - `hiddenDiffersFromDefault` now compares to dashboard default, so hiding only `resolved` reads as 0.
-   - Net effect: a freshly opened `/my/kristina` shows no "active" badge.
+```
+## Conversations filter defaults — inbox vs dashboards
 
-4. **Reset behaviour**
-   - On dashboards, `resetAll` resets `hiddenStatuses` to `DASHBOARD_HIDDEN` (instead of `DEFAULT_HIDDEN`), keeps the forced owner, and clears Source/Product area/Classification/Date as today.
-   - On inbox, unchanged.
+Two defaults coexist in `src/pages/Conversations.tsx`:
 
-5. **Switching between dashboards** already remounts via `key={ownerName}` in `OwnerDashboard`, so each dashboard initialises with its own defaults — no extra work needed.
+- `DEFAULT_HIDDEN = {test, cancelled, resolved}` — used on `/conversations` (the inbox). Persists user picks via `conv-hidden-statuses`, `conv-pa-filter`, `conv-class-filter`, `conv-owner-filter`.
+- `DASHBOARD_HIDDEN = {resolved}` — used on `/my/<owner>` whenever `forceOwner` is set. Owner is locked to the route owner. localStorage writes for hidden statuses, product area, and classification are skipped while `forceOwner` is set so dashboards never overwrite inbox defaults.
 
-## Out of scope
+`effectiveDefaultHidden = forceOwner ? DASHBOARD_HIDDEN : DEFAULT_HIDDEN` drives the "active filter" badge, the Status popover's "Restore defaults" button, and `resetAll`. The forced owner is excluded from the active-filter count.
+```
 
-- No changes to data fetching, RLS, edge functions, or the Flow page logic.
-- No changes to column-header filters or table layout.
-- Inbox (`/conversations`) defaults and persistence remain exactly as they are.
-
-## Verification
-
-- Open `/my/kristina` fresh → Owner chip = Kristina, Status shows "1 hidden" tooltip-wise but Filters header shows **no "active" badge** (it equals dashboard default). Rows exclude resolved only.
-- Toggle Source = Slack → badge shows "1 active". Click Reset → back to clean dashboard defaults, owner stays Kristina.
-- Switch to `/my/joel` → reloads with Joel + hide-resolved, no active badge.
-- Open `/conversations` → unchanged: hides test/cancelled/resolved by default, owner = All (or last saved), persistence intact.
+No code or Flow page changes — knowledge file only.
