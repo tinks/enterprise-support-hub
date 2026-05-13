@@ -1634,7 +1634,8 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const anyFilterActive = sourceFilter !== "all" || ownerFilter !== "all" || productAreaFilter !== "all" || classificationFilter !== "all" || hiddenDiffersFromDefault || !!dateFrom || !!dateTo || isCustomOrder || searchQuery.trim().length > 0;
   const resetAll = () => {
     setSourceFilter("all");
-    setOwnerFilter("all");
+    // Preserve dashboard-forced owner; only clear owner filter on the general inbox.
+    if (!forceOwner) setOwnerFilter("all");
     setProductAreaFilter("all");
     setClassificationFilter("all");
     setHiddenStatuses(new Set(DEFAULT_HIDDEN));

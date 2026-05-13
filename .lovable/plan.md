@@ -1,53 +1,31 @@
-# Fix: switching team-member dashboards is ignored
+Why it still does not work
 
-## Root cause
+- The previous fix only syncs `ownerFilter` after render with a `useEffect`.
+- The owner dashboards still depend on a mutable `ownerFilter` state that was originally seeded from the first selected team member.
+- Because `/my/:owner` reuses the same `Conversations` component instance, route changes can leave UI/filter state from the previous dashboard visible until effects settle, and other controls like reset can still fight the forced dashboard owner.
+- The owner column filter is hidden on owner dashboards, so there is no visible way for the user to see or correct this stale forced filter state.
 
-`src/pages/OwnerDashboard.tsx` renders `<Conversations forceOwner={ownerName} />`. React Router keeps the same `Conversations` instance mounted across `/my/joel` → `/my/kristina` and just updates the prop.
+Proposed fix
 
-In `src/pages/Conversations.tsx` line 336:
+1. In `OwnerDashboard.tsx`, normalize the route owner into the canonical owner labels used by the data (`Joel`, `Kristina`, `Tine`, `Eren`, etc.) and render `Conversations` with a `key` tied to that canonical owner.
+   - This guarantees `/my/joel` to `/my/tine` is a fresh dashboard instance, not stale state carried from the previous dashboard.
 
-```ts
-const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(
-  forceOwner as OwnerFilter || (paramOwner as OwnerFilter) || savedOwner || "all"
-);
-```
+2. In `Conversations.tsx`, add a derived `effectiveOwnerFilter`:
+   - `effectiveOwnerFilter = forceOwner || ownerFilter`
+   - Use it everywhere the visible rows, active filter count, page reset dependency, and title/filter logic need to know the current owner.
+   - Keep `ownerFilter` as user-controlled state only for the general Inbox and analytics drilldowns.
 
-`useState`'s initializer runs only on the first mount. When `forceOwner` changes, `ownerFilter` stays on the first owner, so every query, the unified memo, and the table keep filtering by the original person. The card title updates because it reads `forceOwner` directly — that's why the header looks correct while the rows don't change.
+3. Prevent dashboard reset from clearing the forced owner.
+   - On `/my/:owner`, reset should clear source/product/status/date/search/column order, but the dashboard must remain scoped to the route owner.
+   - On `/conversations`, reset should still clear owner to `all`.
 
-## Fix (frontend only, smallest change)
+4. Update docs required by project instructions.
+   - Update the Flow page comment describing owner dashboards to include the route-driven forced owner behavior.
+   - Update `.lovable/project-knowledge.md` with the same behavior.
 
-In `src/pages/Conversations.tsx`, add a sync effect right after the existing `forceOwner`-aware state declarations:
+Validation
 
-```ts
-useEffect(() => {
-  if (forceOwner) setOwnerFilter(forceOwner as OwnerFilter);
-}, [forceOwner]);
-```
-
-This ensures every navigation between `/my/<owner>` routes pushes the new owner into `ownerFilter`, which is what all downstream filtering, `loadData`, and the `unified` memo key off.
-
-Also reset `page` to 1 on the same change so the user lands on the first page of the newly filtered list (the existing filter-reset effect already lists `ownerFilter`, so this is automatic once `ownerFilter` updates — no extra code needed).
-
-## Belt-and-braces alternative (optional)
-
-If we'd rather guarantee a clean slate (clears search input, expanded rows, scroll position, any other prop-seeded state) we can force a remount in `src/pages/OwnerDashboard.tsx`:
-
-```tsx
-return <Conversations key={ownerName} forceOwner={ownerName} />;
-```
-
-Recommend shipping the `useEffect` fix only — it's targeted and preserves UI state like column widths and filters the user may want kept across owners. Add the `key=` remount only if QA finds other stale prop-seeded state.
-
-## Verification
-
-- Navigate `/my/joel` → table shows Joel's rows.
-- Navigate to `/my/kristina` from the sidebar flyout → table immediately re-filters to Kristina, page resets to 1, header updates.
-- Repeat across Tine and Eren.
-- Direct URL load of `/my/<owner>` still works (initial `useState` value is unchanged).
-- `/conversations` (no `forceOwner`) is unaffected — the effect's `if (forceOwner)` guard skips it, preserving the saved-filter behaviour.
-
-## Out of scope
-
-- No backend, RLS, or query changes.
-- No changes to pagination logic, search, or `OwnerDashboard` routing.
-- Other prop/URL-seeded `useState` initializers are not touched unless QA surfaces a similar bug.
+- Open `/my/joel`, then navigate to `/my/tine`, `/my/kristina`, and `/my/eren` from the sidebar.
+- Confirm the title and rows use the same owner every time.
+- Confirm the owner filter no longer shows or applies the previously selected team member on owner dashboards.
+- Confirm `/conversations` still preserves the saved owner filter normally.
