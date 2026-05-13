@@ -1,61 +1,53 @@
-# Why "Load more" doesn't grow the visible list
+# Fix: switching team-member dashboards is ignored
 
-In `src/pages/Conversations.tsx`:
+## Root cause
 
-- `loadData` fetches **50 raw rows per source** from the database (Slack/Gmail/Manual), ordered by `created_at desc`, with **no server-side filtering** for owner / status / classification / product area.
-- All those filters are then applied **client-side** in the `unified` memo (lines ~990-1020).
-- "Load more" calls `loadData(true)`, which fetches the **next 50 raw rows** and appends them. But if those next 50 rows don't match the active filter (e.g. owner = "Joel" on a dashboard), the visible row count doesn't change — the new rows are filtered out before render.
-- Eventually `slackRows.length < 50` and `hasMore` flips to false, so the button silently disappears.
-- Additionally, `manualQuery` uses `.limit(pageSize)` with no offset (line 756), so manual rows are re-fetched from the start every click and never paginate.
+`src/pages/OwnerDashboard.tsx` renders `<Conversations forceOwner={ownerName} />`. React Router keeps the same `Conversations` instance mounted across `/my/joel` → `/my/kristina` and just updates the prop.
 
-Net effect: clicking "Load more" appears to do nothing whenever a filter is hiding the newly fetched rows.
+In `src/pages/Conversations.tsx` line 336:
 
-# Fix
-
-Replace the broken "Load more" button with proper numbered pagination that operates on the **already-filtered** `unified` list. Pagination is purely client-side over the rows currently in memory, but we keep a background fetch so navigating near the end of loaded data pulls in more from the server automatically.
-
-## Changes (frontend only, all in `src/pages/Conversations.tsx`)
-
-1. **Add page state**
-   - `const PAGE_SIZE = 25;`
-   - `const [page, setPage] = useState(1);`
-   - Reset `page` to 1 inside the existing reload effects and whenever any filter (`ownerFilter`, `productAreaFilter`, `classificationFilter`, `hiddenStatuses`, `sourceFilter`, `searchResults`, date range) changes.
-
-2. **Derive paged rows**
-   - `const totalPages = Math.max(1, Math.ceil(unified.length / PAGE_SIZE));`
-   - `const pagedRows = unified.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);`
-   - Render the table body over `pagedRows` instead of `unified`. The `goToConversation` `inbox:list` keeps using full `unified` (so Prev/Next on detail page still walks the full filtered list).
-
-3. **Auto-fetch more when near the end**
-   - In a `useEffect` keyed on `page`: if `canLoadMore && page >= totalPages - 1 && !loadingMore`, call `loadData(true)`. This makes the "next" button keep working when the user reaches the end of currently-loaded rows.
-
-4. **Replace the "Load more" block (lines 2012-2018) with a `<ConversationsPagination>` helper** built on the existing `src/components/ui/pagination.tsx` primitives:
-   - Previous button: hidden on page 1, otherwise sets `page - 1`.
-   - Next button: hidden when `page === totalPages && !canLoadMore`, otherwise sets `page + 1`.
-   - Up to 5 numbered page buttons in a sliding window centred on the current page (clamped to `[1, totalPages]`).
-   - Leading ellipsis when window start > 1; trailing ellipsis when window end < totalPages.
-   - Active page rendered with `bg-primary text-primary-foreground font-bold` (the contrasting brand colour from the design tokens) using `PaginationLink isActive`.
-
-5. **Fix the manual query pagination bug** (line 756): change `manualQuery.limit(pageSize)` to `manualQuery.range(currentManualOffset, currentManualOffset + pageSize - 1)` and add a matching `manualOffset` state + `hasMoreManual` flag, mirroring how Slack/Gmail are handled. Include `hasMoreManual` in `canLoadMore`.
-
-## Layout cases (matches the spec)
-
-```text
-First page:        [1] 2 3 4 5 …  Next
-Middle page:  Prev … X X [X] X X …  Next
-Last page:    Prev … X X X X [X]
+```ts
+const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>(
+  forceOwner as OwnerFilter || (paramOwner as OwnerFilter) || savedOwner || "all"
+);
 ```
 
-## Out of scope
+`useState`'s initializer runs only on the first mount. When `forceOwner` changes, `ownerFilter` stays on the first owner, so every query, the unified memo, and the table keep filtering by the original person. The card title updates because it reads `forceOwner` directly — that's why the header looks correct while the rows don't change.
 
-- No server-side filter pushdown (owner / status / classification stay client-side for now). The auto-fetch on near-end navigation compensates.
-- No total-count query (`count: 'exact'`); `totalPages` is derived from currently loaded + filtered rows and grows as more pages are fetched.
-- No changes to `OwnerDashboard.tsx`, routing, RLS, or the search-results path (search already returns the full match set).
+## Fix (frontend only, smallest change)
+
+In `src/pages/Conversations.tsx`, add a sync effect right after the existing `forceOwner`-aware state declarations:
+
+```ts
+useEffect(() => {
+  if (forceOwner) setOwnerFilter(forceOwner as OwnerFilter);
+}, [forceOwner]);
+```
+
+This ensures every navigation between `/my/<owner>` routes pushes the new owner into `ownerFilter`, which is what all downstream filtering, `loadData`, and the `unified` memo key off.
+
+Also reset `page` to 1 on the same change so the user lands on the first page of the newly filtered list (the existing filter-reset effect already lists `ownerFilter`, so this is automatic once `ownerFilter` updates — no extra code needed).
+
+## Belt-and-braces alternative (optional)
+
+If we'd rather guarantee a clean slate (clears search input, expanded rows, scroll position, any other prop-seeded state) we can force a remount in `src/pages/OwnerDashboard.tsx`:
+
+```tsx
+return <Conversations key={ownerName} forceOwner={ownerName} />;
+```
+
+Recommend shipping the `useEffect` fix only — it's targeted and preserves UI state like column widths and filters the user may want kept across owners. Add the `key=` remount only if QA finds other stale prop-seeded state.
 
 ## Verification
 
-- Build passes.
-- With an owner filter active, clicking Next repeatedly continues to reveal new rows (background fetch kicks in near the end).
-- Changing any filter resets to page 1.
-- First page hides Prev; last page hides Next; middle pages show both with ellipses.
-- Active page number is bold and uses the primary contrast colour.
+- Navigate `/my/joel` → table shows Joel's rows.
+- Navigate to `/my/kristina` from the sidebar flyout → table immediately re-filters to Kristina, page resets to 1, header updates.
+- Repeat across Tine and Eren.
+- Direct URL load of `/my/<owner>` still works (initial `useState` value is unchanged).
+- `/conversations` (no `forceOwner`) is unaffected — the effect's `if (forceOwner)` guard skips it, preserving the saved-filter behaviour.
+
+## Out of scope
+
+- No backend, RLS, or query changes.
+- No changes to pagination logic, search, or `OwnerDashboard` routing.
+- Other prop/URL-seeded `useState` initializers are not touched unless QA surfaces a similar bug.
