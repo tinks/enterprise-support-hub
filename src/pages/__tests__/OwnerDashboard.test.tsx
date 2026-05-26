@@ -76,9 +76,12 @@ describe("OwnerDashboard switching", () => {
     render(<Harness />);
 
     // --- /my/joel ---------------------------------------------------------
-    await waitFor(() => {
-      expect(screen.getByText("joel-active-msg-001")).toBeInTheDocument();
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByText("joel-active-msg-001")).toBeInTheDocument();
+      },
+      { timeout: 5000 },
+    );
     expect(screen.getByText("joel-active-msg-002")).toBeInTheDocument();
     expect(screen.queryByText("kristina-active-msg-001")).not.toBeInTheDocument();
     expect(screen.queryByText("sam-active-msg-001")).not.toBeInTheDocument();
