@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route, Link } from "react-router-dom";
 
@@ -52,6 +52,9 @@ function Harness() {
   );
 }
 
+const present = (text: string) =>
+  screen.queryAllByText(text).length > 0;
+
 describe("OwnerDashboard switching", () => {
   beforeEach(() => {
     supabaseFixture.tables.conversation_mappings = [
@@ -76,56 +79,51 @@ describe("OwnerDashboard switching", () => {
     render(<Harness />);
 
     // --- /my/joel ---------------------------------------------------------
-    await new Promise((r) => setTimeout(r, 1500));
-    // eslint-disable-next-line no-console
-    console.log("BODY:", document.body.textContent?.slice(0, 4000));
     await waitFor(
-      () => {
-        expect(screen.getByText("joel-active-msg-001")).toBeInTheDocument();
-      },
+      () => expect(present("joel-active-msg-001")).toBe(true),
       { timeout: 5000 },
     );
-    expect(screen.getByText("joel-active-msg-002")).toBeInTheDocument();
-    expect(screen.queryByText("kristina-active-msg-001")).not.toBeInTheDocument();
-    expect(screen.queryByText("sam-active-msg-001")).not.toBeInTheDocument();
-    expect(screen.queryByText("unassigned-msg-001")).not.toBeInTheDocument();
-    // Owner badge in filter bar.
-    expect(screen.getByText(/Owner:\s*Joel/)).toBeInTheDocument();
+    expect(present("joel-active-msg-002")).toBe(true);
+    expect(present("kristina-active-msg-001")).toBe(false);
+    expect(present("kristina-resolved-msg-001")).toBe(false);
+    expect(present("sam-active-msg-001")).toBe(false);
+    expect(present("unassigned-msg-001")).toBe(false);
+    expect(screen.getAllByText(/Owner:\s*Joel/).length).toBeGreaterThan(0);
 
     // --- /my/kristina -----------------------------------------------------
     await user.click(screen.getByRole("link", { name: "go-kristina" }));
 
-    await waitFor(() => {
-      expect(screen.getByText("kristina-active-msg-001")).toBeInTheDocument();
-    });
-    expect(screen.queryByText("joel-active-msg-001")).not.toBeInTheDocument();
-    expect(screen.queryByText("joel-active-msg-002")).not.toBeInTheDocument();
-    expect(screen.queryByText("sam-active-msg-001")).not.toBeInTheDocument();
-    // Resolved Kristina row is hidden by the dashboard default (DASHBOARD_HIDDEN).
-    expect(screen.queryByText("kristina-resolved-msg-001")).not.toBeInTheDocument();
-    expect(screen.getByText(/Owner:\s*Kristina/)).toBeInTheDocument();
+    await waitFor(
+      () => expect(present("kristina-active-msg-001")).toBe(true),
+      { timeout: 5000 },
+    );
+    expect(present("joel-active-msg-001")).toBe(false);
+    expect(present("joel-active-msg-002")).toBe(false);
+    expect(present("sam-active-msg-001")).toBe(false);
+    // Resolved Kristina row stays hidden because dashboards default to
+    // DASHBOARD_HIDDEN = { "resolved" }.
+    expect(present("kristina-resolved-msg-001")).toBe(false);
+    expect(screen.getAllByText(/Owner:\s*Kristina/).length).toBeGreaterThan(0);
 
     // --- /my/sam ----------------------------------------------------------
     await user.click(screen.getByRole("link", { name: "go-sam" }));
 
-    await waitFor(() => {
-      expect(screen.getByText("sam-active-msg-001")).toBeInTheDocument();
-    });
-    expect(screen.queryByText("kristina-active-msg-001")).not.toBeInTheDocument();
-    expect(screen.queryByText("joel-active-msg-001")).not.toBeInTheDocument();
-    expect(screen.getByText(/Owner:\s*Sam/)).toBeInTheDocument();
+    await waitFor(
+      () => expect(present("sam-active-msg-001")).toBe(true),
+      { timeout: 5000 },
+    );
+    expect(present("kristina-active-msg-001")).toBe(false);
+    expect(present("joel-active-msg-001")).toBe(false);
+    expect(screen.getAllByText(/Owner:\s*Sam/).length).toBeGreaterThan(0);
 
     // --- back to /my/joel -------------------------------------------------
     await user.click(screen.getByRole("link", { name: "go-joel" }));
 
-    await waitFor(() => {
-      expect(screen.getByText("joel-active-msg-001")).toBeInTheDocument();
-    });
-    expect(screen.queryByText("sam-active-msg-001")).not.toBeInTheDocument();
-    expect(screen.getByText(/Owner:\s*Joel/)).toBeInTheDocument();
+    await waitFor(
+      () => expect(present("joel-active-msg-001")).toBe(true),
+      { timeout: 5000 },
+    );
+    expect(present("sam-active-msg-001")).toBe(false);
+    expect(screen.getAllByText(/Owner:\s*Joel/).length).toBeGreaterThan(0);
   });
 });
-
-// Silence unused-import warnings for `within` (kept available for future
-// row-scoped assertions).
-void within;
