@@ -76,6 +76,9 @@ describe("OwnerDashboard switching", () => {
     render(<Harness />);
 
     // --- /my/joel ---------------------------------------------------------
+    await new Promise((r) => setTimeout(r, 1500));
+    // eslint-disable-next-line no-console
+    console.log("BODY:", document.body.textContent?.slice(0, 4000));
     await waitFor(
       () => {
         expect(screen.getByText("joel-active-msg-001")).toBeInTheDocument();
