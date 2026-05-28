@@ -16,7 +16,7 @@ import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, Command
 import { Plus, Trash2, Save, ExternalLink, CalendarIcon, ClipboardPaste, Check } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { parseThread, parseThreadWithAI, combineDateTime, ADMIN_OPTIONS, type ParsedMessage } from "@/lib/parseThread";
+import { parseThread, parseThreadWithAI, combineDateTime, detectThreadDate, ADMIN_OPTIONS, type ParsedMessage } from "@/lib/parseThread";
 
 const CHANNEL_SUGGESTIONS = [
   "ext-lovable-control-tower",
@@ -55,6 +55,7 @@ const ManualLogTab = () => {
   const [channelName, setChannelName] = useState("");
   const [rawThread, setRawThread] = useState("");
   const [threadDate, setThreadDate] = useState<Date | undefined>(undefined);
+  const [dateAutoDetected, setDateAutoDetected] = useState(false);
   const [parsed, setParsed] = useState(false);
 
   const loadRecent = async () => {
@@ -111,6 +112,17 @@ const ManualLogTab = () => {
     const firstMsg = result[0].message_text;
     setSubject(firstMsg.length > 60 ? firstMsg.slice(0, 60) + "…" : firstMsg);
     setParsed(true);
+
+    // Auto-detect thread date if user hasn't picked one
+    if (!threadDate) {
+      const detected = detectThreadDate(rawThread);
+      if (detected) {
+        setThreadDate(detected);
+        setDateAutoDetected(true);
+        toast.success(`Parsed ${result.length} messages — detected date: ${format(detected, "PP")}`);
+        return;
+      }
+    }
     toast.success(`Parsed ${result.length} messages`);
   };
 
@@ -198,6 +210,7 @@ const ManualLogTab = () => {
     setChannelName("");
     setRawThread("");
     setThreadDate(undefined);
+    setDateAutoDetected(false);
     setParsed(false);
     setMessages([{ role: "user", sender_name: "", message_text: "" }]);
     setSaving(false);
@@ -294,9 +307,12 @@ const ManualLogTab = () => {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={threadDate} onSelect={setThreadDate} initialFocus className="p-3 pointer-events-auto" />
+                      <Calendar mode="single" selected={threadDate} onSelect={(d) => { setThreadDate(d); setDateAutoDetected(false); }} initialFocus className="p-3 pointer-events-auto" />
                     </PopoverContent>
                   </Popover>
+                  {dateAutoDetected && (
+                    <p className="text-xs text-muted-foreground">Auto-detected from paste — edit if wrong.</p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Subject</label>

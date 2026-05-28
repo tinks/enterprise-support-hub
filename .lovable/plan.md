@@ -1,35 +1,61 @@
-## Auto-categorize uncategorized tickets (product area)
+## Goal
 
-May 2026 currently has **239 uncategorized** tickets (24 Slack, 120 Gmail, 95 manual). The existing `auto-classify-conversations` function fills `classification` (Issue/Bug/FR/…) but does NOT touch `product_area`, which is what the Insights "Uncategorized tickets" panel measures. So I'll add a sibling function and a button.
+Make "Log conversation → Paste thread" auto-detect the conversation date from the pasted content, so the Thread date field is pre-filled instead of needing manual entry. Manual override stays available.
 
-### 1. New edge function `auto-categorize-product-area`
+## Current behavior
 
-Mirrors `auto-classify-conversations`:
+- The Thread date picker is empty by default and required before save.
+- `parseThread()` extracts each message's raw timestamp string (`1:47 PM`, `Mar 26th at 11:03 AM`, `3/26/2025 11:03 AM`).
+- `combineDateTime()` combines that string with the picked Thread date:
+  - Full date format → uses date from the paste
+  - Month-day format → uses current year
+  - Time-only → uses the picked Thread date (or today)
 
-- Reads the configured `product_areas` list from `settings` (currently 18 areas including SSO, SCIM, Credits, Billing, Cloud/AI, Main Product, Other, …) and uses them as the enum for the AI tool-call schema.
-- Accepts `{ from, to, ids?, dryRun?, minConfidence? (default 0.5) }`.
-- Pulls rows from `conversation_mappings` / `gmail_conversations` / `manual_conversations` where `product_area IS NULL OR product_area = 'Uncategorized'`, `is_test = false`, within the date range. For manual rows, also pulls the first non-internal `manual_messages` body for context, same pattern as the existing function.
-- Optional `excludeInternal: true` filter to skip `from_email` ending in `lovable.dev` for gmail rows (matches the panel's "Hide internal lovable.dev senders" default).
-- Calls Lovable AI Gateway (`google/gemini-3-flash-preview`, same as existing) with a tool-call returning `{ product_area, confidence, reason }`. Falls back to "Other" only if the model explicitly picks it.
-- Writes `product_area` directly on the row. For Gmail, propagates to siblings sharing `gmail_thread_id` (matches `UncategorizedPanel.persist`).
-- Inserts a `conversation_audit_logs` row per write with `performed_by = 'auto-categorize'`.
-- Returns `{ total, written, lowConfidence, failed, results[] }`.
+So today, time-only Slack copies always need manual date entry.
 
-### 2. UI: "Auto-categorize visible" button in `UncategorizedPanel`
+## Plan
 
-- New button next to the bulk-edit bar. Invokes the new edge function with `from` / `to` of the selected month and `ids` = currently visible IDs (so the Hide-internal + Source filters are honored).
-- Shows progress toast → on success calls `onChanged?.()` so the parent refetches and the panel refreshes.
+### 1. Add `detectThreadDate()` helper in `src/lib/parseThread.ts`
 
-### 3. One-shot run for May 2026
+Scans the raw pasted text for the first usable date signal (in priority order):
 
-After the function deploys, I'll invoke it once via `curl_edge_functions` with `from=2026-05-01T00:00:00Z`, `to=2026-06-01T00:00:00Z`, `excludeInternal=true` to clear May's backlog. Report the written/low-confidence/failed counts.
+1. **Full date** like `3/26/2025 11:03 AM` (Teams paste) → return that date.
+2. **Month-day** like `Mar 26th at 11:03 AM` (Slack older messages) → return `Month Day, current-year`. If the resulting date is in the future, roll back one year.
+3. **Slack "Yesterday at 5:43 PM" / "Today at 1:47 PM"** → today / today − 1 day.
+4. **Date headers Slack inserts between messages** like `Wednesday, March 26th` or `March 26, 2025` → parse and return.
+5. Otherwise `undefined`.
 
-### Knowledge updates
+Pure function, unit-testable, no side effects.
 
-- Add `mem://features/auto-categorize-product-area` memory leaf.
-- Update `.lovable/project-knowledge.md` and the Flow page with the new function node.
+### 2. Wire into `ManualLogTab.tsx` paste flow
 
-### Out of scope
+In `handleParse()`:
+- After successful parse, call `detectThreadDate(rawThread)`.
+- If it returns a date AND `threadDate` is still empty, set it and toast: "Detected thread date: <formatted>".
+- If detection fails, keep current behavior (user picks manually).
+- Never overwrite a date the user has already chosen.
 
-- No changes to the existing `auto-classify-conversations` function (different field).
-- No cron schedule — run on demand from the panel only, for now.
+Also: when the user edits the textarea after a detected date, do not clear the date (treat detection as a one-shot assist).
+
+### 3. Surface detection in the UI
+
+- Under the Thread date picker, add small muted helper text:
+  - When auto-detected: "Auto-detected from paste — edit if wrong."
+  - When empty: existing behavior.
+
+### 4. Keep existing fallback
+
+`combineDateTime()` and per-message timestamps stay unchanged. The auto-detected Thread date simply becomes the base date for time-only headers, same as a manually picked one.
+
+### 5. Out of scope
+
+- No AI call for date detection — regex only, to stay instant and free. The existing AI parse fallback (`parse-thread` edge function) is untouched.
+- No schema changes; `manual_conversations.created_at` is still set from the earliest message timestamp as today.
+- No changes to Gmail/Slack/Intercom import paths.
+
+## Files touched
+
+- `src/lib/parseThread.ts` — add and export `detectThreadDate()`.
+- `src/components/ManualLogTab.tsx` — call it in `handleParse`, add helper text.
+- `.lovable/project-knowledge.md` + Flow page note: "Paste thread auto-detects date from full-date, month-day, and Today/Yesterday markers; manual picker overrides."
+- New memory leaf `mem://logic/paste-thread-date-detection`.

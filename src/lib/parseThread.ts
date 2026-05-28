@@ -63,6 +63,78 @@ export function combineDateTime(baseDate: Date, timeStr?: string): string | unde
   return undefined;
 }
 
+const MONTHS_SHORT = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+const MONTHS_LONG = ["january","february","march","april","may","june","july","august","september","october","november","december"];
+function monthIndex(name: string): number {
+  const n = name.toLowerCase();
+  const i = MONTHS_LONG.indexOf(n);
+  if (i >= 0) return i;
+  return MONTHS_SHORT.indexOf(n.slice(0, 3));
+}
+
+/**
+ * Attempt to infer the date a pasted Slack/Teams thread occurred on, by
+ * scanning the raw text for date signals. Returns undefined if none found.
+ *
+ * Priority:
+ *  1. Full date like "3/26/2025 11:03 AM" (Teams paste)
+ *  2. Month-day like "Mar 26th at 11:03 AM" or "March 26, 2025"
+ *  3. Slack relative markers "Today" / "Yesterday"
+ *  4. Slack day headers like "Wednesday, March 26th"
+ */
+export function detectThreadDate(raw: string, now: Date = new Date()): Date | undefined {
+  if (!raw) return undefined;
+
+  // 1. Full date "3/26/2025 11:03 AM" or just "3/26/2025"
+  const full = raw.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{2,4})\b/);
+  if (full) {
+    const [, m, d, yRaw] = full;
+    const year = yRaw.length === 2 ? 2000 + parseInt(yRaw) : parseInt(yRaw);
+    const dt = new Date(year, parseInt(m) - 1, parseInt(d));
+    if (!isNaN(dt.getTime())) return dt;
+  }
+
+  // 2a. Month-day with explicit year: "March 26, 2025" / "Mar 26 2025"
+  const mdY = raw.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})(?:st|nd|rd|th)?[,\s]+(\d{4})\b/i);
+  if (mdY) {
+    const mi = monthIndex(mdY[1]);
+    if (mi >= 0) {
+      const dt = new Date(parseInt(mdY[3]), mi, parseInt(mdY[2]));
+      if (!isNaN(dt.getTime())) return dt;
+    }
+  }
+
+  // 2b. Month-day no year: "Mar 26th at 11:03 AM" or "March 26th"
+  const md = raw.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})(?:st|nd|rd|th)?\b/i);
+  if (md) {
+    const mi = monthIndex(md[1]);
+    if (mi >= 0) {
+      let year = now.getFullYear();
+      let dt = new Date(year, mi, parseInt(md[2]));
+      // If date is in the future (>1 day), assume previous year
+      if (dt.getTime() > now.getTime() + 24 * 60 * 60 * 1000) {
+        dt = new Date(year - 1, mi, parseInt(md[2]));
+      }
+      if (!isNaN(dt.getTime())) return dt;
+    }
+  }
+
+  // 3. Slack "Yesterday at …" / "Today at …"
+  if (/\bYesterday\b\s+at\s+\d/i.test(raw)) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  if (/\bToday\b\s+at\s+\d/i.test(raw)) {
+    const d = new Date(now);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  return undefined;
+}
+
 export function parseThread(raw: string): ParsedMessage[] {
   // Format A: "Name  [1:47 PM]" or "Name [1:47 PM]" — single line
   const regexA = /^(.+?)\s{1,}\[(\d{1,2}:\d{2}\s?(?:AM|PM))\]\s*$/gm;
