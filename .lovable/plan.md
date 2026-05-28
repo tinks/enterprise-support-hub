@@ -1,13 +1,15 @@
-## Fix broken hyperlink on "Recent low ratings" cards
+## Remove low CSAT rating from "Help - NPM secret-build secret"
 
-The arrow-icon card in Stats → Customer satisfaction → "Recent low ratings (1–2★)" navigates to `/conversations/{source}/{id}`, but the route is defined as `/conversations/:id` (with `source` as a query param). The two-segment URL hits NotFound.
+The 1★ rating in your screenshot belongs to manual conversation `4e54b148-fd73-4897-b699-79b5946da7d8` (contact `mleduc@msfourrager.com`, rated 2026-05-28). The ID you pasted (`0bb0198a-…`) is the Lovable project ID; I'm using the conversation from your current route instead.
 
 ### Change
 
-`src/pages/Stats.tsx` line 2088 — update the click handler to match the convention used elsewhere in the app (e.g. `Conversations.tsx:1158`):
+Clear the three CSAT columns on that row so it drops out of "Recent low ratings" and the CSAT aggregates:
 
-```ts
-onClick={() => navigate(`/conversations/${r.id}?source=${r.source}`)}
+```sql
+UPDATE manual_conversations
+SET csat_rating = NULL, csat_remark = NULL, csat_rated_at = NULL
+WHERE id = '4e54b148-fd73-4897-b699-79b5946da7d8';
 ```
 
-No other changes. Pure URL fix, no logic / data / styling change. No project-knowledge or Flow update needed.
+No code, schema, or Intercom changes. Note: the next `refresh-intercom-csat` cron run will re-pull the rating from Intercom if the conversation is linked there — let me know if you also want me to mark it as test / unlink it so it stays gone.
