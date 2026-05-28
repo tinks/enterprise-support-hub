@@ -210,6 +210,7 @@ const ManualLogTab = () => {
     setChannelName("");
     setRawThread("");
     setThreadDate(undefined);
+    setDateAutoDetected(false);
     setParsed(false);
     setMessages([{ role: "user", sender_name: "", message_text: "" }]);
     setSaving(false);
