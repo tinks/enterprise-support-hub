@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { format } from "date-fns";
-import { ChevronDown, ChevronRight, ExternalLink, Loader2 } from "lucide-react";
+import { format, startOfMonth, endOfMonth, parse } from "date-fns";
+import { ChevronDown, ChevronRight, ExternalLink, Loader2, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,10 @@ import { NormalizedTicket, sourceLabel } from "./useMonthData";
 
 interface Props {
   tickets: NormalizedTicket[];
+  month?: string; // e.g. "2026-05" — required for auto-categorize
   onChanged?: () => void;
 }
+
 
 type SrcFilter = "all" | "slack" | "gmail" | "manual";
 
