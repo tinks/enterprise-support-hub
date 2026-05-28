@@ -459,7 +459,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       return (
          <span className="group/intercom inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
           <a
-            href={`https://app.intercom.com/a/apps/esqnv6i1/conversations/${intercomId}`}
+            href={`https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${intercomId}?view=List`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-xs font-mono text-primary underline hover:text-primary/80 transition-colors"
@@ -2145,7 +2145,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "op
                                   {format(new Date(p.intercom_created_at), "MMM d, HH:mm")}
                                 </span>
                                 <a
-                                  href={`https://app.intercom.com/a/inbox/_/inbox/conversation/${p.intercom_conversation_id}`}
+                                  href={`https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${p.intercom_conversation_id}?view=List`}
                                   target="_blank"
                                   rel="noreferrer"
                                   className="inline-flex items-center gap-1 text-primary hover:underline"
