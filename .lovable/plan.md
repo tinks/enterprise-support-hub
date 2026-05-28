@@ -1,61 +1,44 @@
 ## Goal
 
-Make "Log conversation → Paste thread" auto-detect the conversation date from the pasted content, so the Thread date field is pre-filled instead of needing manual entry. Manual override stays available.
+Make picking the Thread date in Log conversation → Paste thread faster by adding month + year quick selectors above the calendar grid, so the user doesn't have to click the chevrons many times to get to an older month.
 
-## Current behavior
+## Approach
 
-- The Thread date picker is empty by default and required before save.
-- `parseThread()` extracts each message's raw timestamp string (`1:47 PM`, `Mar 26th at 11:03 AM`, `3/26/2025 11:03 AM`).
-- `combineDateTime()` combines that string with the picked Thread date:
-  - Full date format → uses date from the paste
-  - Month-day format → uses current year
-  - Time-only → uses the picked Thread date (or today)
+Use shadcn's `Calendar` `captionLayout="dropdown-buttons"` (or build month/year `Select` dropdowns above the calendar) inside the existing Popover. The dropdowns let the user jump straight to any month and year between, say, 2023 and the current year.
 
-So today, time-only Slack copies always need manual date entry.
+## Changes
 
-## Plan
+### 1. `src/components/ManualLogTab.tsx` — Thread date popover
 
-### 1. Add `detectThreadDate()` helper in `src/lib/parseThread.ts`
+Replace the current `<Calendar mode="single" …/>` with a dropdown-enabled variant:
 
-Scans the raw pasted text for the first usable date signal (in priority order):
+```tsx
+<Calendar
+  mode="single"
+  selected={threadDate}
+  onSelect={(d) => { setThreadDate(d); setDateAutoDetected(false); }}
+  captionLayout="dropdown-buttons"
+  fromYear={2023}
+  toYear={new Date().getFullYear()}
+  defaultMonth={threadDate ?? new Date()}
+  initialFocus
+  className="p-3 pointer-events-auto"
+/>
+```
 
-1. **Full date** like `3/26/2025 11:03 AM` (Teams paste) → return that date.
-2. **Month-day** like `Mar 26th at 11:03 AM` (Slack older messages) → return `Month Day, current-year`. If the resulting date is in the future, roll back one year.
-3. **Slack "Yesterday at 5:43 PM" / "Today at 1:47 PM"** → today / today − 1 day.
-4. **Date headers Slack inserts between messages** like `Wednesday, March 26th` or `March 26, 2025` → parse and return.
-5. Otherwise `undefined`.
+This renders month + year as Select dropdowns in the calendar caption while keeping the existing day grid, navigation chevrons, and auto-detect helper text.
 
-Pure function, unit-testable, no side effects.
+### 2. `src/components/ui/calendar.tsx` — verify dropdown styling
 
-### 2. Wire into `ManualLogTab.tsx` paste flow
+The shadcn calendar already supports `captionLayout`. If the dropdowns don't inherit theme styles, add minimal class overrides for `caption_dropdowns`, `dropdown`, and `vhidden` in the `classNames` prop so the selects use `bg-popover text-popover-foreground` and match the rest of the form.
 
-In `handleParse()`:
-- After successful parse, call `detectThreadDate(rawThread)`.
-- If it returns a date AND `threadDate` is still empty, set it and toast: "Detected thread date: <formatted>".
-- If detection fails, keep current behavior (user picks manually).
-- Never overwrite a date the user has already chosen.
+### 3. Out of scope
 
-Also: when the user edits the textarea after a detected date, do not clear the date (treat detection as a one-shot assist).
-
-### 3. Surface detection in the UI
-
-- Under the Thread date picker, add small muted helper text:
-  - When auto-detected: "Auto-detected from paste — edit if wrong."
-  - When empty: existing behavior.
-
-### 4. Keep existing fallback
-
-`combineDateTime()` and per-message timestamps stay unchanged. The auto-detected Thread date simply becomes the base date for time-only headers, same as a manually picked one.
-
-### 5. Out of scope
-
-- No AI call for date detection — regex only, to stay instant and free. The existing AI parse fallback (`parse-thread` edge function) is untouched.
-- No schema changes; `manual_conversations.created_at` is still set from the earliest message timestamp as today.
-- No changes to Gmail/Slack/Intercom import paths.
+- No change to `detectThreadDate()` or the auto-detect flow.
+- No change to other date pickers in the app (only the Thread date one in Log conversation).
+- No change to date storage or `combineDateTime()` logic.
 
 ## Files touched
 
-- `src/lib/parseThread.ts` — add and export `detectThreadDate()`.
-- `src/components/ManualLogTab.tsx` — call it in `handleParse`, add helper text.
-- `.lovable/project-knowledge.md` + Flow page note: "Paste thread auto-detects date from full-date, month-day, and Today/Yesterday markers; manual picker overrides."
-- New memory leaf `mem://logic/paste-thread-date-detection`.
+- `src/components/ManualLogTab.tsx` — add `captionLayout`, `fromYear`, `toYear`, `defaultMonth` props.
+- `src/components/ui/calendar.tsx` — only if dropdown styling needs a small tweak.
