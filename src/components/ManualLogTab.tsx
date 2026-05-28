@@ -307,7 +307,17 @@ const ManualLogTab = () => {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={threadDate} onSelect={(d) => { setThreadDate(d); setDateAutoDetected(false); }} initialFocus className="p-3 pointer-events-auto" />
+                      <Calendar
+                        mode="single"
+                        selected={threadDate}
+                        onSelect={(d) => { setThreadDate(d); setDateAutoDetected(false); }}
+                        captionLayout="dropdown-buttons"
+                        fromYear={2023}
+                        toYear={new Date().getFullYear()}
+                        defaultMonth={threadDate ?? new Date()}
+                        initialFocus
+                        className="p-3 pointer-events-auto"
+                      />
                     </PopoverContent>
                   </Popover>
                   {dateAutoDetected && (
