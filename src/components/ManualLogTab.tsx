@@ -55,6 +55,7 @@ const ManualLogTab = () => {
   const [channelName, setChannelName] = useState("");
   const [rawThread, setRawThread] = useState("");
   const [threadDate, setThreadDate] = useState<Date | undefined>(undefined);
+  const [dateAutoDetected, setDateAutoDetected] = useState(false);
   const [parsed, setParsed] = useState(false);
 
   const loadRecent = async () => {
