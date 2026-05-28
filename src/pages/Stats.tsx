@@ -2085,7 +2085,7 @@ const Stats = () => {
                     <button
                       key={`${r.source}-${r.id}`}
                       type="button"
-                      onClick={() => navigate(`/conversations/${r.source}/${r.id}`)}
+                      onClick={() => navigate(`/conversations/${r.id}?source=${r.source}`)}
                       className="flex w-full items-start gap-3 rounded-md border border-border bg-card p-3 text-left transition hover:bg-accent"
                     >
                       <span
