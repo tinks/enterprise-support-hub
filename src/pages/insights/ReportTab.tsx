@@ -400,7 +400,7 @@ export function ReportTab({ data, month, onChanged }: ReportTabProps) {
           </CardContent>
         </Card>
 
-        <UncategorizedPanel tickets={data.tickets} />
+        <UncategorizedPanel tickets={data.tickets} month={month} onChanged={onChanged} />
 
         {/* Owner load */}
         <Card>
