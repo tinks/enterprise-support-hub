@@ -60,9 +60,11 @@ interface Insight {
 interface ReportTabProps {
   data: MonthData;
   month: string;
+  onChanged?: () => void;
 }
 
-export function ReportTab({ data, month }: ReportTabProps) {
+export function ReportTab({ data, month, onChanged }: ReportTabProps) {
+
   const reportRef = useRef<HTMLDivElement>(null);
   const [insight, setInsight] = useState<Insight | null>(null);
   const [channelMap, setChannelMap] = useState<Record<string, string>>({});
