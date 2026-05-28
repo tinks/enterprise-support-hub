@@ -23,7 +23,7 @@ type SrcFilter = "all" | "slack" | "gmail" | "manual";
 const tableFor = (route: NormalizedTicket["route_source"]) =>
   route === "slack" ? "conversation_mappings" : route === "gmail" ? "gmail_conversations" : "manual_conversations";
 
-export function UncategorizedPanel({ tickets, onChanged }: Props) {
+export function UncategorizedPanel({ tickets, month, onChanged }: Props) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [areas, setAreas] = useState<string[]>([]);
@@ -34,6 +34,8 @@ export function UncategorizedPanel({ tickets, onChanged }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkArea, setBulkArea] = useState<string>("");
   const [bulkSaving, setBulkSaving] = useState(false);
+  const [autoRunning, setAutoRunning] = useState(false);
+
 
   useEffect(() => {
     supabase.from("settings").select("product_areas").limit(1).maybeSingle().then(({ data }) => {
