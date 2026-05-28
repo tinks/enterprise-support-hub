@@ -16,7 +16,7 @@ import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, Command
 import { Plus, Trash2, Save, ExternalLink, CalendarIcon, ClipboardPaste, Check } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { parseThread, parseThreadWithAI, combineDateTime, ADMIN_OPTIONS, type ParsedMessage } from "@/lib/parseThread";
+import { parseThread, parseThreadWithAI, combineDateTime, detectThreadDate, ADMIN_OPTIONS, type ParsedMessage } from "@/lib/parseThread";
 
 const CHANNEL_SUGGESTIONS = [
   "ext-lovable-control-tower",
