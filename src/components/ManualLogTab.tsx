@@ -307,9 +307,12 @@ const ManualLogTab = () => {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={threadDate} onSelect={setThreadDate} initialFocus className="p-3 pointer-events-auto" />
+                      <Calendar mode="single" selected={threadDate} onSelect={(d) => { setThreadDate(d); setDateAutoDetected(false); }} initialFocus className="p-3 pointer-events-auto" />
                     </PopoverContent>
                   </Popover>
+                  {dateAutoDetected && (
+                    <p className="text-xs text-muted-foreground">Auto-detected from paste — edit if wrong.</p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Subject</label>
