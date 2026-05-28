@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { format } from "date-fns";
-import { ChevronDown, ChevronRight, ExternalLink, Loader2 } from "lucide-react";
+import { format, startOfMonth, endOfMonth, parse } from "date-fns";
+import { ChevronDown, ChevronRight, ExternalLink, Loader2, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,15 +13,17 @@ import { NormalizedTicket, sourceLabel } from "./useMonthData";
 
 interface Props {
   tickets: NormalizedTicket[];
+  month?: string; // e.g. "2026-05" — required for auto-categorize
   onChanged?: () => void;
 }
+
 
 type SrcFilter = "all" | "slack" | "gmail" | "manual";
 
 const tableFor = (route: NormalizedTicket["route_source"]) =>
   route === "slack" ? "conversation_mappings" : route === "gmail" ? "gmail_conversations" : "manual_conversations";
 
-export function UncategorizedPanel({ tickets, onChanged }: Props) {
+export function UncategorizedPanel({ tickets, month, onChanged }: Props) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [areas, setAreas] = useState<string[]>([]);
@@ -32,6 +34,8 @@ export function UncategorizedPanel({ tickets, onChanged }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkArea, setBulkArea] = useState<string>("");
   const [bulkSaving, setBulkSaving] = useState(false);
+  const [autoRunning, setAutoRunning] = useState(false);
+
 
   useEffect(() => {
     supabase.from("settings").select("product_areas").limit(1).maybeSingle().then(({ data }) => {
@@ -128,7 +132,50 @@ export function UncategorizedPanel({ tickets, onChanged }: Props) {
     onChanged?.();
   };
 
+  const autoCategorize = async () => {
+    if (!month) {
+      toast({ title: "Month missing", description: "Cannot auto-categorize without month context.", variant: "destructive" });
+      return;
+    }
+    if (visible.length === 0) {
+      toast({ title: "Nothing to categorize", description: "No visible uncategorized tickets." });
+      return;
+    }
+    setAutoRunning(true);
+    try {
+      const start = startOfMonth(parse(month + "-01", "yyyy-MM-dd", new Date()));
+      const end = endOfMonth(start);
+      const { data, error } = await supabase.functions.invoke("auto-categorize-product-area", {
+        body: {
+          from: start.toISOString(),
+          to: end.toISOString(),
+          ids: visible.map(v => v.id),
+          excludeInternal: hideInternal,
+        },
+      });
+      if (error) throw error;
+      const written = data?.written ?? 0;
+      const low = data?.lowConfidence ?? 0;
+      const failed = data?.failed ?? 0;
+      const total = data?.total ?? 0;
+      toast({
+        title: `${written} of ${total} auto-categorized`,
+        description: [
+          low > 0 ? `${low} low-confidence skipped` : null,
+          failed > 0 ? `${failed} failed` : null,
+        ].filter(Boolean).join(" · ") || "All done.",
+        variant: failed > 0 ? "destructive" : "default",
+      });
+      onChanged?.();
+    } catch (e) {
+      toast({ title: "Auto-categorize failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setAutoRunning(false);
+    }
+  };
+
   if (uncategorized.length === 0) return null;
+
 
   return (
     <Card>
@@ -172,7 +219,19 @@ export function UncategorizedPanel({ tickets, onChanged }: Props) {
                 ))}
               </div>
               <span className="text-muted-foreground ml-auto">{visible.length} shown</span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={autoCategorize}
+                disabled={autoRunning || visible.length === 0 || !month}
+                className="h-7 gap-1.5"
+                title={month ? "Use AI to categorize all visible tickets" : "Auto-categorize unavailable"}
+              >
+                {autoRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                {autoRunning ? "Categorizing…" : `Auto-categorize ${visible.length}`}
+              </Button>
             </div>
+
 
             {selected.size > 0 && (
               <div className="flex items-center gap-2 p-2 bg-muted/50 rounded">
