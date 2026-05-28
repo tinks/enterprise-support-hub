@@ -132,7 +132,50 @@ export function UncategorizedPanel({ tickets, month, onChanged }: Props) {
     onChanged?.();
   };
 
+  const autoCategorize = async () => {
+    if (!month) {
+      toast({ title: "Month missing", description: "Cannot auto-categorize without month context.", variant: "destructive" });
+      return;
+    }
+    if (visible.length === 0) {
+      toast({ title: "Nothing to categorize", description: "No visible uncategorized tickets." });
+      return;
+    }
+    setAutoRunning(true);
+    try {
+      const start = startOfMonth(parse(month + "-01", "yyyy-MM-dd", new Date()));
+      const end = endOfMonth(start);
+      const { data, error } = await supabase.functions.invoke("auto-categorize-product-area", {
+        body: {
+          from: start.toISOString(),
+          to: end.toISOString(),
+          ids: visible.map(v => v.id),
+          excludeInternal: hideInternal,
+        },
+      });
+      if (error) throw error;
+      const written = data?.written ?? 0;
+      const low = data?.lowConfidence ?? 0;
+      const failed = data?.failed ?? 0;
+      const total = data?.total ?? 0;
+      toast({
+        title: `${written} of ${total} auto-categorized`,
+        description: [
+          low > 0 ? `${low} low-confidence skipped` : null,
+          failed > 0 ? `${failed} failed` : null,
+        ].filter(Boolean).join(" · ") || "All done.",
+        variant: failed > 0 ? "destructive" : "default",
+      });
+      onChanged?.();
+    } catch (e) {
+      toast({ title: "Auto-categorize failed", description: (e as Error).message, variant: "destructive" });
+    } finally {
+      setAutoRunning(false);
+    }
+  };
+
   if (uncategorized.length === 0) return null;
+
 
   return (
     <Card>
