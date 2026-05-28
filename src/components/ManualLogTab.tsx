@@ -112,6 +112,17 @@ const ManualLogTab = () => {
     const firstMsg = result[0].message_text;
     setSubject(firstMsg.length > 60 ? firstMsg.slice(0, 60) + "…" : firstMsg);
     setParsed(true);
+
+    // Auto-detect thread date if user hasn't picked one
+    if (!threadDate) {
+      const detected = detectThreadDate(rawThread);
+      if (detected) {
+        setThreadDate(detected);
+        setDateAutoDetected(true);
+        toast.success(`Parsed ${result.length} messages — detected date: ${format(detected, "PP")}`);
+        return;
+      }
+    }
     toast.success(`Parsed ${result.length} messages`);
   };
 
