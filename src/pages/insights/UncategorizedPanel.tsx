@@ -219,7 +219,19 @@ export function UncategorizedPanel({ tickets, month, onChanged }: Props) {
                 ))}
               </div>
               <span className="text-muted-foreground ml-auto">{visible.length} shown</span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={autoCategorize}
+                disabled={autoRunning || visible.length === 0 || !month}
+                className="h-7 gap-1.5"
+                title={month ? "Use AI to categorize all visible tickets" : "Auto-categorize unavailable"}
+              >
+                {autoRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                {autoRunning ? "Categorizing…" : `Auto-categorize ${visible.length}`}
+              </Button>
             </div>
+
 
             {selected.size > 0 && (
               <div className="flex items-center gap-2 p-2 bg-muted/50 rounded">
