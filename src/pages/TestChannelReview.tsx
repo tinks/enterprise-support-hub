@@ -253,9 +253,12 @@ export default function TestChannelReview() {
     setLogSaving(true);
 
     let parsed = parseThread(logRawThread);
+    let aiSubject: string | undefined;
     if (parsed.length === 0) {
       toast.info("Using AI to parse thread…");
-      parsed = await parseThreadWithAI(logRawThread);
+      const ai = await parseThreadWithAI(logRawThread);
+      parsed = ai.messages;
+      aiSubject = ai.subject;
     }
     if (parsed.length === 0) {
       toast.error("Could not parse any messages from the pasted thread");
@@ -266,7 +269,7 @@ export default function TestChannelReview() {
     const firstUser = parsed.find((m) => m.role === "user");
     const contactName = firstUser?.sender_name || "";
     const firstMsg = parsed[0].message_text;
-    const subject = firstMsg.length > 60 ? firstMsg.slice(0, 60) + "…" : firstMsg;
+    const subject = aiSubject || (firstMsg.length > 60 ? firstMsg.slice(0, 60) + "…" : firstMsg);
 
     // Create manual conversation
     const { data: convo, error: convoErr } = await supabase
