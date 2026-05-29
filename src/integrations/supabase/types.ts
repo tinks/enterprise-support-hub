@@ -583,6 +583,33 @@ export type Database = {
         }
         Relationships: []
       }
+      slack_channel_account_map: {
+        Row: {
+          account_domain: string | null
+          account_label: string
+          channel_name: string | null
+          created_at: string
+          slack_channel_id: string
+          updated_at: string
+        }
+        Insert: {
+          account_domain?: string | null
+          account_label: string
+          channel_name?: string | null
+          created_at?: string
+          slack_channel_id: string
+          updated_at?: string
+        }
+        Update: {
+          account_domain?: string | null
+          account_label?: string
+          channel_name?: string | null
+          created_at?: string
+          slack_channel_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
