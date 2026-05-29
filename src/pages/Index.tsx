@@ -538,6 +538,9 @@ const Index = () => {
         {/* Admin Mapping Card */}
         <AdminMappingCard settings={settings} setSettings={setSettings} onSave={saveSettings} />
 
+        {/* Slack channel → account mapping */}
+        <SlackChannelAccountMapCard />
+
         {/* Bot Identity Card */}
         <BotIdentityCard />
 
