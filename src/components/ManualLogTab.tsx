@@ -92,39 +92,70 @@ const ManualLogTab = () => {
     );
   };
 
+  const [parsing, setParsing] = useState(false);
+
   const handleParse = async () => {
     if (!rawThread.trim()) {
       toast.error("Paste a thread first");
       return;
     }
-    let result = parseThread(rawThread);
-    if (result.length === 0) {
-      toast.info("Using AI to parse thread…");
-      result = await parseThreadWithAI(rawThread);
+    setParsing(true);
+
+    // Always call AI so we get a proper ticket-style subject summary.
+    // Fall back to regex parsing only if the AI call fails or returns nothing.
+    let result: ParsedMessage[] = [];
+    let aiSubject: string | undefined;
+    try {
+      const ai = await parseThreadWithAI(rawThread);
+      result = ai.messages;
+      aiSubject = ai.subject;
+    } catch {
+      // ignore — handled by fallback below
     }
+
+    let usedFallback = false;
     if (result.length === 0) {
+      result = parseThread(rawThread);
+      usedFallback = true;
+    }
+
+    if (result.length === 0) {
+      setParsing(false);
       toast.error("Could not parse any messages — neither regex nor AI could extract them");
       return;
     }
+
     setMessages(result);
     const firstUser = result.find((m) => m.role === "user");
     if (firstUser) setContactName(firstUser.sender_name);
-    const firstMsg = result[0].message_text;
-    setSubject(firstMsg.length > 60 ? firstMsg.slice(0, 60) + "…" : firstMsg);
+
+    if (aiSubject) {
+      setSubject(aiSubject);
+    } else {
+      const firstMsg = result[0].message_text;
+      setSubject(firstMsg.length > 60 ? firstMsg.slice(0, 60) + "…" : firstMsg);
+    }
     setParsed(true);
 
     // Auto-detect thread date if user hasn't picked one
+    let detectedDate: Date | undefined;
     if (!threadDate) {
-      const detected = detectThreadDate(rawThread);
-      if (detected) {
-        setThreadDate(detected);
+      detectedDate = detectThreadDate(rawThread);
+      if (detectedDate) {
+        setThreadDate(detectedDate);
         setDateAutoDetected(true);
-        toast.success(`Parsed ${result.length} messages — detected date: ${format(detected, "PP")}`);
-        return;
       }
     }
-    toast.success(`Parsed ${result.length} messages`);
+
+    setParsing(false);
+
+    const parts: string[] = [`Parsed ${result.length} messages`];
+    if (aiSubject) parts.push("summary generated");
+    else if (usedFallback) parts.push("AI summary unavailable — using first line");
+    if (detectedDate) parts.push(`detected date: ${format(detectedDate, "PP")}`);
+    toast.success(parts.join(" — "));
   };
+
 
   const handleSave = async () => {
     if (!subject.trim()) {
@@ -326,7 +357,7 @@ const ManualLogTab = () => {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-sm font-medium">Subject</label>
-                  <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Auto-filled on parse" />
+                  <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="AI-summarized on parse — edit if needed" />
                 </div>
               </div>
               <div className="space-y-1.5">
@@ -338,8 +369,8 @@ const ManualLogTab = () => {
                   className="min-h-[200px] text-sm font-mono"
                 />
               </div>
-              <Button variant="outline" onClick={handleParse} className="gap-1">
-                <ClipboardPaste className="h-3.5 w-3.5" /> Parse thread
+              <Button variant="outline" onClick={handleParse} disabled={parsing} className="gap-1">
+                <ClipboardPaste className="h-3.5 w-3.5" /> {parsing ? "Parsing…" : "Parse thread"}
               </Button>
               {parsed && (
                 <div className="space-y-1.5">

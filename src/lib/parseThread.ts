@@ -189,15 +189,20 @@ export function parseThread(raw: string): ParsedMessage[] {
   return messages;
 }
 
-export async function parseThreadWithAI(raw: string): Promise<ParsedMessage[]> {
+export interface ParseThreadAIResult {
+  messages: ParsedMessage[];
+  subject?: string;
+}
+
+export async function parseThreadWithAI(raw: string): Promise<ParseThreadAIResult> {
   const { supabase } = await import("@/integrations/supabase/client");
   const { data, error } = await supabase.functions.invoke("parse-thread", {
     body: { rawThread: raw },
   });
 
-  if (error || !data?.messages) return [];
+  if (error || !data?.messages) return { messages: [] };
 
-  return (data.messages as Array<{ sender_name: string; message_text: string; sent_at?: string }>).map((m) => {
+  const messages = (data.messages as Array<{ sender_name: string; message_text: string; sent_at?: string }>).map((m) => {
     const isAdmin = ADMIN_NAMES.some((n) => m.sender_name.toLowerCase().includes(n));
     return {
       role: isAdmin ? "admin" : "user",
@@ -206,4 +211,7 @@ export async function parseThreadWithAI(raw: string): Promise<ParsedMessage[]> {
       sent_at: m.sent_at,
     } as ParsedMessage;
   });
+
+  const subject = typeof data.subject === "string" && data.subject.trim() ? data.subject.trim() : undefined;
+  return { messages, subject };
 }
