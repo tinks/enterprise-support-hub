@@ -82,7 +82,7 @@ export function useMonthData(month: string, refreshKey: number = 0): MonthData {
         const fromIso = monthStart.toISOString();
         const toIso = monthEnd.toISOString();
 
-        const [cmRes, gmRes, mcRes] = await Promise.all([
+        const [cmRes, gmRes, mcRes, mapRes] = await Promise.all([
           supabase
             .from("conversation_mappings")
             .select("id,original_message_text,product_area,is_bug,is_feature_request,classification,owner,status,csat_rating,created_at,resolved_at,intercom_conversation_id,slack_channel_id,slack_user_name,slack_user_id,is_test")
@@ -104,7 +104,22 @@ export function useMonthData(month: string, refreshKey: number = 0): MonthData {
             .lte("created_at", toIso)
             .eq("is_test", false)
             .limit(5000),
+          supabase
+            .from("slack_channel_account_map" as any)
+            .select("slack_channel_id,account_domain,account_label"),
         ]);
+
+        // Build channel → account override map
+        const channelAccountMap = new Map<string, { key: string; label: string; kind: AccountKind }>();
+        for (const m of ((mapRes as any).data || []) as Array<{ slack_channel_id: string; account_domain: string | null; account_label: string }>) {
+          const domain = (m.account_domain || "").trim().toLowerCase();
+          if (domain) {
+            channelAccountMap.set(m.slack_channel_id, { key: "domain:" + domain, label: m.account_label, kind: "domain" });
+          } else {
+            const slug = m.account_label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+            channelAccountMap.set(m.slack_channel_id, { key: "account:" + slug, label: m.account_label, kind: "manual" });
+          }
+        }
 
         if (cmRes.error) throw cmRes.error;
         if (gmRes.error) throw gmRes.error;
