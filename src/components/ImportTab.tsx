@@ -331,6 +331,8 @@ const ImportTab = () => {
         </CardContent>
       </Card>
 
+      <BulkSlackImportCard />
+
       {recentImports.length > 0 && (
         <Card>
           <CardHeader>
