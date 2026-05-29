@@ -39,7 +39,21 @@ Deno.serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `You are a Slack thread parser. Given raw copied text from a Slack thread, extract each individual message with its sender name, message text, and the timestamp as it appears in the text. Ignore reply counts, reactions, emoji status lines, and metadata. Preserve the full message text for each sender. For sent_at, return the raw timestamp string exactly as it appears (e.g. "1:47 PM", "Mar 26th at 11:03 AM", "3/26/2025 11:03 AM"). If no timestamp is visible for a message, omit sent_at.`,
+            content: `You are a Slack/Teams thread parser for an enterprise support team.
+
+Given raw copied thread text, do TWO things:
+
+1. Extract each individual message with sender name, full message text, and timestamp as it appears. Ignore reply counts, reactions, emoji status lines, and metadata. For sent_at, return the raw timestamp string exactly as it appears (e.g. "1:47 PM", "Mar 26th at 11:03 AM", "3/26/2025 11:03 AM"). If no timestamp is visible for a message, omit sent_at.
+
+2. Write a concise support-ticket-style "subject" (4–10 words) summarizing the user's actual issue or request. Think of it as a Zendesk/Intercom ticket title:
+   - Noun-led, specific, focused on the technical topic.
+   - No pleasantries ("Hi team", "Hope you're well"), no filler ("Question about…", "Help with…", "Need help with…"), no trailing punctuation, no quotes.
+   - Use product/feature/error names that appear in the thread.
+   - Good: "SSO login fails for Okta users after metadata refresh"
+   - Good: "SCIM provisioning duplicates users on email change"
+   - Good: "Workspace billing invoice missing November charges"
+   - Bad: "Hi team I have a question about login"
+   - Bad: "Help with SSO"`,
           },
           {
             role: "user",
@@ -51,10 +65,14 @@ Deno.serve(async (req) => {
             type: "function",
             function: {
               name: "extract_messages",
-              description: "Extract individual messages from a Slack thread",
+              description: "Extract individual messages and a ticket-style subject from a thread",
               parameters: {
                 type: "object",
                 properties: {
+                  subject: {
+                    type: "string",
+                    description: "Concise 4–10 word support-ticket-style summary of the user's actual issue or request. No pleasantries, no filler, no trailing punctuation.",
+                  },
                   messages: {
                     type: "array",
                     items: {
@@ -69,7 +87,7 @@ Deno.serve(async (req) => {
                     },
                   },
                 },
-                required: ["messages"],
+                required: ["subject", "messages"],
                 additionalProperties: false,
               },
             },
@@ -110,9 +128,16 @@ Deno.serve(async (req) => {
     }
 
     const parsed = JSON.parse(toolCall.function.arguments);
-    return new Response(JSON.stringify({ messages: parsed.messages || [] }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    const rawSubject = typeof parsed.subject === "string" ? parsed.subject.trim() : "";
+    const cleanedSubject = rawSubject
+      .replace(/^["'`]+|["'`]+$/g, "")
+      .replace(/[.!?]+$/g, "")
+      .slice(0, 120)
+      .trim();
+    return new Response(
+      JSON.stringify({ messages: parsed.messages || [], subject: cleanedSubject || undefined }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   } catch (err) {
     console.error("parse-thread error:", err);
     return new Response(JSON.stringify({ error: String(err) }), {
