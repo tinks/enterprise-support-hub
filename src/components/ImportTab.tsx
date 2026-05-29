@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Import, Loader2, Ticket } from "lucide-react";
+import BulkSlackImportCard from "./BulkSlackImportCard";
 import { useNavigate } from "react-router-dom";
 
 interface RecentImport {
