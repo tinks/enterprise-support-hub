@@ -204,9 +204,16 @@ export function useMonthData(month: string, refreshKey: number = 0): MonthData {
           const linkChannelId = m.source === "slack" ? extractSlackChannelId(m.link) : null;
 
           if (linkChannelId) {
-            key = "channel:" + linkChannelId;
-            label = "#" + linkChannelId;
-            kind = "slack";
+            const override = channelAccountMap.get(linkChannelId);
+            if (override) {
+              key = override.key;
+              label = override.label;
+              kind = override.kind;
+            } else {
+              key = "channel:" + linkChannelId;
+              label = "#" + linkChannelId;
+              kind = "slack";
+            }
             rawId = linkChannelId;
           } else if (m.source === "slack") {
             key = "manual:slack";
