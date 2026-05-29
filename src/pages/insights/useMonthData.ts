@@ -145,14 +145,15 @@ export function useMonthData(month: string, refreshKey: number = 0): MonthData {
         for (const c of cmRes.data || []) {
           const display: SourceKey = c.intercom_conversation_id ? "intercom" : "slack";
           const cid = c.slack_channel_id || "unknown";
+          const override = channelAccountMap.get(cid);
           tickets.push({
             id: c.id,
             route_source: "slack",
             display_source: display,
             subject: firstLine(c.original_message_text),
-            customer_key: "channel:" + cid,
-            customer_label: "#" + cid,
-            customer_kind: "slack",
+            customer_key: override ? override.key : "channel:" + cid,
+            customer_label: override ? override.label : "#" + cid,
+            customer_kind: override ? override.kind : "slack",
             customer_raw_id: cid,
             product_area: c.product_area || "Uncategorized",
             is_bug: !!c.is_bug,
