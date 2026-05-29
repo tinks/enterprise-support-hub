@@ -14,6 +14,7 @@ import { Settings, RefreshCw, Save, Link, Search, Hash, X, Plus, Mail, CheckCirc
 import BotIdentityCard from "@/components/BotIdentityCard";
 import ProductAreasCard from "@/components/ProductAreasCard";
 import AdminMappingCard from "@/components/AdminMappingCard";
+import SlackChannelAccountMapCard from "@/components/SlackChannelAccountMapCard";
 import lovableLogo from "@/assets/lovable-logo.png";
 
 interface SettingsData {
