@@ -2246,7 +2246,12 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${mc.is_test ? "o
                                   productAreas={productAreas}
                                   onOwnerChange={(v) => updateOwner(mc.id, v, "manual")}
                                   onStatusChange={(v) => updateStatus(mc.id, v, "manual")}
-                                  onProductAreaChange={(v) => updateProductArea(mc.id, v, "manual")}
+                                  onProductAreaChange={async (v) => {
+                                    const newVal = v === "clear" ? null : v;
+                                    setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, product_area: newVal } : r));
+                                    const { error } = await supabase.from("manual_conversations").update({ product_area: newVal }).eq("id", mc.id);
+                                    if (error) toast.error("Failed to update product area");
+                                  }}
                                 />
                               </TableCell>
                             </TableRow>
