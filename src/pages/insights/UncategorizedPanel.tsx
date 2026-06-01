@@ -299,45 +299,71 @@ export function UncategorizedPanel({ tickets, month, onChanged }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {visible.map(t => (
-                    <tr key={t.id} className="border-t hover:bg-accent/30">
-                      <td className="px-2 py-1.5">
-                        <Checkbox
-                          checked={selected.has(t.id)}
-                          onCheckedChange={v => {
-                            const n = new Set(selected);
-                            if (v) n.add(t.id); else n.delete(t.id);
-                            setSelected(n);
-                          }}
-                        />
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <Badge variant="outline" className="text-[10px] px-1 py-0">
-                          {sourceLabel[t.display_source] || t.display_source}
-                        </Badge>
-                      </td>
-                      <td className="px-2 py-1.5 max-w-0">
-                        <div className="truncate" title={t.subject}>{t.subject}</div>
-                      </td>
-                      <td className="px-2 py-1.5 truncate" title={t.customer_label}>{t.customer_label}</td>
-                      <td className="px-2 py-1.5 text-muted-foreground">{format(new Date(t.created_at), "MMM d")}</td>
-                      <td className="px-2 py-1.5">
-                        <Select onValueChange={v => assign(t, v)} disabled={savingId === t.id}>
-                          <SelectTrigger className="h-7 text-xs">
-                            <SelectValue placeholder={savingId === t.id ? "Saving…" : "Assign…"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {areas.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <Link to={`/conversations/${t.id}?source=${t.route_source}`} target="_blank">
-                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
+                  {visible.map(t => {
+                    const ov = overrides[t.id] || {};
+                    const isOpen = expandedId === t.id;
+                    return (
+                      <React.Fragment key={t.id}>
+                        <tr className="border-t hover:bg-accent/30">
+                          <td className="px-2 py-1.5">
+                            <Checkbox
+                              checked={selected.has(t.id)}
+                              onCheckedChange={v => {
+                                const n = new Set(selected);
+                                if (v) n.add(t.id); else n.delete(t.id);
+                                setSelected(n);
+                              }}
+                            />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <Badge variant="outline" className="text-[10px] px-1 py-0">
+                              {sourceLabel[t.display_source] || t.display_source}
+                            </Badge>
+                          </td>
+                          <td className="px-2 py-1.5 max-w-0">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedId(isOpen ? null : t.id)}
+                              className="flex items-center gap-1 text-left truncate w-full hover:text-primary"
+                              title={t.subject}
+                            >
+                              {isOpen ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+                              <span className="truncate">{t.subject}</span>
+                            </button>
+                          </td>
+                          <td className="px-2 py-1.5 truncate" title={t.customer_label}>{t.customer_label}</td>
+                          <td className="px-2 py-1.5 text-muted-foreground">{format(new Date(t.created_at), "MMM d")}</td>
+                          <td className="px-2 py-1.5">
+                            <Select onValueChange={v => assign(t, v)} disabled={savingId === t.id}>
+                              <SelectTrigger className="h-7 text-xs">
+                                <SelectValue placeholder={savingId === t.id ? "Saving…" : "Assign…"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {areas.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <Link to={`/conversations/${t.id}?source=${t.route_source}`} target="_blank">
+                              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                            </Link>
+                          </td>
+                        </tr>
+                        {isOpen && (
+                          <tr className="border-t">
+                            <td colSpan={7} className="p-0">
+                              <ExpandedDetailRow
+                                t={t}
+                                areas={areas}
+                                override={ov}
+                                onChange={(field, value) => updateField(t, field, value)}
+                              />
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                   {visible.length === 0 && (
                     <tr><td colSpan={7} className="px-2 py-6 text-center text-muted-foreground">Nothing to show with current filters.</td></tr>
                   )}
