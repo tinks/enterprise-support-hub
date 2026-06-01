@@ -376,3 +376,83 @@ export function UncategorizedPanel({ tickets, month, onChanged }: Props) {
     </Card>
   );
 }
+
+interface ExpandedDetailRowProps {
+  t: NormalizedTicket;
+  areas: string[];
+  override: { owner?: string | null; status?: string; product_area?: string | null };
+  onChange: (field: "owner" | "status" | "product_area", value: string | null) => void;
+}
+
+function ExpandedDetailRow({ t, areas, override, onChange }: ExpandedDetailRowProps) {
+  const [refs, setRefs] = useState<{
+    slack_channel_id?: string;
+    slack_thread_ts?: string;
+    gmail_thread_id?: string | null;
+    contactName: string;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (t.route_source === "slack") {
+        const { data } = await supabase
+          .from("conversation_mappings")
+          .select("slack_channel_id,slack_thread_ts,slack_user_name")
+          .eq("id", t.id)
+          .maybeSingle();
+        if (!cancelled) setRefs({
+          slack_channel_id: data?.slack_channel_id,
+          slack_thread_ts: data?.slack_thread_ts,
+          contactName: data?.slack_user_name || t.customer_label,
+        });
+      } else if (t.route_source === "gmail") {
+        const { data } = await supabase
+          .from("gmail_conversations")
+          .select("gmail_thread_id,from_name,from_email")
+          .eq("id", t.id)
+          .maybeSingle();
+        if (!cancelled) setRefs({
+          gmail_thread_id: data?.gmail_thread_id ?? null,
+          contactName: data?.from_name || data?.from_email || t.customer_label,
+        });
+      } else {
+        const { data } = await supabase
+          .from("manual_conversations")
+          .select("contact_name")
+          .eq("id", t.id)
+          .maybeSingle();
+        if (!cancelled) setRefs({ contactName: data?.contact_name || t.customer_label });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [t.id, t.route_source, t.customer_label]);
+
+  if (!refs) {
+    return <div className="p-4 text-xs text-muted-foreground bg-muted/30">Loading details…</div>;
+  }
+
+  const owner = override.owner !== undefined ? override.owner : t.owner;
+  const status = override.status ?? t.status ?? "open";
+  const productArea = override.product_area !== undefined ? override.product_area : (t.product_area === "Uncategorized" ? null : t.product_area);
+
+  return (
+    <InlineConversationDetail
+      id={t.id}
+      source={t.route_source}
+      contactName={refs.contactName}
+      subject={t.subject}
+      owner={owner}
+      status={status}
+      productArea={productArea}
+      productAreas={areas}
+      onOwnerChange={v => onChange("owner", v === "clear" ? null : v)}
+      onStatusChange={v => onChange("status", v)}
+      onProductAreaChange={v => onChange("product_area", v === "clear" ? null : v)}
+      slackChannelId={refs.slack_channel_id}
+      slackThreadTs={refs.slack_thread_ts}
+      gmailThreadId={refs.gmail_thread_id}
+    />
+  );
+}
+
