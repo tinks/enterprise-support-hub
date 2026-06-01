@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { channelNameOverrides } from "@/lib/channelOverrides";
+import InlineConversationDetail from "@/components/InlineConversationDetail";
 import { Calendar } from "@/components/ui/calendar";
 import { format, startOfDay, endOfDay, differenceInMinutes, parseISO } from "date-fns";
 
