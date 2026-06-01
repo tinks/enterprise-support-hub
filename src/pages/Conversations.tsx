@@ -1231,14 +1231,13 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       );
       case "message": return m.original_message_text ? (
         <button
-          onClick={(e) => { e.stopPropagation(); toggleMessage(m.id); }}
+          onClick={(e) => { e.stopPropagation(); toggleDetail(`slack:${m.id}`); }}
           className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          title="Click to expand details"
         >
-          {expandedMessages.has(m.id)
-            ? m.original_message_text
-            : m.original_message_text.length > 60
-              ? m.original_message_text.slice(0, 60) + "…"
-              : m.original_message_text}
+          {m.original_message_text.length > 60
+            ? m.original_message_text.slice(0, 60) + "…"
+            : m.original_message_text}
         </button>
       ) : <span className="text-xs text-muted-foreground">—</span>;
       case "channel": return (
