@@ -319,6 +319,14 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const [userNames, setUserNames] = useState<NameMap>({});
   const [channelNames, setChannelNames] = useState<NameMap>({});
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
+  const [expandedDetails, setExpandedDetails] = useState<Set<string>>(new Set());
+  const toggleDetail = (key: string) => {
+    setExpandedDetails((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
   const [offset, setOffset] = useState(0);
   const [gmailOffset, setGmailOffset] = useState(0);
   const [manualOffset, setManualOffset] = useState(0);
