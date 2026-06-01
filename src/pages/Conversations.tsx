@@ -1490,7 +1490,13 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         </span>
       );
       case "message": return mc.subject ? (
-        <span className="text-xs text-muted-foreground">{mc.subject.length > 60 ? mc.subject.slice(0, 60) + "…" : mc.subject}</span>
+        <button
+          onClick={(e) => { e.stopPropagation(); toggleDetail(`manual:${mc.id}`); }}
+          className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          title="Click to expand details"
+        >
+          {mc.subject.length > 60 ? mc.subject.slice(0, 60) + "…" : mc.subject}
+        </button>
       ) : <span className="text-xs text-muted-foreground">—</span>;
       case "channel": {
         if (mc.source === "slack_thread") {
