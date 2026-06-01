@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { channelNameOverrides } from "@/lib/channelOverrides";
+import InlineConversationDetail from "@/components/InlineConversationDetail";
 import { Calendar } from "@/components/ui/calendar";
 import { format, startOfDay, endOfDay, differenceInMinutes, parseISO } from "date-fns";
 
@@ -319,6 +320,14 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const [userNames, setUserNames] = useState<NameMap>({});
   const [channelNames, setChannelNames] = useState<NameMap>({});
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
+  const [expandedDetails, setExpandedDetails] = useState<Set<string>>(new Set());
+  const toggleDetail = (key: string) => {
+    setExpandedDetails((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  };
   const [offset, setOffset] = useState(0);
   const [gmailOffset, setGmailOffset] = useState(0);
   const [manualOffset, setManualOffset] = useState(0);
@@ -1222,14 +1231,13 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       );
       case "message": return m.original_message_text ? (
         <button
-          onClick={(e) => { e.stopPropagation(); toggleMessage(m.id); }}
+          onClick={(e) => { e.stopPropagation(); toggleDetail(`slack:${m.id}`); }}
           className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          title="Click to expand details"
         >
-          {expandedMessages.has(m.id)
-            ? m.original_message_text
-            : m.original_message_text.length > 60
-              ? m.original_message_text.slice(0, 60) + "…"
-              : m.original_message_text}
+          {m.original_message_text.length > 60
+            ? m.original_message_text.slice(0, 60) + "…"
+            : m.original_message_text}
         </button>
       ) : <span className="text-xs text-muted-foreground">—</span>;
       case "channel": return (
@@ -1376,14 +1384,11 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       }
       case "message": return g.subject ? (
         <button
-          onClick={() => toggleMessage(g.id)}
+          onClick={(e) => { e.stopPropagation(); toggleDetail(`gmail:${g.id}`); }}
           className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          title="Click to expand details"
         >
-          {expandedMessages.has(g.id)
-            ? `${g.subject}\n${g.snippet || ""}`
-            : g.subject.length > 60
-              ? g.subject.slice(0, 60) + "…"
-              : g.subject}
+          {g.subject.length > 60 ? g.subject.slice(0, 60) + "…" : g.subject}
         </button>
       ) : <span className="text-xs text-muted-foreground">—</span>;
       case "channel": return <span className="text-xs text-muted-foreground">Gmail inbox</span>;
@@ -1485,7 +1490,13 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
         </span>
       );
       case "message": return mc.subject ? (
-        <span className="text-xs text-muted-foreground">{mc.subject.length > 60 ? mc.subject.slice(0, 60) + "…" : mc.subject}</span>
+        <button
+          onClick={(e) => { e.stopPropagation(); toggleDetail(`manual:${mc.id}`); }}
+          className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          title="Click to expand details"
+        >
+          {mc.subject.length > 60 ? mc.subject.slice(0, 60) + "…" : mc.subject}
+        </button>
       ) : <span className="text-xs text-muted-foreground">—</span>;
       case "channel": {
         if (mc.source === "slack_thread") {
@@ -2079,7 +2090,10 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                     {pagedRows.map((row) => {
                       if (row.source === "slack") {
                         const m = row.data;
+                        const detailKey = `slack:${m.id}`;
+                        const detailOpen = expandedDetails.has(detailKey);
                         return (
+                          <Fragment key={`slack-${m.id}`}>
                           <TableRow
                             key={`slack-${m.id}`}
 className={`cursor-pointer hover:bg-muted/50 transition-colors ${m.is_test ? "opacity-50" : ""} ${!m.owner ? "border-l-[3px] border-primary/70 bg-primary/5" : m.status === "awaiting_support" ? "border-l-[3px] border-amber-500/70 bg-amber-50/50" : ""}`}
@@ -2091,6 +2105,28 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${m.is_test ? "op
                               </TableCell>
                             ))}
                           </TableRow>
+                          {detailOpen && (
+                            <TableRow key={`slack-detail-${m.id}`} className="hover:bg-transparent">
+                              <TableCell colSpan={columnOrder.length} className="p-0">
+                                <InlineConversationDetail
+                                  id={m.id}
+                                  source="slack"
+                                  contactName={m.slack_user_name || userNames[m.slack_user_id] || m.slack_user_id || "—"}
+                                  subject={m.original_message_text || ""}
+                                  owner={m.owner}
+                                  status={m.status}
+                                  productArea={m.product_area}
+                                  productAreas={productAreas}
+                                  onOwnerChange={(v) => updateOwner(m.id, v, "slack")}
+                                  onStatusChange={(v) => updateStatus(m.id, v, "slack")}
+                                  onProductAreaChange={(v) => updateProductArea(m.id, v, "slack")}
+                                  slackChannelId={m.slack_channel_id}
+                                  slackThreadTs={m.slack_thread_ts}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          </Fragment>
                         );
                       } else if (row.source === "gmail") {
                         const g = row.data;
@@ -2110,6 +2146,26 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "op
                                 </TableCell>
                               ))}
                             </TableRow>
+                            {expandedDetails.has(`gmail:${g.id}`) && (
+                              <TableRow key={`gmail-detail-${g.id}`} className="hover:bg-transparent">
+                                <TableCell colSpan={columnOrder.length} className="p-0">
+                                  <InlineConversationDetail
+                                    id={g.id}
+                                    source="gmail"
+                                    contactName={g.from_name || g.from_email || "—"}
+                                    subject={g.subject || ""}
+                                    owner={g.owner}
+                                    status={g.status || "open"}
+                                    productArea={g.product_area}
+                                    productAreas={productAreas}
+                                    onOwnerChange={(v) => updateOwner(g.id, v, "gmail")}
+                                    onStatusChange={(v) => updateStatus(g.id, v, "gmail")}
+                                    onProductAreaChange={(v) => updateProductArea(g.id, v, "gmail")}
+                                    gmailThreadId={g.gmail_thread_id}
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            )}
                             {subRows.map((sub) => (
                               <TableRow
                                 key={`gmail-sub-${sub.id}`}
@@ -2162,7 +2218,9 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "op
                         );
                       } else {
                         const mc = row.data as ManualConversation;
+                        const detailOpen = expandedDetails.has(`manual:${mc.id}`);
                         return (
+                          <Fragment key={`manual-${mc.id}`}>
                           <TableRow
                             key={`manual-${mc.id}`}
 className={`cursor-pointer hover:bg-muted/50 transition-colors ${mc.is_test ? "opacity-50" : ""} ${!mc.owner ? "border-l-[3px] border-primary/70 bg-primary/5" : mc.status === "awaiting_support" ? "border-l-[3px] border-amber-500/70 bg-amber-50/50" : ""}`}
@@ -2174,6 +2232,31 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${mc.is_test ? "o
                               </TableCell>
                             ))}
                           </TableRow>
+                          {detailOpen && (
+                            <TableRow key={`manual-detail-${mc.id}`} className="hover:bg-transparent">
+                              <TableCell colSpan={columnOrder.length} className="p-0">
+                                <InlineConversationDetail
+                                  id={mc.id}
+                                  source="manual"
+                                  contactName={mc.contact_name || "—"}
+                                  subject={mc.subject || ""}
+                                  owner={mc.owner}
+                                  status={mc.status}
+                                  productArea={mc.product_area}
+                                  productAreas={productAreas}
+                                  onOwnerChange={(v) => updateOwner(mc.id, v, "manual")}
+                                  onStatusChange={(v) => updateStatus(mc.id, v, "manual")}
+                                  onProductAreaChange={async (v) => {
+                                    const newVal = v === "clear" ? null : v;
+                                    setManualRows((prev) => prev.map((r) => r.id === mc.id ? { ...r, product_area: newVal } : r));
+                                    const { error } = await supabase.from("manual_conversations").update({ product_area: newVal }).eq("id", mc.id);
+                                    if (error) toast.error("Failed to update product area");
+                                  }}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          </Fragment>
                         );
                       }
                     })}
