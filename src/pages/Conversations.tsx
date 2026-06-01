@@ -2090,7 +2090,10 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                     {pagedRows.map((row) => {
                       if (row.source === "slack") {
                         const m = row.data;
+                        const detailKey = `slack:${m.id}`;
+                        const detailOpen = expandedDetails.has(detailKey);
                         return (
+                          <Fragment key={`slack-${m.id}`}>
                           <TableRow
                             key={`slack-${m.id}`}
 className={`cursor-pointer hover:bg-muted/50 transition-colors ${m.is_test ? "opacity-50" : ""} ${!m.owner ? "border-l-[3px] border-primary/70 bg-primary/5" : m.status === "awaiting_support" ? "border-l-[3px] border-amber-500/70 bg-amber-50/50" : ""}`}
@@ -2102,6 +2105,28 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${m.is_test ? "op
                               </TableCell>
                             ))}
                           </TableRow>
+                          {detailOpen && (
+                            <TableRow key={`slack-detail-${m.id}`} className="hover:bg-transparent">
+                              <TableCell colSpan={columnOrder.length} className="p-0">
+                                <InlineConversationDetail
+                                  id={m.id}
+                                  source="slack"
+                                  contactName={m.slack_user_name || userNames[m.slack_user_id] || m.slack_user_id || "—"}
+                                  subject={m.original_message_text || ""}
+                                  owner={m.owner}
+                                  status={m.status}
+                                  productArea={m.product_area}
+                                  productAreas={productAreas}
+                                  onOwnerChange={(v) => updateOwner(m.id, v, "slack")}
+                                  onStatusChange={(v) => updateStatus(m.id, v, "slack")}
+                                  onProductAreaChange={(v) => updateProductArea(m.id, v, "slack")}
+                                  slackChannelId={m.slack_channel_id}
+                                  slackThreadTs={m.slack_thread_ts}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          </Fragment>
                         );
                       } else if (row.source === "gmail") {
                         const g = row.data;
