@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, parse } from "date-fns";
 import { ChevronDown, ChevronRight, ExternalLink, Loader2, Sparkles } from "lucide-react";
@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { NormalizedTicket, sourceLabel } from "./useMonthData";
+import InlineConversationDetail from "@/components/InlineConversationDetail";
 
 interface Props {
   tickets: NormalizedTicket[];
@@ -35,6 +36,36 @@ export function UncategorizedPanel({ tickets, month, onChanged }: Props) {
   const [bulkArea, setBulkArea] = useState<string>("");
   const [bulkSaving, setBulkSaving] = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [overrides, setOverrides] = useState<Record<string, { owner?: string | null; status?: string; product_area?: string | null }>>({});
+
+  const updateField = async (t: NormalizedTicket, field: "owner" | "status" | "product_area", value: string | null) => {
+    const table = tableFor(t.route_source);
+    const { error } = await supabase.from(table).update({ [field]: value } as any).eq("id", t.id);
+    if (error) {
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    if (field === "product_area" && t.route_source === "gmail") {
+      const { data: row } = await supabase.from("gmail_conversations").select("gmail_thread_id").eq("id", t.id).maybeSingle();
+      if (row?.gmail_thread_id) {
+        await supabase.from("gmail_conversations").update({ product_area: value }).eq("gmail_thread_id", row.gmail_thread_id);
+      }
+    }
+    setOverrides(prev => ({ ...prev, [t.id]: { ...prev[t.id], [field]: value } }));
+    await supabase.from("conversation_audit_logs").insert({
+      conversation_id: t.id,
+      conversation_source: t.route_source,
+      action: `${field}_set`,
+      old_value: ((t as any)[field] ?? null) as string | null,
+      new_value: value,
+      performed_by: "Insights inline edit",
+    });
+    if (field === "product_area" && value) {
+      setSavedIds(prev => ({ ...prev, [t.id]: value }));
+    }
+  };
+
 
 
   useEffect(() => {
@@ -268,45 +299,71 @@ export function UncategorizedPanel({ tickets, month, onChanged }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {visible.map(t => (
-                    <tr key={t.id} className="border-t hover:bg-accent/30">
-                      <td className="px-2 py-1.5">
-                        <Checkbox
-                          checked={selected.has(t.id)}
-                          onCheckedChange={v => {
-                            const n = new Set(selected);
-                            if (v) n.add(t.id); else n.delete(t.id);
-                            setSelected(n);
-                          }}
-                        />
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <Badge variant="outline" className="text-[10px] px-1 py-0">
-                          {sourceLabel[t.display_source] || t.display_source}
-                        </Badge>
-                      </td>
-                      <td className="px-2 py-1.5 max-w-0">
-                        <div className="truncate" title={t.subject}>{t.subject}</div>
-                      </td>
-                      <td className="px-2 py-1.5 truncate" title={t.customer_label}>{t.customer_label}</td>
-                      <td className="px-2 py-1.5 text-muted-foreground">{format(new Date(t.created_at), "MMM d")}</td>
-                      <td className="px-2 py-1.5">
-                        <Select onValueChange={v => assign(t, v)} disabled={savingId === t.id}>
-                          <SelectTrigger className="h-7 text-xs">
-                            <SelectValue placeholder={savingId === t.id ? "Saving…" : "Assign…"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {areas.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <Link to={`/conversations/${t.id}?source=${t.route_source}`} target="_blank">
-                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
+                  {visible.map(t => {
+                    const ov = overrides[t.id] || {};
+                    const isOpen = expandedId === t.id;
+                    return (
+                      <React.Fragment key={t.id}>
+                        <tr className="border-t hover:bg-accent/30">
+                          <td className="px-2 py-1.5">
+                            <Checkbox
+                              checked={selected.has(t.id)}
+                              onCheckedChange={v => {
+                                const n = new Set(selected);
+                                if (v) n.add(t.id); else n.delete(t.id);
+                                setSelected(n);
+                              }}
+                            />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <Badge variant="outline" className="text-[10px] px-1 py-0">
+                              {sourceLabel[t.display_source] || t.display_source}
+                            </Badge>
+                          </td>
+                          <td className="px-2 py-1.5 max-w-0">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedId(isOpen ? null : t.id)}
+                              className="flex items-center gap-1 text-left truncate w-full hover:text-primary"
+                              title={t.subject}
+                            >
+                              {isOpen ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+                              <span className="truncate">{t.subject}</span>
+                            </button>
+                          </td>
+                          <td className="px-2 py-1.5 truncate" title={t.customer_label}>{t.customer_label}</td>
+                          <td className="px-2 py-1.5 text-muted-foreground">{format(new Date(t.created_at), "MMM d")}</td>
+                          <td className="px-2 py-1.5">
+                            <Select onValueChange={v => assign(t, v)} disabled={savingId === t.id}>
+                              <SelectTrigger className="h-7 text-xs">
+                                <SelectValue placeholder={savingId === t.id ? "Saving…" : "Assign…"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {areas.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <Link to={`/conversations/${t.id}?source=${t.route_source}`} target="_blank">
+                              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                            </Link>
+                          </td>
+                        </tr>
+                        {isOpen && (
+                          <tr className="border-t">
+                            <td colSpan={7} className="p-0">
+                              <ExpandedDetailRow
+                                t={t}
+                                areas={areas}
+                                override={ov}
+                                onChange={(field, value) => updateField(t, field, value)}
+                              />
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                   {visible.length === 0 && (
                     <tr><td colSpan={7} className="px-2 py-6 text-center text-muted-foreground">Nothing to show with current filters.</td></tr>
                   )}
@@ -319,3 +376,83 @@ export function UncategorizedPanel({ tickets, month, onChanged }: Props) {
     </Card>
   );
 }
+
+interface ExpandedDetailRowProps {
+  t: NormalizedTicket;
+  areas: string[];
+  override: { owner?: string | null; status?: string; product_area?: string | null };
+  onChange: (field: "owner" | "status" | "product_area", value: string | null) => void;
+}
+
+function ExpandedDetailRow({ t, areas, override, onChange }: ExpandedDetailRowProps) {
+  const [refs, setRefs] = useState<{
+    slack_channel_id?: string;
+    slack_thread_ts?: string;
+    gmail_thread_id?: string | null;
+    contactName: string;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (t.route_source === "slack") {
+        const { data } = await supabase
+          .from("conversation_mappings")
+          .select("slack_channel_id,slack_thread_ts,slack_user_name")
+          .eq("id", t.id)
+          .maybeSingle();
+        if (!cancelled) setRefs({
+          slack_channel_id: data?.slack_channel_id,
+          slack_thread_ts: data?.slack_thread_ts,
+          contactName: data?.slack_user_name || t.customer_label,
+        });
+      } else if (t.route_source === "gmail") {
+        const { data } = await supabase
+          .from("gmail_conversations")
+          .select("gmail_thread_id,from_name,from_email")
+          .eq("id", t.id)
+          .maybeSingle();
+        if (!cancelled) setRefs({
+          gmail_thread_id: data?.gmail_thread_id ?? null,
+          contactName: data?.from_name || data?.from_email || t.customer_label,
+        });
+      } else {
+        const { data } = await supabase
+          .from("manual_conversations")
+          .select("contact_name")
+          .eq("id", t.id)
+          .maybeSingle();
+        if (!cancelled) setRefs({ contactName: data?.contact_name || t.customer_label });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [t.id, t.route_source, t.customer_label]);
+
+  if (!refs) {
+    return <div className="p-4 text-xs text-muted-foreground bg-muted/30">Loading details…</div>;
+  }
+
+  const owner = override.owner !== undefined ? override.owner : t.owner;
+  const status = override.status ?? t.status ?? "open";
+  const productArea = override.product_area !== undefined ? override.product_area : (t.product_area === "Uncategorized" ? null : t.product_area);
+
+  return (
+    <InlineConversationDetail
+      id={t.id}
+      source={t.route_source}
+      contactName={refs.contactName}
+      subject={t.subject}
+      owner={owner}
+      status={status}
+      productArea={productArea}
+      productAreas={areas}
+      onOwnerChange={v => onChange("owner", v === "clear" ? null : v)}
+      onStatusChange={v => onChange("status", v)}
+      onProductAreaChange={v => onChange("product_area", v === "clear" ? null : v)}
+      slackChannelId={refs.slack_channel_id}
+      slackThreadTs={refs.slack_thread_ts}
+      gmailThreadId={refs.gmail_thread_id}
+    />
+  );
+}
+
