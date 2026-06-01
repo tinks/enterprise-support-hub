@@ -1384,14 +1384,11 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       }
       case "message": return g.subject ? (
         <button
-          onClick={() => toggleMessage(g.id)}
+          onClick={(e) => { e.stopPropagation(); toggleDetail(`gmail:${g.id}`); }}
           className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          title="Click to expand details"
         >
-          {expandedMessages.has(g.id)
-            ? `${g.subject}\n${g.snippet || ""}`
-            : g.subject.length > 60
-              ? g.subject.slice(0, 60) + "…"
-              : g.subject}
+          {g.subject.length > 60 ? g.subject.slice(0, 60) + "…" : g.subject}
         </button>
       ) : <span className="text-xs text-muted-foreground">—</span>;
       case "channel": return <span className="text-xs text-muted-foreground">Gmail inbox</span>;
