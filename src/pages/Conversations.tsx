@@ -2146,6 +2146,26 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "op
                                 </TableCell>
                               ))}
                             </TableRow>
+                            {expandedDetails.has(`gmail:${g.id}`) && (
+                              <TableRow key={`gmail-detail-${g.id}`} className="hover:bg-transparent">
+                                <TableCell colSpan={columnOrder.length} className="p-0">
+                                  <InlineConversationDetail
+                                    id={g.id}
+                                    source="gmail"
+                                    contactName={g.from_name || g.from_email || "—"}
+                                    subject={g.subject || ""}
+                                    owner={g.owner}
+                                    status={g.status || "open"}
+                                    productArea={g.product_area}
+                                    productAreas={productAreas}
+                                    onOwnerChange={(v) => updateOwner(g.id, v, "gmail")}
+                                    onStatusChange={(v) => updateStatus(g.id, v, "gmail")}
+                                    onProductAreaChange={(v) => updateProductArea(g.id, v, "gmail")}
+                                    gmailThreadId={g.gmail_thread_id}
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            )}
                             {subRows.map((sub) => (
                               <TableRow
                                 key={`gmail-sub-${sub.id}`}
