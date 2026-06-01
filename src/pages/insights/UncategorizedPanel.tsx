@@ -36,6 +36,36 @@ export function UncategorizedPanel({ tickets, month, onChanged }: Props) {
   const [bulkArea, setBulkArea] = useState<string>("");
   const [bulkSaving, setBulkSaving] = useState(false);
   const [autoRunning, setAutoRunning] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [overrides, setOverrides] = useState<Record<string, { owner?: string | null; status?: string; product_area?: string | null }>>({});
+
+  const updateField = async (t: NormalizedTicket, field: "owner" | "status" | "product_area", value: string | null) => {
+    const table = tableFor(t.route_source);
+    const { error } = await supabase.from(table).update({ [field]: value } as any).eq("id", t.id);
+    if (error) {
+      toast({ title: "Update failed", description: error.message, variant: "destructive" });
+      return;
+    }
+    if (field === "product_area" && t.route_source === "gmail") {
+      const { data: row } = await supabase.from("gmail_conversations").select("gmail_thread_id").eq("id", t.id).maybeSingle();
+      if (row?.gmail_thread_id) {
+        await supabase.from("gmail_conversations").update({ product_area: value }).eq("gmail_thread_id", row.gmail_thread_id);
+      }
+    }
+    setOverrides(prev => ({ ...prev, [t.id]: { ...prev[t.id], [field]: value } }));
+    await supabase.from("conversation_audit_logs").insert({
+      conversation_id: t.id,
+      conversation_source: t.route_source,
+      action: `${field}_set`,
+      old_value: ((t as any)[field] ?? null) as string | null,
+      new_value: value,
+      performed_by: "Insights inline edit",
+    });
+    if (field === "product_area" && value) {
+      setSavedIds(prev => ({ ...prev, [t.id]: value }));
+    }
+  };
+
 
 
   useEffect(() => {
