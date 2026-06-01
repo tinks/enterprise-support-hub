@@ -2218,7 +2218,9 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "op
                         );
                       } else {
                         const mc = row.data as ManualConversation;
+                        const detailOpen = expandedDetails.has(`manual:${mc.id}`);
                         return (
+                          <Fragment key={`manual-${mc.id}`}>
                           <TableRow
                             key={`manual-${mc.id}`}
 className={`cursor-pointer hover:bg-muted/50 transition-colors ${mc.is_test ? "opacity-50" : ""} ${!mc.owner ? "border-l-[3px] border-primary/70 bg-primary/5" : mc.status === "awaiting_support" ? "border-l-[3px] border-amber-500/70 bg-amber-50/50" : ""}`}
@@ -2230,6 +2232,26 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${mc.is_test ? "o
                               </TableCell>
                             ))}
                           </TableRow>
+                          {detailOpen && (
+                            <TableRow key={`manual-detail-${mc.id}`} className="hover:bg-transparent">
+                              <TableCell colSpan={columnOrder.length} className="p-0">
+                                <InlineConversationDetail
+                                  id={mc.id}
+                                  source="manual"
+                                  contactName={mc.contact_name || "—"}
+                                  subject={mc.subject || ""}
+                                  owner={mc.owner}
+                                  status={mc.status}
+                                  productArea={mc.product_area}
+                                  productAreas={productAreas}
+                                  onOwnerChange={(v) => updateOwner(mc.id, v, "manual")}
+                                  onStatusChange={(v) => updateStatus(mc.id, v, "manual")}
+                                  onProductAreaChange={(v) => updateProductArea(mc.id, v, "manual")}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          )}
+                          </Fragment>
                         );
                       }
                     })}
