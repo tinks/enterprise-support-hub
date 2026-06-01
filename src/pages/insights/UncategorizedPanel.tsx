@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, parse } from "date-fns";
 import { ChevronDown, ChevronRight, ExternalLink, Loader2, Sparkles } from "lucide-react";
