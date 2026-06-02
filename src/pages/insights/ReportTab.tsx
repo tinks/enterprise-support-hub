@@ -261,14 +261,20 @@ export function ReportTab({ data, month, onChanged, refreshKey }: ReportTabProps
                 <Sparkles className="h-4 w-4 text-primary" />
                 <h2 className="text-sm font-semibold">AI summary</h2>
               </div>
-              {insight.ticket_count !== stats.total && (
-                <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
-                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-                  <span>
-                    This summary was generated when there were {insight.ticket_count} tickets — the current count is {stats.total}. Regenerate topics for an up-to-date summary.
-                  </span>
-                </div>
-              )}
+              {(() => {
+                const genAt = insight.generated_at ? new Date(insight.generated_at).getTime() : null;
+                if (!genAt) return null;
+                const hasNewer = data.tickets.some(t => new Date(t.created_at).getTime() > genAt);
+                if (!hasNewer) return null;
+                return (
+                  <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-900 dark:text-amber-200">
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                    <span>
+                      New tickets have arrived since this summary was generated on {new Date(insight.generated_at).toLocaleString()}. Regenerate topics for an up-to-date summary.
+                    </span>
+                  </div>
+                );
+              })()}
               <p className="text-sm leading-relaxed whitespace-pre-line">{insight.overall_summary}</p>
             </CardContent>
           </Card>
