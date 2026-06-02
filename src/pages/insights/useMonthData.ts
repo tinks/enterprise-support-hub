@@ -89,6 +89,7 @@ export function useMonthData(month: string, refreshKey: number = 0): MonthData {
             .gte("created_at", fromIso)
             .lte("created_at", toIso)
             .eq("is_test", false)
+            .neq("status", "cancelled")
             .limit(5000),
           supabase
             .from("gmail_conversations")
