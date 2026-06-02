@@ -61,9 +61,10 @@ interface ReportTabProps {
   data: MonthData;
   month: string;
   onChanged?: () => void;
+  refreshKey?: number;
 }
 
-export function ReportTab({ data, month, onChanged }: ReportTabProps) {
+export function ReportTab({ data, month, onChanged, refreshKey }: ReportTabProps) {
 
   const reportRef = useRef<HTMLDivElement>(null);
   const [insight, setInsight] = useState<Insight | null>(null);
@@ -90,7 +91,7 @@ export function ReportTab({ data, month, onChanged }: ReportTabProps) {
       setInsight(row as unknown as Insight | null);
     })();
     return () => { cancelled = true; };
-  }, [month]);
+  }, [month, refreshKey]);
 
   // Resolve Slack channel IDs → names. Pass the actual channel IDs from this
   // month + previous month so the edge function falls back to conversations.info
