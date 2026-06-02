@@ -123,6 +123,7 @@ const Insights = () => {
       if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
       toast({ title: "Insights generated", description: `${(data as { ticket_count: number }).ticket_count} tickets analyzed.` });
       await loadInsight(month);
+      setReportRefreshKey(k => k + 1);
     } catch (e) {
       toast({ title: "Generation failed", description: (e as Error).message, variant: "destructive" });
     } finally {
@@ -201,7 +202,7 @@ const Insights = () => {
             </TabsList>
 
             <TabsContent value="report" className="mt-4">
-              <ReportTab data={monthData} month={month} onChanged={() => setReportRefreshKey(k => k + 1)} />
+              <ReportTab data={monthData} month={month} refreshKey={reportRefreshKey} onChanged={() => setReportRefreshKey(k => k + 1)} />
             </TabsContent>
 
             <TabsContent value="topics" className="space-y-6 mt-4">
