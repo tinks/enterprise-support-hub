@@ -202,7 +202,7 @@ const Insights = () => {
             </TabsList>
 
             <TabsContent value="report" className="mt-4">
-              <ReportTab data={monthData} month={month} onChanged={() => setReportRefreshKey(k => k + 1)} />
+              <ReportTab data={monthData} month={month} refreshKey={reportRefreshKey} onChanged={() => setReportRefreshKey(k => k + 1)} />
             </TabsContent>
 
             <TabsContent value="topics" className="space-y-6 mt-4">
