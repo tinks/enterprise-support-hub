@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { endOfMonth, startOfMonth, parse } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeManualContact } from "./manualAccounts";
+import { normalizeOwner } from "@/lib/normalizeOwner";
 
 export type SourceKey = "intercom" | "slack" | "gmail" | "other";
 export type RouteSource = "slack" | "gmail" | "manual";
@@ -160,7 +161,7 @@ export function useMonthData(month: string, refreshKey: number = 0): MonthData {
             is_bug: !!c.is_bug,
             is_feature_request: !!c.is_feature_request,
             classification: c.classification,
-            owner: c.owner,
+            owner: normalizeOwner(c.owner),
             status: c.status,
             csat_rating: c.csat_rating,
             created_at: c.created_at,
@@ -184,7 +185,7 @@ export function useMonthData(month: string, refreshKey: number = 0): MonthData {
             is_bug: !!g.is_bug,
             is_feature_request: !!g.is_feature_request,
             classification: g.classification,
-            owner: g.owner,
+            owner: normalizeOwner(g.owner),
             status: g.status,
             csat_rating: g.csat_rating,
             created_at: g.created_at,
@@ -245,7 +246,7 @@ export function useMonthData(month: string, refreshKey: number = 0): MonthData {
             is_bug: !!m.is_bug,
             is_feature_request: !!m.is_feature_request,
             classification: m.classification,
-            owner: m.owner,
+            owner: normalizeOwner(m.owner),
             status: m.status,
             csat_rating: m.csat_rating,
             created_at: m.created_at,
