@@ -98,7 +98,7 @@ interface ManualConv {
   csat_rated_at: string | null;
 }
 
-const OWNER_OPTIONS = ["Joel", "Kristina", "Sam", "CSM", "Eren", "Tine"] as const;
+const OWNER_OPTIONS = ["Joel", "Kristina", "Sam", "CSM", "Eren", "Tine", "Matt"] as const;
 const CLASSIFICATION_OPTIONS = ["Issue", "Configuration", "Bug", "FR", "Question"] as const;
 
 interface ManualMessage {

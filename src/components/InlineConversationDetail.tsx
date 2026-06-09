@@ -6,7 +6,7 @@ import { format } from "date-fns";
 
 export type InlineSource = "slack" | "gmail" | "manual";
 
-const OWNER_OPTIONS = ["Joel", "Kristina", "Sam", "CSM", "Eren", "Tine"] as const;
+const OWNER_OPTIONS = ["Joel", "Kristina", "Sam", "CSM", "Eren", "Tine", "Matt"] as const;
 const STATUS_OPTIONS = ["active", "resolved", "cancelled", "escalated", "awaiting_context", "awaiting_support", "awaiting_engineering", "open"];
 
 const statusLabel = (s: string) => {
