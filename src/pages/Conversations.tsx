@@ -1261,7 +1261,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 
   const renderSlackCell = (col: ColKey, m: ConversationMapping): ReactNode => {
     switch (col) {
-      case "id": return <span className="text-xs text-muted-foreground font-mono cursor-pointer hover:text-foreground transition-colors" title="Click to copy" onClick={(e) => copyId(m.id, e)}>{m.id.slice(0, 3)}</span>;
+      case "id": return <span className="text-xs text-muted-foreground font-mono cursor-pointer hover:text-foreground transition-colors" title={`${m.id} — click to copy`} onClick={(e) => copyId(m.id, e)}>{m.id.slice(0, 7)}</span>;
       case "source": return m.intercom_conversation_id
         ? <Badge variant="outline" className="text-xs">Slack bot</Badge>
         : <Badge variant="secondary" className="text-xs">Slack import</Badge>;
@@ -1399,7 +1399,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
               {expandedGmailGroups.has(groupKey) ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
             </button>
           )}
-          <span className="cursor-pointer hover:text-foreground transition-colors" title="Click to copy" onClick={(e) => copyId(g.id, e)}>{g.id.slice(0, 3)}</span>
+          <span className="cursor-pointer hover:text-foreground transition-colors" title={`${g.id} — click to copy`} onClick={(e) => copyId(g.id, e)}>{g.id.slice(0, 7)}</span>
           {groupCount && groupCount > 1 && (
             <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">{groupCount}</Badge>
           )}
@@ -1521,7 +1521,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 
   const renderManualCell = (col: ColKey, mc: ManualConversation): ReactNode => {
     switch (col) {
-      case "id": return <span className="text-xs text-muted-foreground font-mono cursor-pointer hover:text-foreground transition-colors" title="Click to copy" onClick={(e) => copyId(mc.id, e)}>{mc.id.slice(0, 3)}</span>;
+      case "id": return <span className="text-xs text-muted-foreground font-mono cursor-pointer hover:text-foreground transition-colors" title={`${mc.id} — click to copy`} onClick={(e) => copyId(mc.id, e)}>{mc.id.slice(0, 7)}</span>;
       case "source": return mc.source === "intercom"
         ? <Badge variant="default" className="text-xs">Intercom import</Badge>
         : <Badge variant="outline" className="text-xs capitalize">{mc.source}</Badge>;
@@ -2175,7 +2175,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${m.is_test ? "op
                              onClick={() => goToConversation(m.id)}
                           >
                             {displayedColumns.map((col) => (
-<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
+<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[80px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
                                 {renderSlackCell(col, m)}
                               </TableCell>
                             ))}
@@ -2216,7 +2216,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "op
                                onClick={() => goToConversation(g.id, "gmail")}
                             >
                               {displayedColumns.map((col) => (
-<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
+<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[80px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
                                   {renderGmailCell(col, g, row.groupCount, row.groupedEmails, row.groupKey)}
                                 </TableCell>
                               ))}
@@ -2248,7 +2248,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "op
                                 onClick={() => goToConversation(sub.id, "gmail")}
                               >
                                 {displayedColumns.map((col) => (
-<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px] pl-8" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
+<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[80px] pl-8" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
                                     {renderGmailCell(col, sub)}
                                   </TableCell>
                                 ))}
@@ -2302,7 +2302,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${mc.is_test ? "o
                              onClick={() => goToConversation(mc.id, "manual")}
                           >
                             {displayedColumns.map((col) => (
-<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
+<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[80px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
                                 {renderManualCell(col, mc as ManualConversation)}
                               </TableCell>
                             ))}
