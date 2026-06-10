@@ -2,9 +2,11 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, CheckCircle2, AlertTriangle, ShieldAlert, Circle } from "lucide-react";
+import { RefreshCw, CheckCircle2, AlertTriangle, ShieldAlert, Circle, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
+
 
 type HealthRow = {
   integration: string;
@@ -49,12 +51,35 @@ const SEVERITY_META: Record<Severity, { label: string; className: string; Icon: 
 export default function IntegrationHealthCard() {
   const [rows, setRows] = useState<HealthRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [testing, setTesting] = useState(false);
 
   async function load() {
     setLoading(true);
     const { data } = await supabase.from("integration_health").select("*");
     setRows((data || []) as HealthRow[]);
     setLoading(false);
+  }
+
+  async function sendTestAlert() {
+    setTesting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("integration-health-alert", {
+        body: { test: true },
+      });
+      if (error) throw error;
+      if (data?.ok) {
+        toast.success("Test alert posted to #enterprise-support-hub-alerts");
+      } else {
+        const slackErr = data?.slack?.error || "unknown error";
+        toast.error(`Slack rejected the test alert: ${slackErr}`, {
+          description: slackErr === "not_in_channel" ? "Invite @ask_lovable to the channel and try again." : undefined,
+        });
+      }
+    } catch (e: any) {
+      toast.error(`Failed to send test alert: ${e?.message || e}`);
+    } finally {
+      setTesting(false);
+    }
   }
 
   useEffect(() => {
@@ -74,11 +99,18 @@ export default function IntegrationHealthCard() {
             Last successful sync per integration. Stale or failing checks usually mean a token needs to be re-pasted.
           </CardDescription>
         </div>
-        <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-1">
-          <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={sendTestAlert} disabled={testing} className="gap-1">
+            <Send className={`h-3 w-3 ${testing ? "animate-pulse" : ""}`} />
+            Send test alert
+          </Button>
+          <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-1">
+            <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
       </CardHeader>
+
       <CardContent className="space-y-3">
         {INTEGRATIONS.map((cfg) => {
           const row = byKey.get(cfg.key);

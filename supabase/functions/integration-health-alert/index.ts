@@ -91,9 +91,31 @@ Deno.serve(async (req) => {
 
   const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+  // Test mode: post a one-off message confirming Slack wiring, then exit.
+  // Triggered from the Settings → Integration health "Send test alert" button.
+  let test = false;
+  try {
+    if (req.method === "POST") {
+      const body = await req.json().catch(() => ({}));
+      test = body?.test === true;
+    } else {
+      test = new URL(req.url).searchParams.get("test") === "1";
+    }
+  } catch { /* ignore */ }
+
+  if (test) {
+    const text = `:satellite_antenna: *Test alert* from Integration health — Slack wiring to ${ALERT_CHANNEL} is working. (Sent ${new Date().toISOString()})`;
+    const resp = await postSlack(SLACK_BOT_TOKEN, text);
+    return new Response(JSON.stringify({ ok: !!resp?.ok, slack: resp }), {
+      status: resp?.ok ? 200 : 502,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   const { data: rowsRaw } = await sb.from("integration_health").select("*");
   const rows = (rowsRaw || []) as HealthRow[];
   const byKey = new Map(rows.map((r) => [r.integration, r]));
+
 
   const renotifyMs = RENOTIFY_AFTER_HOURS * 60 * 60 * 1000;
   const now = Date.now();
