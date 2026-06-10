@@ -326,13 +326,20 @@ Deno.serve(async (req) => {
       // alias as the contact email rather than the customer's address. Matching on it would
       // be ambiguous against every Gmail row in the inbox.
       const GROUP_ALIASES = new Set<string>(["enterprise-support@lovable.dev"]);
-      const isGroupAlias = contactEmail ? GROUP_ALIASES.has(contactEmail.toLowerCase()) : false;
-      if (isGroupAlias) {
-        console.log(`[group-alias-skip] Contact email ${contactEmail} is a group alias; skipping email-linker, will rely on subject + pending-link path.`);
+      const emailLowerForSkip = contactEmail ? contactEmail.toLowerCase() : "";
+      const isGroupAlias = emailLowerForSkip ? GROUP_ALIASES.has(emailLowerForSkip) : false;
+      // Option 1: internal Lovable employees appear as Intercom contacts on tickets they
+      // open on behalf of customers. Their @lovable.dev inbox has dozens of unrelated open
+      // threads, so the most-recent-thread email linker would mis-stamp. Skip the email
+      // tier and rely on subject + pending-link path instead.
+      const isInternalDomain = emailLowerForSkip.endsWith("@lovable.dev");
+      const skipEmailLinker = isGroupAlias || isInternalDomain;
+      if (skipEmailLinker) {
+        console.log(`[email-linker-skip] Contact email ${contactEmail} is ${isGroupAlias ? "a group alias" : "an internal @lovable.dev address"}; skipping email-linker, will rely on subject + pending-link path.`);
       }
 
       // Cross-reference with gmail_conversations before creating manual entry
-      if (contactEmail && !isGroupAlias) {
+      if (contactEmail && !skipEmailLinker) {
         const emailLower = contactEmail.toLowerCase();
         const { data: gmailMatches } = await supabase
           .from("gmail_conversations")
@@ -341,6 +348,28 @@ Deno.serve(async (req) => {
           .or(`from_email.ilike.%${emailLower}%,to_emails.ilike.%${emailLower}%,cc_emails.ilike.%${emailLower}%`)
           .order("received_at", { ascending: false })
           .limit(10);
+
+        // Option 2: inverse uniqueness guard. If this Intercom id is already linked
+        // to a *different* gmail_thread_id, refuse to stamp a second thread with it.
+        // Prevents one Intercom ticket from fanning out across unrelated Gmail threads.
+        if (gmailMatches && gmailMatches.length > 0) {
+          const candidateThreadId = gmailMatches[0].gmail_thread_id;
+          const { data: priorLinks } = await supabase
+            .from("gmail_conversations")
+            .select("gmail_thread_id")
+            .eq("intercom_conversation_id", intercomConvId)
+            .not("gmail_thread_id", "is", null);
+          const distinctPriorThreads = Array.from(new Set((priorLinks || []).map(r => r.gmail_thread_id).filter(Boolean)));
+          const conflictingPriorThread = distinctPriorThreads.find(t => t !== candidateThreadId);
+          if (conflictingPriorThread) {
+            console.warn(`[cross_thread_link_conflict:email] Intercom ${intercomConvId} already linked to Gmail thread ${conflictingPriorThread}; refusing to also stamp ${candidateThreadId || "(orphan rows)"} via email tier.`);
+            return new Response(JSON.stringify({
+              ok: true,
+              message: "Intercom ticket already linked to a different Gmail thread; refusing cross-thread link",
+              existingThreadId: conflictingPriorThread,
+            }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+        }
 
         if (gmailMatches && gmailMatches.length > 0) {
           const updatePayload: Record<string, unknown> = { intercom_conversation_id: intercomConvId, ...customFields };
@@ -448,6 +477,24 @@ Deno.serve(async (req) => {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
           }
+
+          // Option 2: inverse uniqueness guard at subject tier.
+          const { data: priorLinksSubj } = await supabase
+            .from("gmail_conversations")
+            .select("gmail_thread_id")
+            .eq("intercom_conversation_id", intercomConvId)
+            .not("gmail_thread_id", "is", null);
+          const distinctPriorSubj = Array.from(new Set((priorLinksSubj || []).map(r => r.gmail_thread_id).filter(Boolean)));
+          const conflictingPriorSubj = distinctPriorSubj.find(t => t !== threadId);
+          if (conflictingPriorSubj) {
+            console.warn(`[cross_thread_link_conflict:subject] Intercom ${intercomConvId} already linked to Gmail thread ${conflictingPriorSubj}; refusing to also stamp ${threadId} via subject tier.`);
+            return new Response(JSON.stringify({
+              ok: true,
+              message: "Intercom ticket already linked to a different Gmail thread; refusing cross-thread link",
+              existingThreadId: conflictingPriorSubj,
+            }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+
 
           const updatePayload: Record<string, unknown> = { intercom_conversation_id: intercomConvId, ...customFields };
           if (resolvedOwner) updatePayload.owner = resolvedOwner;
