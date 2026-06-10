@@ -2084,7 +2084,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                 <Table>
                   <TableHeader className="sticky top-0 z-20 bg-card [&_tr]:border-b">
                     <TableRow>
-                      {columnOrder.map((col) => (
+                      {displayedColumns.map((col) => (
                         <TableHead
                           key={col}
                           draggable
@@ -2141,7 +2141,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 className={`cursor-pointer hover:bg-muted/50 transition-colors ${m.is_test ? "opacity-50" : ""} ${!m.owner ? "border-l-[3px] border-primary/70 bg-primary/5" : m.status === "awaiting_support" ? "border-l-[3px] border-amber-500/70 bg-amber-50/50" : ""}`}
                              onClick={() => goToConversation(m.id)}
                           >
-                            {columnOrder.map((col) => (
+                            {displayedColumns.map((col) => (
 <TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
                                 {renderSlackCell(col, m)}
                               </TableCell>
@@ -2149,7 +2149,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${m.is_test ? "op
                           </TableRow>
                           {detailOpen && (
                             <TableRow key={`slack-detail-${m.id}`} className="hover:bg-transparent">
-                              <TableCell colSpan={columnOrder.length} className="p-0">
+                              <TableCell colSpan={displayedColumns.length} className="p-0">
                                 <InlineConversationDetail
                                   id={m.id}
                                   source="slack"
@@ -2182,7 +2182,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${m.is_test ? "op
 className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "opacity-50" : ""} ${!g.owner ? "border-l-[3px] border-primary/70 bg-primary/5" : g.status === "awaiting_support" ? "border-l-[3px] border-amber-500/70 bg-amber-50/50" : ""}`}
                                onClick={() => goToConversation(g.id, "gmail")}
                             >
-                              {columnOrder.map((col) => (
+                              {displayedColumns.map((col) => (
 <TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
                                   {renderGmailCell(col, g, row.groupCount, row.groupedEmails, row.groupKey)}
                                 </TableCell>
@@ -2190,7 +2190,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "op
                             </TableRow>
                             {expandedDetails.has(`gmail:${g.id}`) && (
                               <TableRow key={`gmail-detail-${g.id}`} className="hover:bg-transparent">
-                                <TableCell colSpan={columnOrder.length} className="p-0">
+                                <TableCell colSpan={displayedColumns.length} className="p-0">
                                   <InlineConversationDetail
                                     id={g.id}
                                     source="gmail"
@@ -2214,7 +2214,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "op
                                 className={`cursor-pointer hover:bg-muted/50 transition-colors bg-muted/20 ${sub.is_test ? "opacity-50" : ""}`}
                                 onClick={() => goToConversation(sub.id, "gmail")}
                               >
-                                {columnOrder.map((col) => (
+                                {displayedColumns.map((col) => (
 <TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px] pl-8" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
                                     {renderGmailCell(col, sub)}
                                   </TableCell>
@@ -2230,7 +2230,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "op
                             key={`pending-${p.id}`}
                             className="hover:bg-muted/50 transition-colors border-l-[3px] border-amber-500/70 bg-amber-50/30"
                           >
-                            <TableCell colSpan={columnOrder.length} className="py-3">
+                            <TableCell colSpan={displayedColumns.length} className="py-3">
                               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                                 <Badge variant="outline" className="border-amber-500 text-amber-700">Pending (Intercom)</Badge>
                                 <span className="font-medium">{p.normalized_subject || "(no subject)"}</span>
@@ -2268,7 +2268,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "op
 className={`cursor-pointer hover:bg-muted/50 transition-colors ${mc.is_test ? "opacity-50" : ""} ${!mc.owner ? "border-l-[3px] border-primary/70 bg-primary/5" : mc.status === "awaiting_support" ? "border-l-[3px] border-amber-500/70 bg-amber-50/50" : ""}`}
                              onClick={() => goToConversation(mc.id, "manual")}
                           >
-                            {columnOrder.map((col) => (
+                            {displayedColumns.map((col) => (
 <TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
                                 {renderManualCell(col, mc as ManualConversation)}
                               </TableCell>
@@ -2276,7 +2276,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${mc.is_test ? "o
                           </TableRow>
                           {detailOpen && (
                             <TableRow key={`manual-detail-${mc.id}`} className="hover:bg-transparent">
-                              <TableCell colSpan={columnOrder.length} className="p-0">
+                              <TableCell colSpan={displayedColumns.length} className="p-0">
                                 <InlineConversationDetail
                                   id={mc.id}
                                   source="manual"
