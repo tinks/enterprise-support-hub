@@ -547,6 +547,35 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
   const [dragOverCol, setDragOverCol] = useState<ColKey | null>(null);
 
   useEffect(() => { localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(columnOrder)); }, [columnOrder]);
+
+  // Column visibility state (persisted). Defaults: all visible.
+  const [visibleColumns, setVisibleColumns] = useState<Set<ColKey>>(() => {
+    const saved = localStorage.getItem(COLUMN_VISIBILITY_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved) as string[];
+        const valid = parsed.filter((k): k is ColKey => (ALL_COLUMNS as readonly string[]).includes(k));
+        return new Set(valid);
+      } catch { /* fall through */ }
+    }
+    return new Set<ColKey>(ALL_COLUMNS);
+  });
+  useEffect(() => {
+    localStorage.setItem(COLUMN_VISIBILITY_KEY, JSON.stringify([...visibleColumns]));
+  }, [visibleColumns]);
+  const toggleColumnVisible = useCallback((col: ColKey) => {
+    setVisibleColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(col)) {
+        if (next.size <= 1) return prev; // keep at least one visible column
+        next.delete(col);
+      } else {
+        next.add(col);
+      }
+      return next;
+    });
+  }, []);
+  const displayedColumns = columnOrder.filter((c) => visibleColumns.has(c));
   useEffect(() => { if (!isReportDrilldown) localStorage.setItem("conv-source-filter", sourceFilter); }, [sourceFilter, isReportDrilldown]);
   useEffect(() => { if (!forceOwner && !paramOwner) localStorage.setItem("conv-owner-filter", ownerFilter); }, [ownerFilter, forceOwner, paramOwner]);
   useEffect(() => { if (!isReportDrilldown && !forceOwner) localStorage.setItem("conv-pa-filter", productAreaFilter); }, [productAreaFilter, isReportDrilldown, forceOwner]);
