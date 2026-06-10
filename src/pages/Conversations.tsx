@@ -1044,6 +1044,18 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       }
     }
 
+    // Global sort across all sources by sortDate (newest first).
+    // Without this, sources are concatenated in load order and rows from
+    // different sources can interleave incorrectly (e.g. a 5 Aug manual row
+    // appearing above a 6 Aug Gmail row).
+    rows.sort((a, b) => {
+      const ta = a.sortDate ? new Date(a.sortDate).getTime() : 0;
+      const tb = b.sortDate ? new Date(b.sortDate).getTime() : 0;
+      return tb - ta;
+    });
+
+
+
     // Apply heatmap filter from query params
     if (paramDay !== null && paramHour !== null) {
       return rows.filter((r) => {
