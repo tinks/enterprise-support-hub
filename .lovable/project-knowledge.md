@@ -426,7 +426,17 @@ Dedup: `reminder_sent_at` prevents duplicate reminders; atomic status guard prev
 
 All Intercom API calls use `Intercom-Version: 2.11`.
 
+### Intercom custom-attribute mapping
+On every import path, the Intercom REST response's `custom_attributes` are mapped onto the local row via a shared `extractIntercomCustomFields(icData)` helper:
+
+- `custom_attributes["Affected Product Area"]` → `product_area`
+- `custom_attributes["Ticket type"]` → `classification`
+
+Empty/missing values are omitted so existing values are never overwritten with blank. Wired in `import-intercom-ticket`, `poll-intercom-inbox`, `intercom-webhook` (Gmail link payloads + `pending_intercom_links.source_payload`), and `promote-pending-intercom-links` (read back out of `source_payload`). The webhook's duplicate-detection early return does NOT re-fetch from Intercom and so does not refresh these fields on already-tracked rows — a backfill is required to populate historical imports.
+
 ---
+
+
 
 ## 17. Flow Diagram (UI)
 
