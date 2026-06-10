@@ -1261,7 +1261,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 
   const renderSlackCell = (col: ColKey, m: ConversationMapping): ReactNode => {
     switch (col) {
-      case "id": return <span className="text-xs text-muted-foreground font-mono cursor-pointer hover:text-foreground transition-colors" title="Click to copy" onClick={(e) => copyId(m.id, e)}>{m.id.slice(0, 3)}</span>;
+      case "id": return <span className="text-xs text-muted-foreground font-mono cursor-pointer hover:text-foreground transition-colors" title={`${m.id} — click to copy`} onClick={(e) => copyId(m.id, e)}>{m.id.slice(0, 7)}</span>;
       case "source": return m.intercom_conversation_id
         ? <Badge variant="outline" className="text-xs">Slack bot</Badge>
         : <Badge variant="secondary" className="text-xs">Slack import</Badge>;
