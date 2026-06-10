@@ -590,6 +590,7 @@ Deno.serve(async (req) => {
             link: convUrl,
             intercom_conversation_id: intercomConvId,
             conversation_created_at: conversationCreatedAt,
+            ...customFields,
           },
           pre_messages: preMessages,
         }, { onConflict: "intercom_conversation_id" });

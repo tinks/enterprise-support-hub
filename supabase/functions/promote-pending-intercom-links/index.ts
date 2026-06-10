@@ -133,6 +133,13 @@ Deno.serve(async (req) => {
         created_at: conversationCreatedAt,
       };
       if (row.resolved_owner) insertPayload.owner = row.resolved_owner;
+      // Carry through Intercom custom-attribute mappings stashed by intercom-webhook
+      if (typeof payload.product_area === "string" && payload.product_area.trim()) {
+        insertPayload.product_area = payload.product_area.trim();
+      }
+      if (typeof payload.classification === "string" && payload.classification.trim()) {
+        insertPayload.classification = payload.classification.trim();
+      }
 
       const { data: inserted, error: insertErr } = await supabase
         .from("manual_conversations")
