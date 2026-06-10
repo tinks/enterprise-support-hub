@@ -320,6 +320,36 @@ export type Database = {
         }
         Relationships: []
       }
+      integration_health: {
+        Row: {
+          consecutive_failures: number
+          integration: string
+          last_error: string | null
+          last_failure_at: string | null
+          last_status: string | null
+          last_success_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          consecutive_failures?: number
+          integration: string
+          last_error?: string | null
+          last_failure_at?: string | null
+          last_status?: string | null
+          last_success_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          consecutive_failures?: number
+          integration?: string
+          last_error?: string | null
+          last_failure_at?: string | null
+          last_status?: string | null
+          last_success_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       knowledge_documents: {
         Row: {
           content: string

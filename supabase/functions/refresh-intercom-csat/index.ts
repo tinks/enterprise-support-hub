@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { recordIntegrationHealth, classifyHttpStatus } from "../_shared/integration-health.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -70,11 +71,12 @@ Deno.serve(async (req) => {
   let checked = 0;
   let errors = 0;
 
+  let lastErrorStatus = 0;
   for (const t of targets) {
     checked++;
     try {
       const res = await fetchIntercomConv(t.row.intercom_conversation_id, INTERCOM_API_TOKEN);
-      if (!res.ok) { errors++; await new Promise(r => setTimeout(r, 200)); continue; }
+      if (!res.ok) { errors++; lastErrorStatus = res.status; await new Promise(r => setTimeout(r, 200)); continue; }
       const rating = res.data?.conversation_rating;
       if (!rating || typeof rating.rating !== "number") {
         await new Promise(r => setTimeout(r, 200));
@@ -95,7 +97,21 @@ Deno.serve(async (req) => {
     await new Promise(r => setTimeout(r, 200));
   }
 
+  // Record health: auth_error if every fetch returned 401/403; ok if anything succeeded; error otherwise
+  if (checked > 0) {
+    if (errors === checked && (lastErrorStatus === 401 || lastErrorStatus === 403)) {
+      await recordIntegrationHealth(sb, "intercom_csat", "auth_error", `Intercom ${lastErrorStatus}`);
+    } else if (errors === checked) {
+      await recordIntegrationHealth(sb, "intercom_csat", "error", `all ${checked} fetches failed (last status ${lastErrorStatus})`);
+    } else {
+      await recordIntegrationHealth(sb, "intercom_csat", "ok");
+    }
+  } else {
+    await recordIntegrationHealth(sb, "intercom_csat", "ok");
+  }
+
   return new Response(JSON.stringify({ mode, checked, updated, errors }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });
+

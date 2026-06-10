@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crypto } from "https://deno.land/std@0.208.0/crypto/mod.ts";
 import { encode as hexEncode } from "https://deno.land/std@0.208.0/encoding/hex.ts";
+import { recordIntegrationHealth, classifyHttpStatus } from "../_shared/integration-health.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -278,12 +279,15 @@ Deno.serve(async (req) => {
       });
 
       if (!icRes.ok) {
-        console.error("Intercom API error during auto-import:", icRes.status, await icRes.text());
+        const errText = await icRes.text();
+        console.error("Intercom API error during auto-import:", icRes.status, errText);
+        await recordIntegrationHealth(supabase, "intercom_webhook", classifyHttpStatus(icRes.status), `auto-import ${icRes.status}: ${errText.slice(0, 200)}`);
         return new Response(JSON.stringify({ ok: true, message: "Intercom API error" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
+      await recordIntegrationHealth(supabase, "intercom_webhook", "ok");
       const icData = await icRes.json();
       const customFields = extractIntercomCustomFields(icData);
 

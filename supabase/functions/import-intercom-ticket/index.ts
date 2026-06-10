@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { recordIntegrationHealth, classifyHttpStatus } from "../_shared/integration-health.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -113,11 +114,13 @@ Deno.serve(async (req) => {
     if (!icRes.ok) {
       const errText = await icRes.text();
       console.error("Intercom API error:", icRes.status, errText);
+      await recordIntegrationHealth(sb, "intercom_import", classifyHttpStatus(icRes.status), `${icRes.status}: ${errText.slice(0, 200)}`);
       return new Response(
         JSON.stringify({ error: `Intercom API error: ${icRes.status}` }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    await recordIntegrationHealth(sb, "intercom_import", "ok");
 
     const icData = await icRes.json();
 

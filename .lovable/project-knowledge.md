@@ -705,3 +705,11 @@ Keyed by (`month`, `source`); columns include `buckets jsonb`, `overall_summary 
 ### Manual contact normalisation — `src/pages/insights/manualAccounts.ts`
 
 Free-text `manual_conversations.contact_name` is normalised into a stable account key via `normalizeManualContact()` for Top accounts aggregation. Order: (1) email-in-name → domain bucket via `accountFromEmail`; (2) alias map (e.g., `McKinsey`, `Sergey Gorchichko-WROC`, `pulkit_agarwal@mckinsey.com` → `account:mckinsey`); (3) fallback `contact:<lowercased name>`. Internal lovable.dev contacts map to `account:lovable_internal` and are filtered out by `INTERNAL_MANUAL_KEYS` (mirrors the existing Top accounts filter). The Insights → Report "Top accounts" card has a third `Manual contacts` mini-table fed by `stats.manualAccounts`. Extend `ALIAS_MAP` as new accounts surface.
+
+### Integration health surfacing — `integration_health` table + `_shared/integration-health.ts`
+
+`public.integration_health` (PK = `integration` key) stores the last success/failure per backend integration. Authenticated users read it; only edge functions (service role) write to it. Shared helper `recordIntegrationHealth(sb, key, status, error?)` upserts a row with `last_success_at`/`last_failure_at`, `last_status` (`ok`/`auth_error`/`error`), `last_error`, and `consecutive_failures`. `auth_error` is mapped from HTTP 401/403 via `classifyHttpStatus`.
+
+Wired into: `poll-intercom-inbox` (search 4xx + on success), `intercom-webhook` (auto-import fetch failure + success), `refresh-intercom-csat` (aggregated per run; auth_error only if every fetch was 401/403), `import-intercom-ticket` (per call), `poll-gmail` (success + error categorised by `PollErrorCategory`: oauth/token/scope → auth_error, else error).
+
+UI: `src/components/IntegrationHealthCard.tsx` is mounted at the top of Settings. It polls `integration_health` every 60s and renders a badge per integration — Healthy / Stale (last success older than per-integration `maxStaleMin`) / Auth error / Failing. A stale Intercom/Gmail badge is the user's signal that the API token needs to be re-pasted.

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { recordIntegrationHealth, classifyHttpStatus } from "../_shared/integration-health.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -144,6 +145,7 @@ Deno.serve(async (req) => {
       if (!searchRes.ok) {
         const errText = await searchRes.text();
         console.error(`Intercom search failed for ${sq.label}:`, searchRes.status, errText);
+        await recordIntegrationHealth(supabase, "intercom_poll", classifyHttpStatus(searchRes.status), `search ${searchRes.status}: ${errText.slice(0, 200)}`);
         // Continue with other queries instead of failing entirely
         break;
       }
@@ -405,6 +407,8 @@ Deno.serve(async (req) => {
 
   // Update last_polled_intercom_at
   await supabase.from("settings").update({ last_polled_intercom_at: new Date().toISOString() }).eq("id", settings.id);
+  await recordIntegrationHealth(supabase, "intercom_poll", "ok");
+
 
   const imported = results.filter(r => r.action === "imported").length;
   const linkedGmail = results.filter(r => r.action === "linked_gmail").length;

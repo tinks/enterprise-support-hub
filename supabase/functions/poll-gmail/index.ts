@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { recordIntegrationHealth } from "../_shared/integration-health.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -366,6 +367,8 @@ Deno.serve(async (req) => {
     console.log(
       `Processed ${messageIds.length} messages, inserted ${inserted} new, reconciled ${reconciled} pending Intercom links`,
     );
+    await recordIntegrationHealth(supabase, "gmail_poll", "ok");
+
 
     return new Response(
       JSON.stringify({
@@ -388,6 +391,10 @@ Deno.serve(async (req) => {
       status,
       message: err instanceof Error ? err.message : "Unknown error",
     });
+
+    const healthStatus = category === "oauth_tokens" || category === "token_refresh" || category === "scope_permission" ? "auth_error" : "error";
+    await recordIntegrationHealth(supabase, "gmail_poll", healthStatus, `${category}/${stage} ${status ?? ""}: ${err instanceof Error ? err.message.slice(0, 200) : ""}`);
+
 
     return new Response(
       JSON.stringify({
