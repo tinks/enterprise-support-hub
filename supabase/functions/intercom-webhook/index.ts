@@ -339,7 +339,7 @@ Deno.serve(async (req) => {
       }
 
       // Cross-reference with gmail_conversations before creating manual entry
-      if (contactEmail && !isGroupAlias) {
+      if (contactEmail && !skipEmailLinker) {
         const emailLower = contactEmail.toLowerCase();
         const { data: gmailMatches } = await supabase
           .from("gmail_conversations")
