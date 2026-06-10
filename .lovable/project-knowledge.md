@@ -527,6 +527,12 @@ Two defaults coexist in `src/pages/Conversations.tsx`:
 
 `effectiveDefaultHidden = forceOwner ? DASHBOARD_HIDDEN : DEFAULT_HIDDEN` drives the "active filter" badge, the Status popover's "Restore defaults" button, and `resetAll`. The forced owner is excluded from the active-filter count.
 
+## Inbox columns — order, visibility, sort
+
+- **Order**: column headers in the Conversations table are drag-to-reorder. Order persists to localStorage `conv-column-order` (versioned via `conv-column-order-version`).
+- **Visibility**: a "Columns (N/total)" popover in the inbox toolbar (next to Refresh) shows a checkbox per field. Selections persist to localStorage `conv-column-visibility`; at least one column must stay visible. "Show all" restores every column. Rendered columns are derived as `displayedColumns = columnOrder.filter(c => visibleColumns.has(c))`, and all body `colSpan`s use `displayedColumns.length`.
+- **Sort**: the unified row list is globally sorted by `sortDate` desc after the Slack/Gmail/Manual sources are concatenated, so cross-source rows interleave strictly by date (newest first). There is no click-to-sort on headers yet.
+
 ## Resolution time — manual override
 
 - The Conversation detail page (`/conversations/:id`) Timeline card lets users edit `resolved_at` for slack, gmail, and manual conversations (alongside the existing editable `created_at`).
