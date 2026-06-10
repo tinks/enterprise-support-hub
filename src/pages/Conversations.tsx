@@ -911,13 +911,18 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     setHasMoreManual(manualData.length === pageSize);
 
     if (append) {
-      setMappings((prev) => [...prev, ...slackRows]);
-      setGmailRows((prev) => [...prev, ...gmailData]);
-      setManualRows((prev) => [...prev, ...manualData]);
+      const dedupById = <T extends { id: string }>(prev: T[], next: T[]): T[] => {
+        const seen = new Set(prev.map((r) => r.id));
+        return [...prev, ...next.filter((r) => !seen.has(r.id))];
+      };
+      setMappings((prev) => dedupById(prev, slackRows));
+      setGmailRows((prev) => dedupById(prev, gmailData));
+      setManualRows((prev) => dedupById(prev, manualData));
       setOffset(currentOffset + pageSize);
       setGmailOffset(currentGmailOffset + pageSize);
       setManualOffset(currentManualOffset + pageSize);
       setLoadingMore(false);
+
     } else {
       setMappings(slackRows);
       setGmailRows(gmailData);
