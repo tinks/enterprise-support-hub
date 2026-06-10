@@ -534,6 +534,7 @@ Deno.serve(async (req) => {
           const conflictingPriorSubj = distinctPriorSubj.find(t => t !== threadId);
           if (conflictingPriorSubj) {
             console.warn(`[cross_thread_link_conflict:subject] Intercom ${intercomConvId} already linked to Gmail thread ${conflictingPriorSubj}; refusing to also stamp ${threadId} via subject tier.`);
+            await postGuardAlert({ tier: "subject", intercomConvId, existingThreadId: conflictingPriorSubj, attemptedThreadId: threadId, contactEmail });
             return new Response(JSON.stringify({
               ok: true,
               message: "Intercom ticket already linked to a different Gmail thread; refusing cross-thread link",
