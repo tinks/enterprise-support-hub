@@ -285,6 +285,7 @@ Deno.serve(async (req) => {
       }
 
       const icData = await icRes.json();
+      const customFields = extractIntercomCustomFields(icData);
 
       // Extract contact name and email
       let contactName = "";
