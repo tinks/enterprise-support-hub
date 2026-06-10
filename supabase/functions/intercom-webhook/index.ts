@@ -478,6 +478,24 @@ Deno.serve(async (req) => {
             });
           }
 
+          // Option 2: inverse uniqueness guard at subject tier.
+          const { data: priorLinksSubj } = await supabase
+            .from("gmail_conversations")
+            .select("gmail_thread_id")
+            .eq("intercom_conversation_id", intercomConvId)
+            .not("gmail_thread_id", "is", null);
+          const distinctPriorSubj = Array.from(new Set((priorLinksSubj || []).map(r => r.gmail_thread_id).filter(Boolean)));
+          const conflictingPriorSubj = distinctPriorSubj.find(t => t !== threadId);
+          if (conflictingPriorSubj) {
+            console.warn(`[cross_thread_link_conflict:subject] Intercom ${intercomConvId} already linked to Gmail thread ${conflictingPriorSubj}; refusing to also stamp ${threadId} via subject tier.`);
+            return new Response(JSON.stringify({
+              ok: true,
+              message: "Intercom ticket already linked to a different Gmail thread; refusing cross-thread link",
+              existingThreadId: conflictingPriorSubj,
+            }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+
+
           const updatePayload: Record<string, unknown> = { intercom_conversation_id: intercomConvId, ...customFields };
           if (resolvedOwner) updatePayload.owner = resolvedOwner;
           const { error: subjErr } = await supabase
