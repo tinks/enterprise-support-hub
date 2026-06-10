@@ -20,6 +20,19 @@ const BOT_IDENTITY = {
   icon_url: "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/bot-avatar/lovable-logo.png",
 };
 
+// Extracts Intercom custom attributes "Affected Product Area" → product_area
+// and "Ticket type" → classification. Empty/missing values are omitted so we
+// never overwrite an existing value with blank on upsert/update.
+function extractIntercomCustomFields(icData: any): { product_area?: string; classification?: string } {
+  const ca = icData?.custom_attributes || {};
+  const out: { product_area?: string; classification?: string } = {};
+  const pa = typeof ca["Affected Product Area"] === "string" ? ca["Affected Product Area"].trim() : "";
+  const tt = typeof ca["Ticket type"] === "string" ? ca["Ticket type"].trim() : "";
+  if (pa) out.product_area = pa;
+  if (tt) out.classification = tt;
+  return out;
+}
+
 async function addReaction(token: string, channel: string, timestamp: string, emoji: string) {
   try {
     console.log(`Adding reaction ${emoji} to channel=${channel} ts=${timestamp}`);
@@ -272,6 +285,7 @@ Deno.serve(async (req) => {
       }
 
       const icData = await icRes.json();
+      const customFields = extractIntercomCustomFields(icData);
 
       // Extract contact name and email
       let contactName = "";
@@ -325,7 +339,7 @@ Deno.serve(async (req) => {
           .limit(10);
 
         if (gmailMatches && gmailMatches.length > 0) {
-          const updatePayload: Record<string, unknown> = { intercom_conversation_id: intercomConvId };
+          const updatePayload: Record<string, unknown> = { intercom_conversation_id: intercomConvId, ...customFields };
           if (resolvedOwner) updatePayload.owner = resolvedOwner;
 
           const threadId = gmailMatches[0].gmail_thread_id;
@@ -431,7 +445,7 @@ Deno.serve(async (req) => {
             });
           }
 
-          const updatePayload: Record<string, unknown> = { intercom_conversation_id: intercomConvId };
+          const updatePayload: Record<string, unknown> = { intercom_conversation_id: intercomConvId, ...customFields };
           if (resolvedOwner) updatePayload.owner = resolvedOwner;
           const { error: subjErr } = await supabase
             .from("gmail_conversations")
@@ -576,6 +590,7 @@ Deno.serve(async (req) => {
             link: convUrl,
             intercom_conversation_id: intercomConvId,
             conversation_created_at: conversationCreatedAt,
+            ...customFields,
           },
           pre_messages: preMessages,
         }, { onConflict: "intercom_conversation_id" });

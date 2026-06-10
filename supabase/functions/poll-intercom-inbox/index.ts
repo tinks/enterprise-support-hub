@@ -17,6 +17,19 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+// Extracts Intercom custom attributes "Affected Product Area" → product_area
+// and "Ticket type" → classification. Empty/missing values are omitted so we
+// never overwrite an existing value with blank.
+function extractIntercomCustomFields(icData: any): { product_area?: string; classification?: string } {
+  const ca = icData?.custom_attributes || {};
+  const out: { product_area?: string; classification?: string } = {};
+  const pa = typeof ca["Affected Product Area"] === "string" ? ca["Affected Product Area"].trim() : "";
+  const tt = typeof ca["Ticket type"] === "string" ? ca["Ticket type"].trim() : "";
+  if (pa) out.product_area = pa;
+  if (tt) out.classification = tt;
+  return out;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -238,6 +251,8 @@ Deno.serve(async (req) => {
       const adminAssigneeId = String(conv.admin_assignee_id || icData.admin_assignee_id || "");
       const resolvedOwner = adminOwnerMap[adminAssigneeId] || null;
 
+      const customFields = extractIntercomCustomFields(icData);
+
       // Cross-reference with gmail_conversations
       if (contactEmail) {
         const emailLower = contactEmail.toLowerCase();
@@ -250,7 +265,7 @@ Deno.serve(async (req) => {
           .limit(10);
 
         if (gmailMatches && gmailMatches.length > 0) {
-          const updatePayload: Record<string, unknown> = { intercom_conversation_id: intercomConvId };
+          const updatePayload: Record<string, unknown> = { intercom_conversation_id: intercomConvId, ...customFields };
           if (resolvedOwner) updatePayload.owner = resolvedOwner;
 
           const threadId = gmailMatches[0].gmail_thread_id;
@@ -339,6 +354,7 @@ Deno.serve(async (req) => {
         intercom_conversation_id: intercomConvId,
         status: "active",
         created_at: conversationCreatedAt,
+        ...customFields,
       };
       if (resolvedOwner) insertPayload.owner = resolvedOwner;
 
