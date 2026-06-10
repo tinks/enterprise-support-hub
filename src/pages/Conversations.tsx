@@ -192,6 +192,7 @@ const ColumnFilter = ({ value, options, onChange, label }: { value: string; opti
 const COLUMN_STORAGE_KEY = "conv-column-order";
 const COLUMN_ORDER_VERSION_KEY = "conv-column-order-version";
 const COLUMN_ORDER_VERSION = 2;
+const COLUMN_VISIBILITY_KEY = "conv-column-visibility";
 const PAGE_SIZE = 25;
 
 interface ConversationsPaginationProps {
