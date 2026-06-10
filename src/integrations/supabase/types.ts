@@ -324,6 +324,8 @@ export type Database = {
         Row: {
           consecutive_failures: number
           integration: string
+          last_alerted_at: string | null
+          last_alerted_status: string | null
           last_error: string | null
           last_failure_at: string | null
           last_status: string | null
@@ -333,6 +335,8 @@ export type Database = {
         Insert: {
           consecutive_failures?: number
           integration: string
+          last_alerted_at?: string | null
+          last_alerted_status?: string | null
           last_error?: string | null
           last_failure_at?: string | null
           last_status?: string | null
@@ -342,6 +346,8 @@ export type Database = {
         Update: {
           consecutive_failures?: number
           integration?: string
+          last_alerted_at?: string | null
+          last_alerted_status?: string | null
           last_error?: string | null
           last_failure_at?: string | null
           last_status?: string | null
