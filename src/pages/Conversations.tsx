@@ -2175,7 +2175,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${m.is_test ? "op
                              onClick={() => goToConversation(m.id)}
                           >
                             {displayedColumns.map((col) => (
-<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
+<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[80px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
                                 {renderSlackCell(col, m)}
                               </TableCell>
                             ))}
@@ -2216,7 +2216,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "op
                                onClick={() => goToConversation(g.id, "gmail")}
                             >
                               {displayedColumns.map((col) => (
-<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
+<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[80px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
                                   {renderGmailCell(col, g, row.groupCount, row.groupedEmails, row.groupKey)}
                                 </TableCell>
                               ))}
@@ -2248,7 +2248,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${g.is_test ? "op
                                 onClick={() => goToConversation(sub.id, "gmail")}
                               >
                                 {displayedColumns.map((col) => (
-<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px] pl-8" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
+<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[80px] pl-8" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
                                     {renderGmailCell(col, sub)}
                                   </TableCell>
                                 ))}
@@ -2302,7 +2302,7 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${mc.is_test ? "o
                              onClick={() => goToConversation(mc.id, "manual")}
                           >
                             {displayedColumns.map((col) => (
-<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[40px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
+<TableCell key={col} className={`${col === "message" ? "min-w-[300px]" : ""} ${col === "id" ? "w-[80px]" : ""} ${col === "status" || col === "owner" || col === "product_area" || col === "classification" ? "w-[140px]" : ""}`}>
                                 {renderManualCell(col, mc as ManualConversation)}
                               </TableCell>
                             ))}
