@@ -367,6 +367,8 @@ Deno.serve(async (req) => {
     console.log(
       `Processed ${messageIds.length} messages, inserted ${inserted} new, reconciled ${reconciled} pending Intercom links`,
     );
+    await recordIntegrationHealth(supabase, "gmail_poll", "ok");
+
 
     return new Response(
       JSON.stringify({
