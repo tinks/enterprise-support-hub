@@ -1,0 +1,124 @@
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { RefreshCw, CheckCircle2, AlertTriangle, ShieldAlert, Circle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { formatDistanceToNow } from "date-fns";
+
+type HealthRow = {
+  integration: string;
+  last_success_at: string | null;
+  last_failure_at: string | null;
+  last_status: string | null;
+  last_error: string | null;
+  consecutive_failures: number;
+  updated_at: string;
+};
+
+// Each integration has an expected freshness window. If last_success_at is older
+// than maxStaleMin AND we don't have a fresh failure, surface a "stale" warning.
+const INTEGRATIONS: Array<{ key: string; label: string; description: string; maxStaleMin: number }> = [
+  { key: "intercom_poll", label: "Intercom poll", description: "Pulls new tickets from the enterprise inbox (every 5 min).", maxStaleMin: 30 },
+  { key: "intercom_webhook", label: "Intercom webhook", description: "Live conversation/assignment events from Intercom.", maxStaleMin: 24 * 60 },
+  { key: "intercom_csat", label: "Intercom CSAT refresh", description: "Refreshes conversation ratings (hourly).", maxStaleMin: 3 * 60 },
+  { key: "intercom_import", label: "Manual Intercom import", description: "On-demand imports from the Log Conversation form.", maxStaleMin: 30 * 24 * 60 },
+  { key: "gmail_poll", label: "Gmail poll", description: "Pulls support@ mail and reconciles to Intercom.", maxStaleMin: 30 },
+];
+
+type Severity = "ok" | "warn" | "auth" | "error" | "unknown";
+
+function severityFor(row: HealthRow | undefined, maxStaleMin: number): Severity {
+  if (!row) return "unknown";
+  if (row.last_status === "auth_error") return "auth";
+  if (row.last_status === "error" && (row.consecutive_failures || 0) >= 2) return "error";
+  const lastOk = row.last_success_at ? new Date(row.last_success_at).getTime() : 0;
+  const ageMin = lastOk ? (Date.now() - lastOk) / 60000 : Infinity;
+  if (ageMin > maxStaleMin) return "warn";
+  return "ok";
+}
+
+const SEVERITY_META: Record<Severity, { label: string; className: string; Icon: typeof CheckCircle2 }> = {
+  ok: { label: "Healthy", className: "bg-emerald-100 text-emerald-800 border-emerald-200", Icon: CheckCircle2 },
+  warn: { label: "Stale", className: "bg-amber-100 text-amber-800 border-amber-200", Icon: AlertTriangle },
+  auth: { label: "Auth error", className: "bg-red-100 text-red-800 border-red-200", Icon: ShieldAlert },
+  error: { label: "Failing", className: "bg-red-100 text-red-800 border-red-200", Icon: AlertTriangle },
+  unknown: { label: "No data yet", className: "bg-muted text-muted-foreground border-border", Icon: Circle },
+};
+
+export default function IntegrationHealthCard() {
+  const [rows, setRows] = useState<HealthRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase.from("integration_health").select("*");
+    setRows((data || []) as HealthRow[]);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  const byKey = new Map(rows.map((r) => [r.integration, r]));
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
+        <div>
+          <CardTitle className="text-lg">Integration health</CardTitle>
+          <CardDescription>
+            Last successful sync per integration. Stale or failing checks usually mean a token needs to be re-pasted.
+          </CardDescription>
+        </div>
+        <Button variant="outline" size="sm" onClick={load} disabled={loading} className="gap-1">
+          <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {INTEGRATIONS.map((cfg) => {
+          const row = byKey.get(cfg.key);
+          const sev = severityFor(row, cfg.maxStaleMin);
+          const meta = SEVERITY_META[sev];
+          const Icon = meta.Icon;
+          return (
+            <div key={cfg.key} className="flex flex-col gap-1 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-foreground">{cfg.label}</span>
+                  <Badge variant="outline" className={`gap-1 ${meta.className}`}>
+                    <Icon className="h-3 w-3" />
+                    {meta.label}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">{cfg.description}</p>
+                {row?.last_status && row.last_status !== "ok" && row.last_error && (
+                  <p className="mt-1 truncate text-xs text-red-700" title={row.last_error}>
+                    {row.last_error}
+                  </p>
+                )}
+              </div>
+              <div className="text-right text-xs text-muted-foreground whitespace-nowrap">
+                {row?.last_success_at ? (
+                  <>Last success {formatDistanceToNow(new Date(row.last_success_at), { addSuffix: true })}</>
+                ) : (
+                  <>No success recorded</>
+                )}
+                {row?.last_failure_at && (sev === "error" || sev === "auth" || sev === "warn") && (
+                  <div>Last failure {formatDistanceToNow(new Date(row.last_failure_at), { addSuffix: true })}</div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        <p className="text-xs text-muted-foreground">
+          Auth errors typically mean the Intercom or Gmail token needs to be re-pasted. Stale = no successful sync within the expected window.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
