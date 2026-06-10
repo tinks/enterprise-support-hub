@@ -390,6 +390,8 @@ const Index = () => {
           </div>
         </div>
 
+        <IntegrationHealthCard />
+
         {/* Settings Card */}
         <Card>
           <CardHeader>
