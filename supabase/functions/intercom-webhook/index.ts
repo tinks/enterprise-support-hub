@@ -326,9 +326,16 @@ Deno.serve(async (req) => {
       // alias as the contact email rather than the customer's address. Matching on it would
       // be ambiguous against every Gmail row in the inbox.
       const GROUP_ALIASES = new Set<string>(["enterprise-support@lovable.dev"]);
-      const isGroupAlias = contactEmail ? GROUP_ALIASES.has(contactEmail.toLowerCase()) : false;
-      if (isGroupAlias) {
-        console.log(`[group-alias-skip] Contact email ${contactEmail} is a group alias; skipping email-linker, will rely on subject + pending-link path.`);
+      const emailLowerForSkip = contactEmail ? contactEmail.toLowerCase() : "";
+      const isGroupAlias = emailLowerForSkip ? GROUP_ALIASES.has(emailLowerForSkip) : false;
+      // Option 1: internal Lovable employees appear as Intercom contacts on tickets they
+      // open on behalf of customers. Their @lovable.dev inbox has dozens of unrelated open
+      // threads, so the most-recent-thread email linker would mis-stamp. Skip the email
+      // tier and rely on subject + pending-link path instead.
+      const isInternalDomain = emailLowerForSkip.endsWith("@lovable.dev");
+      const skipEmailLinker = isGroupAlias || isInternalDomain;
+      if (skipEmailLinker) {
+        console.log(`[email-linker-skip] Contact email ${contactEmail} is ${isGroupAlias ? "a group alias" : "an internal @lovable.dev address"}; skipping email-linker, will rely on subject + pending-link path.`);
       }
 
       // Cross-reference with gmail_conversations before creating manual entry
