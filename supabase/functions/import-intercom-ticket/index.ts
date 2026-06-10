@@ -18,6 +18,19 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+// Extracts Intercom custom attributes "Affected Product Area" → product_area
+// and "Ticket type" → classification. Empty/missing values are omitted so we
+// never overwrite an existing value with blank on upsert.
+function extractIntercomCustomFields(icData: any): { product_area?: string; classification?: string } {
+  const ca = icData?.custom_attributes || {};
+  const out: { product_area?: string; classification?: string } = {};
+  const pa = typeof ca["Affected Product Area"] === "string" ? ca["Affected Product Area"].trim() : "";
+  const tt = typeof ca["Ticket type"] === "string" ? ca["Ticket type"].trim() : "";
+  if (pa) out.product_area = pa;
+  if (tt) out.classification = tt;
+  return out;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -212,6 +225,8 @@ Deno.serve(async (req) => {
         }
       : {};
 
+    const customFields = extractIntercomCustomFields(icData);
+
     // Insert conversation with correct created_at
     const { data: inserted, error: insertErr } = await sb
       .from("manual_conversations")
@@ -224,6 +239,7 @@ Deno.serve(async (req) => {
         status: "active",
         created_at: conversationCreatedAt,
         ...csatFields,
+        ...customFields,
       })
       .select("id")
       .single();
