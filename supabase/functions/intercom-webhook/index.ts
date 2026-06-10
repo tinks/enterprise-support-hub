@@ -279,12 +279,15 @@ Deno.serve(async (req) => {
       });
 
       if (!icRes.ok) {
-        console.error("Intercom API error during auto-import:", icRes.status, await icRes.text());
+        const errText = await icRes.text();
+        console.error("Intercom API error during auto-import:", icRes.status, errText);
+        await recordIntegrationHealth(supabase, "intercom_webhook", classifyHttpStatus(icRes.status), `auto-import ${icRes.status}: ${errText.slice(0, 200)}`);
         return new Response(JSON.stringify({ ok: true, message: "Intercom API error" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
+      await recordIntegrationHealth(supabase, "intercom_webhook", "ok");
       const icData = await icRes.json();
       const customFields = extractIntercomCustomFields(icData);
 
