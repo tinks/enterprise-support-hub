@@ -1067,12 +1067,19 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       }
     }
     if (sourceFilter === "all" || sourceFilter === "manual" || sourceFilter === "intercom") {
+      // Suppress manual rows whose intercom_conversation_id is already represented
+      // by a Gmail row — the Gmail thread is the source of truth in that case.
+      const gmailIntercomIds = new Set(
+        gmailData.map((g) => g.intercom_conversation_id).filter(Boolean) as string[]
+      );
       for (const mc of manualData) {
         if (sourceFilter === "manual" && mc.source === "intercom") continue;
         if (sourceFilter === "intercom" && mc.source !== "intercom") continue;
+        if (mc.intercom_conversation_id && gmailIntercomIds.has(mc.intercom_conversation_id)) continue;
         rows.push({ source: "manual", data: mc, sortDate: mc.created_at });
       }
     }
+
     if (searchResults && searchResults.pending.length > 0) {
       for (const p of searchResults.pending) {
         rows.push({ source: "pending", data: p, sortDate: p.intercom_created_at });

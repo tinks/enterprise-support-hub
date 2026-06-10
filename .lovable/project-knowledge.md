@@ -532,6 +532,9 @@ Two defaults coexist in `src/pages/Conversations.tsx`:
 - **Order**: column headers in the Conversations table are drag-to-reorder. Order persists to localStorage `conv-column-order` (versioned via `conv-column-order-version`).
 - **Visibility**: a "Columns (N/total)" popover in the inbox toolbar (next to Refresh) shows a checkbox per field. Selections persist to localStorage `conv-column-visibility`; at least one column must stay visible. "Show all" restores every column. Rendered columns are derived as `displayedColumns = columnOrder.filter(c => visibleColumns.has(c))`, and all body `colSpan`s use `displayedColumns.length`.
 - **Sort**: the unified row list is globally sorted by `sortDate` desc after the Slack/Gmail/Manual sources are concatenated, so cross-source rows interleave strictly by date (newest first). There is no click-to-sort on headers yet.
+- **ID display**: the `id` column shows the first 7 chars of the row UUID with full UUID on hover (`title`) and click-to-copy. Column width is 80px to fit 7 mono chars.
+- **Cross-source dedup**: when a `gmail_conversations` row carries an `intercom_conversation_id`, any `manual_conversations` row sharing that id is suppressed from the unified list (Gmail wins). Mirrors the analytics dedup in `mem://logic/gmail-thread-dedup`.
+- **Pagination dedup**: "Load more" appends new rows but filters out any id already present in `mappings` / `gmailRows` / `manualRows` to prevent the React duplicate-key warnings (and visual duplicate rows) that could appear when fresh inserts shift the server-side offset window.
 
 ## Resolution time — manual override
 
