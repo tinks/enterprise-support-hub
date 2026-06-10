@@ -20,6 +20,19 @@ const BOT_IDENTITY = {
   icon_url: "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/bot-avatar/lovable-logo.png",
 };
 
+// Extracts Intercom custom attributes "Affected Product Area" → product_area
+// and "Ticket type" → classification. Empty/missing values are omitted so we
+// never overwrite an existing value with blank on upsert/update.
+function extractIntercomCustomFields(icData: any): { product_area?: string; classification?: string } {
+  const ca = icData?.custom_attributes || {};
+  const out: { product_area?: string; classification?: string } = {};
+  const pa = typeof ca["Affected Product Area"] === "string" ? ca["Affected Product Area"].trim() : "";
+  const tt = typeof ca["Ticket type"] === "string" ? ca["Ticket type"].trim() : "";
+  if (pa) out.product_area = pa;
+  if (tt) out.classification = tt;
+  return out;
+}
+
 async function addReaction(token: string, channel: string, timestamp: string, emoji: string) {
   try {
     console.log(`Adding reaction ${emoji} to channel=${channel} ts=${timestamp}`);
