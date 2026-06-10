@@ -407,6 +407,8 @@ Deno.serve(async (req) => {
 
   // Update last_polled_intercom_at
   await supabase.from("settings").update({ last_polled_intercom_at: new Date().toISOString() }).eq("id", settings.id);
+  await recordIntegrationHealth(supabase, "intercom_poll", "ok");
+
 
   const imported = results.filter(r => r.action === "imported").length;
   const linkedGmail = results.filter(r => r.action === "linked_gmail").length;
