@@ -21,6 +21,51 @@ const BOT_IDENTITY = {
   icon_url: "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/bot-avatar/lovable-logo.png",
 };
 
+const ALERT_CHANNEL_ID = "C0B9NSBM60H"; // #enterprise-support-hub-alerts
+
+// Posts a non-blocking alert to #enterprise-support-hub-alerts. Failures are
+// swallowed so guard logic always completes even if Slack is degraded.
+async function postGuardAlert(opts: {
+  tier: "email" | "subject";
+  intercomConvId: string;
+  existingThreadId: string;
+  attemptedThreadId: string | null;
+  contactEmail?: string | null;
+}) {
+  try {
+    const token = Deno.env.get("SLACK_BOT_TOKEN");
+    if (!token) return;
+    const { tier, intercomConvId, existingThreadId, attemptedThreadId, contactEmail } = opts;
+    const text = `:shield: Cross-thread link blocked (${tier} tier) — Intercom \`${intercomConvId}\``;
+    const blocks = [
+      { type: "section", text: { type: "mrkdwn", text: `:shield: *Cross-thread link blocked* — _${tier} tier_` } },
+      {
+        type: "section",
+        fields: [
+          { type: "mrkdwn", text: `*Intercom ticket:*\n<https://app.intercom.com/a/inbox/_/inbox/conversation/${intercomConvId}|${intercomConvId}>` },
+          { type: "mrkdwn", text: `*Already linked to thread:*\n\`${existingThreadId}\`` },
+          { type: "mrkdwn", text: `*Refused new thread:*\n\`${attemptedThreadId || "(orphan rows)"}\`` },
+          { type: "mrkdwn", text: `*Contact:*\n${contactEmail || "_unknown_"}` },
+        ],
+      },
+      { type: "context", elements: [{ type: "mrkdwn", text: `Guard fired at ${new Date().toISOString()}` }] },
+    ];
+    await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        channel: ALERT_CHANNEL_ID,
+        text,
+        blocks,
+        username: "Support Hub Guard",
+        icon_emoji: ":shield:",
+      }),
+    });
+  } catch (err) {
+    console.error("postGuardAlert failed:", err);
+  }
+}
+
 // Extracts Intercom custom attributes "Affected Product Area" → product_area
 // and "Ticket type" → classification. Empty/missing values are omitted so we
 // never overwrite an existing value with blank on upsert/update.
@@ -363,6 +408,7 @@ Deno.serve(async (req) => {
           const conflictingPriorThread = distinctPriorThreads.find(t => t !== candidateThreadId);
           if (conflictingPriorThread) {
             console.warn(`[cross_thread_link_conflict:email] Intercom ${intercomConvId} already linked to Gmail thread ${conflictingPriorThread}; refusing to also stamp ${candidateThreadId || "(orphan rows)"} via email tier.`);
+            await postGuardAlert({ tier: "email", intercomConvId, existingThreadId: conflictingPriorThread, attemptedThreadId: candidateThreadId, contactEmail });
             return new Response(JSON.stringify({
               ok: true,
               message: "Intercom ticket already linked to a different Gmail thread; refusing cross-thread link",
@@ -488,6 +534,7 @@ Deno.serve(async (req) => {
           const conflictingPriorSubj = distinctPriorSubj.find(t => t !== threadId);
           if (conflictingPriorSubj) {
             console.warn(`[cross_thread_link_conflict:subject] Intercom ${intercomConvId} already linked to Gmail thread ${conflictingPriorSubj}; refusing to also stamp ${threadId} via subject tier.`);
+            await postGuardAlert({ tier: "subject", intercomConvId, existingThreadId: conflictingPriorSubj, attemptedThreadId: threadId, contactEmail });
             return new Response(JSON.stringify({
               ok: true,
               message: "Intercom ticket already linked to a different Gmail thread; refusing cross-thread link",
