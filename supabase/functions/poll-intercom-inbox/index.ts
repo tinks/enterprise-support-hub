@@ -145,6 +145,7 @@ Deno.serve(async (req) => {
       if (!searchRes.ok) {
         const errText = await searchRes.text();
         console.error(`Intercom search failed for ${sq.label}:`, searchRes.status, errText);
+        await recordIntegrationHealth(supabase, "intercom_poll", classifyHttpStatus(searchRes.status), `search ${searchRes.status}: ${errText.slice(0, 200)}`);
         // Continue with other queries instead of failing entirely
         break;
       }
