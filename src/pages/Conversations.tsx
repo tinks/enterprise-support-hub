@@ -2065,6 +2065,39 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
                   {autoClassifying ? "Classifying…" : "Auto-classify with AI"}
                 </Button>
               )}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Filter className="mr-1 h-3 w-3" />
+                    Columns ({visibleColumns.size}/{ALL_COLUMNS.length})
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-2" align="end">
+                  <div className="mb-2 flex items-center justify-between px-1">
+                    <span className="text-xs font-medium text-muted-foreground">Show columns</span>
+                    <button
+                      className="text-xs text-primary hover:underline"
+                      onClick={() => setVisibleColumns(new Set<ColKey>(ALL_COLUMNS))}
+                    >
+                      Show all
+                    </button>
+                  </div>
+                  <div className="flex flex-col">
+                    {ALL_COLUMNS.map((col) => (
+                      <label
+                        key={col}
+                        className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
+                      >
+                        <Checkbox
+                          checked={visibleColumns.has(col)}
+                          onCheckedChange={() => toggleColumnVisible(col)}
+                        />
+                        <span>{columnHeaders[col]}</span>
+                      </label>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
               <Button variant="outline" size="sm" onClick={() => { loadData().then((rows) => loadLookups(rows)); }} disabled={loading}>
                 <RefreshCw className={`mr-1 h-3 w-3 ${loading ? "animate-spin" : ""}`} />
                 Refresh
