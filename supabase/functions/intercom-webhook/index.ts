@@ -339,7 +339,7 @@ Deno.serve(async (req) => {
           .limit(10);
 
         if (gmailMatches && gmailMatches.length > 0) {
-          const updatePayload: Record<string, unknown> = { intercom_conversation_id: intercomConvId };
+          const updatePayload: Record<string, unknown> = { intercom_conversation_id: intercomConvId, ...customFields };
           if (resolvedOwner) updatePayload.owner = resolvedOwner;
 
           const threadId = gmailMatches[0].gmail_thread_id;
@@ -445,7 +445,7 @@ Deno.serve(async (req) => {
             });
           }
 
-          const updatePayload: Record<string, unknown> = { intercom_conversation_id: intercomConvId };
+          const updatePayload: Record<string, unknown> = { intercom_conversation_id: intercomConvId, ...customFields };
           if (resolvedOwner) updatePayload.owner = resolvedOwner;
           const { error: subjErr } = await supabase
             .from("gmail_conversations")
