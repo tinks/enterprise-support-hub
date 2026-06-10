@@ -349,6 +349,28 @@ Deno.serve(async (req) => {
           .order("received_at", { ascending: false })
           .limit(10);
 
+        // Option 2: inverse uniqueness guard. If this Intercom id is already linked
+        // to a *different* gmail_thread_id, refuse to stamp a second thread with it.
+        // Prevents one Intercom ticket from fanning out across unrelated Gmail threads.
+        if (gmailMatches && gmailMatches.length > 0) {
+          const candidateThreadId = gmailMatches[0].gmail_thread_id;
+          const { data: priorLinks } = await supabase
+            .from("gmail_conversations")
+            .select("gmail_thread_id")
+            .eq("intercom_conversation_id", intercomConvId)
+            .not("gmail_thread_id", "is", null);
+          const distinctPriorThreads = Array.from(new Set((priorLinks || []).map(r => r.gmail_thread_id).filter(Boolean)));
+          const conflictingPriorThread = distinctPriorThreads.find(t => t !== candidateThreadId);
+          if (conflictingPriorThread) {
+            console.warn(`[cross_thread_link_conflict:email] Intercom ${intercomConvId} already linked to Gmail thread ${conflictingPriorThread}; refusing to also stamp ${candidateThreadId || "(orphan rows)"} via email tier.`);
+            return new Response(JSON.stringify({
+              ok: true,
+              message: "Intercom ticket already linked to a different Gmail thread; refusing cross-thread link",
+              existingThreadId: conflictingPriorThread,
+            }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+        }
+
         if (gmailMatches && gmailMatches.length > 0) {
           const updatePayload: Record<string, unknown> = { intercom_conversation_id: intercomConvId, ...customFields };
           if (resolvedOwner) updatePayload.owner = resolvedOwner;
