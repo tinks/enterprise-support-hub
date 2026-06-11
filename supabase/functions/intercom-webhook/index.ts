@@ -170,6 +170,12 @@ Deno.serve(async (req) => {
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+  // Record health on every signature-verified delivery. This is what "healthy webhook"
+  // means: Intercom is successfully reaching us with a valid signature. The per-topic
+  // handlers below may early-return for many reasons (wrong inbox, already tracked,
+  // unhandled topic, etc.) — none of those should mark the integration as stale.
+  await recordIntegrationHealth(supabase, "intercom_webhook", "ok");
+
   // Fetch settings for testing_mode and admin owner map
   const { data: appSettings } = await supabase.from("settings").select("*").limit(1).single();
   const testingMode = appSettings?.testing_mode === true;
