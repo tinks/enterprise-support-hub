@@ -1168,6 +1168,8 @@ Deno.serve(async (req) => {
     let replyText = "";
     let adminName = "";
     let isHumanAdmin = false;
+    let lastCommentAuthorType = "";
+    let isKnownAiAgent = false;
 
     // Attachments from the comment part
     let attachments: Array<{ url: string; name: string; content_type: string }> = [];
@@ -1195,8 +1197,9 @@ Deno.serve(async (req) => {
         .replace(/\n{3,}/g, "\n\n")
         .trim();
       const author = lastCommentPart.author as { type?: string; name?: string; id?: string } | undefined;
+      lastCommentAuthorType = String(author?.type || "");
       const normalizedAuthorName = String(author?.name || "").trim().toLowerCase();
-      const isKnownAiAgent = normalizedAuthorName === "sam" || normalizedAuthorName.includes("ask lovable");
+      isKnownAiAgent = normalizedAuthorName === "sam" || normalizedAuthorName.includes("ask lovable");
 
       // Keep human behavior intact, but force Sam/Ask Lovable to stay on default bot identity
       if (author && author.type === "admin" && author.name && !isKnownAiAgent) {
@@ -1226,12 +1229,23 @@ Deno.serve(async (req) => {
         console.log(`Found ${attachments.length} attachment(s) in Intercom reply`);
       }
     }
+    const isAiAgentReply = lastCommentAuthorType === "admin" && !isHumanAdmin;
 
     // Skip replies that originated from Slack (they already appear in the thread)
     const slackOriginPattern = /\[From:.*via Slack\]/i;
     if (slackOriginPattern.test(replyText) || slackOriginPattern.test((lastCommentPart.body as string) || "")) {
       console.log(`Skipping Slack-originated reply for conversation ${conversationId} (already in thread)`);
       return new Response(JSON.stringify({ ok: true, message: "Slack-originated reply skipped" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Skip the customer-side marker we create during Sam auto-escalation. Intercom
+    // emits it back as conversation.user.replied; reposting it would create a loop.
+    const escalationCustomerMarkerPattern = /^This ticket has been escalated — awaiting human support response\.?$/i;
+    if (lastCommentAuthorType !== "admin" && escalationCustomerMarkerPattern.test(replyText.trim())) {
+      console.log(`Skipping webhook-created escalation marker for conversation ${conversationId}`);
+      return new Response(JSON.stringify({ ok: true, message: "Escalation marker skipped" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -1483,7 +1497,7 @@ Deno.serve(async (req) => {
 
       // Detect if Sam (AI) decided to route/escalate to humans
       const escalationKeywords = /\b(escalat|routing|transfer|hand(ing|ed)?\s*(this\s+)?(over|off)|human\s+(agent|support|team)|enterprise\s+(support\s+)?team|team\s+member|connect(ing)?\s+you\s+with|pass(ing)?\s+(this\s+)?(to|along))\b/i;
-      const isAiEscalation = !isHumanAdmin && escalationKeywords.test(replyText);
+      const isAiEscalation = isAiAgentReply && escalationKeywords.test(replyText);
 
       // Detect interim "working/thinking" messages from Sam — no buttons for these
       const workingPattern = /^(sam is (working|thinking|typing|processing)|working on (it|this|your)|let me (check|look|investigate)|one moment|hang tight|looking into)/i;
@@ -1581,7 +1595,7 @@ Deno.serve(async (req) => {
 
     // If Sam auto-escalated, update status + reactions to match manual escalation
     const escalationKeywords2 = /\b(escalat|routing|transfer|hand(ing|ed)?\s*(this\s+)?(over|off)|human\s+(agent|support|team)|enterprise\s+(support\s+)?team|team\s+member|connect(ing)?\s+you\s+with|pass(ing)?\s+(this\s+)?(to|along))\b/i;
-    const isAiEscalation2 = !isHumanAdmin && escalationKeywords2.test(replyText);
+    const isAiEscalation2 = isAiAgentReply && escalationKeywords2.test(replyText);
     if (isAiEscalation2 && mapping.status !== "escalated" && mapping.status !== "escalated_pending" && mapping.status !== "resolved") {
       await removeReaction(SLACK_BOT_TOKEN, mapping.slack_channel_id, mapping.slack_thread_ts, "eyes");
       await addReaction(SLACK_BOT_TOKEN, mapping.slack_channel_id, mapping.slack_thread_ts, "hourglass_flowing_sand");

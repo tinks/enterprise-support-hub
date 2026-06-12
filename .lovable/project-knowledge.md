@@ -194,6 +194,7 @@ awaiting_context → processing → active ⇄ active_pending → resolved
 - **Internal note filtering:** Both paths skip `part_type === "note"` to prevent interim messages (e.g., "Sam is working…") from leaking to Slack
 - **Deduplication:** Atomic UPDATE on `last_intercom_part_id` — first writer wins
 - Removes old feedback buttons from thread before posting new reply
+- **Escalation marker guard:** `intercom-webhook` skips its own customer-side marker text (`This ticket has been escalated — awaiting human support response.`) so Intercom cannot emit it back as `conversation.user.replied` and loop it into Slack repeatedly
 - Converts HTML to Slack markdown (br→\n, p→\n\n, li→bullet, strips tags)
 - Strips AI footers/sign-offs
 - Splits messages at 2500 chars / 35 lines to avoid Slack's "See more" collapse
@@ -201,7 +202,7 @@ awaiting_context → processing → active ⇄ active_pending → resolved
 - Forwards Intercom attachments + inline images (deduped) to Slack
 - **Incident.io detection:** If reply references incident.io/status page → fetches live status from `status.lovable.dev` and posts status block with subscribe button; includes escalate button if not already escalated
 - **Interim message detection:** Pattern matches "Sam is working/thinking/typing..." → no buttons posted
-- **Auto-escalation detection:** Regex matches escalation keywords → hides feedback buttons, posts routing notice, sets status to `escalated`, swaps reactions (eyes→hourglass), converts conversation to ticket (ticket_type_id: "1")
+- **Auto-escalation detection:** Regex matches escalation keywords only on Sam/admin AI replies → hides feedback buttons, posts routing notice, sets status to `escalated`, swaps reactions (eyes→hourglass), converts conversation to ticket (ticket_type_id: "1")
 - Normal replies → shows "👍 This resolved my issue" + "👎 Escalate to human" buttons + "continue chatting" hint
 
 ### Ticket ID extraction (intercom-webhook)
