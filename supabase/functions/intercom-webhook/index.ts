@@ -1168,6 +1168,8 @@ Deno.serve(async (req) => {
     let replyText = "";
     let adminName = "";
     let isHumanAdmin = false;
+    let lastCommentAuthorType = "";
+    let isKnownAiAgent = false;
 
     // Attachments from the comment part
     let attachments: Array<{ url: string; name: string; content_type: string }> = [];
@@ -1195,8 +1197,9 @@ Deno.serve(async (req) => {
         .replace(/\n{3,}/g, "\n\n")
         .trim();
       const author = lastCommentPart.author as { type?: string; name?: string; id?: string } | undefined;
+      lastCommentAuthorType = String(author?.type || "");
       const normalizedAuthorName = String(author?.name || "").trim().toLowerCase();
-      const isKnownAiAgent = normalizedAuthorName === "sam" || normalizedAuthorName.includes("ask lovable");
+      isKnownAiAgent = normalizedAuthorName === "sam" || normalizedAuthorName.includes("ask lovable");
 
       // Keep human behavior intact, but force Sam/Ask Lovable to stay on default bot identity
       if (author && author.type === "admin" && author.name && !isKnownAiAgent) {
@@ -1226,12 +1229,23 @@ Deno.serve(async (req) => {
         console.log(`Found ${attachments.length} attachment(s) in Intercom reply`);
       }
     }
+    const isAiAgentReply = lastCommentAuthorType === "admin" && !isHumanAdmin;
 
     // Skip replies that originated from Slack (they already appear in the thread)
     const slackOriginPattern = /\[From:.*via Slack\]/i;
     if (slackOriginPattern.test(replyText) || slackOriginPattern.test((lastCommentPart.body as string) || "")) {
       console.log(`Skipping Slack-originated reply for conversation ${conversationId} (already in thread)`);
       return new Response(JSON.stringify({ ok: true, message: "Slack-originated reply skipped" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Skip the customer-side marker we create during Sam auto-escalation. Intercom
+    // emits it back as conversation.user.replied; reposting it would create a loop.
+    const escalationCustomerMarkerPattern = /^This ticket has been escalated — awaiting human support response\.?$/i;
+    if (lastCommentAuthorType !== "admin" && escalationCustomerMarkerPattern.test(replyText.trim())) {
+      console.log(`Skipping webhook-created escalation marker for conversation ${conversationId}`);
+      return new Response(JSON.stringify({ ok: true, message: "Escalation marker skipped" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
