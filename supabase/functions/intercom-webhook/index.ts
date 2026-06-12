@@ -1497,7 +1497,7 @@ Deno.serve(async (req) => {
 
       // Detect if Sam (AI) decided to route/escalate to humans
       const escalationKeywords = /\b(escalat|routing|transfer|hand(ing|ed)?\s*(this\s+)?(over|off)|human\s+(agent|support|team)|enterprise\s+(support\s+)?team|team\s+member|connect(ing)?\s+you\s+with|pass(ing)?\s+(this\s+)?(to|along))\b/i;
-      const isAiEscalation = !isHumanAdmin && escalationKeywords.test(replyText);
+      const isAiEscalation = isAiAgentReply && escalationKeywords.test(replyText);
 
       // Detect interim "working/thinking" messages from Sam — no buttons for these
       const workingPattern = /^(sam is (working|thinking|typing|processing)|working on (it|this|your)|let me (check|look|investigate)|one moment|hang tight|looking into)/i;
@@ -1595,7 +1595,7 @@ Deno.serve(async (req) => {
 
     // If Sam auto-escalated, update status + reactions to match manual escalation
     const escalationKeywords2 = /\b(escalat|routing|transfer|hand(ing|ed)?\s*(this\s+)?(over|off)|human\s+(agent|support|team)|enterprise\s+(support\s+)?team|team\s+member|connect(ing)?\s+you\s+with|pass(ing)?\s+(this\s+)?(to|along))\b/i;
-    const isAiEscalation2 = !isHumanAdmin && escalationKeywords2.test(replyText);
+    const isAiEscalation2 = isAiAgentReply && escalationKeywords2.test(replyText);
     if (isAiEscalation2 && mapping.status !== "escalated" && mapping.status !== "escalated_pending" && mapping.status !== "resolved") {
       await removeReaction(SLACK_BOT_TOKEN, mapping.slack_channel_id, mapping.slack_thread_ts, "eyes");
       await addReaction(SLACK_BOT_TOKEN, mapping.slack_channel_id, mapping.slack_thread_ts, "hourglass_flowing_sand");
