@@ -356,6 +356,17 @@ const InboxV2 = () => {
                     <TableCell style={{ width: widths.owner }} className="text-sm truncate overflow-hidden">{renderField(r.owner)}</TableCell>
                     <TableCell style={{ width: widths.product_area }} className="text-sm truncate overflow-hidden">{renderField(r.product_area)}</TableCell>
                     <TableCell style={{ width: widths.classification }} className="text-sm truncate overflow-hidden">{renderField(r.classification)}</TableCell>
+                    <TableCell style={{ width: widths.tags }} className="text-xs overflow-hidden">
+                      {r.tags && r.tags.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {r.tags.map(t => (
+                            <Badge key={t} variant="secondary" className="text-[10px] font-normal px-1.5 py-0">{t}</Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell style={{ width: widths.status }} className="text-xs truncate overflow-hidden">{r.status || "—"}</TableCell>
                     <TableCell style={{ width: widths.updated }} className="text-xs text-muted-foreground truncate overflow-hidden">
                       {r.intercom_updated_at ? formatDistanceToNow(new Date(r.intercom_updated_at), { addSuffix: true }) : "—"}
