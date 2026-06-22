@@ -72,6 +72,7 @@ const InboxV2 = () => {
   const [productAreaFilter, setProductAreaFilter] = useState<string>(ANY);
   const [classificationFilter, setClassificationFilter] = useState<string>(ANY);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [tagsFilter, setTagsFilter] = useState<string[]>([]);
   const [selected, setSelected] = useState<Ticket | null>(null);
 
   const [widths, setWidths] = useState<Record<ColKey, number>>(() => {
