@@ -42,6 +42,7 @@ const App = () => (
           <Route path="/settings" element={<ProtectedRoute><Index /></ProtectedRoute>} />
           <Route path="/flow" element={<ProtectedRoute><FlowDiagram /></ProtectedRoute>} />
           <Route path="/knowledge" element={<ProtectedRoute><ProjectKnowledge /></ProtectedRoute>} />
+          <Route path="/changelog" element={<ProtectedRoute><Changelog /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
