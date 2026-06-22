@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,29 @@ type Ticket = {
 const ANY = "__any__";
 const MISSING = "__missing__";
 
+type ColKey = "subject" | "contact" | "owner" | "product_area" | "classification" | "status" | "updated";
+const COL_ORDER: ColKey[] = ["subject", "contact", "owner", "product_area", "classification", "status", "updated"];
+const COL_LABELS: Record<ColKey, string> = {
+  subject: "Subject",
+  contact: "Contact",
+  owner: "Owner",
+  product_area: "Product area",
+  classification: "Classification",
+  status: "Status",
+  updated: "Updated",
+};
+const DEFAULT_WIDTHS: Record<ColKey, number> = {
+  subject: 400,
+  contact: 180,
+  owner: 120,
+  product_area: 160,
+  classification: 140,
+  status: 90,
+  updated: 140,
+};
+const STORAGE_KEY = "inbox-v2-col-widths";
+const MIN_WIDTH = 60;
+
 const InboxV2 = () => {
   const { toast } = useToast();
   const [rows, setRows] = useState<Ticket[]>([]);
@@ -41,6 +64,49 @@ const InboxV2 = () => {
   const [classificationFilter, setClassificationFilter] = useState<string>(ANY);
   const [statusFilter, setStatusFilter] = useState<string>(ANY);
   const [selected, setSelected] = useState<Ticket | null>(null);
+
+  const [widths, setWidths] = useState<Record<ColKey, number>>(() => {
+    if (typeof window === "undefined") return DEFAULT_WIDTHS;
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return { ...DEFAULT_WIDTHS, ...parsed };
+      }
+    } catch {}
+    return DEFAULT_WIDTHS;
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(widths));
+    } catch {}
+  }, [widths]);
+
+  const dragRef = useRef<{ key: ColKey; startX: number; startWidth: number } | null>(null);
+
+  const onResizeStart = (key: ColKey) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragRef.current = { key, startX: e.clientX, startWidth: widths[key] };
+    const onMove = (ev: MouseEvent) => {
+      if (!dragRef.current) return;
+      const delta = ev.clientX - dragRef.current.startX;
+      const next = Math.max(MIN_WIDTH, dragRef.current.startWidth + delta);
+      setWidths((w) => ({ ...w, [dragRef.current!.key]: next }));
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  };
 
   const load = async () => {
     setLoading(true);
@@ -118,6 +184,24 @@ const InboxV2 = () => {
     );
   };
 
+  const ResizeHandle = ({ colKey }: { colKey: ColKey }) => (
+    <span
+      onMouseDown={onResizeStart(colKey)}
+      onClick={(e) => e.stopPropagation()}
+      className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none hover:bg-primary/40 active:bg-primary/60"
+      style={{ touchAction: "none" }}
+    />
+  );
+
+  const Th = ({ colKey, children }: { colKey: ColKey; children: React.ReactNode }) => (
+    <TableHead style={{ width: widths[colKey] }} className="relative overflow-hidden">
+      <span className="truncate block pr-2">{children}</span>
+      <ResizeHandle colKey={colKey} />
+    </TableHead>
+  );
+
+  const totalWidth = COL_ORDER.reduce((acc, k) => acc + widths[k], 0);
+
   return (
     <AppLayout>
       <div className="p-6 space-y-4">
@@ -151,31 +235,36 @@ const InboxV2 = () => {
           <FilterSelect label="Classification" value={classificationFilter} onChange={setClassificationFilter} options={classificationOptions} />
           <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={statusOptions} includeMissing={false} />
           <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {rows.length}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs h-7 ml-auto"
+            onClick={() => setWidths(DEFAULT_WIDTHS)}
+            title="Reset column widths"
+          >
+            Reset columns
+          </Button>
         </div>
 
-        <div className="rounded-md border border-border bg-card overflow-hidden">
-          <Table>
+        <div className="rounded-md border border-border bg-card overflow-auto">
+          <Table style={{ tableLayout: "fixed", width: totalWidth, minWidth: "100%" }}>
             <TableHeader>
               <TableRow>
-                <TableHead>Subject</TableHead>
-                <TableHead className="w-[180px]">Contact</TableHead>
-                <TableHead className="w-[120px]">Owner</TableHead>
-                <TableHead className="w-[160px]">Product area</TableHead>
-                <TableHead className="w-[140px]">Classification</TableHead>
-                <TableHead className="w-[90px]">Status</TableHead>
-                <TableHead className="w-[140px]">Updated</TableHead>
+                {COL_ORDER.map((k) => (
+                  <Th key={k} colKey={k}>{COL_LABELS[k]}</Th>
+                ))}
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                  <TableCell colSpan={COL_ORDER.length} className="text-center py-10 text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
                   </TableCell>
                 </TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground text-sm">
+                  <TableCell colSpan={COL_ORDER.length} className="text-center py-10 text-muted-foreground text-sm">
                     {rows.length === 0
                       ? "No tickets yet — click \"Sync now\" to pull from Intercom."
                       : "No tickets match the current filters."}
@@ -188,16 +277,18 @@ const InboxV2 = () => {
                     className="cursor-pointer hover:bg-accent/50"
                     onClick={() => setSelected(r)}
                   >
-                    <TableCell className="font-medium max-w-md truncate">{r.subject || "(no subject)"}</TableCell>
-                    <TableCell className="text-sm">
+                    <TableCell style={{ width: widths.subject }} className="font-medium truncate overflow-hidden">
+                      {r.subject || "(no subject)"}
+                    </TableCell>
+                    <TableCell style={{ width: widths.contact }} className="text-sm overflow-hidden">
                       <div className="truncate">{r.contact_name || "—"}</div>
                       {r.contact_email && <div className="text-[11px] text-muted-foreground truncate">{r.contact_email}</div>}
                     </TableCell>
-                    <TableCell className="text-sm">{renderField(r.owner)}</TableCell>
-                    <TableCell className="text-sm">{renderField(r.product_area)}</TableCell>
-                    <TableCell className="text-sm">{renderField(r.classification)}</TableCell>
-                    <TableCell className="text-xs">{r.status || "—"}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell style={{ width: widths.owner }} className="text-sm truncate overflow-hidden">{renderField(r.owner)}</TableCell>
+                    <TableCell style={{ width: widths.product_area }} className="text-sm truncate overflow-hidden">{renderField(r.product_area)}</TableCell>
+                    <TableCell style={{ width: widths.classification }} className="text-sm truncate overflow-hidden">{renderField(r.classification)}</TableCell>
+                    <TableCell style={{ width: widths.status }} className="text-xs truncate overflow-hidden">{r.status || "—"}</TableCell>
+                    <TableCell style={{ width: widths.updated }} className="text-xs text-muted-foreground truncate overflow-hidden">
                       {r.intercom_updated_at ? formatDistanceToNow(new Date(r.intercom_updated_at), { addSuffix: true }) : "—"}
                     </TableCell>
                   </TableRow>
