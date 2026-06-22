@@ -23,6 +23,7 @@ type Ticket = {
   product_area: string | null;
   classification: string | null;
   status: string | null;
+  tags: string[] | null;
   intercom_created_at: string | null;
   intercom_updated_at: string | null;
   last_synced_at: string | null;
@@ -31,9 +32,10 @@ type Ticket = {
 
 const ANY = "__any__";
 const MISSING = "__missing__";
+const NO_TAGS = "(no tags)";
 
-type ColKey = "intercom_id" | "subject" | "contact" | "owner" | "product_area" | "classification" | "status" | "updated";
-const COL_ORDER: ColKey[] = ["intercom_id", "subject", "contact", "owner", "product_area", "classification", "status", "updated"];
+type ColKey = "intercom_id" | "subject" | "contact" | "owner" | "product_area" | "classification" | "tags" | "status" | "updated";
+const COL_ORDER: ColKey[] = ["intercom_id", "subject", "contact", "owner", "product_area", "classification", "tags", "status", "updated"];
 const COL_LABELS: Record<ColKey, string> = {
   intercom_id: "Intercom ID",
   subject: "Subject",
@@ -41,6 +43,7 @@ const COL_LABELS: Record<ColKey, string> = {
   owner: "Owner",
   product_area: "Product area",
   classification: "Classification",
+  tags: "Tags",
   status: "Status",
   updated: "Updated",
 };
@@ -51,9 +54,11 @@ const DEFAULT_WIDTHS: Record<ColKey, number> = {
   owner: 120,
   product_area: 160,
   classification: 140,
+  tags: 220,
   status: 90,
   updated: 140,
 };
+
 const STORAGE_KEY = "inbox-v2-col-widths";
 const MIN_WIDTH = 60;
 
@@ -67,6 +72,7 @@ const InboxV2 = () => {
   const [productAreaFilter, setProductAreaFilter] = useState<string>(ANY);
   const [classificationFilter, setClassificationFilter] = useState<string>(ANY);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [tagsFilter, setTagsFilter] = useState<string[]>([]);
   const [selected, setSelected] = useState<Ticket | null>(null);
 
   const [widths, setWidths] = useState<Record<ColKey, number>>(() => {
@@ -156,6 +162,18 @@ const InboxV2 = () => {
   const productAreaOptions = useMemo(() => Array.from(new Set(rows.map(r => r.product_area).filter(Boolean))).sort() as string[], [rows]);
   const classificationOptions = useMemo(() => Array.from(new Set(rows.map(r => r.classification).filter(Boolean))).sort() as string[], [rows]);
   const statusOptions = useMemo(() => Array.from(new Set(rows.map(r => r.status).filter(Boolean))).sort() as string[], [rows]);
+  const tagsOptions = useMemo(() => {
+    const set = new Set<string>();
+    let hasEmpty = false;
+    for (const r of rows) {
+      const t = r.tags;
+      if (!t || t.length === 0) { hasEmpty = true; continue; }
+      for (const v of t) if (v) set.add(v);
+    }
+    const list = Array.from(set).sort();
+    if (hasEmpty) list.unshift(NO_TAGS);
+    return list;
+  }, [rows]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -167,14 +185,22 @@ const InboxV2 = () => {
       if (classificationFilter === MISSING && r.classification) return false;
       if (classificationFilter !== ANY && classificationFilter !== MISSING && r.classification !== classificationFilter) return false;
       if (statusFilter.length > 0 && (!r.status || !statusFilter.includes(r.status))) return false;
+      if (tagsFilter.length > 0) {
+        const rTags = r.tags || [];
+        const wantEmpty = tagsFilter.includes(NO_TAGS);
+        const otherSelected = tagsFilter.filter(t => t !== NO_TAGS);
+        const matchEmpty = wantEmpty && rTags.length === 0;
+        const matchTag = otherSelected.some(t => rTags.includes(t));
+        if (!matchEmpty && !matchTag) return false;
+      }
       if (q) {
-        const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id]
+        const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, ...(r.tags || [])]
           .filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [rows, search, ownerFilter, productAreaFilter, classificationFilter, statusFilter]);
+  }, [rows, search, ownerFilter, productAreaFilter, classificationFilter, statusFilter, tagsFilter]);
 
   const lastSync = useMemo(() => {
     const ts = rows.map(r => r.last_synced_at).filter(Boolean).sort().pop();
@@ -264,6 +290,7 @@ const InboxV2 = () => {
           <FilterSelect label="Product area" value={productAreaFilter} onChange={setProductAreaFilter} options={productAreaOptions} />
           <FilterSelect label="Classification" value={classificationFilter} onChange={setClassificationFilter} options={classificationOptions} />
           <MultiFilterSelect label="Status" values={statusFilter} onChange={setStatusFilter} options={statusOptions} />
+          <MultiFilterSelect label="Tags" values={tagsFilter} onChange={setTagsFilter} options={tagsOptions} />
           <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {rows.length}</span>
           <Button
             variant="ghost"
@@ -329,6 +356,17 @@ const InboxV2 = () => {
                     <TableCell style={{ width: widths.owner }} className="text-sm truncate overflow-hidden">{renderField(r.owner)}</TableCell>
                     <TableCell style={{ width: widths.product_area }} className="text-sm truncate overflow-hidden">{renderField(r.product_area)}</TableCell>
                     <TableCell style={{ width: widths.classification }} className="text-sm truncate overflow-hidden">{renderField(r.classification)}</TableCell>
+                    <TableCell style={{ width: widths.tags }} className="text-xs overflow-hidden">
+                      {r.tags && r.tags.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {r.tags.map(t => (
+                            <Badge key={t} variant="secondary" className="text-[10px] font-normal px-1.5 py-0">{t}</Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell style={{ width: widths.status }} className="text-xs truncate overflow-hidden">{r.status || "—"}</TableCell>
                     <TableCell style={{ width: widths.updated }} className="text-xs text-muted-foreground truncate overflow-hidden">
                       {r.intercom_updated_at ? formatDistanceToNow(new Date(r.intercom_updated_at), { addSuffix: true }) : "—"}
@@ -357,6 +395,18 @@ const InboxV2 = () => {
                 <Field label="Owner" value={selected.owner} highlightMissing />
                 <Field label="Product area" value={selected.product_area} highlightMissing />
                 <Field label="Classification" value={selected.classification} highlightMissing />
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Tags</div>
+                  {selected.tags && selected.tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {selected.tags.map(t => (
+                        <Badge key={t} variant="secondary" className="text-[10px] font-normal">{t}</Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground">—</div>
+                  )}
+                </div>
                 <Field label="Status" value={selected.status} />
                 <Field
                   label="Created"

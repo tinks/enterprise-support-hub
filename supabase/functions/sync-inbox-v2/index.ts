@@ -30,6 +30,18 @@ function extractFields(icData: any): { product_area: string | null; classificati
   };
 }
 
+// Extract Intercom conversation tag names. Overwrites on every sync (drift is the signal).
+function extractTags(icData: any): string[] {
+  const arr = icData?.tags?.tags;
+  if (!Array.isArray(arr)) return [];
+  const out: string[] = [];
+  for (const t of arr) {
+    const name = typeof t?.name === "string" ? t.name.trim() : "";
+    if (name) out.push(name);
+  }
+  return out;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -158,6 +170,7 @@ Deno.serve(async (req) => {
       const adminId = String(icData.admin_assignee_id || conv.admin_assignee_id || "");
       const owner = adminOwnerMap[adminId] || null;
       const { product_area, classification } = extractFields(icData);
+      const tags = extractTags(icData);
       const subject = stripHtml(icData.source?.subject || icData.title || `Intercom #${intercomConvId}`);
       const status = String(icData.state || "open");
 
@@ -169,6 +182,7 @@ Deno.serve(async (req) => {
         owner,
         product_area,
         classification,
+        tags,
         status,
         intercom_created_at: icData.created_at ? new Date(icData.created_at * 1000).toISOString() : null,
         intercom_updated_at: icData.updated_at ? new Date(icData.updated_at * 1000).toISOString() : null,

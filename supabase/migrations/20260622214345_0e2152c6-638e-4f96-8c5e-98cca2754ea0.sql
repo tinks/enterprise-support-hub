@@ -1,0 +1,1 @@
+ALTER TABLE public.inbox_v2_tickets ADD COLUMN IF NOT EXISTS tags text[] NOT NULL DEFAULT '{}';

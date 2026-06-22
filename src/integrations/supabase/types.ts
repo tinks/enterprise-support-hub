@@ -372,6 +372,7 @@ export type Database = {
           raw_payload: Json | null
           status: string | null
           subject: string | null
+          tags: string[]
           updated_at: string
         }
         Insert: {
@@ -389,6 +390,7 @@ export type Database = {
           raw_payload?: Json | null
           status?: string | null
           subject?: string | null
+          tags?: string[]
           updated_at?: string
         }
         Update: {
@@ -406,6 +408,7 @@ export type Database = {
           raw_payload?: Json | null
           status?: string | null
           subject?: string | null
+          tags?: string[]
           updated_at?: string
         }
         Relationships: []
