@@ -23,6 +23,7 @@ type Ticket = {
   product_area: string | null;
   classification: string | null;
   status: string | null;
+  tags: string[] | null;
   intercom_created_at: string | null;
   intercom_updated_at: string | null;
   last_synced_at: string | null;
@@ -31,9 +32,10 @@ type Ticket = {
 
 const ANY = "__any__";
 const MISSING = "__missing__";
+const NO_TAGS = "(no tags)";
 
-type ColKey = "intercom_id" | "subject" | "contact" | "owner" | "product_area" | "classification" | "status" | "updated";
-const COL_ORDER: ColKey[] = ["intercom_id", "subject", "contact", "owner", "product_area", "classification", "status", "updated"];
+type ColKey = "intercom_id" | "subject" | "contact" | "owner" | "product_area" | "classification" | "tags" | "status" | "updated";
+const COL_ORDER: ColKey[] = ["intercom_id", "subject", "contact", "owner", "product_area", "classification", "tags", "status", "updated"];
 const COL_LABELS: Record<ColKey, string> = {
   intercom_id: "Intercom ID",
   subject: "Subject",
@@ -41,6 +43,7 @@ const COL_LABELS: Record<ColKey, string> = {
   owner: "Owner",
   product_area: "Product area",
   classification: "Classification",
+  tags: "Tags",
   status: "Status",
   updated: "Updated",
 };
@@ -51,9 +54,11 @@ const DEFAULT_WIDTHS: Record<ColKey, number> = {
   owner: 120,
   product_area: 160,
   classification: 140,
+  tags: 220,
   status: 90,
   updated: 140,
 };
+
 const STORAGE_KEY = "inbox-v2-col-widths";
 const MIN_WIDTH = 60;
 
