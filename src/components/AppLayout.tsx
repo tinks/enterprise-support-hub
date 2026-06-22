@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
-import { Settings, BarChart3, GitBranch, MessageSquare, BookOpen, Import, Users, LogOut, Sparkles } from "lucide-react";
+import { Settings, BarChart3, GitBranch, MessageSquare, BookOpen, Import, Users, LogOut, Sparkles, Beaker } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 
 const navItems = [
   { to: "/", icon: BarChart3, label: "Analytics", end: true },
   { to: "/conversations", icon: MessageSquare, label: "Inbox" },
+  { to: "/inbox-v2", icon: Beaker, label: "Inbox v2" },
   { to: "/insights", icon: Sparkles, label: "Insights" },
   { to: "/import", icon: Import, label: "Import" },
   { to: "/settings", icon: Settings, label: "Settings" },

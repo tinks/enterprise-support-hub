@@ -1,0 +1,298 @@
+import { useEffect, useMemo, useState } from "react";
+import AppLayout from "@/components/AppLayout";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Loader2, RefreshCw, ExternalLink, AlertCircle } from "lucide-react";
+import { format, formatDistanceToNow } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+
+type Ticket = {
+  id: string;
+  intercom_conversation_id: string;
+  subject: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  owner: string | null;
+  product_area: string | null;
+  classification: string | null;
+  status: string | null;
+  intercom_created_at: string | null;
+  intercom_updated_at: string | null;
+  last_synced_at: string | null;
+  raw_payload: any;
+};
+
+const ANY = "__any__";
+const MISSING = "__missing__";
+
+const InboxV2 = () => {
+  const { toast } = useToast();
+  const [rows, setRows] = useState<Ticket[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [search, setSearch] = useState("");
+  const [ownerFilter, setOwnerFilter] = useState<string>(ANY);
+  const [productAreaFilter, setProductAreaFilter] = useState<string>(ANY);
+  const [classificationFilter, setClassificationFilter] = useState<string>(ANY);
+  const [statusFilter, setStatusFilter] = useState<string>(ANY);
+  const [selected, setSelected] = useState<Ticket | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("inbox_v2_tickets")
+      .select("*")
+      .order("intercom_updated_at", { ascending: false, nullsFirst: false })
+      .limit(500);
+    if (error) {
+      toast({ title: "Failed to load", description: error.message, variant: "destructive" });
+    } else {
+      setRows((data || []) as Ticket[]);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const runSync = async () => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-inbox-v2", {
+        body: { windowHours: 24 },
+      });
+      if (error) throw error;
+      toast({
+        title: "Sync complete",
+        description: `Fetched ${data?.fetched ?? 0} · ${data?.inserted ?? 0} new · ${data?.updated ?? 0} updated${data?.failed ? ` · ${data.failed} failed` : ""}`,
+      });
+      await load();
+    } catch (e: any) {
+      toast({ title: "Sync failed", description: e?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const ownerOptions = useMemo(() => Array.from(new Set(rows.map(r => r.owner).filter(Boolean))).sort() as string[], [rows]);
+  const productAreaOptions = useMemo(() => Array.from(new Set(rows.map(r => r.product_area).filter(Boolean))).sort() as string[], [rows]);
+  const classificationOptions = useMemo(() => Array.from(new Set(rows.map(r => r.classification).filter(Boolean))).sort() as string[], [rows]);
+  const statusOptions = useMemo(() => Array.from(new Set(rows.map(r => r.status).filter(Boolean))).sort() as string[], [rows]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter(r => {
+      if (ownerFilter === MISSING && r.owner) return false;
+      if (ownerFilter !== ANY && ownerFilter !== MISSING && r.owner !== ownerFilter) return false;
+      if (productAreaFilter === MISSING && r.product_area) return false;
+      if (productAreaFilter !== ANY && productAreaFilter !== MISSING && r.product_area !== productAreaFilter) return false;
+      if (classificationFilter === MISSING && r.classification) return false;
+      if (classificationFilter !== ANY && classificationFilter !== MISSING && r.classification !== classificationFilter) return false;
+      if (statusFilter !== ANY && r.status !== statusFilter) return false;
+      if (q) {
+        const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id]
+          .filter(Boolean).join(" ").toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [rows, search, ownerFilter, productAreaFilter, classificationFilter, statusFilter]);
+
+  const lastSync = useMemo(() => {
+    const ts = rows.map(r => r.last_synced_at).filter(Boolean).sort().pop();
+    return ts ? formatDistanceToNow(new Date(ts), { addSuffix: true }) : "never";
+  }, [rows]);
+
+  const intercomUrl = (id: string) => `https://app.intercom.com/a/inbox/wq44gprj/inbox/conversation/${id}`;
+
+  const renderField = (val: string | null) => {
+    if (val) return <span className="text-foreground">{val}</span>;
+    return (
+      <span className="inline-flex items-center gap-1 text-amber-600 text-xs">
+        <AlertCircle className="h-3 w-3" /> missing
+      </span>
+    );
+  };
+
+  return (
+    <AppLayout>
+      <div className="p-6 space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+              Inbox v2 <Badge variant="secondary" className="text-[10px]">Beta</Badge>
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Sandbox view sourced directly from Intercom — read-only. Owner / Product Area / Classification mirror Intercom and are never edited locally.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-muted-foreground">Last synced: {lastSync} · {rows.length} tickets</span>
+            <Button onClick={runSync} disabled={syncing} size="sm" variant="outline">
+              {syncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Sync now
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            placeholder="Search subject, contact, email, Intercom ID…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="max-w-sm h-9"
+          />
+          <FilterSelect label="Owner" value={ownerFilter} onChange={setOwnerFilter} options={ownerOptions} />
+          <FilterSelect label="Product area" value={productAreaFilter} onChange={setProductAreaFilter} options={productAreaOptions} />
+          <FilterSelect label="Classification" value={classificationFilter} onChange={setClassificationFilter} options={classificationOptions} />
+          <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={statusOptions} includeMissing={false} />
+          <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {rows.length}</span>
+        </div>
+
+        <div className="rounded-md border border-border bg-card overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Subject</TableHead>
+                <TableHead className="w-[180px]">Contact</TableHead>
+                <TableHead className="w-[120px]">Owner</TableHead>
+                <TableHead className="w-[160px]">Product area</TableHead>
+                <TableHead className="w-[140px]">Classification</TableHead>
+                <TableHead className="w-[90px]">Status</TableHead>
+                <TableHead className="w-[140px]">Updated</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
+                  </TableCell>
+                </TableRow>
+              ) : filtered.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-10 text-muted-foreground text-sm">
+                    {rows.length === 0
+                      ? "No tickets yet — click \"Sync now\" to pull from Intercom."
+                      : "No tickets match the current filters."}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filtered.map(r => (
+                  <TableRow
+                    key={r.id}
+                    className="cursor-pointer hover:bg-accent/50"
+                    onClick={() => setSelected(r)}
+                  >
+                    <TableCell className="font-medium max-w-md truncate">{r.subject || "(no subject)"}</TableCell>
+                    <TableCell className="text-sm">
+                      <div className="truncate">{r.contact_name || "—"}</div>
+                      {r.contact_email && <div className="text-[11px] text-muted-foreground truncate">{r.contact_email}</div>}
+                    </TableCell>
+                    <TableCell className="text-sm">{renderField(r.owner)}</TableCell>
+                    <TableCell className="text-sm">{renderField(r.product_area)}</TableCell>
+                    <TableCell className="text-sm">{renderField(r.classification)}</TableCell>
+                    <TableCell className="text-xs">{r.status || "—"}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {r.intercom_updated_at ? formatDistanceToNow(new Date(r.intercom_updated_at), { addSuffix: true }) : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
+        <SheetContent className="w-[480px] sm:max-w-[480px] overflow-y-auto">
+          {selected && (
+            <>
+              <SheetHeader>
+                <SheetTitle className="text-base pr-6">{selected.subject || "(no subject)"}</SheetTitle>
+                <SheetDescription className="text-xs">
+                  Intercom #{selected.intercom_conversation_id}
+                </SheetDescription>
+              </SheetHeader>
+
+              <div className="mt-6 space-y-4 text-sm">
+                <Field label="Contact" value={selected.contact_name} sub={selected.contact_email} />
+                <Field label="Owner" value={selected.owner} highlightMissing />
+                <Field label="Product area" value={selected.product_area} highlightMissing />
+                <Field label="Classification" value={selected.classification} highlightMissing />
+                <Field label="Status" value={selected.status} />
+                <Field
+                  label="Created"
+                  value={selected.intercom_created_at ? format(new Date(selected.intercom_created_at), "MMM d, yyyy HH:mm") : null}
+                />
+                <Field
+                  label="Last updated"
+                  value={selected.intercom_updated_at ? format(new Date(selected.intercom_updated_at), "MMM d, yyyy HH:mm") : null}
+                />
+                <Field
+                  label="Last synced"
+                  value={selected.last_synced_at ? format(new Date(selected.last_synced_at), "MMM d, yyyy HH:mm") : null}
+                />
+
+                <a
+                  href={intercomUrl(selected.intercom_conversation_id)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline pt-2"
+                >
+                  View in Intercom <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+    </AppLayout>
+  );
+};
+
+function FilterSelect({
+  label, value, onChange, options, includeMissing = true,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  includeMissing?: boolean;
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className="h-9 w-[170px] text-xs">
+        <SelectValue placeholder={label} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={ANY}>{label}: any</SelectItem>
+        {includeMissing && <SelectItem value={MISSING}>{label}: missing</SelectItem>}
+        {options.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function Field({ label, value, sub, highlightMissing }: { label: string; value: string | null; sub?: string | null; highlightMissing?: boolean }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      {value ? (
+        <div className="text-foreground">{value}{sub && <div className="text-xs text-muted-foreground">{sub}</div>}</div>
+      ) : highlightMissing ? (
+        <div className="inline-flex items-center gap-1 text-amber-600 text-sm">
+          <AlertCircle className="h-3.5 w-3.5" /> missing
+        </div>
+      ) : (
+        <div className="text-muted-foreground">—</div>
+      )}
+    </div>
+  );
+}
+
+export default InboxV2;
