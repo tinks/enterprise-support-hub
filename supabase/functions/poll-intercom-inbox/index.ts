@@ -116,6 +116,11 @@ Deno.serve(async (req) => {
   // Collect all conversations across all queries, deduplicate by ID
   const seenConvIds = new Set<string>();
   const allConversations: Array<Record<string, unknown>> = [];
+  // Track whether any upstream Intercom call failed during this run so we don't
+  // overwrite a fresh auth_error/error with "ok" at the end of the function.
+  let upstreamFailed = false;
+  let lastUpstreamStatus: "auth_error" | "error" | null = null;
+  let lastUpstreamError: string | null = null;
 
   for (const sq of searchQueries) {
     let hasMore = true;
@@ -145,7 +150,11 @@ Deno.serve(async (req) => {
       if (!searchRes.ok) {
         const errText = await searchRes.text();
         console.error(`Intercom search failed for ${sq.label}:`, searchRes.status, errText);
-        await recordIntegrationHealth(supabase, "intercom_poll", classifyHttpStatus(searchRes.status), `search ${searchRes.status}: ${errText.slice(0, 200)}`);
+        const classified = classifyHttpStatus(searchRes.status);
+        upstreamFailed = true;
+        lastUpstreamStatus = classified === "ok" ? lastUpstreamStatus : classified;
+        lastUpstreamError = `search ${searchRes.status}: ${errText.slice(0, 200)}`;
+        await recordIntegrationHealth(supabase, "intercom_poll", classified, lastUpstreamError);
         // Continue with other queries instead of failing entirely
         break;
       }
@@ -407,7 +416,14 @@ Deno.serve(async (req) => {
 
   // Update last_polled_intercom_at
   await supabase.from("settings").update({ last_polled_intercom_at: new Date().toISOString() }).eq("id", settings.id);
-  await recordIntegrationHealth(supabase, "intercom_poll", "ok");
+  // Only mark intercom_poll healthy if every upstream Intercom call succeeded.
+  // Otherwise the auth_error/error recorded mid-run would be overwritten and
+  // the Settings → Integration health card would falsely show "Healthy".
+  if (!upstreamFailed) {
+    await recordIntegrationHealth(supabase, "intercom_poll", "ok");
+  } else if (lastUpstreamStatus) {
+    await recordIntegrationHealth(supabase, "intercom_poll", lastUpstreamStatus, lastUpstreamError);
+  }
 
 
   const imported = results.filter(r => r.action === "imported").length;
