@@ -307,6 +307,18 @@ const InboxV2 = () => {
                     className="cursor-pointer hover:bg-accent/50"
                     onClick={() => setSelected(r)}
                   >
+                    <TableCell style={{ width: widths.intercom_id }} className="text-xs font-mono text-muted-foreground truncate overflow-hidden">
+                      <a
+                        href={intercomUrl(r.intercom_conversation_id)}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-primary hover:underline"
+                        title={r.intercom_conversation_id}
+                      >
+                        {r.intercom_conversation_id}
+                      </a>
+                    </TableCell>
                     <TableCell style={{ width: widths.subject }} className="font-medium truncate overflow-hidden">
                       {r.subject || "(no subject)"}
                     </TableCell>
