@@ -182,6 +182,7 @@ Deno.serve(async (req) => {
         owner,
         product_area,
         classification,
+        tags,
         status,
         intercom_created_at: icData.created_at ? new Date(icData.created_at * 1000).toISOString() : null,
         intercom_updated_at: icData.updated_at ? new Date(icData.updated_at * 1000).toISOString() : null,
