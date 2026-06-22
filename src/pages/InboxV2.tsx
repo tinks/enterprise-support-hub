@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, RefreshCw, ExternalLink, AlertCircle } from "lucide-react";
+import { Loader2, RefreshCw, ExternalLink, AlertCircle, ChevronDown } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
@@ -62,7 +64,7 @@ const InboxV2 = () => {
   const [ownerFilter, setOwnerFilter] = useState<string>(ANY);
   const [productAreaFilter, setProductAreaFilter] = useState<string>(ANY);
   const [classificationFilter, setClassificationFilter] = useState<string>(ANY);
-  const [statusFilter, setStatusFilter] = useState<string>(ANY);
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [selected, setSelected] = useState<Ticket | null>(null);
 
   const [widths, setWidths] = useState<Record<ColKey, number>>(() => {
@@ -162,7 +164,7 @@ const InboxV2 = () => {
       if (productAreaFilter !== ANY && productAreaFilter !== MISSING && r.product_area !== productAreaFilter) return false;
       if (classificationFilter === MISSING && r.classification) return false;
       if (classificationFilter !== ANY && classificationFilter !== MISSING && r.classification !== classificationFilter) return false;
-      if (statusFilter !== ANY && r.status !== statusFilter) return false;
+      if (statusFilter.length > 0 && (!r.status || !statusFilter.includes(r.status))) return false;
       if (q) {
         const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id]
           .filter(Boolean).join(" ").toLowerCase();
@@ -259,7 +261,7 @@ const InboxV2 = () => {
           <FilterSelect label="Owner" value={ownerFilter} onChange={setOwnerFilter} options={ownerOptions} />
           <FilterSelect label="Product area" value={productAreaFilter} onChange={setProductAreaFilter} options={productAreaOptions} />
           <FilterSelect label="Classification" value={classificationFilter} onChange={setClassificationFilter} options={classificationOptions} />
-          <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={statusOptions} includeMissing={false} />
+          <MultiFilterSelect label="Status" values={statusFilter} onChange={setStatusFilter} options={statusOptions} />
           <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {rows.length}</span>
           <Button
             variant="ghost"
