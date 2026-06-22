@@ -88,7 +88,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         {/* Nav links */}
         <nav className="flex-1 flex flex-col justify-between">
           <div className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto overflow-x-hidden">
-              {navItems.slice(0, 2).map((item) => (
+              {navItems.slice(0, 3).map((item) => (
                 <TooltipProvider key={item.to} delayDuration={0}>
                   <Tooltip open={!expanded && activeTooltip === item.label}>
                     <TooltipTrigger asChild>
@@ -130,7 +130,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                 </Tooltip>
               </TooltipProvider>
 
-              {navItems.slice(2).map((item) => (
+              {navItems.slice(3).map((item) => (
                 <TooltipProvider key={item.to} delayDuration={0}>
                   <Tooltip open={!expanded && activeTooltip === item.label}>
                     <TooltipTrigger asChild>
