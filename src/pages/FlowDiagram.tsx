@@ -26,6 +26,7 @@ import {
   ThumbsDown,
   User,
   CheckCircle2,
+  Beaker,
   Download,
 } from "lucide-react";
 import { toPng } from "html-to-image";
@@ -684,6 +685,27 @@ function buildNodes(
           "Fallback: creates manual_conversations entry with full message history if no Gmail match",
           "Auto-owner: resolves admin_assignee_id via settings.admin_owner_map",
           "Updates last_polled_intercom_at in settings after each run",
+        ],
+        accent: "orange",
+      },
+    },
+    {
+      id: "inbox-v2-sync",
+      type: "flowNode",
+      position: { x: COL_W * -0.6, y: ROW_H * 2 },
+      data: {
+        label: "Inbox v2 sandbox sync",
+        desc: "Parallel read-only mirror of Intercom into the inbox_v2_tickets table. Used to validate Owner / Product Area / Classification before any cutover from the live Inbox.",
+        icon: Beaker,
+        edgeFunction: "sync-inbox-v2",
+        details: [
+          "New table public.inbox_v2_tickets keyed by intercom_conversation_id (unique). Authenticated users read only; only the sync function (service_role) writes.",
+          "Sync function pulls conversations in the enterprise inbox updated within windowHours (default 24h) and upserts subject, contact, owner, product_area, classification, status, timestamps, and raw_payload.",
+          "Field sources match the live pipeline: owner ← admin_owner_map[admin_assignee_id]; product_area ← custom_attributes['Affected Product Area']; classification ← custom_attributes['Ticket type'].",
+          "Unlike the live tables, this table DOES null-out values when Intercom is blank — drift is the signal we want to see.",
+          "Two pg_cron jobs: sync-inbox-v2-frequent every 15 minutes (windowHours=2) and sync-inbox-v2-nightly at 03:00 UTC (windowHours=720).",
+          "UI lives at /inbox-v2 (sidebar entry with Beaker icon). Read-only table with search + Owner/Product area/Classification/Status filters (each with a 'missing' option), 'Sync now' button, and a right-side drawer with 'View in Intercom' link.",
+          "Zero blast radius: no existing table, function, cron, query, or page is touched. Cutover (pointing the live Inbox / /my/* at this data) is a future, gated step.",
         ],
         accent: "orange",
       },
