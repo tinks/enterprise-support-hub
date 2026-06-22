@@ -18,6 +18,7 @@ import BulkImportReview from "./pages/BulkImportReview";
 import TestChannelReview from "./pages/TestChannelReview";
 import Insights from "./pages/Insights";
 import InboxV2 from "./pages/InboxV2";
+import Changelog from "./pages/Changelog";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +42,7 @@ const App = () => (
           <Route path="/settings" element={<ProtectedRoute><Index /></ProtectedRoute>} />
           <Route path="/flow" element={<ProtectedRoute><FlowDiagram /></ProtectedRoute>} />
           <Route path="/knowledge" element={<ProtectedRoute><ProjectKnowledge /></ProtectedRoute>} />
+          <Route path="/changelog" element={<ProtectedRoute><Changelog /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

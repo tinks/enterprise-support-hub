@@ -746,3 +746,11 @@ Parallel page that mirrors Intercom directly into a new `inbox_v2_tickets` table
 - Two pg_cron jobs: `sync-inbox-v2-frequent` every 15 minutes (windowHours=2) and `sync-inbox-v2-nightly` at 03:00 UTC (windowHours=720).
 - UI `src/pages/InboxV2.tsx`: read-only table with search + filters (Owner / Product Area / Classification / Status, each with a "missing" option), a "Sync now" button that invokes the function on demand, and a right-side drawer with a "View in Intercom" link.
 - No existing table, function, cron, query, or page is touched. Cutover (pointing the live Inbox / `/my/*` at this data) is a future step.
+
+### Changelog page — `/changelog`
+
+Self-service release notes shown in the app. Backed by `public.changelog_entries` (id, entry_date, title, body, tags `text[]`, area, author_user_id). Tags are one of `new` / `improved` / `fixed` / `internal` and drive the badge color. RLS allows any authenticated user to read, insert, update, and delete entries — same trust model as Settings and Knowledge. Updated_at is maintained by the shared `update_updated_at_column` trigger.
+
+UI: `src/pages/Changelog.tsx` lists entries reverse-chronologically, grouped by month with a sticky month header. `src/components/changelog/AddEntryDialog.tsx` is the add/edit dialog (date, title, body, tag multi-select, optional area). Each entry has inline edit/delete controls. Sidebar entry sits below Knowledge in the bottom utility section, icon `ScrollText`.
+
+Out of scope: no public/marketing feed, no RSS, no auto-generation from git/edit history, no Slack/email broadcast on new entries. Add entries manually whenever something user-visible ships.
