@@ -711,6 +711,24 @@ function buildNodes(
         accent: "orange",
       },
     },
+    {
+      id: "changelog-page",
+      type: "flowNode",
+      position: { x: COL_W * -0.6, y: ROW_H * 3 },
+      data: {
+        label: "Changelog page",
+        desc: "Self-service release notes shown at /changelog. Manually authored entries — not auto-generated from edit history.",
+        icon: ScrollText,
+        details: [
+          "Table public.changelog_entries (id, entry_date, title, body, tags[], area, author_user_id) with RLS allowing any authenticated user to read/insert/update/delete — same trust model as Settings and Knowledge.",
+          "UI lists entries reverse-chronologically grouped by month with a sticky month header; each entry has inline edit and delete controls.",
+          "Add/edit dialog captures date (defaults to today), title, body (plain text with line breaks), tag multi-select (new / improved / fixed / internal), and optional area free-text.",
+          "Seeded on creation with ~8 entries summarising the previous month's shipped work so the page isn't empty on first load.",
+          "Sidebar entry sits at the bottom utility section under Knowledge, icon ScrollText. No edge functions, no cron, no external surface.",
+        ],
+        accent: "muted",
+      },
+    },
   ];
 }
 
