@@ -416,7 +416,14 @@ Deno.serve(async (req) => {
 
   // Update last_polled_intercom_at
   await supabase.from("settings").update({ last_polled_intercom_at: new Date().toISOString() }).eq("id", settings.id);
-  await recordIntegrationHealth(supabase, "intercom_poll", "ok");
+  // Only mark intercom_poll healthy if every upstream Intercom call succeeded.
+  // Otherwise the auth_error/error recorded mid-run would be overwritten and
+  // the Settings → Integration health card would falsely show "Healthy".
+  if (!upstreamFailed) {
+    await recordIntegrationHealth(supabase, "intercom_poll", "ok");
+  } else if (lastUpstreamStatus) {
+    await recordIntegrationHealth(supabase, "intercom_poll", lastUpstreamStatus, lastUpstreamError);
+  }
 
 
   const imported = results.filter(r => r.action === "imported").length;
