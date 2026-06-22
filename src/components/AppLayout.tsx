@@ -199,7 +199,7 @@ function DashboardFlyout({
   sidebarWidth: number;
 }) {
   // Position flush against the sidebar edge (no gap) so the mouse can cross seamlessly
-  const topOffset = 49 + 8 + 40 * 2 + 4 * 2;
+  const topOffset = 49 + 8 + 40 * 3 + 4 * 3;
 
   return (
     <div
