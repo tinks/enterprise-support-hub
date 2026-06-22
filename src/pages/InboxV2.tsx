@@ -32,9 +32,10 @@ type Ticket = {
 const ANY = "__any__";
 const MISSING = "__missing__";
 
-type ColKey = "subject" | "contact" | "owner" | "product_area" | "classification" | "status" | "updated";
-const COL_ORDER: ColKey[] = ["subject", "contact", "owner", "product_area", "classification", "status", "updated"];
+type ColKey = "intercom_id" | "subject" | "contact" | "owner" | "product_area" | "classification" | "status" | "updated";
+const COL_ORDER: ColKey[] = ["intercom_id", "subject", "contact", "owner", "product_area", "classification", "status", "updated"];
 const COL_LABELS: Record<ColKey, string> = {
+  intercom_id: "Intercom ID",
   subject: "Subject",
   contact: "Contact",
   owner: "Owner",
@@ -44,7 +45,8 @@ const COL_LABELS: Record<ColKey, string> = {
   updated: "Updated",
 };
 const DEFAULT_WIDTHS: Record<ColKey, number> = {
-  subject: 400,
+  intercom_id: 150,
+  subject: 360,
   contact: 180,
   owner: 120,
   product_area: 160,
