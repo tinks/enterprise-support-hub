@@ -150,7 +150,11 @@ Deno.serve(async (req) => {
       if (!searchRes.ok) {
         const errText = await searchRes.text();
         console.error(`Intercom search failed for ${sq.label}:`, searchRes.status, errText);
-        await recordIntegrationHealth(supabase, "intercom_poll", classifyHttpStatus(searchRes.status), `search ${searchRes.status}: ${errText.slice(0, 200)}`);
+        const classified = classifyHttpStatus(searchRes.status);
+        upstreamFailed = true;
+        lastUpstreamStatus = classified === "ok" ? lastUpstreamStatus : classified;
+        lastUpstreamError = `search ${searchRes.status}: ${errText.slice(0, 200)}`;
+        await recordIntegrationHealth(supabase, "intercom_poll", classified, lastUpstreamError);
         // Continue with other queries instead of failing entirely
         break;
       }
