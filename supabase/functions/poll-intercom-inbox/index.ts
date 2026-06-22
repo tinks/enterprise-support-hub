@@ -116,6 +116,11 @@ Deno.serve(async (req) => {
   // Collect all conversations across all queries, deduplicate by ID
   const seenConvIds = new Set<string>();
   const allConversations: Array<Record<string, unknown>> = [];
+  // Track whether any upstream Intercom call failed during this run so we don't
+  // overwrite a fresh auth_error/error with "ok" at the end of the function.
+  let upstreamFailed = false;
+  let lastUpstreamStatus: "auth_error" | "error" | null = null;
+  let lastUpstreamError: string | null = null;
 
   for (const sq of searchQueries) {
     let hasMore = true;
