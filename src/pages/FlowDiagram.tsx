@@ -726,7 +726,7 @@ function buildNodes(
           "Seeded on creation with ~8 entries summarising the previous month's shipped work so the page isn't empty on first load.",
           "Sidebar entry sits at the bottom utility section under Knowledge, icon ScrollText. No edge functions, no cron, no external surface.",
         ],
-        accent: "muted",
+        accent: "default",
       },
     },
   ];
