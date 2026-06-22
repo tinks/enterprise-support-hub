@@ -30,6 +30,18 @@ function extractFields(icData: any): { product_area: string | null; classificati
   };
 }
 
+// Extract Intercom conversation tag names. Overwrites on every sync (drift is the signal).
+function extractTags(icData: any): string[] {
+  const arr = icData?.tags?.tags;
+  if (!Array.isArray(arr)) return [];
+  const out: string[] = [];
+  for (const t of arr) {
+    const name = typeof t?.name === "string" ? t.name.trim() : "";
+    if (name) out.push(name);
+  }
+  return out;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
