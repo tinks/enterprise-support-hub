@@ -125,15 +125,18 @@ const InboxV2 = () => {
 
   useEffect(() => { load(); }, []);
 
-  const runSync = async () => {
+  const [windowHours, setWindowHours] = useState<number>(24);
+
+  const runSync = async (hoursOverride?: number) => {
+    const hours = Math.max(1, Math.min(8760, hoursOverride ?? windowHours));
     setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke("sync-inbox-v2", {
-        body: { windowHours: 24 },
+        body: { windowHours: hours },
       });
       if (error) throw error;
       toast({
-        title: "Sync complete",
+        title: `Sync complete (${hours}h window)`,
         description: `Fetched ${data?.fetched ?? 0} · ${data?.inserted ?? 0} new · ${data?.updated ?? 0} updated${data?.failed ? ` · ${data.failed} failed` : ""}`,
       });
       await load();
@@ -143,6 +146,7 @@ const InboxV2 = () => {
       setSyncing(false);
     }
   };
+
 
   const ownerOptions = useMemo(() => Array.from(new Set(rows.map(r => r.owner).filter(Boolean))).sort() as string[], [rows]);
   const productAreaOptions = useMemo(() => Array.from(new Set(rows.map(r => r.product_area).filter(Boolean))).sort() as string[], [rows]);
