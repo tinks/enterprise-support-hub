@@ -320,6 +320,60 @@ export type Database = {
         }
         Relationships: []
       }
+      inbox_v2_tickets: {
+        Row: {
+          classification: string | null
+          contact_email: string | null
+          contact_name: string | null
+          created_at: string
+          id: string
+          intercom_conversation_id: string
+          intercom_created_at: string | null
+          intercom_updated_at: string | null
+          last_synced_at: string
+          owner: string | null
+          product_area: string | null
+          raw_payload: Json | null
+          status: string | null
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          classification?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          created_at?: string
+          id?: string
+          intercom_conversation_id: string
+          intercom_created_at?: string | null
+          intercom_updated_at?: string | null
+          last_synced_at?: string
+          owner?: string | null
+          product_area?: string | null
+          raw_payload?: Json | null
+          status?: string | null
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          classification?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          created_at?: string
+          id?: string
+          intercom_conversation_id?: string
+          intercom_created_at?: string | null
+          intercom_updated_at?: string | null
+          last_synced_at?: string
+          owner?: string | null
+          product_area?: string | null
+          raw_payload?: Json | null
+          status?: string | null
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       integration_health: {
         Row: {
           consecutive_failures: number

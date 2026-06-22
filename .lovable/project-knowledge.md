@@ -734,3 +734,13 @@ De-duplication: `integration_health.last_alerted_status` + `last_alerted_at` tra
 ### Cross-thread link conflict alerts — `intercom-webhook` `postGuardAlert`
 
 When the inverse-uniqueness guard (Option 2) refuses to stamp a second Gmail thread on an Intercom ticket that is already linked to a different thread, `postGuardAlert()` posts a `:shield: Cross-thread link blocked` message to `#enterprise-support-hub-alerts` (channel ID `C0B9NSBM60H`) using `SLACK_BOT_TOKEN` with `username: "Support Hub Guard"` / `icon_emoji: ":shield:"` (same bot as Support Hub Health, just a per-message identity override). Two call sites mirror the two guard log lines: `[cross_thread_link_conflict:email]` and `[cross_thread_link_conflict:subject]`. The post is non-blocking — failures are caught and logged so the guard always returns. Expected volume is ~0.7 alerts/day based on historical conflict rate (see chat history Jun 10).
+
+### Inbox v2 sandbox — `/inbox-v2`
+
+Parallel page that mirrors Intercom directly into a new `inbox_v2_tickets` table. Built as a no-blast-radius sandbox so we can validate that Owner / Product Area / Classification pulled from Intercom match what we actually want to show in the live Inbox before we cut over.
+
+- Table `public.inbox_v2_tickets` keyed by `intercom_conversation_id` (unique). Stores Intercom-sourced `owner` (via `admin_owner_map`), `product_area` (custom_attributes["Affected Product Area"]), `classification` (custom_attributes["Ticket type"]), `status`, contact info, timestamps, and the full `raw_payload` jsonb for debugging. RLS: authenticated read-only; only the sync function (service_role) writes.
+- Edge function `sync-inbox-v2` searches the enterprise inbox for conversations updated within `windowHours` (default 24), fetches each full conversation, and upserts. Unlike the live tables it intentionally nulls-out values when Intercom is blank — drift is the signal we want.
+- Two pg_cron jobs: `sync-inbox-v2-frequent` every 15 minutes (windowHours=2) and `sync-inbox-v2-nightly` at 03:00 UTC (windowHours=720).
+- UI `src/pages/InboxV2.tsx`: read-only table with search + filters (Owner / Product Area / Classification / Status, each with a "missing" option), a "Sync now" button that invokes the function on demand, and a right-side drawer with a "View in Intercom" link.
+- No existing table, function, cron, query, or page is touched. Cutover (pointing the live Inbox / `/my/*` at this data) is a future step.
