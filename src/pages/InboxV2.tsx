@@ -162,6 +162,18 @@ const InboxV2 = () => {
   const productAreaOptions = useMemo(() => Array.from(new Set(rows.map(r => r.product_area).filter(Boolean))).sort() as string[], [rows]);
   const classificationOptions = useMemo(() => Array.from(new Set(rows.map(r => r.classification).filter(Boolean))).sort() as string[], [rows]);
   const statusOptions = useMemo(() => Array.from(new Set(rows.map(r => r.status).filter(Boolean))).sort() as string[], [rows]);
+  const tagsOptions = useMemo(() => {
+    const set = new Set<string>();
+    let hasEmpty = false;
+    for (const r of rows) {
+      const t = r.tags;
+      if (!t || t.length === 0) { hasEmpty = true; continue; }
+      for (const v of t) if (v) set.add(v);
+    }
+    const list = Array.from(set).sort();
+    if (hasEmpty) list.unshift(NO_TAGS);
+    return list;
+  }, [rows]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -173,14 +185,22 @@ const InboxV2 = () => {
       if (classificationFilter === MISSING && r.classification) return false;
       if (classificationFilter !== ANY && classificationFilter !== MISSING && r.classification !== classificationFilter) return false;
       if (statusFilter.length > 0 && (!r.status || !statusFilter.includes(r.status))) return false;
+      if (tagsFilter.length > 0) {
+        const rTags = r.tags || [];
+        const wantEmpty = tagsFilter.includes(NO_TAGS);
+        const otherSelected = tagsFilter.filter(t => t !== NO_TAGS);
+        const matchEmpty = wantEmpty && rTags.length === 0;
+        const matchTag = otherSelected.some(t => rTags.includes(t));
+        if (!matchEmpty && !matchTag) return false;
+      }
       if (q) {
-        const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id]
+        const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, ...(r.tags || [])]
           .filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [rows, search, ownerFilter, productAreaFilter, classificationFilter, statusFilter]);
+  }, [rows, search, ownerFilter, productAreaFilter, classificationFilter, statusFilter, tagsFilter]);
 
   const lastSync = useMemo(() => {
     const ts = rows.map(r => r.last_synced_at).filter(Boolean).sort().pop();
