@@ -181,7 +181,7 @@ const InboxV2 = () => {
     return ts ? formatDistanceToNow(new Date(ts), { addSuffix: true }) : "never";
   }, [rows]);
 
-  const intercomUrl = (id: string) => `https://app.intercom.com/a/inbox/wq44gprj/inbox/conversation/${id}`;
+  const intercomUrl = (id: string) => `https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${id}?view=List`;
 
   const renderField = (val: string | null) => {
     if (val) return <span className="text-foreground">{val}</span>;
