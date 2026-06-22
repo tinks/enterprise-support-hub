@@ -32,9 +32,10 @@ type Ticket = {
 const ANY = "__any__";
 const MISSING = "__missing__";
 
-type ColKey = "subject" | "contact" | "owner" | "product_area" | "classification" | "status" | "updated";
-const COL_ORDER: ColKey[] = ["subject", "contact", "owner", "product_area", "classification", "status", "updated"];
+type ColKey = "intercom_id" | "subject" | "contact" | "owner" | "product_area" | "classification" | "status" | "updated";
+const COL_ORDER: ColKey[] = ["intercom_id", "subject", "contact", "owner", "product_area", "classification", "status", "updated"];
 const COL_LABELS: Record<ColKey, string> = {
+  intercom_id: "Intercom ID",
   subject: "Subject",
   contact: "Contact",
   owner: "Owner",
@@ -44,7 +45,8 @@ const COL_LABELS: Record<ColKey, string> = {
   updated: "Updated",
 };
 const DEFAULT_WIDTHS: Record<ColKey, number> = {
-  subject: 400,
+  intercom_id: 150,
+  subject: 360,
   contact: 180,
   owner: 120,
   product_area: 160,
@@ -305,6 +307,18 @@ const InboxV2 = () => {
                     className="cursor-pointer hover:bg-accent/50"
                     onClick={() => setSelected(r)}
                   >
+                    <TableCell style={{ width: widths.intercom_id }} className="text-xs font-mono text-muted-foreground truncate overflow-hidden">
+                      <a
+                        href={intercomUrl(r.intercom_conversation_id)}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="hover:text-primary hover:underline"
+                        title={r.intercom_conversation_id}
+                      >
+                        {r.intercom_conversation_id}
+                      </a>
+                    </TableCell>
                     <TableCell style={{ width: widths.subject }} className="font-medium truncate overflow-hidden">
                       {r.subject || "(no subject)"}
                     </TableCell>
