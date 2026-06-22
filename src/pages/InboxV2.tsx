@@ -397,6 +397,62 @@ function FilterSelect({
   );
 }
 
+function MultiFilterSelect({
+  label, values, onChange, options,
+}: {
+  label: string;
+  values: string[];
+  onChange: (v: string[]) => void;
+  options: string[];
+}) {
+  const toggle = (opt: string) => {
+    if (values.includes(opt)) onChange(values.filter(v => v !== opt));
+    else onChange([...values, opt]);
+  };
+  const summary = values.length === 0
+    ? `${label}: any`
+    : values.length === 1
+    ? `${label}: ${values[0]}`
+    : `${label}: ${values.length} selected`;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-9 w-[170px] justify-between text-xs font-normal">
+          <span className="truncate">{summary}</span>
+          <ChevronDown className="h-3.5 w-3.5 opacity-50 ml-1 shrink-0" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[200px] p-2" align="start">
+        <div className="flex items-center justify-between mb-1 px-1">
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
+          {values.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="text-[11px] text-muted-foreground hover:text-foreground"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        <div className="max-h-64 overflow-y-auto space-y-0.5">
+          {options.length === 0 ? (
+            <div className="text-xs text-muted-foreground px-2 py-1">No options</div>
+          ) : options.map(o => (
+            <label
+              key={o}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-sm hover:bg-accent cursor-pointer text-sm"
+            >
+              <Checkbox checked={values.includes(o)} onCheckedChange={() => toggle(o)} />
+              <span className="truncate">{o}</span>
+            </label>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function Field({ label, value, sub, highlightMissing }: { label: string; value: string | null; sub?: string | null; highlightMissing?: boolean }) {
   return (
     <div>
