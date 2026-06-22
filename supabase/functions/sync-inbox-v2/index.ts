@@ -170,6 +170,7 @@ Deno.serve(async (req) => {
       const adminId = String(icData.admin_assignee_id || conv.admin_assignee_id || "");
       const owner = adminOwnerMap[adminId] || null;
       const { product_area, classification } = extractFields(icData);
+      const tags = extractTags(icData);
       const subject = stripHtml(icData.source?.subject || icData.title || `Intercom #${intercomConvId}`);
       const status = String(icData.state || "open");
 
