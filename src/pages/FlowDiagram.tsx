@@ -27,6 +27,7 @@ import {
   User,
   CheckCircle2,
   Beaker,
+  ScrollText,
   Download,
 } from "lucide-react";
 import { toPng } from "html-to-image";
