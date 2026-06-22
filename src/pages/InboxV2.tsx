@@ -395,6 +395,18 @@ const InboxV2 = () => {
                 <Field label="Owner" value={selected.owner} highlightMissing />
                 <Field label="Product area" value={selected.product_area} highlightMissing />
                 <Field label="Classification" value={selected.classification} highlightMissing />
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Tags</div>
+                  {selected.tags && selected.tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {selected.tags.map(t => (
+                        <Badge key={t} variant="secondary" className="text-[10px] font-normal">{t}</Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground">—</div>
+                  )}
+                </div>
                 <Field label="Status" value={selected.status} />
                 <Field
                   label="Created"
