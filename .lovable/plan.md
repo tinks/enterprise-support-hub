@@ -1,83 +1,76 @@
+## Changelog page
 
-# New Inbox (sandbox) — parallel path for cleaner field tracking
+A new `/changelog` page in the sidebar (bottom utility section, next to Settings/Flow/Knowledge) that lists time-stamped, tagged release notes. Backed by a database table so entries persist and so anyone signed in can add a new entry from the UI without a code change. Seeded with a first batch of entries summarising what we shipped over roughly the last four weeks so the page isn't empty on day one.
 
-## Idea
-Build a brand-new `/inbox-v2` page powered by its own table. It pulls Owner / Product Area / Classification from Intercom into that table only. Nothing on the existing Conversations / `/my/*` / Stats / Insights pages changes. Once we trust it, we flip the existing pages to read from the new table.
+### What you'll see
 
-## Scope of this first iteration
-- One new route: `/inbox-v2` (sidebar entry, labeled "Inbox v2 (beta)").
-- One new table: `inbox_v2_tickets`.
-- One new edge function: `sync-inbox-v2` (pulls from Intercom, writes only to `inbox_v2_tickets`).
-- Read-only UI for now: list, filters, ticket detail drawer. No edit/reply yet.
-- No changes to existing tables, existing functions, existing crons, existing pages.
+- A "Changelog" item at the bottom of the sidebar (below Knowledge), using a scroll/history icon.
+- The page itself, a single reverse-chronological column:
+  - Each entry shows a date, a title, a short body (markdown supported), and one or more tags (New / Improved / Fixed / Under the hood).
+  - Entries are grouped by month with a sticky month header.
+- An "Add entry" button at the top-right of the page that opens a dialog with: date (defaults to today), title, body (textarea, markdown), tag multi-select, and optional "area" free-text (e.g. Inbox v2, Integration health). Save inserts a row and the list refreshes.
+- An edit/delete affordance on each entry (pencil + trash icons) for fixing typos after the fact.
+- Empty-state copy after the seed is exhausted: "No entries yet — click Add entry to log a change."
 
-Out of scope (deliberately): replacing the current Inbox, owner enforcement, the "needs triage" queue, reporting tiles, retiring local AI categorization. Those come later once v2 proves itself.
+### Seed entries (drafted from the last ~4 weeks of work)
 
-## Data model
+I'll draft these from chat + edit history before inserting. Expected buckets, one line each:
 
-New table `inbox_v2_tickets`, one row per Intercom conversation:
+- Inbox v2 sandbox page and parallel sync from Intercom (Owner / Product area / Classification).
+- Integration health card on Settings now correctly surfaces Intercom auth errors (no longer overwritten by a trailing "ok" write).
+- Flow diagram updated to reflect the Inbox v2 sync node.
+- CSAT panel and refresh cron.
+- Manual contact account normalisation (McKinsey roll-up, lovable.dev filtered from Top accounts).
+- Paste-thread date auto-detection and AI subject summary in Log Conversation.
+- Pending Intercom links table to close the Gmail/Google Group race.
+- Cross-thread link guard alerts in `#enterprise-support-hub-alerts`.
 
-| column | type | source |
-| --- | --- | --- |
-| `id` | uuid pk | generated |
-| `intercom_conversation_id` | text unique | Intercom |
-| `subject` | text | Intercom `source.subject` / `title` |
-| `contact_name` | text | Intercom contact |
-| `contact_email` | text | Intercom contact |
-| `owner` | text | `admin_owner_map[admin_assignee_id]` |
-| `product_area` | text | `custom_attributes["Affected Product Area"]` |
-| `classification` | text | `custom_attributes["Ticket type"]` |
-| `status` | text | Intercom `state` (open / closed / snoozed) |
-| `intercom_created_at` | timestamptz | Intercom |
-| `intercom_updated_at` | timestamptz | Intercom |
-| `last_synced_at` | timestamptz | now() on each sync |
-| `raw_payload` | jsonb | full Intercom conversation JSON, for debugging |
-| `created_at`, `updated_at` | timestamptz | standard |
+You'll see the full list in the page once seeded and can edit/delete any line that isn't quite right.
 
-RLS: SELECT for authenticated, ALL for service_role. No writes from the client.
+### Out of scope (call out so we don't surprise you later)
 
-Linking back to the existing world is intentionally deferred — `intercom_conversation_id` is the join key when we need it later.
+- No public/marketing changelog or RSS feed — this page is in-app only.
+- No automatic generation from git/edit history going forward. New entries are added by you or by me when you ask. We can layer auto-generation on later if you want.
+- No email/Slack broadcast of new entries.
 
-## Sync function
+---
 
-`supabase/functions/sync-inbox-v2/index.ts`:
-- Inputs: `{ windowHours?: number, full?: boolean }`. Default 24h.
-- Reuses `extractIntercomCustomFields` and `admin_owner_map` logic already proven in `poll-intercom-inbox`.
-- For each Intercom conversation in the window, upsert by `intercom_conversation_id`. Always overwrite Owner / Product Area / Classification with the latest Intercom value (including blanks — this table is Intercom's mirror, drift is the point).
-- Idempotent. Logs counts inserted vs updated.
+### Technical details
 
-Cron: every 15 minutes via pg_cron + pg_net, plus a nightly 72h sweep. Both invoke the same function with different `windowHours`.
+**Database** (one migration)
 
-No webhook coupling in v1 — the cron is enough for a sandbox. Webhook integration can be added once we like the data.
+- `public.changelog_entries`:
+  - `id uuid PK default gen_random_uuid()`
+  - `entry_date date not null default current_date` — the user-facing date shown on the entry
+  - `title text not null`
+  - `body text` — markdown
+  - `tags text[] not null default '{}'` — values from `{new, improved, fixed, internal}`
+  - `area text` — optional free-text bucket
+  - `author_user_id uuid` — `auth.uid()` at insert time, nullable for seed rows
+  - `created_at timestamptz not null default now()`, `updated_at timestamptz not null default now()` with the existing `update_updated_at_column` trigger
+- Grants: `GRANT SELECT, INSERT, UPDATE, DELETE ON public.changelog_entries TO authenticated; GRANT ALL ON public.changelog_entries TO service_role;` (no anon — page is behind auth like the rest of the app).
+- RLS: enable; policies:
+  - `SELECT` to `authenticated` (`USING (true)`) — anyone signed in can read.
+  - `INSERT / UPDATE / DELETE` to `authenticated` (`USING (true) WITH CHECK (true)`) — matches the trust model of Settings/Knowledge today; we can tighten to an admin role later.
+- Index: `CREATE INDEX changelog_entries_date_idx ON public.changelog_entries (entry_date DESC, created_at DESC);`
 
-## UI
+**Frontend**
 
-`src/pages/InboxV2.tsx` rendered at `/inbox-v2`, added to `AppLayout` sidebar under a "Beta" group.
+- `src/pages/Changelog.tsx` — reads the table via the existing supabase client, groups by month, renders markdown body with `react-markdown` (already in deps; will confirm — if not, fall back to plain text with line breaks).
+- `src/components/changelog/AddEntryDialog.tsx` — dialog with the form described above; uses shadcn Dialog/Input/Textarea/Badge components already in the project.
+- Route added in `src/App.tsx` at `/changelog`, wrapped in `AppLayout` like the other authenticated pages.
+- `src/components/AppLayout.tsx` — append a `Changelog` item (icon: `ScrollText` from lucide-react) to `navItems`, positioned after `Knowledge` so it sits at the bottom of the sidebar.
 
-- Table columns: Subject, Contact, Owner, Product Area, Classification, Status, Updated.
-- Filters in the top bar: Owner, Product Area, Classification, Status, and a "Missing field" multi-select (owner / product area / classification).
-- Search box: subject + contact + email + intercom id.
-- Row click opens a right-side drawer showing the cached Intercom fields plus a "View in Intercom" link (we already build that URL elsewhere). No reply UI.
-- Small footer chip: "Last synced HH:mm — N tickets". A "Sync now" button calls the edge function (admin-only check via existing auth).
+**Seeding**
 
-Styling: reuse existing shadcn components and the same density as `Conversations.tsx` so it feels familiar.
+- A second data migration (insert tool, not schema migration) inserts the ~8 seed rows with realistic `entry_date` values pulled from chat history dates.
 
-## How this de-risks the bigger plan
-- Zero blast radius: no existing query, cron, function, page, or table is touched.
-- We can compare v2 vs the current Conversations page side by side for a few weeks and see exactly where Intercom values differ from what we're storing today.
-- Cutover later is a small change — point the existing Conversations / `/my/*` queries at `inbox_v2_tickets` (or a view that joins it) once you're happy. The hard work (Intercom field semantics, drift handling) is already validated by then.
+**Docs**
 
-## Files touched
+- Append a "Changelog page — `/changelog`" section to `.lovable/project-knowledge.md` describing the table, route, and intent.
+- Add a node for the Changelog page on the Flow diagram (Knowledge-style: read-only page, no edge function).
 
-- New: `supabase/functions/sync-inbox-v2/index.ts`.
-- New: `src/pages/InboxV2.tsx`.
-- Edit: `src/App.tsx` (one route).
-- Edit: `src/components/AppLayout.tsx` (one sidebar entry).
-- One migration: create `inbox_v2_tickets` + grants + RLS.
-- One `supabase--insert` call: pg_cron schedule.
-- New memory leaf: `mem://features/inbox-v2-sandbox` describing the parallel-path rule.
-- Update `.lovable/project-knowledge.md` + Flow page with the new node.
+### Open questions I'll assume defaults on unless you say otherwise
 
-## Open question before I build
-
-Should "Sync now" be visible to everyone who can see the page, or gated to specific owners (e.g., you only)? Default in this plan: visible to all authenticated users since the page itself is admin-only anyway.
+- Anyone signed in can add/edit/delete entries (no separate admin role). Say the word if you want to gate to specific users.
+- Tags fixed to the four buckets above. Easy to extend.

@@ -41,6 +41,42 @@ export type Database = {
         }
         Relationships: []
       }
+      changelog_entries: {
+        Row: {
+          area: string | null
+          author_user_id: string | null
+          body: string | null
+          created_at: string
+          entry_date: string
+          id: string
+          tags: string[]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          area?: string | null
+          author_user_id?: string | null
+          body?: string | null
+          created_at?: string
+          entry_date?: string
+          id?: string
+          tags?: string[]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          area?: string | null
+          author_user_id?: string | null
+          body?: string | null
+          created_at?: string
+          entry_date?: string
+          id?: string
+          tags?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       conversation_audit_logs: {
         Row: {
           action: string
