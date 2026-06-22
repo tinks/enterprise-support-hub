@@ -125,15 +125,18 @@ const InboxV2 = () => {
 
   useEffect(() => { load(); }, []);
 
-  const runSync = async () => {
+  const [windowHours, setWindowHours] = useState<number>(24);
+
+  const runSync = async (hoursOverride?: number) => {
+    const hours = Math.max(1, Math.min(8760, hoursOverride ?? windowHours));
     setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke("sync-inbox-v2", {
-        body: { windowHours: 24 },
+        body: { windowHours: hours },
       });
       if (error) throw error;
       toast({
-        title: "Sync complete",
+        title: `Sync complete (${hours}h window)`,
         description: `Fetched ${data?.fetched ?? 0} · ${data?.inserted ?? 0} new · ${data?.updated ?? 0} updated${data?.failed ? ` · ${data.failed} failed` : ""}`,
       });
       await load();
@@ -143,6 +146,7 @@ const InboxV2 = () => {
       setSyncing(false);
     }
   };
+
 
   const ownerOptions = useMemo(() => Array.from(new Set(rows.map(r => r.owner).filter(Boolean))).sort() as string[], [rows]);
   const productAreaOptions = useMemo(() => Array.from(new Set(rows.map(r => r.product_area).filter(Boolean))).sort() as string[], [rows]);
@@ -216,12 +220,34 @@ const InboxV2 = () => {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-muted-foreground">Last synced: {lastSync} · {rows.length} tickets</span>
-            <Button onClick={runSync} disabled={syncing} size="sm" variant="outline">
+            <div className="flex items-center gap-1.5 rounded-md border border-border px-2 h-9">
+              <label htmlFor="window-hours" className="text-xs text-muted-foreground">Window (h)</label>
+              <Input
+                id="window-hours"
+                type="number"
+                min={1}
+                max={8760}
+                value={windowHours}
+                onChange={(e) => setWindowHours(Number(e.target.value) || 1)}
+                className="h-7 w-20 text-xs"
+              />
+            </div>
+            <Button onClick={() => runSync()} disabled={syncing} size="sm" variant="outline">
               {syncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
               Sync now
             </Button>
+            <Button
+              onClick={() => runSync(720)}
+              disabled={syncing}
+              size="sm"
+              variant="ghost"
+              title="Backfill the last 30 days"
+            >
+              Backfill 30d
+            </Button>
           </div>
         </div>
+
 
         <div className="flex flex-wrap items-center gap-2">
           <Input
