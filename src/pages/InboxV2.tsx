@@ -220,12 +220,34 @@ const InboxV2 = () => {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-muted-foreground">Last synced: {lastSync} · {rows.length} tickets</span>
-            <Button onClick={runSync} disabled={syncing} size="sm" variant="outline">
+            <div className="flex items-center gap-1.5 rounded-md border border-border px-2 h-9">
+              <label htmlFor="window-hours" className="text-xs text-muted-foreground">Window (h)</label>
+              <Input
+                id="window-hours"
+                type="number"
+                min={1}
+                max={8760}
+                value={windowHours}
+                onChange={(e) => setWindowHours(Number(e.target.value) || 1)}
+                className="h-7 w-20 text-xs"
+              />
+            </div>
+            <Button onClick={() => runSync()} disabled={syncing} size="sm" variant="outline">
               {syncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
               Sync now
             </Button>
+            <Button
+              onClick={() => runSync(720)}
+              disabled={syncing}
+              size="sm"
+              variant="ghost"
+              title="Backfill the last 30 days"
+            >
+              Backfill 30d
+            </Button>
           </div>
         </div>
+
 
         <div className="flex flex-wrap items-center gap-2">
           <Input
