@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, RefreshCw, ExternalLink, AlertCircle } from "lucide-react";
+import { Loader2, RefreshCw, ExternalLink, AlertCircle, ChevronDown } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
@@ -62,7 +64,7 @@ const InboxV2 = () => {
   const [ownerFilter, setOwnerFilter] = useState<string>(ANY);
   const [productAreaFilter, setProductAreaFilter] = useState<string>(ANY);
   const [classificationFilter, setClassificationFilter] = useState<string>(ANY);
-  const [statusFilter, setStatusFilter] = useState<string>(ANY);
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [selected, setSelected] = useState<Ticket | null>(null);
 
   const [widths, setWidths] = useState<Record<ColKey, number>>(() => {
@@ -162,7 +164,7 @@ const InboxV2 = () => {
       if (productAreaFilter !== ANY && productAreaFilter !== MISSING && r.product_area !== productAreaFilter) return false;
       if (classificationFilter === MISSING && r.classification) return false;
       if (classificationFilter !== ANY && classificationFilter !== MISSING && r.classification !== classificationFilter) return false;
-      if (statusFilter !== ANY && r.status !== statusFilter) return false;
+      if (statusFilter.length > 0 && (!r.status || !statusFilter.includes(r.status))) return false;
       if (q) {
         const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id]
           .filter(Boolean).join(" ").toLowerCase();
@@ -259,7 +261,7 @@ const InboxV2 = () => {
           <FilterSelect label="Owner" value={ownerFilter} onChange={setOwnerFilter} options={ownerOptions} />
           <FilterSelect label="Product area" value={productAreaFilter} onChange={setProductAreaFilter} options={productAreaOptions} />
           <FilterSelect label="Classification" value={classificationFilter} onChange={setClassificationFilter} options={classificationOptions} />
-          <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={statusOptions} includeMissing={false} />
+          <MultiFilterSelect label="Status" values={statusFilter} onChange={setStatusFilter} options={statusOptions} />
           <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {rows.length}</span>
           <Button
             variant="ghost"
@@ -392,6 +394,62 @@ function FilterSelect({
         {options.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
       </SelectContent>
     </Select>
+  );
+}
+
+function MultiFilterSelect({
+  label, values, onChange, options,
+}: {
+  label: string;
+  values: string[];
+  onChange: (v: string[]) => void;
+  options: string[];
+}) {
+  const toggle = (opt: string) => {
+    if (values.includes(opt)) onChange(values.filter(v => v !== opt));
+    else onChange([...values, opt]);
+  };
+  const summary = values.length === 0
+    ? `${label}: any`
+    : values.length === 1
+    ? `${label}: ${values[0]}`
+    : `${label}: ${values.length} selected`;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-9 w-[170px] justify-between text-xs font-normal">
+          <span className="truncate">{summary}</span>
+          <ChevronDown className="h-3.5 w-3.5 opacity-50 ml-1 shrink-0" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[200px] p-2" align="start">
+        <div className="flex items-center justify-between mb-1 px-1">
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
+          {values.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="text-[11px] text-muted-foreground hover:text-foreground"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        <div className="max-h-64 overflow-y-auto space-y-0.5">
+          {options.length === 0 ? (
+            <div className="text-xs text-muted-foreground px-2 py-1">No options</div>
+          ) : options.map(o => (
+            <label
+              key={o}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-sm hover:bg-accent cursor-pointer text-sm"
+            >
+              <Checkbox checked={values.includes(o)} onCheckedChange={() => toggle(o)} />
+              <span className="truncate">{o}</span>
+            </label>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
