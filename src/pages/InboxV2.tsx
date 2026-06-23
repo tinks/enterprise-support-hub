@@ -71,7 +71,7 @@ const InboxV2 = () => {
   const [ownerFilter, setOwnerFilter] = useState<string>(ANY);
   const [productAreaFilter, setProductAreaFilter] = useState<string>(ANY);
   const [classificationFilter, setClassificationFilter] = useState<string>(ANY);
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string[]>(["open"]);
   const [tagsFilter, setTagsFilter] = useState<string[]>([]);
   const [selected, setSelected] = useState<Ticket | null>(null);
 
