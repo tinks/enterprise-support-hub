@@ -292,15 +292,27 @@ const InboxV2 = () => {
           <MultiFilterSelect label="Status" values={statusFilter} onChange={setStatusFilter} options={statusOptions} />
           <MultiFilterSelect label="Tags" values={tagsFilter} onChange={setTagsFilter} options={tagsOptions} />
           <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {rows.length}</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-xs h-7 ml-auto"
-            onClick={() => setWidths(DEFAULT_WIDTHS)}
-            title="Reset column widths"
-          >
-            Reset columns
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <ExportPopover
+              filters={{
+                search,
+                ownerFilter,
+                productAreaFilter,
+                classificationFilter,
+                statusFilter,
+                tagsFilter,
+              }}
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs h-7"
+              onClick={() => setWidths(DEFAULT_WIDTHS)}
+              title="Reset column widths"
+            >
+              Reset columns
+            </Button>
+          </div>
         </div>
 
         <div className="rounded-md border border-border bg-card overflow-auto">
