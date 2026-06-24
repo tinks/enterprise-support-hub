@@ -381,6 +381,32 @@ const InboxV2 = () => {
           </Select>
           <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {rows.length}</span>
           <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              disabled={bulkBusy}
+              onClick={async () => {
+                const candidates = filtered
+                  .filter((r) => !r.engagement_override && !r.engagement_ai_guess)
+                  .slice(0, 50);
+                if (candidates.length === 0) {
+                  toast({ title: "Nothing to classify", description: "All filtered rows already have an override or AI guess." });
+                  return;
+                }
+                if (!window.confirm(`Run AI engagement classification on ${candidates.length} ticket${candidates.length === 1 ? "" : "s"}? (Max 50 per click.)`)) return;
+                setBulkBusy(true);
+                try {
+                  await runAiForRows(candidates.map((r) => r.id));
+                } finally {
+                  setBulkBusy(false);
+                }
+              }}
+              title="Classify up to 50 filtered rows that have no override and no AI guess yet"
+            >
+              {bulkBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+              AI-classify visible
+            </Button>
             <ExportPopover
               filters={{
                 search,
@@ -392,6 +418,7 @@ const InboxV2 = () => {
                 engagementFilter,
               }}
             />
+
 
             <Button
               variant="ghost"
