@@ -51,7 +51,13 @@ type Ticket = {
   engagement_ai_guess: Engagement | null;
   engagement_ai_reason: string | null;
   engagement_ai_at: string | null;
+  csat_rating: number | null;
+  csat_remark: string | null;
+  csat_rated_at: string | null;
 };
+
+const CSAT_EMOJI: Record<number, string> = { 1: "😠", 2: "🙁", 3: "😐", 4: "😀", 5: "🤩" };
+const CSAT_LABEL: Record<number, string> = { 1: "Terrible", 2: "Bad", 3: "OK", 4: "Great", 5: "Amazing" };
 
 const ANY = "__any__";
 const MISSING = "__missing__";
