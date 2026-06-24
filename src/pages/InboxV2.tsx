@@ -407,6 +407,21 @@ const InboxV2 = () => {
               <SelectItem value="none">No engagement</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={csatFilter} onValueChange={(v) => setCsatFilter(v as typeof csatFilter)}>
+            <SelectTrigger className="h-9 w-[150px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">CSAT: any</SelectItem>
+              <SelectItem value="rated">Rated</SelectItem>
+              <SelectItem value="unrated">Unrated</SelectItem>
+              <SelectItem value="5">🤩 5</SelectItem>
+              <SelectItem value="4">😀 4</SelectItem>
+              <SelectItem value="3">😐 3</SelectItem>
+              <SelectItem value="2">🙁 2</SelectItem>
+              <SelectItem value="1">😠 1</SelectItem>
+            </SelectContent>
+          </Select>
           <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {rows.length}</span>
           <div className="ml-auto flex items-center gap-2">
             <Button
