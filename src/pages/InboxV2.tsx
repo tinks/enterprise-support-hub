@@ -34,8 +34,12 @@ const ANY = "__any__";
 const MISSING = "__missing__";
 const NO_TAGS = "(no tags)";
 
-type ColKey = "intercom_id" | "subject" | "contact" | "owner" | "product_area" | "classification" | "tags" | "status" | "updated";
-const COL_ORDER: ColKey[] = ["intercom_id", "subject", "contact", "owner", "product_area", "classification", "tags", "status", "updated"];
+const NO_ENGAGEMENT_TAGS = new Set(["enterprise-fyi", "enterprise-duplicate"]);
+const isNoEngagement = (tags: string[] | null) =>
+  (tags ?? []).some((t) => NO_ENGAGEMENT_TAGS.has(t.trim().toLowerCase()));
+
+type ColKey = "intercom_id" | "subject" | "contact" | "owner" | "product_area" | "classification" | "tags" | "status" | "engagement" | "updated";
+const COL_ORDER: ColKey[] = ["intercom_id", "subject", "contact", "owner", "product_area", "classification", "tags", "status", "engagement", "updated"];
 const COL_LABELS: Record<ColKey, string> = {
   intercom_id: "Intercom ID",
   subject: "Subject",
@@ -45,6 +49,7 @@ const COL_LABELS: Record<ColKey, string> = {
   classification: "Classification",
   tags: "Tags",
   status: "Status",
+  engagement: "Engagement",
   updated: "Updated",
 };
 const DEFAULT_WIDTHS: Record<ColKey, number> = {
@@ -56,8 +61,10 @@ const DEFAULT_WIDTHS: Record<ColKey, number> = {
   classification: 140,
   tags: 220,
   status: 90,
+  engagement: 130,
   updated: 140,
 };
+
 
 const STORAGE_KEY = "inbox-v2-col-widths";
 const MIN_WIDTH = 60;
@@ -73,7 +80,9 @@ const InboxV2 = () => {
   const [classificationFilter, setClassificationFilter] = useState<string>(ANY);
   const [statusFilter, setStatusFilter] = useState<string[]>(["open"]);
   const [tagsFilter, setTagsFilter] = useState<string[]>([]);
+  const [engagementFilter, setEngagementFilter] = useState<"all" | "engaged" | "none">("all");
   const [selected, setSelected] = useState<Ticket | null>(null);
+
 
   const [widths, setWidths] = useState<Record<ColKey, number>>(() => {
     if (typeof window === "undefined") return DEFAULT_WIDTHS;
@@ -193,6 +202,11 @@ const InboxV2 = () => {
         const matchTag = otherSelected.some(t => rTags.includes(t));
         if (!matchEmpty && !matchTag) return false;
       }
+      if (engagementFilter !== "all") {
+        const none = isNoEngagement(r.tags);
+        if (engagementFilter === "none" && !none) return false;
+        if (engagementFilter === "engaged" && none) return false;
+      }
       if (q) {
         const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, ...(r.tags || [])]
           .filter(Boolean).join(" ").toLowerCase();
@@ -200,7 +214,8 @@ const InboxV2 = () => {
       }
       return true;
     });
-  }, [rows, search, ownerFilter, productAreaFilter, classificationFilter, statusFilter, tagsFilter]);
+  }, [rows, search, ownerFilter, productAreaFilter, classificationFilter, statusFilter, tagsFilter, engagementFilter]);
+
 
   const lastSync = useMemo(() => {
     const ts = rows.map(r => r.last_synced_at).filter(Boolean).sort().pop();
@@ -291,6 +306,16 @@ const InboxV2 = () => {
           <FilterSelect label="Classification" value={classificationFilter} onChange={setClassificationFilter} options={classificationOptions} />
           <MultiFilterSelect label="Status" values={statusFilter} onChange={setStatusFilter} options={statusOptions} />
           <MultiFilterSelect label="Tags" values={tagsFilter} onChange={setTagsFilter} options={tagsOptions} />
+          <Select value={engagementFilter} onValueChange={(v) => setEngagementFilter(v as "all" | "engaged" | "none")}>
+            <SelectTrigger className="h-9 w-[170px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Engagement: any</SelectItem>
+              <SelectItem value="engaged">Engaged</SelectItem>
+              <SelectItem value="none">No engagement</SelectItem>
+            </SelectContent>
+          </Select>
           <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {rows.length}</span>
           <div className="ml-auto flex items-center gap-2">
             <ExportPopover
@@ -301,8 +326,10 @@ const InboxV2 = () => {
                 classificationFilter,
                 statusFilter,
                 tagsFilter,
+                engagementFilter,
               }}
             />
+
             <Button
               variant="ghost"
               size="sm"
@@ -380,6 +407,13 @@ const InboxV2 = () => {
                       )}
                     </TableCell>
                     <TableCell style={{ width: widths.status }} className="text-xs truncate overflow-hidden">{r.status || "—"}</TableCell>
+                    <TableCell style={{ width: widths.engagement }} className="text-xs truncate overflow-hidden">
+                      {isNoEngagement(r.tags) ? (
+                        <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0">No engagement</Badge>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
                     <TableCell style={{ width: widths.updated }} className="text-xs text-muted-foreground truncate overflow-hidden">
                       {r.intercom_updated_at ? formatDistanceToNow(new Date(r.intercom_updated_at), { addSuffix: true }) : "—"}
                     </TableCell>
@@ -553,6 +587,7 @@ type ExportFilters = {
   classificationFilter: string;
   statusFilter: string[];
   tagsFilter: string[];
+  engagementFilter: "all" | "engaged" | "none";
 };
 
 type Preset = "7d" | "14d" | "30d" | "this_month" | "last_month" | "custom";
@@ -567,6 +602,8 @@ const CSV_COLS: { header: string; get: (r: Ticket) => string }[] = [
   { header: "Classification", get: r => r.classification || "" },
   { header: "Tags", get: r => (r.tags || []).join("; ") },
   { header: "Status", get: r => r.status || "" },
+  { header: "Engagement", get: r => (isNoEngagement(r.tags) ? "No engagement" : "Engaged") },
+
   { header: "Created", get: r => r.intercom_created_at || "" },
   { header: "Updated", get: r => r.intercom_updated_at || "" },
 ];
@@ -668,6 +705,13 @@ function ExportPopover({ filters }: { filters: ExportFilters }) {
           return matchEmpty || matchTag;
         });
       }
+      if (filters.engagementFilter !== "all") {
+        rows = rows.filter(r => {
+          const none = isNoEngagement(r.tags);
+          return filters.engagementFilter === "none" ? none : !none;
+        });
+      }
+
       const sq = filters.search.trim().toLowerCase();
       if (sq) {
         rows = rows.filter(r => {

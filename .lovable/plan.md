@@ -1,37 +1,34 @@
-## Add CSV export to Inbox V2
+## Goal
 
-Frontend-only change in `src/pages/InboxV2.tsx`.
+Flag Inbox V2 tickets as "No engagement" when they carry the `enterprise-fyi` or `enterprise-duplicate` tag, surface that in the UI, and include it in the CSV export.
 
-### UI
-- New "Export CSV" button next to "Reset columns" in the filter row
-- Clicking opens a small popover with:
-  - **Preset** dropdown: Last 7 days · Last 14 days · Last 30 days · This month · Last month · Custom
-  - **From / To** date pickers (auto-filled by preset; editable for Custom)
-  - **Export** button (shows spinner while fetching)
+## Definition
 
-### Behavior
-- Query the DB directly on export — not limited to the 500 loaded rows
-- Filter: `intercom_created_at` between From (00:00) and To (23:59:59)
-- Screen filters layer on top: status, owner, product area, classification, tags, and search all still apply within the date range
-- Paginated fetch in 1000-row batches until exhausted (handles months with >1000 tickets)
-- Filename: `inbox-v2-YYYY-MM-DD_to_YYYY-MM-DD.csv`
-- Toast on completion: "Exported N tickets"
+A ticket is **No engagement** if its `tags` array contains `enterprise-fyi` OR `enterprise-duplicate` (case-insensitive match, trimmed). Otherwise it's **Engaged**.
 
-### CSV columns
-- Intercom ID
-- Subject
-- Contact name
-- Contact email
-- Owner
-- Product area
-- Classification
-- Tags (semicolon-joined)
-- Status
-- Created (`intercom_created_at`, ISO)
-- Updated (`intercom_updated_at`, ISO)
+Purely client-side derivation — no schema change, no sync change. Tags are already mirrored from Intercom into `inbox_v2_tickets.tags` by `sync-inbox-v2`.
 
-### Technical notes
-- Proper CSV quoting (commas, quotes, newlines)
-- Download via `Blob` + temp `<a>` — no new dependencies
-- Uses shadcn `Popover` + `Calendar` (already in the project)
-- No backend, schema, or edge function changes
+## Changes (all in `src/pages/InboxV2.tsx`)
+
+1. **Helper**
+   ```ts
+   const NO_ENGAGEMENT_TAGS = new Set(["enterprise-fyi", "enterprise-duplicate"]);
+   const isNoEngagement = (tags: string[] | null) =>
+     (tags ?? []).some(t => NO_ENGAGEMENT_TAGS.has(t.trim().toLowerCase()));
+   ```
+
+2. **Table column** — new "Engagement" column showing a small badge: `No engagement` (muted) or `Engaged` (default). Placed after Status. Included in the existing "Reset columns" visibility set.
+
+3. **Filter** — new "Engagement" dropdown in the filter row with options: All / Engaged / No engagement. Applied client-side after the table fetch (same layer as the Tags filter).
+
+4. **CSV export** — add `Engagement` column to `CSV_COLS` in `ExportPopover`. Value: `"No engagement"` or `"Engaged"`. Derivation runs client-side post-fetch, so it Just Works regardless of date range.
+
+## Out of scope
+
+- No change to `sync-inbox-v2` or `inbox_v2_tickets` schema.
+- No change to the live Inbox / `manual_conversations` — sandbox only.
+- Tag list is hard-coded for now; if you later want it editable, we can move it to `settings`.
+
+## Project knowledge
+
+Update `.lovable/memory/features/inbox-v2-sandbox.md` with the engagement rule (which tags, where it shows) and bump `.lovable/project-knowledge.md`. Flow page unaffected (no logic flow change).
