@@ -306,6 +306,16 @@ const InboxV2 = () => {
           <FilterSelect label="Classification" value={classificationFilter} onChange={setClassificationFilter} options={classificationOptions} />
           <MultiFilterSelect label="Status" values={statusFilter} onChange={setStatusFilter} options={statusOptions} />
           <MultiFilterSelect label="Tags" values={tagsFilter} onChange={setTagsFilter} options={tagsOptions} />
+          <Select value={engagementFilter} onValueChange={(v) => setEngagementFilter(v as "all" | "engaged" | "none")}>
+            <SelectTrigger className="h-9 w-[170px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Engagement: any</SelectItem>
+              <SelectItem value="engaged">Engaged</SelectItem>
+              <SelectItem value="none">No engagement</SelectItem>
+            </SelectContent>
+          </Select>
           <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {rows.length}</span>
           <div className="ml-auto flex items-center gap-2">
             <ExportPopover
@@ -316,8 +326,10 @@ const InboxV2 = () => {
                 classificationFilter,
                 statusFilter,
                 tagsFilter,
+                engagementFilter,
               }}
             />
+
             <Button
               variant="ghost"
               size="sm"
