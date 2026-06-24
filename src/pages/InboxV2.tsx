@@ -79,8 +79,8 @@ function effectiveEngagement(r: Ticket): { value: Engagement; source: Engagement
   return { value: "engaged", source: "default" };
 }
 
-type ColKey = "intercom_id" | "subject" | "contact" | "owner" | "product_area" | "classification" | "tags" | "status" | "engagement" | "updated";
-const COL_ORDER: ColKey[] = ["intercom_id", "subject", "contact", "owner", "product_area", "classification", "tags", "status", "engagement", "updated"];
+type ColKey = "intercom_id" | "subject" | "contact" | "owner" | "product_area" | "classification" | "tags" | "status" | "engagement" | "csat" | "updated";
+const COL_ORDER: ColKey[] = ["intercom_id", "subject", "contact", "owner", "product_area", "classification", "tags", "status", "engagement", "csat", "updated"];
 const COL_LABELS: Record<ColKey, string> = {
   intercom_id: "Intercom ID",
   subject: "Subject",
@@ -91,6 +91,7 @@ const COL_LABELS: Record<ColKey, string> = {
   tags: "Tags",
   status: "Status",
   engagement: "Engagement",
+  csat: "CSAT",
   updated: "Updated",
 };
 const DEFAULT_WIDTHS: Record<ColKey, number> = {
@@ -103,6 +104,7 @@ const DEFAULT_WIDTHS: Record<ColKey, number> = {
   tags: 220,
   status: 90,
   engagement: 130,
+  csat: 90,
   updated: 140,
 };
 
