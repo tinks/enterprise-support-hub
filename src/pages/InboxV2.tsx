@@ -34,8 +34,12 @@ const ANY = "__any__";
 const MISSING = "__missing__";
 const NO_TAGS = "(no tags)";
 
-type ColKey = "intercom_id" | "subject" | "contact" | "owner" | "product_area" | "classification" | "tags" | "status" | "updated";
-const COL_ORDER: ColKey[] = ["intercom_id", "subject", "contact", "owner", "product_area", "classification", "tags", "status", "updated"];
+const NO_ENGAGEMENT_TAGS = new Set(["enterprise-fyi", "enterprise-duplicate"]);
+const isNoEngagement = (tags: string[] | null) =>
+  (tags ?? []).some((t) => NO_ENGAGEMENT_TAGS.has(t.trim().toLowerCase()));
+
+type ColKey = "intercom_id" | "subject" | "contact" | "owner" | "product_area" | "classification" | "tags" | "status" | "engagement" | "updated";
+const COL_ORDER: ColKey[] = ["intercom_id", "subject", "contact", "owner", "product_area", "classification", "tags", "status", "engagement", "updated"];
 const COL_LABELS: Record<ColKey, string> = {
   intercom_id: "Intercom ID",
   subject: "Subject",
@@ -45,6 +49,7 @@ const COL_LABELS: Record<ColKey, string> = {
   classification: "Classification",
   tags: "Tags",
   status: "Status",
+  engagement: "Engagement",
   updated: "Updated",
 };
 const DEFAULT_WIDTHS: Record<ColKey, number> = {
@@ -56,8 +61,10 @@ const DEFAULT_WIDTHS: Record<ColKey, number> = {
   classification: 140,
   tags: 220,
   status: 90,
+  engagement: 130,
   updated: 140,
 };
+
 
 const STORAGE_KEY = "inbox-v2-col-widths";
 const MIN_WIDTH = 60;
