@@ -9,7 +9,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, RefreshCw, ExternalLink, AlertCircle, ChevronDown, Download } from "lucide-react";
+import { Loader2, RefreshCw, ExternalLink, AlertCircle, ChevronDown, Download, Sparkles } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format, formatDistanceToNow, startOfMonth, endOfMonth, subMonths, subDays, startOfDay, endOfDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
