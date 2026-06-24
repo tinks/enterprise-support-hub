@@ -427,12 +427,17 @@ const InboxV2 = () => {
                       )}
                     </TableCell>
                     <TableCell style={{ width: widths.status }} className="text-xs truncate overflow-hidden">{r.status || "—"}</TableCell>
-                    <TableCell style={{ width: widths.engagement }} className="text-xs truncate overflow-hidden">
-                      {isNoEngagement(r.tags) ? (
-                        <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0">No engagement</Badge>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
+                    <TableCell
+                      style={{ width: widths.engagement }}
+                      className="text-xs truncate overflow-hidden"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <EngagementCell
+                        ticket={r}
+                        onSaved={(patch) => setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, ...patch } : x)))}
+                        running={aiBusyIds.has(r.id)}
+                        onRunAi={() => runAiForRows([r.id])}
+                      />
                     </TableCell>
                     <TableCell style={{ width: widths.updated }} className="text-xs text-muted-foreground truncate overflow-hidden">
                       {r.intercom_updated_at ? formatDistanceToNow(new Date(r.intercom_updated_at), { addSuffix: true }) : "—"}
