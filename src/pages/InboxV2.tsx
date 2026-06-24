@@ -9,8 +9,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, RefreshCw, ExternalLink, AlertCircle, ChevronDown } from "lucide-react";
-import { format, formatDistanceToNow } from "date-fns";
+import { Loader2, RefreshCw, ExternalLink, AlertCircle, ChevronDown, Download } from "lucide-react";
+import { format, formatDistanceToNow, startOfMonth, endOfMonth, subMonths, subDays, startOfDay, endOfDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
 type Ticket = {
@@ -292,15 +292,27 @@ const InboxV2 = () => {
           <MultiFilterSelect label="Status" values={statusFilter} onChange={setStatusFilter} options={statusOptions} />
           <MultiFilterSelect label="Tags" values={tagsFilter} onChange={setTagsFilter} options={tagsOptions} />
           <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {rows.length}</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-xs h-7 ml-auto"
-            onClick={() => setWidths(DEFAULT_WIDTHS)}
-            title="Reset column widths"
-          >
-            Reset columns
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <ExportPopover
+              filters={{
+                search,
+                ownerFilter,
+                productAreaFilter,
+                classificationFilter,
+                statusFilter,
+                tagsFilter,
+              }}
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs h-7"
+              onClick={() => setWidths(DEFAULT_WIDTHS)}
+              title="Reset column widths"
+            >
+              Reset columns
+            </Button>
+          </div>
         </div>
 
         <div className="rounded-md border border-border bg-card overflow-auto">
@@ -531,6 +543,206 @@ function Field({ label, value, sub, highlightMissing }: { label: string; value: 
         <div className="text-muted-foreground">—</div>
       )}
     </div>
+  );
+}
+
+type ExportFilters = {
+  search: string;
+  ownerFilter: string;
+  productAreaFilter: string;
+  classificationFilter: string;
+  statusFilter: string[];
+  tagsFilter: string[];
+};
+
+type Preset = "7d" | "14d" | "30d" | "this_month" | "last_month" | "custom";
+
+const CSV_COLS: { header: string; get: (r: Ticket) => string }[] = [
+  { header: "Intercom ID", get: r => r.intercom_conversation_id },
+  { header: "Subject", get: r => r.subject || "" },
+  { header: "Contact name", get: r => r.contact_name || "" },
+  { header: "Contact email", get: r => r.contact_email || "" },
+  { header: "Owner", get: r => r.owner || "" },
+  { header: "Product area", get: r => r.product_area || "" },
+  { header: "Classification", get: r => r.classification || "" },
+  { header: "Tags", get: r => (r.tags || []).join("; ") },
+  { header: "Status", get: r => r.status || "" },
+  { header: "Created", get: r => r.intercom_created_at || "" },
+  { header: "Updated", get: r => r.intercom_updated_at || "" },
+];
+
+function csvEscape(v: string) {
+  if (/[",\n\r]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
+  return v;
+}
+
+function toCsv(rows: Ticket[]) {
+  const lines = [CSV_COLS.map(c => csvEscape(c.header)).join(",")];
+  for (const r of rows) lines.push(CSV_COLS.map(c => csvEscape(c.get(r))).join(","));
+  return lines.join("\n");
+}
+
+function triggerDownload(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function ExportPopover({ filters }: { filters: ExportFilters }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [preset, setPreset] = useState<Preset>("30d");
+  const [from, setFrom] = useState<string>(() => format(subDays(new Date(), 30), "yyyy-MM-dd"));
+  const [to, setTo] = useState<string>(() => format(new Date(), "yyyy-MM-dd"));
+  const [busy, setBusy] = useState(false);
+
+  const applyPreset = (p: Preset) => {
+    setPreset(p);
+    const now = new Date();
+    const fmt = (d: Date) => format(d, "yyyy-MM-dd");
+    if (p === "7d") { setFrom(fmt(subDays(now, 7))); setTo(fmt(now)); }
+    else if (p === "14d") { setFrom(fmt(subDays(now, 14))); setTo(fmt(now)); }
+    else if (p === "30d") { setFrom(fmt(subDays(now, 30))); setTo(fmt(now)); }
+    else if (p === "this_month") { setFrom(fmt(startOfMonth(now))); setTo(fmt(now)); }
+    else if (p === "last_month") {
+      const lm = subMonths(now, 1);
+      setFrom(fmt(startOfMonth(lm)));
+      setTo(fmt(endOfMonth(lm)));
+    }
+    // custom: leave dates as-is
+  };
+
+  const run = async () => {
+    if (!from || !to) {
+      toast({ title: "Pick a date range", variant: "destructive" });
+      return;
+    }
+    setBusy(true);
+    try {
+      const fromIso = startOfDay(new Date(from + "T00:00:00")).toISOString();
+      const toIso = endOfDay(new Date(to + "T00:00:00")).toISOString();
+      const PAGE = 1000;
+      let offset = 0;
+      const all: Ticket[] = [];
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        let q = supabase
+          .from("inbox_v2_tickets")
+          .select("*")
+          .gte("intercom_created_at", fromIso)
+          .lte("intercom_created_at", toIso)
+          .order("intercom_created_at", { ascending: false })
+          .range(offset, offset + PAGE - 1);
+
+        if (filters.ownerFilter === MISSING) q = q.is("owner", null);
+        else if (filters.ownerFilter !== ANY) q = q.eq("owner", filters.ownerFilter);
+        if (filters.productAreaFilter === MISSING) q = q.is("product_area", null);
+        else if (filters.productAreaFilter !== ANY) q = q.eq("product_area", filters.productAreaFilter);
+        if (filters.classificationFilter === MISSING) q = q.is("classification", null);
+        else if (filters.classificationFilter !== ANY) q = q.eq("classification", filters.classificationFilter);
+        if (filters.statusFilter.length > 0) q = q.in("status", filters.statusFilter);
+
+        const { data, error } = await q;
+        if (error) throw error;
+        const batch = (data || []) as Ticket[];
+        all.push(...batch);
+        if (batch.length < PAGE) break;
+        offset += PAGE;
+      }
+
+      // Tags + free-text search are filtered client-side (tags is text[]; search spans multiple cols).
+      let rows = all;
+      if (filters.tagsFilter.length > 0) {
+        const wantEmpty = filters.tagsFilter.includes(NO_TAGS);
+        const others = filters.tagsFilter.filter(t => t !== NO_TAGS);
+        rows = rows.filter(r => {
+          const t = r.tags || [];
+          const matchEmpty = wantEmpty && t.length === 0;
+          const matchTag = others.some(x => t.includes(x));
+          return matchEmpty || matchTag;
+        });
+      }
+      const sq = filters.search.trim().toLowerCase();
+      if (sq) {
+        rows = rows.filter(r => {
+          const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, ...(r.tags || [])]
+            .filter(Boolean).join(" ").toLowerCase();
+          return hay.includes(sq);
+        });
+      }
+
+      const csv = toCsv(rows);
+      const fname = `inbox-v2-${from}_to_${to}.csv`;
+      triggerDownload(fname, csv);
+      toast({ title: "Export complete", description: `Exported ${rows.length} tickets` });
+      setOpen(false);
+    } catch (e: any) {
+      toast({ title: "Export failed", description: e?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-7 text-xs">
+          <Download className="h-3.5 w-3.5 mr-1.5" />
+          Export CSV
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[280px] p-3" align="end">
+        <div className="space-y-3">
+          <div>
+            <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Preset</label>
+            <Select value={preset} onValueChange={(v) => applyPreset(v as Preset)}>
+              <SelectTrigger className="h-8 text-xs mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7d">Last 7 days</SelectItem>
+                <SelectItem value="14d">Last 14 days</SelectItem>
+                <SelectItem value="30d">Last 30 days</SelectItem>
+                <SelectItem value="this_month">This month</SelectItem>
+                <SelectItem value="last_month">Last month</SelectItem>
+                <SelectItem value="custom">Custom</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] uppercase tracking-wide text-muted-foreground">From</label>
+              <Input
+                type="date"
+                value={from}
+                onChange={(e) => { setFrom(e.target.value); setPreset("custom"); }}
+                className="h-8 text-xs mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wide text-muted-foreground">To</label>
+              <Input
+                type="date"
+                value={to}
+                onChange={(e) => { setTo(e.target.value); setPreset("custom"); }}
+                className="h-8 text-xs mt-1"
+              />
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground leading-snug">
+            Filters by Intercom created date. Current screen filters (status, owner, tags, search) still apply.
+          </p>
+          <Button onClick={run} disabled={busy} size="sm" className="w-full h-8 text-xs">
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Download className="h-3.5 w-3.5 mr-1.5" />}
+            Export
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

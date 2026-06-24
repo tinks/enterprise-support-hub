@@ -13,3 +13,4 @@ Inbox v2 is a sandbox parallel to the live Inbox. Goal: validate Intercom-source
 
 - Nothing else in the app reads from `inbox_v2_tickets`. Cutover (Conversations/`/my/*` reading from this table) is a future step gated on user approval.
 
+- CSV export: `ExportPopover` in `src/pages/InboxV2.tsx`. Date-range presets (7/14/30 days, This/Last month, Custom) + From/To inputs. Queries `inbox_v2_tickets` directly with `.gte/.lte('intercom_created_at', ...)`, paginated in 1000-row batches via `.range()` so it isn't capped by the 500-row table fetch. Owner/Product Area/Classification/Status filters apply server-side; Tags + free-text search apply client-side post-fetch. CSV includes Created date even though it's not a visible table column.
