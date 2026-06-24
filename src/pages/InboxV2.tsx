@@ -587,6 +587,7 @@ type ExportFilters = {
   classificationFilter: string;
   statusFilter: string[];
   tagsFilter: string[];
+  engagementFilter: "all" | "engaged" | "none";
 };
 
 type Preset = "7d" | "14d" | "30d" | "this_month" | "last_month" | "custom";
@@ -601,6 +602,8 @@ const CSV_COLS: { header: string; get: (r: Ticket) => string }[] = [
   { header: "Classification", get: r => r.classification || "" },
   { header: "Tags", get: r => (r.tags || []).join("; ") },
   { header: "Status", get: r => r.status || "" },
+  { header: "Engagement", get: r => (isNoEngagement(r.tags) ? "No engagement" : "Engaged") },
+
   { header: "Created", get: r => r.intercom_created_at || "" },
   { header: "Updated", get: r => r.intercom_updated_at || "" },
 ];
