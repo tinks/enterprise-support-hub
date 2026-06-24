@@ -478,16 +478,21 @@ const InboxV2 = () => {
                     onClick={() => setSelected(r)}
                   >
                     <TableCell style={{ width: widths.intercom_id }} className="text-xs font-mono text-muted-foreground truncate overflow-hidden">
-                      <a
-                        href={intercomUrl(r.intercom_conversation_id)}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="hover:text-primary hover:underline"
-                        title={r.intercom_conversation_id}
-                      >
-                        {r.intercom_conversation_id}
-                      </a>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span title={sourceTooltip(r.raw_payload)}>
+                          <SourceIcon raw={r.raw_payload} />
+                        </span>
+                        <a
+                          href={intercomUrl(r.intercom_conversation_id)}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="hover:text-primary hover:underline truncate"
+                          title={r.intercom_conversation_id}
+                        >
+                          {r.intercom_conversation_id}
+                        </a>
+                      </div>
                     </TableCell>
                     <TableCell style={{ width: widths.subject }} className="font-medium truncate overflow-hidden">
                       {r.subject || "(no subject)"}
