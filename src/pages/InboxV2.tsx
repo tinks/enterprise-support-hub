@@ -80,7 +80,9 @@ const InboxV2 = () => {
   const [classificationFilter, setClassificationFilter] = useState<string>(ANY);
   const [statusFilter, setStatusFilter] = useState<string[]>(["open"]);
   const [tagsFilter, setTagsFilter] = useState<string[]>([]);
+  const [engagementFilter, setEngagementFilter] = useState<"all" | "engaged" | "none">("all");
   const [selected, setSelected] = useState<Ticket | null>(null);
+
 
   const [widths, setWidths] = useState<Record<ColKey, number>>(() => {
     if (typeof window === "undefined") return DEFAULT_WIDTHS;
