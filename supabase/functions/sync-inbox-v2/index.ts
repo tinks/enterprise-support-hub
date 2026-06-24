@@ -174,6 +174,15 @@ Deno.serve(async (req) => {
       const subject = stripHtml(icData.source?.subject || icData.title || `Intercom #${intercomConvId}`);
       const status = String(icData.state || "open");
 
+      // Customer-submitted CSAT from Intercom's native conversation_rating.
+      // Overwrite on every sync (drift IS the signal for this table).
+      const cr = icData?.conversation_rating;
+      const csat_rating = typeof cr?.rating === "number" ? cr.rating : null;
+      const csat_remark = typeof cr?.remark === "string" && cr.remark.trim() ? cr.remark.trim() : null;
+      const csat_rated_at = typeof cr?.created_at === "number"
+        ? new Date(cr.created_at * 1000).toISOString()
+        : null;
+
       const row = {
         intercom_conversation_id: intercomConvId,
         subject,
@@ -184,6 +193,9 @@ Deno.serve(async (req) => {
         classification,
         tags,
         status,
+        csat_rating,
+        csat_remark,
+        csat_rated_at,
         intercom_created_at: icData.created_at ? new Date(icData.created_at * 1000).toISOString() : null,
         intercom_updated_at: icData.updated_at ? new Date(icData.updated_at * 1000).toISOString() : null,
         last_synced_at: new Date().toISOString(),
