@@ -190,6 +190,46 @@ const InboxV2 = () => {
     }
   };
 
+  const runAiForRows = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    setAiBusyIds((prev) => {
+      const n = new Set(prev);
+      ids.forEach((i) => n.add(i));
+      return n;
+    });
+    try {
+      const { data, error } = await supabase.functions.invoke("classify-inbox-v2-engagement", {
+        body: { ticketIds: ids },
+      });
+      if (error) throw error;
+      // Refresh affected rows from DB to pick up new ai fields
+      const { data: refreshed } = await supabase
+        .from("inbox_v2_tickets")
+        .select("*")
+        .in("id", ids);
+      if (refreshed) {
+        const map = new Map(refreshed.map((r: any) => [r.id, r]));
+        setRows((prev) => prev.map((r) => (map.has(r.id) ? (map.get(r.id) as Ticket) : r)));
+      }
+      const ok = data?.ok ?? 0;
+      const failed = data?.failed ?? 0;
+      toast({
+        title: "AI classification complete",
+        description: `${ok} classified${failed ? ` · ${failed} failed` : ""}`,
+      });
+    } catch (e: any) {
+      toast({ title: "AI classification failed", description: e?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setAiBusyIds((prev) => {
+        const n = new Set(prev);
+        ids.forEach((i) => n.delete(i));
+        return n;
+      });
+    }
+  };
+
+
+
 
   const ownerOptions = useMemo(() => Array.from(new Set(rows.map(r => r.owner).filter(Boolean))).sort() as string[], [rows]);
   const productAreaOptions = useMemo(() => Array.from(new Set(rows.map(r => r.product_area).filter(Boolean))).sort() as string[], [rows]);
