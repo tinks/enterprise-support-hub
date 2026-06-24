@@ -224,9 +224,8 @@ const InboxV2 = () => {
         if (!matchEmpty && !matchTag) return false;
       }
       if (engagementFilter !== "all") {
-        const none = isNoEngagement(r.tags);
-        if (engagementFilter === "none" && !none) return false;
-        if (engagementFilter === "engaged" && none) return false;
+        const eff = effectiveEngagement(r).value;
+        if (engagementFilter !== eff) return false;
       }
       if (q) {
         const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, ...(r.tags || [])]
