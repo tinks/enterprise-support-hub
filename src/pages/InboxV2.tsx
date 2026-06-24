@@ -778,10 +778,7 @@ function ExportPopover({ filters }: { filters: ExportFilters }) {
         });
       }
       if (filters.engagementFilter !== "all") {
-        rows = rows.filter(r => {
-          const none = isNoEngagement(r.tags);
-          return filters.engagementFilter === "none" ? none : !none;
-        });
+        rows = rows.filter(r => effectiveEngagement(r).value === filters.engagementFilter);
       }
 
       const sq = filters.search.trim().toLowerCase();
