@@ -202,6 +202,11 @@ const InboxV2 = () => {
         const matchTag = otherSelected.some(t => rTags.includes(t));
         if (!matchEmpty && !matchTag) return false;
       }
+      if (engagementFilter !== "all") {
+        const none = isNoEngagement(r.tags);
+        if (engagementFilter === "none" && !none) return false;
+        if (engagementFilter === "engaged" && none) return false;
+      }
       if (q) {
         const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, ...(r.tags || [])]
           .filter(Boolean).join(" ").toLowerCase();
@@ -209,7 +214,8 @@ const InboxV2 = () => {
       }
       return true;
     });
-  }, [rows, search, ownerFilter, productAreaFilter, classificationFilter, statusFilter, tagsFilter]);
+  }, [rows, search, ownerFilter, productAreaFilter, classificationFilter, statusFilter, tagsFilter, engagementFilter]);
+
 
   const lastSync = useMemo(() => {
     const ts = rows.map(r => r.last_synced_at).filter(Boolean).sort().pop();
