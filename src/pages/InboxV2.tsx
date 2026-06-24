@@ -14,6 +14,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { format, formatDistanceToNow, startOfMonth, endOfMonth, subMonths, subDays, startOfDay, endOfDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
+type Engagement = "engaged" | "none";
+
 type Ticket = {
   id: string;
   intercom_conversation_id: string;
@@ -29,6 +31,12 @@ type Ticket = {
   intercom_updated_at: string | null;
   last_synced_at: string | null;
   raw_payload: any;
+  engagement_override: Engagement | null;
+  engagement_override_at: string | null;
+  engagement_override_by: string | null;
+  engagement_ai_guess: Engagement | null;
+  engagement_ai_reason: string | null;
+  engagement_ai_at: string | null;
 };
 
 const ANY = "__any__";
@@ -36,8 +44,20 @@ const MISSING = "__missing__";
 const NO_TAGS = "(no tags)";
 
 const NO_ENGAGEMENT_TAGS = new Set(["enterprise-fyi", "enterprise-duplicate"]);
-const isNoEngagement = (tags: string[] | null) =>
+const hasNoEngagementTag = (tags: string[] | null) =>
   (tags ?? []).some((t) => NO_ENGAGEMENT_TAGS.has(t.trim().toLowerCase()));
+
+type EngagementSource = "manual" | "ai" | "tag" | "default";
+function effectiveEngagement(r: Ticket): { value: Engagement; source: EngagementSource } {
+  if (r.engagement_override === "engaged" || r.engagement_override === "none") {
+    return { value: r.engagement_override, source: "manual" };
+  }
+  if (r.engagement_ai_guess === "engaged" || r.engagement_ai_guess === "none") {
+    return { value: r.engagement_ai_guess, source: "ai" };
+  }
+  if (hasNoEngagementTag(r.tags)) return { value: "none", source: "tag" };
+  return { value: "engaged", source: "default" };
+}
 
 type ColKey = "intercom_id" | "subject" | "contact" | "owner" | "product_area" | "classification" | "tags" | "status" | "engagement" | "updated";
 const COL_ORDER: ColKey[] = ["intercom_id", "subject", "contact", "owner", "product_area", "classification", "tags", "status", "engagement", "updated"];
