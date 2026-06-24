@@ -705,6 +705,13 @@ function ExportPopover({ filters }: { filters: ExportFilters }) {
           return matchEmpty || matchTag;
         });
       }
+      if (filters.engagementFilter !== "all") {
+        rows = rows.filter(r => {
+          const none = isNoEngagement(r.tags);
+          return filters.engagementFilter === "none" ? none : !none;
+        });
+      }
+
       const sq = filters.search.trim().toLowerCase();
       if (sq) {
         rows = rows.filter(r => {
