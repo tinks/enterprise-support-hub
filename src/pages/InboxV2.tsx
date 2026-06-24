@@ -9,9 +9,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, RefreshCw, ExternalLink, AlertCircle, ChevronDown, Download } from "lucide-react";
+import { Loader2, RefreshCw, ExternalLink, AlertCircle, ChevronDown, Download, Sparkles } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format, formatDistanceToNow, startOfMonth, endOfMonth, subMonths, subDays, startOfDay, endOfDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+
+type Engagement = "engaged" | "none";
 
 type Ticket = {
   id: string;
@@ -28,6 +31,12 @@ type Ticket = {
   intercom_updated_at: string | null;
   last_synced_at: string | null;
   raw_payload: any;
+  engagement_override: Engagement | null;
+  engagement_override_at: string | null;
+  engagement_override_by: string | null;
+  engagement_ai_guess: Engagement | null;
+  engagement_ai_reason: string | null;
+  engagement_ai_at: string | null;
 };
 
 const ANY = "__any__";
@@ -35,8 +44,20 @@ const MISSING = "__missing__";
 const NO_TAGS = "(no tags)";
 
 const NO_ENGAGEMENT_TAGS = new Set(["enterprise-fyi", "enterprise-duplicate"]);
-const isNoEngagement = (tags: string[] | null) =>
+const hasNoEngagementTag = (tags: string[] | null) =>
   (tags ?? []).some((t) => NO_ENGAGEMENT_TAGS.has(t.trim().toLowerCase()));
+
+type EngagementSource = "manual" | "ai" | "tag" | "default";
+function effectiveEngagement(r: Ticket): { value: Engagement; source: EngagementSource } {
+  if (r.engagement_override === "engaged" || r.engagement_override === "none") {
+    return { value: r.engagement_override, source: "manual" };
+  }
+  if (r.engagement_ai_guess === "engaged" || r.engagement_ai_guess === "none") {
+    return { value: r.engagement_ai_guess, source: "ai" };
+  }
+  if (hasNoEngagementTag(r.tags)) return { value: "none", source: "tag" };
+  return { value: "engaged", source: "default" };
+}
 
 type ColKey = "intercom_id" | "subject" | "contact" | "owner" | "product_area" | "classification" | "tags" | "status" | "engagement" | "updated";
 const COL_ORDER: ColKey[] = ["intercom_id", "subject", "contact", "owner", "product_area", "classification", "tags", "status", "engagement", "updated"];
@@ -82,6 +103,9 @@ const InboxV2 = () => {
   const [tagsFilter, setTagsFilter] = useState<string[]>([]);
   const [engagementFilter, setEngagementFilter] = useState<"all" | "engaged" | "none">("all");
   const [selected, setSelected] = useState<Ticket | null>(null);
+  const [aiBusyIds, setAiBusyIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+
 
 
   const [widths, setWidths] = useState<Record<ColKey, number>>(() => {
@@ -166,6 +190,46 @@ const InboxV2 = () => {
     }
   };
 
+  const runAiForRows = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    setAiBusyIds((prev) => {
+      const n = new Set(prev);
+      ids.forEach((i) => n.add(i));
+      return n;
+    });
+    try {
+      const { data, error } = await supabase.functions.invoke("classify-inbox-v2-engagement", {
+        body: { ticketIds: ids },
+      });
+      if (error) throw error;
+      // Refresh affected rows from DB to pick up new ai fields
+      const { data: refreshed } = await supabase
+        .from("inbox_v2_tickets")
+        .select("*")
+        .in("id", ids);
+      if (refreshed) {
+        const map = new Map(refreshed.map((r: any) => [r.id, r]));
+        setRows((prev) => prev.map((r) => (map.has(r.id) ? (map.get(r.id) as Ticket) : r)));
+      }
+      const ok = data?.ok ?? 0;
+      const failed = data?.failed ?? 0;
+      toast({
+        title: "AI classification complete",
+        description: `${ok} classified${failed ? ` · ${failed} failed` : ""}`,
+      });
+    } catch (e: any) {
+      toast({ title: "AI classification failed", description: e?.message || "Unknown error", variant: "destructive" });
+    } finally {
+      setAiBusyIds((prev) => {
+        const n = new Set(prev);
+        ids.forEach((i) => n.delete(i));
+        return n;
+      });
+    }
+  };
+
+
+
 
   const ownerOptions = useMemo(() => Array.from(new Set(rows.map(r => r.owner).filter(Boolean))).sort() as string[], [rows]);
   const productAreaOptions = useMemo(() => Array.from(new Set(rows.map(r => r.product_area).filter(Boolean))).sort() as string[], [rows]);
@@ -203,9 +267,8 @@ const InboxV2 = () => {
         if (!matchEmpty && !matchTag) return false;
       }
       if (engagementFilter !== "all") {
-        const none = isNoEngagement(r.tags);
-        if (engagementFilter === "none" && !none) return false;
-        if (engagementFilter === "engaged" && none) return false;
+        const eff = effectiveEngagement(r).value;
+        if (engagementFilter !== eff) return false;
       }
       if (q) {
         const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, ...(r.tags || [])]
@@ -318,6 +381,32 @@ const InboxV2 = () => {
           </Select>
           <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {rows.length}</span>
           <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              disabled={bulkBusy}
+              onClick={async () => {
+                const candidates = filtered
+                  .filter((r) => !r.engagement_override && !r.engagement_ai_guess)
+                  .slice(0, 50);
+                if (candidates.length === 0) {
+                  toast({ title: "Nothing to classify", description: "All filtered rows already have an override or AI guess." });
+                  return;
+                }
+                if (!window.confirm(`Run AI engagement classification on ${candidates.length} ticket${candidates.length === 1 ? "" : "s"}? (Max 50 per click.)`)) return;
+                setBulkBusy(true);
+                try {
+                  await runAiForRows(candidates.map((r) => r.id));
+                } finally {
+                  setBulkBusy(false);
+                }
+              }}
+              title="Classify up to 50 filtered rows that have no override and no AI guess yet"
+            >
+              {bulkBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+              AI-classify visible
+            </Button>
             <ExportPopover
               filters={{
                 search,
@@ -329,6 +418,7 @@ const InboxV2 = () => {
                 engagementFilter,
               }}
             />
+
 
             <Button
               variant="ghost"
@@ -407,12 +497,17 @@ const InboxV2 = () => {
                       )}
                     </TableCell>
                     <TableCell style={{ width: widths.status }} className="text-xs truncate overflow-hidden">{r.status || "—"}</TableCell>
-                    <TableCell style={{ width: widths.engagement }} className="text-xs truncate overflow-hidden">
-                      {isNoEngagement(r.tags) ? (
-                        <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0">No engagement</Badge>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
+                    <TableCell
+                      style={{ width: widths.engagement }}
+                      className="text-xs truncate overflow-hidden"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <EngagementCell
+                        ticket={r}
+                        onSaved={(patch) => setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, ...patch } : x)))}
+                        running={aiBusyIds.has(r.id)}
+                        onRunAi={() => runAiForRows([r.id])}
+                      />
                     </TableCell>
                     <TableCell style={{ width: widths.updated }} className="text-xs text-muted-foreground truncate overflow-hidden">
                       {r.intercom_updated_at ? formatDistanceToNow(new Date(r.intercom_updated_at), { addSuffix: true }) : "—"}
@@ -602,7 +697,11 @@ const CSV_COLS: { header: string; get: (r: Ticket) => string }[] = [
   { header: "Classification", get: r => r.classification || "" },
   { header: "Tags", get: r => (r.tags || []).join("; ") },
   { header: "Status", get: r => r.status || "" },
-  { header: "Engagement", get: r => (isNoEngagement(r.tags) ? "No engagement" : "Engaged") },
+  { header: "Engagement", get: r => (effectiveEngagement(r).value === "none" ? "No engagement" : "Engaged") },
+  { header: "Engagement source", get: r => effectiveEngagement(r).source },
+  { header: "Engagement override", get: r => r.engagement_override || "" },
+  { header: "Engagement AI guess", get: r => r.engagement_ai_guess || "" },
+  { header: "Engagement AI reason", get: r => r.engagement_ai_reason || "" },
 
   { header: "Created", get: r => r.intercom_created_at || "" },
   { header: "Updated", get: r => r.intercom_updated_at || "" },
@@ -706,10 +805,7 @@ function ExportPopover({ filters }: { filters: ExportFilters }) {
         });
       }
       if (filters.engagementFilter !== "all") {
-        rows = rows.filter(r => {
-          const none = isNoEngagement(r.tags);
-          return filters.engagementFilter === "none" ? none : !none;
-        });
+        rows = rows.filter(r => effectiveEngagement(r).value === filters.engagementFilter);
       }
 
       const sq = filters.search.trim().toLowerCase();
@@ -787,6 +883,117 @@ function ExportPopover({ filters }: { filters: ExportFilters }) {
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+const ENGAGEMENT_OVERRIDE_VALUES = ["__auto__", "engaged", "none"] as const;
+
+function EngagementCell({
+  ticket,
+  onSaved,
+  running,
+  onRunAi,
+}: {
+  ticket: Ticket;
+  onSaved: (patch: Partial<Ticket>) => void;
+  running: boolean;
+  onRunAi: () => void;
+}) {
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const eff = effectiveEngagement(ticket);
+  const value = ticket.engagement_override ?? "__auto__";
+
+  const save = async (next: string) => {
+    const override = next === "__auto__" ? null : (next as Engagement);
+    setSaving(true);
+    const nowIso = new Date().toISOString();
+    const patch: Partial<Ticket> = {
+      engagement_override: override,
+      engagement_override_at: override ? nowIso : null,
+    };
+    const prev = {
+      engagement_override: ticket.engagement_override,
+      engagement_override_at: ticket.engagement_override_at,
+    };
+    onSaved(patch);
+    const { error } = await supabase
+      .from("inbox_v2_tickets")
+      .update(patch)
+      .eq("id", ticket.id);
+    setSaving(false);
+    if (error) {
+      onSaved(prev);
+      toast({ title: "Failed to save override", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const badge =
+    eff.value === "none" ? (
+      <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0">No engagement</Badge>
+    ) : (
+      <Badge variant="outline" className="text-[10px] font-normal px-1.5 py-0">Engaged</Badge>
+    );
+
+  const sourceLabel =
+    eff.source === "manual" ? "manual" :
+    eff.source === "ai" ? "AI" :
+    eff.source === "tag" ? "tag" : "default";
+
+  const sourceColor =
+    eff.source === "manual" ? "text-primary" :
+    eff.source === "ai" ? "text-violet-600" :
+    eff.source === "tag" ? "text-amber-600" : "text-muted-foreground";
+
+  return (
+    <TooltipProvider>
+      <div className="flex items-center gap-1.5">
+        <Select value={value} onValueChange={save} disabled={saving}>
+          <SelectTrigger className="h-7 w-full text-[11px] px-1.5 py-0 border-transparent hover:border-border focus:border-border">
+            <div className="flex items-center gap-1.5 min-w-0">
+              {badge}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className={`text-[9px] uppercase tracking-wide ${sourceColor} shrink-0`}>{sourceLabel}</span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[260px] text-xs">
+                  {eff.source === "manual" && (
+                    <>Manual override{ticket.engagement_override_at ? ` · ${formatDistanceToNow(new Date(ticket.engagement_override_at), { addSuffix: true })}` : ""}</>
+                  )}
+                  {eff.source === "ai" && (
+                    <>AI guess{ticket.engagement_ai_reason ? `: ${ticket.engagement_ai_reason}` : ""}</>
+                  )}
+                  {eff.source === "tag" && <>Derived from Intercom tag (enterprise-fyi / enterprise-duplicate)</>}
+                  {eff.source === "default" && <>Default — no override, no AI guess, no matching tag</>}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__auto__">Auto (tag/AI)</SelectItem>
+            <SelectItem value="engaged">Engaged</SelectItem>
+            <SelectItem value="none">No engagement</SelectItem>
+          </SelectContent>
+        </Select>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-6 w-6 shrink-0"
+              onClick={(e) => { e.stopPropagation(); onRunAi(); }}
+              disabled={running}
+              aria-label="AI: guess engagement"
+            >
+              {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">
+            AI: guess engagement from comments
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    </TooltipProvider>
   );
 }
 

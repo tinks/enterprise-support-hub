@@ -362,6 +362,12 @@ export type Database = {
           contact_email: string | null
           contact_name: string | null
           created_at: string
+          engagement_ai_at: string | null
+          engagement_ai_guess: string | null
+          engagement_ai_reason: string | null
+          engagement_override: string | null
+          engagement_override_at: string | null
+          engagement_override_by: string | null
           id: string
           intercom_conversation_id: string
           intercom_created_at: string | null
@@ -380,6 +386,12 @@ export type Database = {
           contact_email?: string | null
           contact_name?: string | null
           created_at?: string
+          engagement_ai_at?: string | null
+          engagement_ai_guess?: string | null
+          engagement_ai_reason?: string | null
+          engagement_override?: string | null
+          engagement_override_at?: string | null
+          engagement_override_by?: string | null
           id?: string
           intercom_conversation_id: string
           intercom_created_at?: string | null
@@ -398,6 +410,12 @@ export type Database = {
           contact_email?: string | null
           contact_name?: string | null
           created_at?: string
+          engagement_ai_at?: string | null
+          engagement_ai_guess?: string | null
+          engagement_ai_reason?: string | null
+          engagement_override?: string | null
+          engagement_override_at?: string | null
+          engagement_override_by?: string | null
           id?: string
           intercom_conversation_id?: string
           intercom_created_at?: string | null
