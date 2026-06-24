@@ -124,6 +124,7 @@ const InboxV2 = () => {
   const [statusFilter, setStatusFilter] = useState<string[]>(["open"]);
   const [tagsFilter, setTagsFilter] = useState<string[]>([]);
   const [engagementFilter, setEngagementFilter] = useState<"all" | "engaged" | "none">("all");
+  const [csatFilter, setCsatFilter] = useState<"all" | "rated" | "unrated" | "1" | "2" | "3" | "4" | "5">("all");
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [aiBusyIds, setAiBusyIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
