@@ -630,7 +630,29 @@ const InboxV2 = () => {
   );
 };
 
-function FilterSelect({
+function CsatCell({ rating, remark, ratedAt }: { rating: number | null; remark: string | null; ratedAt: string | null }) {
+  if (rating == null) return <span className="text-muted-foreground">—</span>;
+  const emoji = CSAT_EMOJI[rating] || "•";
+  const label = CSAT_LABEL[rating] || "";
+  const when = ratedAt ? format(new Date(ratedAt), "MMM d, yyyy") : null;
+  const tip = [`${rating}/5 · ${label}`, when, remark].filter(Boolean).join("\n");
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex items-center gap-1 cursor-default">
+            <span>{emoji}</span>
+            <span className="tabular-nums">{rating}</span>
+            {remark && <span className="text-[10px] text-muted-foreground">💬</span>}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs whitespace-pre-line text-xs">{tip}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+
   label, value, onChange, options, includeMissing = true,
 }: {
   label: string;
