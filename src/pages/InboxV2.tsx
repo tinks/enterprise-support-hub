@@ -103,6 +103,9 @@ const InboxV2 = () => {
   const [tagsFilter, setTagsFilter] = useState<string[]>([]);
   const [engagementFilter, setEngagementFilter] = useState<"all" | "engaged" | "none">("all");
   const [selected, setSelected] = useState<Ticket | null>(null);
+  const [aiBusyIds, setAiBusyIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+
 
 
   const [widths, setWidths] = useState<Record<ColKey, number>>(() => {
