@@ -775,7 +775,9 @@ const CSV_COLS: { header: string; get: (r: Ticket) => string }[] = [
   { header: "Engagement override", get: r => r.engagement_override || "" },
   { header: "Engagement AI guess", get: r => r.engagement_ai_guess || "" },
   { header: "Engagement AI reason", get: r => r.engagement_ai_reason || "" },
-
+  { header: "CSAT rating", get: r => r.csat_rating != null ? String(r.csat_rating) : "" },
+  { header: "CSAT remark", get: r => r.csat_remark || "" },
+  { header: "CSAT rated at", get: r => r.csat_rated_at || "" },
   { header: "Created", get: r => r.intercom_created_at || "" },
   { header: "Updated", get: r => r.intercom_updated_at || "" },
 ];
