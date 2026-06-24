@@ -600,6 +600,24 @@ const InboxV2 = () => {
                   )}
                 </div>
                 <Field label="Status" value={selected.status} />
+                {selected.csat_rating != null && (
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Customer CSAT</div>
+                    <div className="text-foreground flex items-center gap-2">
+                      <span className="text-lg">{CSAT_EMOJI[selected.csat_rating] || "•"}</span>
+                      <span className="tabular-nums">{selected.csat_rating}/5</span>
+                      <span className="text-xs text-muted-foreground">{CSAT_LABEL[selected.csat_rating] || ""}</span>
+                    </div>
+                    {selected.csat_remark && (
+                      <div className="text-sm text-muted-foreground mt-1 italic">"{selected.csat_remark}"</div>
+                    )}
+                    {selected.csat_rated_at && (
+                      <div className="text-[11px] text-muted-foreground mt-1">
+                        Rated {format(new Date(selected.csat_rated_at), "MMM d, yyyy HH:mm")}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <Field
                   label="Created"
                   value={selected.intercom_created_at ? format(new Date(selected.intercom_created_at), "MMM d, yyyy HH:mm") : null}
