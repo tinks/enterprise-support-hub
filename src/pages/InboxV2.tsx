@@ -557,6 +557,9 @@ const InboxV2 = () => {
                         onRunAi={() => runAiForRows([r.id])}
                       />
                     </TableCell>
+                    <TableCell style={{ width: widths.csat }} className="text-xs truncate overflow-hidden">
+                      <CsatCell rating={r.csat_rating} remark={r.csat_remark} ratedAt={r.csat_rated_at} />
+                    </TableCell>
                     <TableCell style={{ width: widths.updated }} className="text-xs text-muted-foreground truncate overflow-hidden">
                       {r.intercom_updated_at ? formatDistanceToNow(new Date(r.intercom_updated_at), { addSuffix: true }) : "—"}
                     </TableCell>
