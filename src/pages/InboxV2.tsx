@@ -51,7 +51,13 @@ type Ticket = {
   engagement_ai_guess: Engagement | null;
   engagement_ai_reason: string | null;
   engagement_ai_at: string | null;
+  csat_rating: number | null;
+  csat_remark: string | null;
+  csat_rated_at: string | null;
 };
+
+const CSAT_EMOJI: Record<number, string> = { 1: "😠", 2: "🙁", 3: "😐", 4: "😀", 5: "🤩" };
+const CSAT_LABEL: Record<number, string> = { 1: "Terrible", 2: "Bad", 3: "OK", 4: "Great", 5: "Amazing" };
 
 const ANY = "__any__";
 const MISSING = "__missing__";
@@ -73,8 +79,8 @@ function effectiveEngagement(r: Ticket): { value: Engagement; source: Engagement
   return { value: "engaged", source: "default" };
 }
 
-type ColKey = "intercom_id" | "subject" | "contact" | "owner" | "product_area" | "classification" | "tags" | "status" | "engagement" | "updated";
-const COL_ORDER: ColKey[] = ["intercom_id", "subject", "contact", "owner", "product_area", "classification", "tags", "status", "engagement", "updated"];
+type ColKey = "intercom_id" | "subject" | "contact" | "owner" | "product_area" | "classification" | "tags" | "status" | "engagement" | "csat" | "updated";
+const COL_ORDER: ColKey[] = ["intercom_id", "subject", "contact", "owner", "product_area", "classification", "tags", "status", "engagement", "csat", "updated"];
 const COL_LABELS: Record<ColKey, string> = {
   intercom_id: "Intercom ID",
   subject: "Subject",
@@ -85,6 +91,7 @@ const COL_LABELS: Record<ColKey, string> = {
   tags: "Tags",
   status: "Status",
   engagement: "Engagement",
+  csat: "CSAT",
   updated: "Updated",
 };
 const DEFAULT_WIDTHS: Record<ColKey, number> = {
@@ -97,6 +104,7 @@ const DEFAULT_WIDTHS: Record<ColKey, number> = {
   tags: 220,
   status: 90,
   engagement: 130,
+  csat: 90,
   updated: 140,
 };
 
@@ -116,6 +124,7 @@ const InboxV2 = () => {
   const [statusFilter, setStatusFilter] = useState<string[]>(["open"]);
   const [tagsFilter, setTagsFilter] = useState<string[]>([]);
   const [engagementFilter, setEngagementFilter] = useState<"all" | "engaged" | "none">("all");
+  const [csatFilter, setCsatFilter] = useState<"all" | "rated" | "unrated" | "1" | "2" | "3" | "4" | "5">("all");
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [aiBusyIds, setAiBusyIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -284,14 +293,19 @@ const InboxV2 = () => {
         const eff = effectiveEngagement(r).value;
         if (engagementFilter !== eff) return false;
       }
+      if (csatFilter !== "all") {
+        if (csatFilter === "rated" && r.csat_rating == null) return false;
+        if (csatFilter === "unrated" && r.csat_rating != null) return false;
+        if (/^[1-5]$/.test(csatFilter) && r.csat_rating !== Number(csatFilter)) return false;
+      }
       if (q) {
-        const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, ...(r.tags || [])]
+        const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, r.csat_remark, ...(r.tags || [])]
           .filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [rows, search, ownerFilter, productAreaFilter, classificationFilter, statusFilter, tagsFilter, engagementFilter]);
+  }, [rows, search, ownerFilter, productAreaFilter, classificationFilter, statusFilter, tagsFilter, engagementFilter, csatFilter]);
 
 
   const lastSync = useMemo(() => {
@@ -391,6 +405,21 @@ const InboxV2 = () => {
               <SelectItem value="all">Engagement: any</SelectItem>
               <SelectItem value="engaged">Engaged</SelectItem>
               <SelectItem value="none">No engagement</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={csatFilter} onValueChange={(v) => setCsatFilter(v as typeof csatFilter)}>
+            <SelectTrigger className="h-9 w-[150px] text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">CSAT: any</SelectItem>
+              <SelectItem value="rated">Rated</SelectItem>
+              <SelectItem value="unrated">Unrated</SelectItem>
+              <SelectItem value="5">🤩 5</SelectItem>
+              <SelectItem value="4">😀 4</SelectItem>
+              <SelectItem value="3">😐 3</SelectItem>
+              <SelectItem value="2">🙁 2</SelectItem>
+              <SelectItem value="1">😠 1</SelectItem>
             </SelectContent>
           </Select>
           <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {rows.length}</span>
@@ -528,6 +557,9 @@ const InboxV2 = () => {
                         onRunAi={() => runAiForRows([r.id])}
                       />
                     </TableCell>
+                    <TableCell style={{ width: widths.csat }} className="text-xs truncate overflow-hidden">
+                      <CsatCell rating={r.csat_rating} remark={r.csat_remark} ratedAt={r.csat_rated_at} />
+                    </TableCell>
                     <TableCell style={{ width: widths.updated }} className="text-xs text-muted-foreground truncate overflow-hidden">
                       {r.intercom_updated_at ? formatDistanceToNow(new Date(r.intercom_updated_at), { addSuffix: true }) : "—"}
                     </TableCell>
@@ -568,6 +600,24 @@ const InboxV2 = () => {
                   )}
                 </div>
                 <Field label="Status" value={selected.status} />
+                {selected.csat_rating != null && (
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Customer CSAT</div>
+                    <div className="text-foreground flex items-center gap-2">
+                      <span className="text-lg">{CSAT_EMOJI[selected.csat_rating] || "•"}</span>
+                      <span className="tabular-nums">{selected.csat_rating}/5</span>
+                      <span className="text-xs text-muted-foreground">{CSAT_LABEL[selected.csat_rating] || ""}</span>
+                    </div>
+                    {selected.csat_remark && (
+                      <div className="text-sm text-muted-foreground mt-1 italic">"{selected.csat_remark}"</div>
+                    )}
+                    {selected.csat_rated_at && (
+                      <div className="text-[11px] text-muted-foreground mt-1">
+                        Rated {format(new Date(selected.csat_rated_at), "MMM d, yyyy HH:mm")}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <Field
                   label="Created"
                   value={selected.intercom_created_at ? format(new Date(selected.intercom_created_at), "MMM d, yyyy HH:mm") : null}
@@ -597,6 +647,28 @@ const InboxV2 = () => {
     </AppLayout>
   );
 };
+
+function CsatCell({ rating, remark, ratedAt }: { rating: number | null; remark: string | null; ratedAt: string | null }) {
+  if (rating == null) return <span className="text-muted-foreground">—</span>;
+  const emoji = CSAT_EMOJI[rating] || "•";
+  const label = CSAT_LABEL[rating] || "";
+  const when = ratedAt ? format(new Date(ratedAt), "MMM d, yyyy") : null;
+  const tip = [`${rating}/5 · ${label}`, when, remark].filter(Boolean).join("\n");
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex items-center gap-1 cursor-default">
+            <span>{emoji}</span>
+            <span className="tabular-nums">{rating}</span>
+            {remark && <span className="text-[10px] text-muted-foreground">💬</span>}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs whitespace-pre-line text-xs">{tip}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 function FilterSelect({
   label, value, onChange, options, includeMissing = true,
@@ -721,7 +793,9 @@ const CSV_COLS: { header: string; get: (r: Ticket) => string }[] = [
   { header: "Engagement override", get: r => r.engagement_override || "" },
   { header: "Engagement AI guess", get: r => r.engagement_ai_guess || "" },
   { header: "Engagement AI reason", get: r => r.engagement_ai_reason || "" },
-
+  { header: "CSAT rating", get: r => r.csat_rating != null ? String(r.csat_rating) : "" },
+  { header: "CSAT remark", get: r => r.csat_remark || "" },
+  { header: "CSAT rated at", get: r => r.csat_rated_at || "" },
   { header: "Created", get: r => r.intercom_created_at || "" },
   { header: "Updated", get: r => r.intercom_updated_at || "" },
 ];

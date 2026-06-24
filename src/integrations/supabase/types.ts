@@ -362,6 +362,9 @@ export type Database = {
           contact_email: string | null
           contact_name: string | null
           created_at: string
+          csat_rated_at: string | null
+          csat_rating: number | null
+          csat_remark: string | null
           engagement_ai_at: string | null
           engagement_ai_guess: string | null
           engagement_ai_reason: string | null
@@ -386,6 +389,9 @@ export type Database = {
           contact_email?: string | null
           contact_name?: string | null
           created_at?: string
+          csat_rated_at?: string | null
+          csat_rating?: number | null
+          csat_remark?: string | null
           engagement_ai_at?: string | null
           engagement_ai_guess?: string | null
           engagement_ai_reason?: string | null
@@ -410,6 +416,9 @@ export type Database = {
           contact_email?: string | null
           contact_name?: string | null
           created_at?: string
+          csat_rated_at?: string | null
+          csat_rating?: number | null
+          csat_remark?: string | null
           engagement_ai_at?: string | null
           engagement_ai_guess?: string | null
           engagement_ai_reason?: string | null

@@ -4,10 +4,13 @@ description: Capture and display CSAT ratings from Intercom (manual/gmail) and a
 type: feature
 ---
 
-CSAT columns live on `manual_conversations`, `gmail_conversations`, AND `conversation_mappings` — all three have `csat_rating smallint`, `csat_remark text`, `csat_rated_at timestamptz` (validated 1–5 by `validate_csat_rating` triggers). `conversation_mappings` additionally has `csat_prompt_ts text` to track the Slack message we updated.
+CSAT columns live on `manual_conversations`, `gmail_conversations`, `conversation_mappings`, AND `inbox_v2_tickets` — all four have `csat_rating smallint`, `csat_remark text`, `csat_rated_at timestamptz` (validated 1–5 by `validate_csat_rating` triggers). `conversation_mappings` additionally has `csat_prompt_ts text` to track the Slack message we updated.
 
 ## Manual + Gmail (Intercom-side)
 Imports (`import-intercom-ticket`, `bulk-import-intercom`) write CSAT on insert. Ongoing capture via `refresh-intercom-csat` edge function, scheduled every 6h via pg_cron (`refresh-intercom-csat-6h`) with `?mode=recent` (last 14 days resolved). One-time historical sweep: `?mode=backfill`. Hot paths intentionally don't handle CSAT — ratings arrive long after resolution.
+
+## Inbox v2 (sandbox mirror)
+`sync-inbox-v2` extracts `icData.conversation_rating` (rating / remark / created_at) on every upsert and overwrites — drift is the signal for that table. Surfaced in the Inbox v2 table as an emoji+score cell with remark tooltip, filterable (All / Rated / Unrated / 1–5), and included in CSV export. NOT the AI-generated "CX Score" custom attribute — that's Intercom's quality guess, intentionally ignored.
 
 ## Slack-side (Sam / Ask Lovable)
 The CSAT prompt fires from BOTH resolution paths (idempotent via `!csat_rating && !csat_prompt_ts`):
