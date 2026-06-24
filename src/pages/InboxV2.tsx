@@ -293,14 +293,19 @@ const InboxV2 = () => {
         const eff = effectiveEngagement(r).value;
         if (engagementFilter !== eff) return false;
       }
+      if (csatFilter !== "all") {
+        if (csatFilter === "rated" && r.csat_rating == null) return false;
+        if (csatFilter === "unrated" && r.csat_rating != null) return false;
+        if (/^[1-5]$/.test(csatFilter) && r.csat_rating !== Number(csatFilter)) return false;
+      }
       if (q) {
-        const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, ...(r.tags || [])]
+        const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, r.csat_remark, ...(r.tags || [])]
           .filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [rows, search, ownerFilter, productAreaFilter, classificationFilter, statusFilter, tagsFilter, engagementFilter]);
+  }, [rows, search, ownerFilter, productAreaFilter, classificationFilter, statusFilter, tagsFilter, engagementFilter, csatFilter]);
 
 
   const lastSync = useMemo(() => {
