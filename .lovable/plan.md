@@ -1,30 +1,37 @@
+## Add CSV export to Inbox V2
 
-## Goal
-Surface each Intercom conversation's **Tags** in the Inbox V2 sandbox — stored in `inbox_v2_tickets`, displayed as a column, and filterable in `/inbox-v2`.
+Frontend-only change in `src/pages/InboxV2.tsx`.
 
-## Backend
+### UI
+- New "Export CSV" button next to "Reset columns" in the filter row
+- Clicking opens a small popover with:
+  - **Preset** dropdown: Last 7 days · Last 14 days · Last 30 days · This month · Last month · Custom
+  - **From / To** date pickers (auto-filled by preset; editable for Custom)
+  - **Export** button (shows spinner while fetching)
 
-1. **Migration** — add `tags text[]` (default `'{}'`) to `public.inbox_v2_tickets`. No new policies/grants needed.
+### Behavior
+- Query the DB directly on export — not limited to the 500 loaded rows
+- Filter: `intercom_created_at` between From (00:00) and To (23:59:59)
+- Screen filters layer on top: status, owner, product area, classification, tags, and search all still apply within the date range
+- Paginated fetch in 1000-row batches until exhausted (handles months with >1000 tickets)
+- Filename: `inbox-v2-YYYY-MM-DD_to_YYYY-MM-DD.csv`
+- Toast on completion: "Exported N tickets"
 
-2. **`supabase/functions/sync-inbox-v2/index.ts`**
-   - Add helper `extractTags(icData)` returning `string[]` of trimmed tag names from `icData.tags?.tags?.[].name` (empty array if none).
-   - Include `tags` in the upserted `row`. Overwrite on sync — drift is the signal (consistent with owner/product_area/classification in this sandbox).
+### CSV columns
+- Intercom ID
+- Subject
+- Contact name
+- Contact email
+- Owner
+- Product area
+- Classification
+- Tags (semicolon-joined)
+- Status
+- Created (`intercom_created_at`, ISO)
+- Updated (`intercom_updated_at`, ISO)
 
-3. **Backfill** — existing "Backfill (30d)" button calls `sync-inbox-v2` with `full: true`, so tags populate retroactively. No new function.
-
-## Frontend (`src/pages/InboxV2.tsx`)
-
-1. Extend `Row` type with `tags: string[] | null`; include `tags` in the `.select(...)` query.
-2. Add `"tags"` to `ColKey`, `COL_ORDER` (after `classification`), `COL_LABELS` ("Tags"), `DEFAULT_WIDTHS` (~220). No sort handler.
-3. Render cell: map tags to small `<Badge variant="secondary">` chips with wrap + truncation; empty → muted "—".
-4. **Tag filter** (multi-select, matching existing pattern):
-   - Compute distinct tag values from loaded rows (flatten + dedupe + sort), plus a "(no tags)" option for rows where the array is empty/null.
-   - Add a `MultiFilterSelect` labelled "Tags" next to the existing Owner/Product Area/Classification/Status filters.
-   - Filter logic: row passes if any selected tag is present in `row.tags`, or `(no tags)` is selected and `row.tags` is empty/null. Combined with other filters via AND (same as today).
-
-## Docs
-Update `.lovable/project-knowledge.md`, the Flow page note for Inbox V2, and `mem://features/inbox-v2-sandbox.md` to mention `tags` is now mirrored from Intercom and filterable in the UI.
-
-## Out of scope
-- Sorting by tags.
-- Changes to live tables or live Inbox UI.
+### Technical notes
+- Proper CSV quoting (commas, quotes, newlines)
+- Download via `Blob` + temp `<a>` — no new dependencies
+- Uses shadcn `Popover` + `Calendar` (already in the project)
+- No backend, schema, or edge function changes
