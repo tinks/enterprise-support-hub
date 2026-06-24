@@ -886,4 +886,115 @@ function ExportPopover({ filters }: { filters: ExportFilters }) {
   );
 }
 
+const ENGAGEMENT_OVERRIDE_VALUES = ["__auto__", "engaged", "none"] as const;
+
+function EngagementCell({
+  ticket,
+  onSaved,
+  running,
+  onRunAi,
+}: {
+  ticket: Ticket;
+  onSaved: (patch: Partial<Ticket>) => void;
+  running: boolean;
+  onRunAi: () => void;
+}) {
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+  const eff = effectiveEngagement(ticket);
+  const value = ticket.engagement_override ?? "__auto__";
+
+  const save = async (next: string) => {
+    const override = next === "__auto__" ? null : (next as Engagement);
+    setSaving(true);
+    const nowIso = new Date().toISOString();
+    const patch: Partial<Ticket> = {
+      engagement_override: override,
+      engagement_override_at: override ? nowIso : null,
+    };
+    const prev = {
+      engagement_override: ticket.engagement_override,
+      engagement_override_at: ticket.engagement_override_at,
+    };
+    onSaved(patch);
+    const { error } = await supabase
+      .from("inbox_v2_tickets")
+      .update(patch)
+      .eq("id", ticket.id);
+    setSaving(false);
+    if (error) {
+      onSaved(prev);
+      toast({ title: "Failed to save override", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const badge =
+    eff.value === "none" ? (
+      <Badge variant="secondary" className="text-[10px] font-normal px-1.5 py-0">No engagement</Badge>
+    ) : (
+      <Badge variant="outline" className="text-[10px] font-normal px-1.5 py-0">Engaged</Badge>
+    );
+
+  const sourceLabel =
+    eff.source === "manual" ? "manual" :
+    eff.source === "ai" ? "AI" :
+    eff.source === "tag" ? "tag" : "default";
+
+  const sourceColor =
+    eff.source === "manual" ? "text-primary" :
+    eff.source === "ai" ? "text-violet-600" :
+    eff.source === "tag" ? "text-amber-600" : "text-muted-foreground";
+
+  return (
+    <TooltipProvider>
+      <div className="flex items-center gap-1.5">
+        <Select value={value} onValueChange={save} disabled={saving}>
+          <SelectTrigger className="h-7 w-full text-[11px] px-1.5 py-0 border-transparent hover:border-border focus:border-border">
+            <div className="flex items-center gap-1.5 min-w-0">
+              {badge}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className={`text-[9px] uppercase tracking-wide ${sourceColor} shrink-0`}>{sourceLabel}</span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[260px] text-xs">
+                  {eff.source === "manual" && (
+                    <>Manual override{ticket.engagement_override_at ? ` · ${formatDistanceToNow(new Date(ticket.engagement_override_at), { addSuffix: true })}` : ""}</>
+                  )}
+                  {eff.source === "ai" && (
+                    <>AI guess{ticket.engagement_ai_reason ? `: ${ticket.engagement_ai_reason}` : ""}</>
+                  )}
+                  {eff.source === "tag" && <>Derived from Intercom tag (enterprise-fyi / enterprise-duplicate)</>}
+                  {eff.source === "default" && <>Default — no override, no AI guess, no matching tag</>}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__auto__">Auto (tag/AI)</SelectItem>
+            <SelectItem value="engaged">Engaged</SelectItem>
+            <SelectItem value="none">No engagement</SelectItem>
+          </SelectContent>
+        </Select>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-6 w-6 shrink-0"
+              onClick={(e) => { e.stopPropagation(); onRunAi(); }}
+              disabled={running}
+              aria-label="AI: guess engagement"
+            >
+              {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">
+            AI: guess engagement from comments
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    </TooltipProvider>
+  );
+}
+
 export default InboxV2;
