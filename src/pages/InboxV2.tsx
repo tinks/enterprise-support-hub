@@ -670,7 +670,11 @@ const CSV_COLS: { header: string; get: (r: Ticket) => string }[] = [
   { header: "Classification", get: r => r.classification || "" },
   { header: "Tags", get: r => (r.tags || []).join("; ") },
   { header: "Status", get: r => r.status || "" },
-  { header: "Engagement", get: r => (isNoEngagement(r.tags) ? "No engagement" : "Engaged") },
+  { header: "Engagement", get: r => (effectiveEngagement(r).value === "none" ? "No engagement" : "Engaged") },
+  { header: "Engagement source", get: r => effectiveEngagement(r).source },
+  { header: "Engagement override", get: r => r.engagement_override || "" },
+  { header: "Engagement AI guess", get: r => r.engagement_ai_guess || "" },
+  { header: "Engagement AI reason", get: r => r.engagement_ai_reason || "" },
 
   { header: "Created", get: r => r.intercom_created_at || "" },
   { header: "Updated", get: r => r.intercom_updated_at || "" },
