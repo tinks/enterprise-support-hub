@@ -233,11 +233,19 @@ export default function InboxV3() {
                 {ownerOpts.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Select value={rsaFilter} onValueChange={(v) => setRsaFilter(v as any)}>
+              <SelectTrigger className="h-9 w-[170px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">RSA: all</SelectItem>
+                <SelectItem value="required">RSA: required only</SelectItem>
+                <SelectItem value="not_required">RSA: not required only</SelectItem>
+              </SelectContent>
+            </Select>
             <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {currentRows.length}</span>
           </div>
 
           <TabsContent value="finalized" className="mt-4">
-            <FinalizedTable rows={filtered} loading={currentLoading} onSelect={setSelected} />
+            <FinalizedTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} />
           </TabsContent>
 
           <TabsContent value="active" className="mt-4 space-y-3">
