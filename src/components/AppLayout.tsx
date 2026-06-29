@@ -9,6 +9,8 @@ const navItems = [
   { to: "/", icon: BarChart3, label: "Analytics", end: true },
   { to: "/conversations", icon: MessageSquare, label: "Inbox" },
   { to: "/inbox-v2", icon: Beaker, label: "Inbox v2" },
+  { to: "/analytics-v2", icon: Beaker, label: "Analytics v2" },
+
   { to: "/insights", icon: Sparkles, label: "Insights" },
   { to: "/import", icon: Import, label: "Import" },
   { to: "/settings", icon: Settings, label: "Settings" },
