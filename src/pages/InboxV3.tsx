@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Loader2, RefreshCw, ExternalLink, Beaker, Info } from "lucide-react";
+import { Loader2, RefreshCw, ExternalLink, Beaker, Info, CheckCircle2 } from "lucide-react";
 import { format, formatDistanceToNow, differenceInDays } from "date-fns";
 import { CLEAN_DATA_START_LABEL } from "@/pages/inbox-v3/constants";
 import { effectiveRsa } from "@/pages/inbox-v3/rsa";
@@ -99,6 +99,33 @@ export default function InboxV3() {
       setActiveRows(revert);
       setSelected((s) => (s && s.id === t.id ? { ...s, rsa_override: prev } : s));
       toast({ title: "Couldn't update RSA", description: error.message, variant: "destructive" });
+    }
+  };
+
+  // Manually clear lifecycle_status='reopened_after_finalize' back to 'finalized'.
+  // reopen_count / last_reopened_at are preserved as an audit trail. The next sync
+  // may flip it back if Intercom shows newer activity — accepted tradeoff.
+  const markAsFinalized = async (t: Ticket) => {
+    if (t.lifecycle_status !== "reopened_after_finalize") return;
+    const apply = (rows: Ticket[]) =>
+      rows.map((r) => (r.id === t.id ? { ...r, lifecycle_status: "finalized" } : r));
+    setFinalizedRows(apply);
+    setActiveRows(apply);
+    setSelected((s) => (s && s.id === t.id ? { ...s, lifecycle_status: "finalized" } : s));
+    const { error } = await supabase
+      .from("intercom_tickets_v3")
+      .update({ lifecycle_status: "finalized" })
+      .eq("id", t.id)
+      .eq("lifecycle_status", "reopened_after_finalize");
+    if (error) {
+      const revert = (rows: Ticket[]) =>
+        rows.map((r) => (r.id === t.id ? { ...r, lifecycle_status: "reopened_after_finalize" } : r));
+      setFinalizedRows(revert);
+      setActiveRows(revert);
+      setSelected((s) => (s && s.id === t.id ? { ...s, lifecycle_status: "reopened_after_finalize" } : s));
+      toast({ title: "Couldn't mark as finalized", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Marked as finalized", description: `Reopen count preserved (${t.reopen_count}).` });
     }
   };
 
@@ -245,7 +272,7 @@ export default function InboxV3() {
           </div>
 
           <TabsContent value="finalized" className="mt-4">
-            <FinalizedTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} />
+            <FinalizedTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} onMarkFinalized={markAsFinalized} />
           </TabsContent>
 
           <TabsContent value="active" className="mt-4 space-y-3">
@@ -278,7 +305,23 @@ export default function InboxV3() {
               </SheetHeader>
               <dl className="mt-6 space-y-3 text-sm">
                 <Field label="Intercom ID" value={selected.intercom_conversation_id} mono />
-                <Field label="Lifecycle" value={selected.lifecycle_status} />
+                <div className="grid grid-cols-[140px_1fr] gap-3 items-center">
+                  <dt className="text-xs text-muted-foreground">Lifecycle</dt>
+                  <dd className="text-sm flex items-center gap-2">
+                    <span>{selected.lifecycle_status}{selected.lifecycle_status === "reopened_after_finalize" ? ` (${selected.reopen_count})` : ""}</span>
+                    {selected.lifecycle_status === "reopened_after_finalize" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => markAsFinalized(selected)}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                        Mark as finalized
+                      </Button>
+                    )}
+                  </dd>
+                </div>
                 <Field label="State" value={selected.state} />
                 <Field label="Owner" value={selected.owner} />
                 <div className="grid grid-cols-[140px_1fr] gap-3 items-center">
@@ -342,7 +385,7 @@ function RsaBadge({ t, onCycle }: { t: Ticket; onCycle: (t: Ticket) => void }) {
   );
 }
 
-function FinalizedTable({ rows, loading, onSelect, onCycleRsa }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void }) {
+function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void; onMarkFinalized: (t: Ticket) => void }) {
   return (
     <div className="rounded-md border border-border overflow-auto">
       <Table>
@@ -392,12 +435,24 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa }: { rows: Ticket[
               <TableCell>{r.product_area || "—"}</TableCell>
               <TableCell>{r.classification || "—"}</TableCell>
               <TableCell>
-                <Badge variant={
-                  r.lifecycle_status === "finalized" ? "secondary" :
-                  r.lifecycle_status === "reopened_after_finalize" ? "destructive" : "outline"
-                } className="text-[10px]">
-                  {r.lifecycle_status === "reopened_after_finalize" ? `reopened (${r.reopen_count})` : r.lifecycle_status}
-                </Badge>
+                <div className="flex items-center gap-1">
+                  <Badge variant={
+                    r.lifecycle_status === "finalized" ? "secondary" :
+                    r.lifecycle_status === "reopened_after_finalize" ? "destructive" : "outline"
+                  } className="text-[10px]">
+                    {r.lifecycle_status === "reopened_after_finalize" ? `reopened (${r.reopen_count})` : r.lifecycle_status}
+                  </Badge>
+                  {r.lifecycle_status === "reopened_after_finalize" && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onMarkFinalized(r); }}
+                      title="Mark as finalized (clear reopened status)"
+                      className="inline-flex items-center justify-center rounded-md p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </TableCell>
               <TableCell><RsaBadge t={r} onCycle={onCycleRsa} /></TableCell>
               <TableCell>{r.csat_rating ? `${CSAT_EMOJI[r.csat_rating]} ${r.csat_rating}` : "—"}</TableCell>

@@ -1,57 +1,49 @@
-## Add Required Support Action (RSA) field
+# Re-finalize reopened tickets (Inbox v3)
 
-Bring back RSA on the v3 stack. Tag-derived by default, with a manual override, surfaced on Inbox v3 and filterable on Analytics v3.
+Give users a way to clear `lifecycle_status = 'reopened_after_finalize'` back to `'finalized'` after data-cleanup actions in Intercom (e.g., adding a tag) inadvertently trigger a reopen.
 
-### Definition
+## Behavior
 
-`rsa = true` (Required) unless one of:
-- `rsa_override` is explicitly set (`true` / `false`), OR
-- Intercom tags include `enterprise-fyi` or `enterprise-duplicate` → `false`
+- **Action**: Mark a reopened ticket as finalized.
+- **What it changes**: `lifecycle_status = 'finalized'` only. `reopen_count` and `last_reopened_at` are preserved as an audit trail of prior reopens.
+- **No re-trigger guard**: if the next sync sees newer Intercom activity, it may flip back to reopened. Accepted tradeoff — the user can re-clear.
+- **Scope**: only available when current `lifecycle_status === 'reopened_after_finalize'`.
 
-Source priority: **manual override → tag → default `true`**. Same chain shape as `effectiveEngagement`.
+## UI surfaces
 
-### Schema
+Both live in `src/pages/InboxV3.tsx`:
 
-Migration on `intercom_tickets_v3`:
-- `rsa_override boolean null` — null = derive from tags
+1. **Row action** — Finalized tab only. On rows with `lifecycle_status = 'reopened_after_finalize'`, render a small icon button (e.g. `CheckCircle2`) next to the existing lifecycle badge. Click → no confirm, runs the update, shows a toast. Optimistic UI: badge flips immediately, reverts on error.
+2. **Detail sheet** — when an open ticket detail has `lifecycle_status = 'reopened_after_finalize'`, show a "Mark as finalized" button in the sheet's header/footer area. Same handler.
 
-No backfill needed; derivation is live.
+## Data write
 
-### Shared helper
+Single Supabase update from the client (table already has authenticated UPDATE permission via existing RLS):
 
-New `src/pages/inbox-v3/rsa.ts`:
 ```ts
-export type Rsa = "required" | "not_required";
-export type RsaSource = "manual" | "tag" | "default";
-export const RSA_FALSE_TAGS = new Set(["enterprise-fyi", "enterprise-duplicate"]);
-export function effectiveRsa(r: { tags: string[] | null; rsa_override: boolean | null }):
-  { value: Rsa; source: RsaSource };
+await supabase
+  .from("intercom_tickets_v3")
+  .update({ lifecycle_status: "finalized" })
+  .eq("id", row.id)
+  .eq("lifecycle_status", "reopened_after_finalize"); // guard against races
 ```
 
-### Inbox v3
+On success, patch local state in `rows`/`activeRows` so KPIs and the lifecycle filter update without a refetch.
 
-- Add `rsa_override` to the row type + select.
-- New compact RSA badge in the ticket row (Required / Not required, with source tooltip — "Manual", "Tag: enterprise-fyi", "Default").
-- Click badge → 3-way cycle: derived → force Required → force Not required → derived (writes `rsa_override` to `intercom_tickets_v3`).
-- Header filter: `All / Required only / Not required only` (default All).
+## Out of scope
 
-### Analytics v3
+- No bulk select.
+- No edge-function changes — purely client-side write.
+- No changes to sync logic; reopen detection in `sync-v3-closed` is unchanged.
+- No new column / migration.
+- Analytics v3 already keys off `lifecycle_status`, so cleared rows automatically count as finalized again — no Analytics changes needed.
 
-- Pull `tags` + `rsa_override` in the existing select.
-- Compute `rsa` per row using the helper.
-- New toggle next to the date range: **"Exclude RSA = false"** (default OFF — numbers unchanged until flipped).
-- When ON, every existing memo (KPIs, time series, Resolved-by-engineer, etc.) filters rows where `effectiveRsa(...).value === "not_required"` before counting. Single `filteredRows` derivation upstream so all visualizations stay consistent.
-- Small caption under the toggle: `N tickets hidden`.
+## Files touched
 
-### Out of scope
+- `src/pages/InboxV3.tsx` — row-action button, detail-sheet button, `markAsFinalized(row)` handler, optimistic state patch.
 
-- No change to Inbox v2 / Analytics v2 (those keep using the engagement chain).
-- No edge-function changes — sync already writes `tags`; `rsa_override` is purely client-set.
-- No changes to `.lovable/project-knowledge.md` or Flow yet (logic-level update will follow once implemented, per standing rule).
+## Follow-up per project rules
 
-### Files touched
-
-- `supabase/migrations/<new>.sql` — add `rsa_override` column
-- `src/pages/inbox-v3/rsa.ts` — new helper
-- `src/pages/InboxV3.tsx` — badge, cycle handler, header filter
-- `src/pages/AnalyticsV3.tsx` — select fields, `filteredRows`, toggle UI
+- Update `.lovable/project-knowledge.md` (v3 section) with the manual re-finalize action.
+- Add a `changelog_entries` row.
+- Flow page unchanged (no flow logic change).
