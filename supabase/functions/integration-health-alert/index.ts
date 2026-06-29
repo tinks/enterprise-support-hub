@@ -29,6 +29,7 @@ const INTEGRATIONS: Config[] = [
   { key: "intercom_csat",     label: "Intercom CSAT refresh",    maxStaleMin: 3 * 60 },
   { key: "intercom_import",   label: "Manual Intercom import",   maxStaleMin: 30 * 24 * 60 },
   { key: "gmail_poll",        label: "Gmail poll",               maxStaleMin: 30 },
+  { key: "inbox_v2_sync",     label: "Inbox V2 sync",            maxStaleMin: 30 },
 ];
 
 interface HealthRow {
