@@ -26,6 +26,7 @@ const INTEGRATIONS: Array<{ key: string; label: string; description: string; max
   { key: "intercom_csat", label: "Intercom CSAT refresh", description: "Refreshes conversation ratings (hourly).", maxStaleMin: 3 * 60 },
   { key: "intercom_import", label: "Manual Intercom import", description: "On-demand imports from the Log Conversation form.", maxStaleMin: 30 * 24 * 60 },
   { key: "gmail_poll", label: "Gmail poll", description: "Pulls support@ mail and reconciles to Intercom.", maxStaleMin: 30 },
+  { key: "inbox_v2_sync", label: "Inbox V2 sync", description: "Mirrors Intercom into the Inbox V2 sandbox (every 15 min).", maxStaleMin: 30 },
 ];
 
 type Severity = "ok" | "warn" | "auth" | "error" | "unknown";
