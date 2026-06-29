@@ -194,7 +194,7 @@ export default function AnalyticsV3() {
   const stats = useMemo(() => {
     const fromMs = range.from.getTime();
     const toMs = range.to.getTime();
-    const inRange = rows.filter((r) => {
+    const inRange = filteredRows.filter((r) => {
       if (!r.intercom_created_at) return false;
       const t = new Date(r.intercom_created_at).getTime();
       if (t < fromMs || t > toMs) return false;
@@ -211,7 +211,7 @@ export default function AnalyticsV3() {
       total, avgCsat, ratedN: ratings.length,
       medClose: median(closeTimes), closeN: closeTimes.length,
     };
-  }, [rows, range.from, range.to, includeOpen]);
+  }, [filteredRows, range.from, range.to, includeOpen]);
 
   // Active KPIs: snapshot of active backlog right now.
   const activeStats = useMemo(() => {
