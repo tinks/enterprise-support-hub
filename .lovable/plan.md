@@ -1,28 +1,29 @@
-## Catch up Knowledge page + resume standing behavior
+## Verify Slack channel C0BDZAY8R8A is configured for ticket-creation notifications
 
-### Part 1 — One-blob catch-up
+Goal: confirm `SLACK_BOT_TOKEN` can post to `C0BDZAY8R8A` (i.e. the bot is a member and the channel ID is correct) without creating a real ticket.
 
-Stage the current `.lovable/project-knowledge.md` into the `knowledge_documents` row (id `project-knowledge`) as `pending_content`, with a short `pending_summary` describing the window of drift.
+### Approach
 
-- Write `pending_content` = full current contents of `.lovable/project-knowledge.md`
-- Write `pending_summary` = "Catch-up: accumulated edits from 2026-06-10 through today, including Step 15 channel notification (C0BDZAY8R8A)"
-- Set `pending_at = now()`
-- Do NOT touch `content` — that stays as the last-approved version so the diff viewer on `/knowledge` shows old vs. new
+Add a tiny one-shot test edge function `test-ticket-channel-notify` that:
 
-Result: next time you load `/knowledge`, the page opens in `review` mode with the full delta. Approve once and the DB catches up.
+1. Loads `SLACK_BOT_TOKEN`.
+2. Calls `chat.postMessage` to `C0BDZAY8R8A` with a clearly-labeled test payload identical in shape to the real notification, e.g.:
+   > 🧪 *Test* — Ticket channel notification check from `slack-interactions` config. Safe to ignore. (timestamp)
+3. Returns the raw Slack API response (`ok`, `error`, `channel`, `ts`) plus a friendly diagnosis:
+   - `ok: true` → ✅ Channel is configured correctly. Includes the message `ts` so you can find/delete it.
+   - `ok: false, error: "not_in_channel"` → ❌ Bot is not a member; run `/invite @<botname>` in the channel.
+   - `ok: false, error: "channel_not_found"` → ❌ Channel ID is wrong or private/inaccessible.
+   - any other error → returned verbatim with a note.
 
-### Part 2 — Resume standing behavior going forward
+### Execution
 
-From the next turn onward, any logic change that affects knowledge will:
+Invoke the function via the edge-function curl tool right after deploy. Report back the Slack response and the diagnosis. No real ticket is created, no DM is sent, no DB rows are touched.
 
-1. Edit `.lovable/project-knowledge.md` in the repo (source of truth, as today).
-2. In the **same turn**, write the updated markdown into `knowledge_documents.pending_content` (with a one-line `pending_summary` describing the change and `pending_at = now()`).
-3. Tell you in chat that there's a pending knowledge change to review on `/knowledge`.
+### Cleanup options
 
-No silent writes to `content`. No repo-only edits. Approval always goes through your UI.
+After the test, leave the function in place as a future re-test utility, OR delete it. Default: **leave it** (it's harmless and only acts when called). I'll mention both options in the result.
 
 ### Out of scope
 
-- No change to the `/knowledge` UI itself (diff viewer already exists).
-- No backfill of per-change history — this is a single blob, as you chose.
-- No change to Flow page or `changelog_entries` workflow.
+- No changes to the real `slack-interactions` flow.
+- No end-to-end ticket creation — that would require a live Slack mention and produce an Intercom ticket. The chat.postMessage call alone is the only thing that can fail in the new code path I added.
