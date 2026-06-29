@@ -54,7 +54,7 @@ function intercomUrl(id: string) {
 }
 
 export default function InboxV3() {
-  const [tab, setTab] = useState<"finalized" | "active">("finalized");
+  const [tab, setTab] = useState<"finalized" | "active">("active");
 
   // Finalized tab state
   const [finalizedRows, setFinalizedRows] = useState<Ticket[]>([]);
