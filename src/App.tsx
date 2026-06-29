@@ -18,7 +18,9 @@ import BulkImportReview from "./pages/BulkImportReview";
 import TestChannelReview from "./pages/TestChannelReview";
 import Insights from "./pages/Insights";
 import InboxV2 from "./pages/InboxV2";
+import AnalyticsV2 from "./pages/AnalyticsV2";
 import Changelog from "./pages/Changelog";
+
 
 const queryClient = new QueryClient();
 
