@@ -15,6 +15,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({} as Record<string, unknown>));
+    const inlineMarkdown = (body as { markdown?: string }).markdown;
     const sourceUrl =
       (body as { sourceUrl?: string }).sourceUrl ||
       "https://enterprise-support-hub.lovable.app/.lovable/project-knowledge.md";
@@ -22,20 +23,26 @@ Deno.serve(async (req) => {
       (body as { summary?: string }).summary ||
       "Catch-up sync from .lovable/project-knowledge.md";
 
-    const res = await fetch(sourceUrl, { headers: { "cache-control": "no-cache" } });
-    if (!res.ok) {
-      return new Response(
-        JSON.stringify({ error: `Failed to fetch source: ${res.status}` }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+    let markdown: string;
+    if (typeof inlineMarkdown === "string" && inlineMarkdown.length >= 100) {
+      markdown = inlineMarkdown;
+    } else {
+      const res = await fetch(sourceUrl, { headers: { "cache-control": "no-cache" } });
+      if (!res.ok) {
+        return new Response(
+          JSON.stringify({ error: `Failed to fetch source: ${res.status}` }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      markdown = await res.text();
+      if (!markdown || markdown.length < 100) {
+        return new Response(
+          JSON.stringify({ error: "Fetched markdown looks empty/invalid", length: markdown.length }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
     }
-    const markdown = await res.text();
-    if (!markdown || markdown.length < 100) {
-      return new Response(
-        JSON.stringify({ error: "Fetched markdown looks empty/invalid", length: markdown.length }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
+
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
