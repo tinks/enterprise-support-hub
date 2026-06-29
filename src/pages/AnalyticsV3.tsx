@@ -215,24 +215,24 @@ export default function AnalyticsV3() {
 
   // Active KPIs: snapshot of active backlog right now.
   const activeStats = useMemo(() => {
-    const openNow = activeRows.filter((r) => r.lifecycle_status === "open").length;
-    const reopened = activeRows.filter((r) => r.lifecycle_status === "reopened_after_finalize").length;
+    const openNow = filteredActiveRows.filter((r) => r.lifecycle_status === "open").length;
+    const reopened = filteredActiveRows.filter((r) => r.lifecycle_status === "reopened_after_finalize").length;
     const now = Date.now();
     let oldestAgeDays: number | null = null;
-    for (const r of activeRows) {
+    for (const r of filteredActiveRows) {
       if (!r.intercom_created_at) continue;
       const ageDays = Math.floor((now - new Date(r.intercom_created_at).getTime()) / 86_400_000);
       if (oldestAgeDays == null || ageDays > oldestAgeDays) oldestAgeDays = ageDays;
     }
     const fromMs = range.from.getTime();
     const toMs = range.to.getTime();
-    const openedInRange = rows.filter((r) => {
+    const openedInRange = filteredRows.filter((r) => {
       if (!r.intercom_created_at) return false;
       const t = new Date(r.intercom_created_at).getTime();
       return t >= fromMs && t <= toMs;
     }).length;
     return { openNow, reopened, oldestAgeDays, openedInRange };
-  }, [activeRows, rows, range.from, range.to]);
+  }, [filteredActiveRows, filteredRows, range.from, range.to]);
 
   // Opened vs Finalized over time
   const chartData = useMemo(() => {
