@@ -369,7 +369,7 @@ function RsaBadge({ t, onCycle }: { t: Ticket; onCycle: (t: Ticket) => void }) {
   );
 }
 
-function FinalizedTable({ rows, loading, onSelect, onCycleRsa }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void }) {
+function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void; onMarkFinalized: (t: Ticket) => void }) {
   return (
     <div className="rounded-md border border-border overflow-auto">
       <Table>
