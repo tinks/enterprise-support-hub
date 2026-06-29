@@ -7,17 +7,18 @@ import { supabase } from "@/integrations/supabase/client";
 
 const navItems = [
   { to: "/", icon: BarChart3, label: "Analytics", end: true },
+  { to: "/analytics-v2", icon: Beaker, label: "Analytics v2" },
+  { to: "/changelog", icon: ScrollText, label: "Changelog" },
+  // Dashboards row is rendered between the first 3 items and the rest.
+  { to: "/flow", icon: GitBranch, label: "Flow" },
+  { to: "/import", icon: Import, label: "Import" },
   { to: "/conversations", icon: MessageSquare, label: "Inbox" },
   { to: "/inbox-v2", icon: Beaker, label: "Inbox v2" },
-  { to: "/analytics-v2", icon: Beaker, label: "Analytics v2" },
-
   { to: "/insights", icon: Sparkles, label: "Insights" },
-  { to: "/import", icon: Import, label: "Import" },
-  { to: "/settings", icon: Settings, label: "Settings" },
-  { to: "/flow", icon: GitBranch, label: "Flow" },
   { to: "/knowledge", icon: BookOpen, label: "Knowledge" },
-  { to: "/changelog", icon: ScrollText, label: "Changelog" },
+  { to: "/settings", icon: Settings, label: "Settings" },
 ];
+
 
 const dashboardItems = [
   { to: "/my/joel", label: "Joel" },
