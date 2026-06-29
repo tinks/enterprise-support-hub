@@ -15,6 +15,7 @@ import {
   CLEAN_DATA_START_DATE,
   CLEAN_DATA_START_LABEL,
 } from "@/pages/inbox-v3/constants";
+import { effectiveRsa } from "@/pages/inbox-v3/rsa";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from "recharts";
@@ -29,6 +30,8 @@ type Row = {
   csat_rating: number | null;
   time_to_resolve_s: number | null;
   admin_assignee_id: string | null;
+  tags: string[] | null;
+  rsa_override: boolean | null;
 };
 
 type ActiveRow = {
@@ -36,6 +39,8 @@ type ActiveRow = {
   intercom_created_at: string | null;
   lifecycle_status: string;
   reopen_count: number | null;
+  tags: string[] | null;
+  rsa_override: boolean | null;
 };
 
 type RangePreset = "7d" | "14d" | "30d" | "this_month" | "last_month" | "custom";
