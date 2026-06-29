@@ -9,7 +9,8 @@ export type IntegrationKey =
   | "intercom_webhook"
   | "intercom_csat"
   | "intercom_import"
-  | "gmail_poll";
+  | "gmail_poll"
+  | "inbox_v2_sync";
 
 export type IntegrationStatus = "ok" | "auth_error" | "error";
 
