@@ -389,6 +389,47 @@ export default function AnalyticsV3() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Resolved by engineer</CardTitle>
+            <CardDescription className="text-xs">
+              Tickets with <code>finalized_at</code> in range, grouped by <code>admin_assignee_id</code>. Includes Sam
+              (AI agent) alongside human Enterprise Support Engineers. Unmapped IDs shown as <code>Admin &lt;id&gt;</code>.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="py-8 flex items-center justify-center text-muted-foreground text-sm">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…
+              </div>
+            ) : perEngineer.items.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">No resolved tickets in range.</div>
+            ) : (
+              <div className="space-y-1">
+                {perEngineer.items.map((row) => (
+                  <div key={row.id} className="grid grid-cols-[140px_1fr_60px_56px] items-center gap-3 py-1.5 text-sm">
+                    <div className="truncate font-medium" title={row.name}>
+                      {row.name}
+                      {!row.mapped && row.id !== "__unassigned__" && (
+                        <span className="ml-1.5 text-[10px] text-muted-foreground uppercase tracking-wide">unmapped</span>
+                      )}
+                    </div>
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full bg-primary" style={{ width: `${row.barPct}%` }} />
+                    </div>
+                    <div className="text-right tabular-nums">{row.count.toLocaleString()}</div>
+                    <div className="text-right tabular-nums text-xs text-muted-foreground">{row.pct.toFixed(1)}%</div>
+                  </div>
+                ))}
+                <div className="pt-2 mt-2 border-t border-border text-xs text-muted-foreground flex justify-between">
+                  <span>Total resolved in range</span>
+                  <span className="tabular-nums">{perEngineer.total.toLocaleString()}</span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <p className="text-xs text-muted-foreground">
           Time-to-resolve reads the pre-computed <code>time_to_resolve_s</code> snapshot taken at finalize (Intercom's
           <code> statistics.time_to_last_close</code>). Active backlog reflects every non-finalized row regardless of date.
