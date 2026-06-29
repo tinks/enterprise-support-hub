@@ -63,21 +63,8 @@ const ANY = "__any__";
 const MISSING = "__missing__";
 const NO_TAGS = "(no tags)";
 
-const NO_ENGAGEMENT_TAGS = new Set(["enterprise-fyi", "enterprise-duplicate"]);
-const hasNoEngagementTag = (tags: string[] | null) =>
-  (tags ?? []).some((t) => NO_ENGAGEMENT_TAGS.has(t.trim().toLowerCase()));
 
-type EngagementSource = "manual" | "ai" | "tag" | "default";
-function effectiveEngagement(r: Ticket): { value: Engagement; source: EngagementSource } {
-  if (r.engagement_override === "engaged" || r.engagement_override === "none") {
-    return { value: r.engagement_override, source: "manual" };
-  }
-  if (r.engagement_ai_guess === "engaged" || r.engagement_ai_guess === "none") {
-    return { value: r.engagement_ai_guess, source: "ai" };
-  }
-  if (hasNoEngagementTag(r.tags)) return { value: "none", source: "tag" };
-  return { value: "engaged", source: "default" };
-}
+
 
 type ColKey = "intercom_id" | "subject" | "contact" | "owner" | "product_area" | "classification" | "tags" | "status" | "engagement" | "csat" | "updated";
 const COL_ORDER: ColKey[] = ["intercom_id", "subject", "contact", "owner", "product_area", "classification", "tags", "status", "engagement", "csat", "updated"];
