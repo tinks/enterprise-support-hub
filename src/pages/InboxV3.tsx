@@ -304,7 +304,31 @@ export default function InboxV3() {
   );
 }
 
-function FinalizedTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void }) {
+function RsaBadge({ t, onCycle }: { t: Ticket; onCycle: (t: Ticket) => void }) {
+  const { value, source } = effectiveRsa(t);
+  const required = value === "required";
+  const tip =
+    source === "manual" ? "Manual override — click to cycle" :
+    source === "tag" ? "Derived from tag (enterprise-fyi / enterprise-duplicate) — click to override" :
+    "Default — click to override";
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onCycle(t); }}
+      title={tip}
+      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] border ${
+        required
+          ? "border-border bg-secondary text-foreground"
+          : "border-destructive/40 bg-destructive/10 text-destructive"
+      } ${source === "manual" ? "ring-1 ring-primary/50" : ""} hover:bg-muted/70`}
+    >
+      {required ? "RSA" : "no-RSA"}
+      {source === "manual" && <span className="text-[9px] opacity-70">·M</span>}
+    </button>
+  );
+}
+
+function FinalizedTable({ rows, loading, onSelect, onCycleRsa }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void }) {
   return (
     <div className="rounded-md border border-border overflow-auto">
       <Table>
@@ -317,6 +341,7 @@ function FinalizedTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: 
             <TableHead className="w-[160px]">Product area</TableHead>
             <TableHead className="w-[140px]">Classification</TableHead>
             <TableHead className="w-[120px]">Lifecycle</TableHead>
+            <TableHead className="w-[90px]">RSA</TableHead>
             <TableHead className="w-[120px]">CSAT</TableHead>
             <TableHead className="w-[120px]">Resolve</TableHead>
             <TableHead className="w-[140px]">Closed</TableHead>
@@ -324,12 +349,12 @@ function FinalizedTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: 
         </TableHeader>
         <TableBody>
           {loading && (
-            <TableRow><TableCell colSpan={10} className="text-center py-6 text-muted-foreground">
+            <TableRow><TableCell colSpan={11} className="text-center py-6 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
             </TableCell></TableRow>
           )}
           {!loading && rows.length === 0 && (
-            <TableRow><TableCell colSpan={10} className="text-center py-6 text-muted-foreground">
+            <TableRow><TableCell colSpan={11} className="text-center py-6 text-muted-foreground">
               No rows match the current filters.
             </TableCell></TableRow>
           )}
@@ -360,6 +385,7 @@ function FinalizedTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: 
                   {r.lifecycle_status === "reopened_after_finalize" ? `reopened (${r.reopen_count})` : r.lifecycle_status}
                 </Badge>
               </TableCell>
+              <TableCell><RsaBadge t={r} onCycle={onCycleRsa} /></TableCell>
               <TableCell>{r.csat_rating ? `${CSAT_EMOJI[r.csat_rating]} ${r.csat_rating}` : "—"}</TableCell>
               <TableCell className="tabular-nums text-xs">{formatDuration(r.time_to_resolve_s)}</TableCell>
               <TableCell className="text-xs text-muted-foreground">
