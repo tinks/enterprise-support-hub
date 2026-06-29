@@ -28,6 +28,7 @@ type Row = {
   state: string | null;
   csat_rating: number | null;
   time_to_resolve_s: number | null;
+  admin_assignee_id: string | null;
 };
 
 type ActiveRow = {
