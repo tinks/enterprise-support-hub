@@ -72,7 +72,35 @@ export default function InboxV3() {
   const [search, setSearch] = useState("");
   const [owner, setOwner] = useState<string>(ANY);
   const [pa, setPa] = useState<string>(ANY);
+  const [rsaFilter, setRsaFilter] = useState<"all" | "required" | "not_required">("all");
   const [selected, setSelected] = useState<Ticket | null>(null);
+
+  // Cycle a ticket's RSA: derived → required → not_required → derived.
+  // Writes rsa_override on intercom_tickets_v3 and updates local state optimistically.
+  const cycleRsa = async (t: Ticket) => {
+    const next: boolean | null =
+      t.rsa_override === null ? true :
+      t.rsa_override === true ? false :
+      null;
+    const prev = t.rsa_override;
+    const apply = (rows: Ticket[]) =>
+      rows.map((r) => (r.id === t.id ? { ...r, rsa_override: next } : r));
+    setFinalizedRows(apply);
+    setActiveRows(apply);
+    setSelected((s) => (s && s.id === t.id ? { ...s, rsa_override: next } : s));
+    const { error } = await supabase
+      .from("intercom_tickets_v3")
+      .update({ rsa_override: next })
+      .eq("id", t.id);
+    if (error) {
+      const revert = (rows: Ticket[]) =>
+        rows.map((r) => (r.id === t.id ? { ...r, rsa_override: prev } : r));
+      setFinalizedRows(revert);
+      setActiveRows(revert);
+      setSelected((s) => (s && s.id === t.id ? { ...s, rsa_override: prev } : s));
+      toast({ title: "Couldn't update RSA", description: error.message, variant: "destructive" });
+    }
+  };
 
   const loadFinalized = async () => {
     setFinalizedLoading(true);
