@@ -399,7 +399,7 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa }: { rows: Ticket[
   );
 }
 
-function ActiveTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void }) {
+function ActiveTable({ rows, loading, onSelect, onCycleRsa }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void }) {
   const now = Date.now();
   return (
     <div className="rounded-md border border-border overflow-auto">
@@ -412,6 +412,7 @@ function ActiveTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: boo
             <TableHead className="w-[120px]">Owner</TableHead>
             <TableHead className="w-[100px]">State</TableHead>
             <TableHead className="w-[140px]">Lifecycle</TableHead>
+            <TableHead className="w-[90px]">RSA</TableHead>
             <TableHead className="w-[120px]">Opened</TableHead>
             <TableHead className="w-[120px]">Last update</TableHead>
             <TableHead className="w-[80px]">Age</TableHead>
@@ -419,12 +420,12 @@ function ActiveTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: boo
         </TableHeader>
         <TableBody>
           {loading && (
-            <TableRow><TableCell colSpan={9} className="text-center py-6 text-muted-foreground">
+            <TableRow><TableCell colSpan={10} className="text-center py-6 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
             </TableCell></TableRow>
           )}
           {!loading && rows.length === 0 && (
-            <TableRow><TableCell colSpan={9} className="text-center py-6 text-muted-foreground">
+            <TableRow><TableCell colSpan={10} className="text-center py-6 text-muted-foreground">
               No active tickets match the current filters.
             </TableCell></TableRow>
           )}
@@ -455,6 +456,7 @@ function ActiveTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: boo
                     {r.lifecycle_status === "reopened_after_finalize" ? `reopened (${r.reopen_count})` : "open"}
                   </Badge>
                 </TableCell>
+                <TableCell><RsaBadge t={r} onCycle={onCycleRsa} /></TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   {r.intercom_created_at ? format(new Date(r.intercom_created_at), "MMM d, yyyy") : "—"}
                 </TableCell>
@@ -472,6 +474,7 @@ function ActiveTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: boo
     </div>
   );
 }
+
 
 function Field({ label, value, mono }: { label: string; value: string | null; mono?: boolean }) {
   return (
