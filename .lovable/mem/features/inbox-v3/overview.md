@@ -25,14 +25,15 @@ Reporting-grade mirror of Intercom enterprise tickets. **Parallel** to Inbox v2 
 | Function            | Mode                       | What it does                                                                                                                                                                                  |
 | ------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `sync-v3-closed`    | incremental / backfill     | Walks closed enterprise convs `updated_at > cursor`. Full GET per row, writes everything, sets `lifecycle_status='finalized'`. Existing finalized rows w/ newer activity → `reopened_after_finalize` (no refinalize). |
-| `sync-v3-open`      | windowed (default 2 h)     | Search-payload upsert of open enterprise convs. Skips finalized rows. Never touches product_area / classification / tags / csat — those are only trusted at close.                            |
+| `sync-v3-open`      | windowed (default 2 h, cap 720 h) | Search-payload upsert of open enterprise convs. Skips finalized rows. Never touches product_area / classification / tags / csat — those are only trusted at close. Searches `state=open` only, so snoozed tickets are intentionally excluded. |
 | `sync-v3-gap-scan`  | nightly                    | Bucket last 30 days into UTC days, compare Intercom `total_count` (closed) vs our finalized count per day. Self-invokes `sync-v3-closed` in backfill mode for any shortfall.                   |
 
 ## Crons
 
 - `sync-v3-closed-frequent` — every 15 min
-- `sync-v3-open-frequent` — every 5 min
-- `sync-v3-gap-scan-nightly` — 04:00 UTC daily
+- `sync-v3-open-frequent` — every 5 min (2 h window, recent activity only)
+- `sync-v3-open-daily-wide` — 06:15 UTC daily (`windowHours=720`, catches idle-open tickets the 5-min pass misses)
+- `sync-v3-gap-scan-daily` — 06:45 UTC daily (`lookbackDays=30`, reconciles closed-side gaps)
 
 ## UI
 
