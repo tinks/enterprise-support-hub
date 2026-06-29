@@ -341,7 +341,23 @@ export default function AnalyticsV3() {
               {format(range.from, "MMM d, yyyy")} → {format(range.to, "MMM d, yyyy")}
             </div>
 
-            <div className="ml-auto inline-flex rounded-md border border-border overflow-hidden text-xs">
+            <label
+              className="ml-auto inline-flex items-center gap-2 text-xs cursor-pointer select-none"
+              title="Hide tickets tagged enterprise-fyi or enterprise-duplicate (or manually marked RSA=false)"
+            >
+              <input
+                type="checkbox"
+                className="h-3.5 w-3.5 accent-primary"
+                checked={excludeRsaFalse}
+                onChange={(e) => setExcludeRsaFalse(e.target.checked)}
+              />
+              <span>Exclude RSA = false</span>
+              {excludeRsaFalse && rsaHiddenInRange > 0 && (
+                <span className="text-muted-foreground">({rsaHiddenInRange} hidden)</span>
+              )}
+            </label>
+
+            <div className="inline-flex rounded-md border border-border overflow-hidden text-xs">
               <button
                 onClick={() => setIncludeOpen(false)}
                 className={`px-3 py-1.5 ${!includeOpen ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-muted/50"}`}
