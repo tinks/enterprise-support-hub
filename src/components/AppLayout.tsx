@@ -14,6 +14,8 @@ const navItems = [
   { to: "/import", icon: Import, label: "Import" },
   { to: "/conversations", icon: MessageSquare, label: "Inbox" },
   { to: "/inbox-v2", icon: Beaker, label: "Inbox v2" },
+  { to: "/inbox-v3", icon: Beaker, label: "Inbox v3" },
+  { to: "/analytics-v3", icon: Beaker, label: "Analytics v3" },
   { to: "/insights", icon: Sparkles, label: "Insights" },
   { to: "/knowledge", icon: BookOpen, label: "Knowledge" },
   { to: "/settings", icon: Settings, label: "Settings" },

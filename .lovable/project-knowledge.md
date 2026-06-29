@@ -772,3 +772,32 @@ Self-service release notes shown in the app. Backed by `public.changelog_entries
 UI: `src/pages/Changelog.tsx` lists entries reverse-chronologically, grouped by month with a sticky month header. `src/components/changelog/AddEntryDialog.tsx` is the add/edit dialog (date, title, body, tag multi-select, optional area). Each entry has inline edit/delete controls. Sidebar entry sits below Knowledge in the bottom utility section, icon `ScrollText`.
 
 Out of scope: no public/marketing feed, no RSS, no auto-generation from git/edit history, no Slack/email broadcast on new entries. Add entries manually whenever something user-visible ships.
+
+### Inbox v3 — `/inbox-v3` and `/analytics-v3`
+
+Reporting-grade mirror of Intercom enterprise tickets, built as a parallel stack to v2. Closed tickets are the reporting unit: they get one full GET on finalize and are then frozen (`lifecycle_status='finalized'`). Open tickets get cheap search-payload-only refreshes (no per-conversation GET). Hard data floor `CLEAN_DATA_START_ISO = 2026-06-01T00:00:00Z` — nothing earlier is fetched, stored, or queryable in v3.
+
+- Tables (migration `intercom_tickets_v3` + `intercom_sync_jobs_v3`, both authenticated-read / service-role-write):
+  - `intercom_tickets_v3` — one row per conversation. Columns: `intercom_conversation_id` (unique), `team_assignee_id`, `admin_assignee_id`, `owner`, `contact_name/email/domain`, `subject`, `state`, `lifecycle_status` (`open`/`finalized`/`reopened_after_finalize`), `product_area`, `classification`, `tags text[]`, `csat_rating/remark/rated_at`, pre-computed `time_to_first_admin_reply_s` and `time_to_resolve_s` (snapshot of Intercom `statistics.time_to_admin_reply` and `time_to_last_close` taken at finalize), `intercom_created_at/updated_at/closed_at`, `finalized_at`, `reopen_count`, `last_reopened_at`, `last_synced_at`, `last_full_fetch_at`, `raw_payload`. Engagement / AI classifier columns deliberately omitted — owner-at-finalize is enough.
+  - `intercom_sync_jobs_v3` — one row per sync invocation. `kind` ∈ `closed_backfill` / `open_refresh` / `gap_scan`, `status`, `cursor_ts`, `window_start/end`, counters (`processed/inserted/updated_count/failed`), `last_error`, timestamps. Latest row per kind drives the Settings UI.
+
+- Edge functions (all in `supabase/functions/_shared/v3.ts` for shared helpers):
+  - **`sync-v3-closed`** — incremental mode reads cursor from latest `closed_backfill` job and walks closed-state enterprise conversations with `updated_at > cursor`, clamped to `CLEAN_DATA_START_UNIX`. For each: bulk pre-fetch existing rows; finalized rows with matching `intercom_updated_at` are skipped; finalized rows with newer activity flip to `reopened_after_finalize` and `reopen_count++` (no re-finalize, per design); everything else gets a full GET + finalize write. Time-boxed at 120 s; on exhaustion the cursor advances to the max `updated_at` seen. Backfill mode (`{mode:"backfill",windowStart,windowEnd}`) used by gap-scan and manual catch-up.
+  - **`sync-v3-open`** — search-payload-only refresh of open enterprise tickets in the last `windowHours` (default 2). Upserts the minimum: state, admin assignee, owner, subject, contact, timestamps. Never touches finalized rows, never overwrites `product_area`/`classification`/`tags`/`csat_*` (those are only trusted at close). No per-conversation GET.
+  - **`sync-v3-gap-scan`** — daily safety net. Buckets last 30 days into UTC days (clamped to floor), asks Intercom `total_count` of closed enterprise tickets per day vs our `lifecycle_status='finalized'` count per day. For any day where we're short, self-invokes `sync-v3-closed` in backfill mode with that day's window. Catches the "we never finished backfilling" class of bug.
+
+- Crons (registered via `cron.schedule`, not via migration):
+  - `sync-v3-closed-frequent` — every 15 min, `{mode:"incremental"}`
+  - `sync-v3-open-frequent` — every 5 min, `{windowHours:2}`
+  - `sync-v3-gap-scan-nightly` — 04:00 UTC daily, `{lookbackDays:30}`
+
+- UI:
+  - `/inbox-v3` (`src/pages/InboxV3.tsx`) — read-only table over `intercom_tickets_v3`. Filters: lifecycle (Finalized only / Open only / Reopened / All), Owner, Product area, free-text search. Detail sheet shows raw fields + "Open in Intercom". No engagement column, no overrides, no AI buttons.
+  - `/analytics-v3` (`src/pages/AnalyticsV3.tsx`) — KPIs (Total / Average CSAT / Median time to resolve). Defaults to finalized only with toggle to include open. Range presets clamped to `CLEAN_DATA_START_DATE`; custom From/To date pickers disable any date earlier than the floor. Median resolve reads the pre-computed `time_to_resolve_s` column (no jsonb unmarshal at query time).
+  - Settings (`src/components/InboxV3SyncCard.tsx`) — shows latest job per kind (status, cursor, counters, last error), total v3 row count, and four buttons: **Catch up closed** (loops `sync-v3-closed` up to 10 iters until `fetched=0`), Run closed once, Run open refresh, Run gap scan.
+
+- Sidebar: two new Beaker entries (`Inbox v3`, `Analytics v3`) added in `AppLayout`. v2 entries unchanged.
+
+- Constants live in `src/pages/inbox-v3/constants.ts` (`CLEAN_DATA_START_ISO/DATE/LABEL`) and are duplicated for Deno in `supabase/functions/_shared/v3.ts` (Deno can't import from `src/`).
+
+- Out of scope (deliberate non-goals): no edits to `inbox_v2_tickets`, `sync-inbox-v2`, `InboxV2.tsx`, `AnalyticsV2.tsx`, or any existing cron. No engagement classification in v3. Reopens are flagged only — never re-finalize. No automatic v2→v3 cutover; both run in parallel until manually cut over.

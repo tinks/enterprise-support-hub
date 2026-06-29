@@ -16,6 +16,7 @@ import ProductAreasCard from "@/components/ProductAreasCard";
 import AdminMappingCard from "@/components/AdminMappingCard";
 import SlackChannelAccountMapCard from "@/components/SlackChannelAccountMapCard";
 import IntegrationHealthCard from "@/components/IntegrationHealthCard";
+import InboxV3SyncCard from "@/components/InboxV3SyncCard";
 import lovableLogo from "@/assets/lovable-logo.png";
 
 interface SettingsData {
@@ -391,6 +392,10 @@ const Index = () => {
         </div>
 
         <IntegrationHealthCard />
+
+        <InboxV3SyncCard />
+
+
 
         {/* Settings Card */}
         <Card>

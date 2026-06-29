@@ -712,6 +712,57 @@ function buildNodes(
       },
     },
     {
+      id: "inbox-v3-closed",
+      type: "flowNode",
+      position: { x: COL_W * -0.6, y: ROW_H * 2.6 },
+      data: {
+        label: "Inbox v3 — closed sync",
+        desc: "Closed-anchored reporting mirror of Intercom enterprise tickets. Full GET on finalize, then frozen. Parallel to v2. Hard data floor June 1, 2026.",
+        icon: Beaker,
+        edgeFunction: "sync-v3-closed",
+        details: [
+          "Table public.intercom_tickets_v3 keyed by intercom_conversation_id. Reporting columns only (no engagement / AI). lifecycle_status ∈ open / finalized / reopened_after_finalize. Pre-computes time_to_resolve_s at finalize so KPIs don't unmarshal jsonb.",
+          "sync-v3-closed (cron sync-v3-closed-frequent, every 15 min, mode=incremental): walks closed enterprise conversations with updated_at > cursor (clamped to CLEAN_DATA_START 2026-06-01). Full GET per row, writes everything, sets lifecycle_status=finalized. Existing finalized rows with newer activity flip to reopened_after_finalize and reopen_count++ — no refinalize.",
+          "Time-boxed at 120s; cursor advances to max updated_at observed. Job state persisted in intercom_sync_jobs_v3(kind=closed_backfill).",
+          "Backfill mode used by gap-scan and the Settings 'Catch up closed' button.",
+        ],
+        accent: "orange",
+      },
+    },
+    {
+      id: "inbox-v3-open",
+      type: "flowNode",
+      position: { x: COL_W * -0.6, y: ROW_H * 2.9 },
+      data: {
+        label: "Inbox v3 — open refresh",
+        desc: "Cheap freshness pass for open enterprise tickets. Search-payload only, no per-conversation GET.",
+        icon: Beaker,
+        edgeFunction: "sync-v3-open",
+        details: [
+          "Cron sync-v3-open-frequent, every 5 min, windowHours=2.",
+          "Upserts the minimum needed for the v3 inbox view: state, admin assignee, owner, subject, contact, timestamps. Never touches finalized rows; never overwrites product_area / classification / tags / csat_* — those are only trusted at close.",
+        ],
+        accent: "orange",
+      },
+    },
+    {
+      id: "inbox-v3-gap-scan",
+      type: "flowNode",
+      position: { x: COL_W * -0.6, y: ROW_H * 3.2 },
+      data: {
+        label: "Inbox v3 — gap scan",
+        desc: "Daily safety net. Reconciles Intercom closed-count vs ours per day and auto-enqueues missing days to sync-v3-closed.",
+        icon: Beaker,
+        edgeFunction: "sync-v3-gap-scan",
+        details: [
+          "Cron sync-v3-gap-scan-nightly at 04:00 UTC, lookbackDays=30.",
+          "Buckets the lookback window into UTC days (clamped to CLEAN_DATA_START), asks Intercom total_count of closed enterprise tickets per day vs our finalized count per day. For any day where we're short, self-invokes sync-v3-closed in backfill mode for that day.",
+          "Catches the 'we never finished backfilling' class of bug — the failure mode that produced the 5 missing tickets in v2.",
+        ],
+        accent: "orange",
+      },
+    },
+    {
       id: "changelog-page",
       type: "flowNode",
       position: { x: COL_W * -0.6, y: ROW_H * 3 },
