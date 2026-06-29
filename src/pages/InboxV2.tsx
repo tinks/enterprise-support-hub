@@ -27,8 +27,8 @@ function sourceTooltip(raw: any): string {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format, formatDistanceToNow, startOfMonth, endOfMonth, subMonths, subDays, startOfDay, endOfDay } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { effectiveEngagement, hasNoEngagementTag, NO_ENGAGEMENT_TAGS, type Engagement, type EngagementSource } from "@/pages/inbox-v2/engagement";
 
-type Engagement = "engaged" | "none";
 
 type Ticket = {
   id: string;
