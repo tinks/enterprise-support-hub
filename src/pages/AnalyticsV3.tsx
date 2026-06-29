@@ -9,21 +9,32 @@ import { Calendar } from "@/components/ui/calendar";
 import { Loader2, RefreshCw, CalendarIcon, Beaker } from "lucide-react";
 import {
   format, startOfMonth, endOfMonth, subMonths, subDays,
-  startOfDay, endOfDay, max as maxDate,
+  startOfDay, endOfDay, max as maxDate, differenceInDays, eachDayOfInterval,
 } from "date-fns";
 import {
   CLEAN_DATA_START_DATE,
   CLEAN_DATA_START_LABEL,
 } from "@/pages/inbox-v3/constants";
+import {
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
+} from "recharts";
 
 type Row = {
   id: string;
   intercom_created_at: string | null;
   intercom_closed_at: string | null;
+  finalized_at: string | null;
   lifecycle_status: string;
   state: string | null;
   csat_rating: number | null;
   time_to_resolve_s: number | null;
+};
+
+type ActiveRow = {
+  id: string;
+  intercom_created_at: string | null;
+  lifecycle_status: string;
+  reopen_count: number | null;
 };
 
 type RangePreset = "7d" | "14d" | "30d" | "this_month" | "last_month" | "custom";
@@ -73,6 +84,7 @@ export default function AnalyticsV3() {
   const [customTo, setCustomTo] = useState<Date | undefined>();
   const [includeOpen, setIncludeOpen] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
+  const [activeRows, setActiveRows] = useState<ActiveRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -85,26 +97,51 @@ export default function AnalyticsV3() {
       setLoading(true);
       setError(null);
       try {
+        // Range query: rows created OR finalized within range. Covers both
+        // KPI "total" (filter client-side) and the Opened-vs-Finalized chart.
         const all: Row[] = [];
         const PAGE = 1000;
         let offset = 0;
+        const fromIso = range.from.toISOString();
+        const toIso = range.to.toISOString();
         while (true) {
-          let q = supabase
+          const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,intercom_closed_at,lifecycle_status,state,csat_rating,time_to_resolve_s")
-            .gte("intercom_created_at", range.from.toISOString())
-            .lte("intercom_created_at", range.to.toISOString())
+            .select("id,intercom_created_at,intercom_closed_at,finalized_at,lifecycle_status,state,csat_rating,time_to_resolve_s")
+            .or(
+              `and(intercom_created_at.gte.${fromIso},intercom_created_at.lte.${toIso}),` +
+              `and(finalized_at.gte.${fromIso},finalized_at.lte.${toIso})`,
+            )
             .order("intercom_created_at", { ascending: true })
             .range(offset, offset + PAGE - 1);
-          if (!includeOpen) q = q.eq("lifecycle_status", "finalized");
-          const { data, error } = await q;
           if (error) throw error;
           const batch = (data ?? []) as Row[];
           all.push(...batch);
           if (batch.length < PAGE) break;
           offset += PAGE;
         }
-        if (!cancelled) setRows(all);
+
+        // Active query: every non-finalized row (no date filter — "now" view).
+        const active: ActiveRow[] = [];
+        let aOff = 0;
+        while (true) {
+          const { data, error } = await supabase
+            .from("intercom_tickets_v3")
+            .select("id,intercom_created_at,lifecycle_status,reopen_count")
+            .neq("lifecycle_status", "finalized")
+            .order("intercom_created_at", { ascending: true })
+            .range(aOff, aOff + PAGE - 1);
+          if (error) throw error;
+          const batch = (data ?? []) as ActiveRow[];
+          active.push(...batch);
+          if (batch.length < PAGE) break;
+          aOff += PAGE;
+        }
+
+        if (!cancelled) {
+          setRows(all);
+          setActiveRows(active);
+        }
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? String(e));
       } finally {
@@ -112,23 +149,84 @@ export default function AnalyticsV3() {
       }
     })();
     return () => { cancelled = true; };
-  }, [range.from.getTime(), range.to.getTime(), includeOpen, refreshKey]);
+  }, [range.from.getTime(), range.to.getTime(), refreshKey]);
 
+  // KPI stats: rows created in range, optionally filtered to finalized-only.
   const stats = useMemo(() => {
-    const total = rows.length;
-    const ratings = rows.map((r) => r.csat_rating).filter((v): v is number => typeof v === "number");
+    const fromMs = range.from.getTime();
+    const toMs = range.to.getTime();
+    const inRange = rows.filter((r) => {
+      if (!r.intercom_created_at) return false;
+      const t = new Date(r.intercom_created_at).getTime();
+      if (t < fromMs || t > toMs) return false;
+      if (!includeOpen && r.lifecycle_status !== "finalized") return false;
+      return true;
+    });
+    const total = inRange.length;
+    const ratings = inRange.map((r) => r.csat_rating).filter((v): v is number => typeof v === "number");
     const avgCsat = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null;
-    const closeTimes = rows
+    const closeTimes = inRange
       .map((r) => r.time_to_resolve_s)
       .filter((v): v is number => typeof v === "number" && v > 0);
     return {
-      total,
-      avgCsat,
-      ratedN: ratings.length,
-      medClose: median(closeTimes),
-      closeN: closeTimes.length,
+      total, avgCsat, ratedN: ratings.length,
+      medClose: median(closeTimes), closeN: closeTimes.length,
     };
-  }, [rows]);
+  }, [rows, range.from, range.to, includeOpen]);
+
+  // Active KPIs: snapshot of active backlog right now.
+  const activeStats = useMemo(() => {
+    const openNow = activeRows.filter((r) => r.lifecycle_status === "open").length;
+    const reopened = activeRows.filter((r) => r.lifecycle_status === "reopened_after_finalize").length;
+    const now = Date.now();
+    let oldestAgeDays: number | null = null;
+    for (const r of activeRows) {
+      if (!r.intercom_created_at) continue;
+      const ageDays = Math.floor((now - new Date(r.intercom_created_at).getTime()) / 86_400_000);
+      if (oldestAgeDays == null || ageDays > oldestAgeDays) oldestAgeDays = ageDays;
+    }
+    const fromMs = range.from.getTime();
+    const toMs = range.to.getTime();
+    const openedInRange = rows.filter((r) => {
+      if (!r.intercom_created_at) return false;
+      const t = new Date(r.intercom_created_at).getTime();
+      return t >= fromMs && t <= toMs;
+    }).length;
+    return { openNow, reopened, oldestAgeDays, openedInRange };
+  }, [activeRows, rows, range.from, range.to]);
+
+  // Opened vs Finalized over time
+  const chartData = useMemo(() => {
+    const days = eachDayOfInterval({ start: range.from, end: range.to });
+    const buckets = new Map<string, { day: string; opened: number; finalized: number }>();
+    for (const d of days) {
+      const key = format(d, "yyyy-MM-dd");
+      buckets.set(key, { day: key, opened: 0, finalized: 0 });
+    }
+    const fromMs = range.from.getTime();
+    const toMs = range.to.getTime();
+    for (const r of rows) {
+      if (r.intercom_created_at) {
+        const t = new Date(r.intercom_created_at).getTime();
+        if (t >= fromMs && t <= toMs) {
+          const k = format(new Date(r.intercom_created_at), "yyyy-MM-dd");
+          const b = buckets.get(k);
+          if (b) b.opened += 1;
+        }
+      }
+      if (r.finalized_at) {
+        const t = new Date(r.finalized_at).getTime();
+        if (t >= fromMs && t <= toMs) {
+          const k = format(new Date(r.finalized_at), "yyyy-MM-dd");
+          const b = buckets.get(k);
+          if (b) b.finalized += 1;
+        }
+      }
+    }
+    return Array.from(buckets.values());
+  }, [rows, range.from, range.to]);
+
+  const rangeDays = Math.max(1, differenceInDays(range.to, range.from) + 1);
 
   return (
     <AppLayout>
@@ -199,26 +297,76 @@ export default function AnalyticsV3() {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Kpi title="Total tickets" value={loading ? "…" : stats.total.toLocaleString()} sub={includeOpen ? "Finalized + open" : "Finalized only"} loading={loading} />
+          <Kpi title="Total tickets" value={loading ? "…" : stats.total.toLocaleString()} sub={includeOpen ? "Finalized + open, created in range" : "Finalized only, created in range"} loading={loading} />
           <Kpi title="Average CSAT" value={loading ? "…" : stats.avgCsat != null ? stats.avgCsat.toFixed(2) : "—"} sub={`n = ${stats.ratedN.toLocaleString()} rated`} loading={loading} />
           <Kpi title="Median time to resolve" value={loading ? "…" : formatDuration(stats.medClose)} sub={`n = ${stats.closeN.toLocaleString()} with timing`} loading={loading} />
         </div>
 
+        <div>
+          <h2 className="text-sm font-semibold tracking-tight mb-2 text-muted-foreground uppercase">Active backlog</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Kpi title="Open now" value={loading ? "…" : activeStats.openNow.toLocaleString()} sub="lifecycle = open" loading={loading} small />
+            <Kpi title="Reopened" value={loading ? "…" : activeStats.reopened.toLocaleString()} sub="not re-finalized" loading={loading} small />
+            <Kpi title="Oldest open age" value={loading ? "…" : activeStats.oldestAgeDays != null ? `${activeStats.oldestAgeDays}d` : "—"} sub="days since created" loading={loading} small />
+            <Kpi title="Opened in range" value={loading ? "…" : activeStats.openedInRange.toLocaleString()} sub={`${rangeDays}d window`} loading={loading} small />
+          </div>
+        </div>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Opened vs Finalized over time</CardTitle>
+            <CardDescription className="text-xs">
+              Daily counts by <code>intercom_created_at</code> and <code>finalized_at</code>. Backlog grows on days where
+              opened &gt; finalized.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[280px]">
+              {loading ? (
+                <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                    <XAxis
+                      dataKey="day"
+                      tickFormatter={(v) => format(new Date(v), "MMM d")}
+                      tick={{ fontSize: 11 }}
+                      minTickGap={24}
+                    />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={32} />
+                    <Tooltip
+                      labelFormatter={(v) => format(new Date(v as string), "PP")}
+                      formatter={(value: number, name: string) => [value, name]}
+                    />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Line type="monotone" dataKey="opened" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} name="Opened" />
+                    <Line type="monotone" dataKey="finalized" stroke="hsl(var(--muted-foreground))" strokeWidth={2} dot={false} name="Finalized" />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         <p className="text-xs text-muted-foreground">
           Time-to-resolve reads the pre-computed <code>time_to_resolve_s</code> snapshot taken at finalize (Intercom's
-          <code> statistics.time_to_last_close</code>). Data from {CLEAN_DATA_START_LABEL} onward.
+          <code> statistics.time_to_last_close</code>). Active backlog reflects every non-finalized row regardless of date.
+          Data from {CLEAN_DATA_START_LABEL} onward.
         </p>
       </div>
     </AppLayout>
   );
 }
 
-function Kpi({ title, value, sub, loading }: { title: string; value: string; sub: string; loading: boolean }) {
+function Kpi({ title, value, sub, loading, small }: { title: string; value: string; sub: string; loading: boolean; small?: boolean }) {
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardDescription className="text-xs">{title}</CardDescription>
-        <CardTitle className="text-3xl font-semibold tracking-tight tabular-nums">
+        <CardTitle className={`${small ? "text-2xl" : "text-3xl"} font-semibold tracking-tight tabular-nums`}>
           {loading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : value}
         </CardTitle>
       </CardHeader>
