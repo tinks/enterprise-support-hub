@@ -24,9 +24,9 @@ Reporting-grade mirror of Intercom enterprise tickets. **Parallel** to Inbox v2 
 
 | Function            | Mode                       | What it does                                                                                                                                                                                  |
 | ------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sync-v3-closed`    | incremental / backfill     | Walks closed enterprise convs `updated_at > cursor`. Full GET per row, writes everything, sets `lifecycle_status='finalized'`. Existing finalized rows w/ newer activity → `reopened_after_finalize` (no refinalize). |
-| `sync-v3-open`      | windowed (default 2 h, cap 720 h) | Search-payload upsert of open enterprise convs. Skips finalized rows. Never touches product_area / classification / tags / csat — those are only trusted at close. Searches `state=open` only, so snoozed tickets are intentionally excluded. |
-| `sync-v3-gap-scan`  | nightly                    | Bucket last 30 days into UTC days, compare Intercom `total_count` (closed) vs our finalized count per day. Self-invokes `sync-v3-closed` in backfill mode for any shortfall.                   |
+| `sync-v3-closed`    | incremental / backfill     | Walks closed enterprise convs. **Incremental** filters on `updated_at > cursor`. **Backfill** filters on `statistics.last_close_at` within `[windowStart, windowEnd]` so the window aligns with `sync-v3-gap-scan` (which counts by the same field). Backfill paginates the window to exhaustion (no `MAX_PAGES` cap, only the wall-clock time budget). Full GET per row, writes everything, sets `lifecycle_status='finalized'`. Existing finalized rows w/ newer activity → `reopened_after_finalize` (no refinalize). |
+| `sync-v3-open`      | windowed (default 2 h, cap 720 h) | Search-payload upsert of enterprise convs in `state IN (open, snoozed)` — snoozed is included so it doesn't fall through the gap between this and `sync-v3-closed`. Skips finalized rows. Never touches product_area / classification / tags / csat — those are only trusted at close. |
+| `sync-v3-gap-scan`  | nightly                    | Bucket last 30 days into UTC days, compare Intercom `total_count` (closed, by `statistics.last_close_at`) vs our finalized count per day. Self-invokes `sync-v3-closed` in backfill mode for any shortfall. |
 
 ## Crons
 
