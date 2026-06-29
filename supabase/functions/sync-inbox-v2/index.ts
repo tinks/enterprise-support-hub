@@ -110,6 +110,7 @@ Deno.serve(async (req) => {
     if (!res.ok) {
       const text = await res.text();
       console.error(`[sync-inbox-v2] search failed ${res.status}:`, text.slice(0, 200));
+      await recordIntegrationHealth(supabase, "inbox_v2_sync", classifyHttpStatus(res.status), `search ${res.status}: ${text.slice(0, 200)}`);
       return new Response(JSON.stringify({ error: "Intercom search failed", status: res.status }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
