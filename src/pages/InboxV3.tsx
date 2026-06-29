@@ -11,7 +11,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Loader2, RefreshCw, ExternalLink, Beaker, Info } from "lucide-react";
 import { format, formatDistanceToNow, differenceInDays } from "date-fns";
 import { CLEAN_DATA_START_LABEL } from "@/pages/inbox-v3/constants";
-import { effectiveRsa, type Rsa, type RsaSource } from "@/pages/inbox-v3/rsa";
+import { effectiveRsa } from "@/pages/inbox-v3/rsa";
 import { toast } from "@/hooks/use-toast";
 
 type Ticket = {
