@@ -417,7 +417,12 @@ async function createIntercomTicket(opts: {
     });
   }
 
-  // Send group DM notification to Joel & Kristina
+  // Send group DM notification to Joel & Kristina + post to ticket channel
+  const TICKET_NOTIFY_CHANNEL_ID = "C0BDZAY8R8A";
+  const threadLink = `https://app.slack.com/archives/${channelId}/p${threadTs.replace(".", "")}`;
+  const intercomLink = `https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${conversationId}?view=List`;
+  const notifText = `🎫 New ticket created by <@${slackUserId}>\n• <${threadLink}|Slack thread>\n• <${intercomLink}|Intercom conversation>`;
+
   try {
     const notifyUserIds = "U0AFU714807,U091GANMA2U"; // Kristina, Joel
     const openRes = await fetch(`${SLACK_API_URL}/conversations.open`, {
@@ -431,9 +436,6 @@ async function createIntercomTicket(opts: {
     const openBody = await openRes.json();
     if (openBody.ok && openBody.channel?.id) {
       const dmChannelId = openBody.channel.id;
-      const threadLink = `https://app.slack.com/archives/${channelId}/p${threadTs.replace(".", "")}`;
-      const intercomLink = `https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${conversationId}?view=List`;
-      const notifText = `🎫 New ticket created by <@${slackUserId}>\n• <${threadLink}|Slack thread>\n• <${intercomLink}|Intercom conversation>`;
       await fetch(`${SLACK_API_URL}/chat.postMessage`, {
         method: "POST",
         headers: {
@@ -452,6 +454,36 @@ async function createIntercomTicket(opts: {
     }
   } catch (notifyErr) {
     console.error("Failed to send group DM notification:", notifyErr);
+  }
+
+  // Also post to the ticket notifications channel (same message body as DM).
+  try {
+    const chRes = await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${slackBotToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        channel: TICKET_NOTIFY_CHANNEL_ID,
+        text: notifText,
+        ...BOT_IDENTITY,
+      }),
+    });
+    const chBody = await chRes.json();
+    if (chBody.ok) {
+      console.log(`[ticket-channel-notify] Posted to ${TICKET_NOTIFY_CHANNEL_ID} for conversation ${conversationId}`);
+    } else {
+      console.error(
+        `[ticket-channel-notify] chat.postMessage to ${TICKET_NOTIFY_CHANNEL_ID} failed:`,
+        chBody.error,
+        chBody.error === "not_in_channel"
+          ? "— invite the bot to the channel with /invite @<botname>"
+          : "",
+      );
+    }
+  } catch (chErr) {
+    console.error(`[ticket-channel-notify] Network/throw posting to ${TICKET_NOTIFY_CHANNEL_ID}:`, chErr);
   }
 
   // ===== Poll for Sam's initial reply and relay to Slack =====
