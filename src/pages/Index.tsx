@@ -17,6 +17,7 @@ import AdminMappingCard from "@/components/AdminMappingCard";
 import SlackChannelAccountMapCard from "@/components/SlackChannelAccountMapCard";
 import IntegrationHealthCard from "@/components/IntegrationHealthCard";
 import InboxV3SyncCard from "@/components/InboxV3SyncCard";
+import TicketChannelTestCard from "@/components/TicketChannelTestCard";
 import lovableLogo from "@/assets/lovable-logo.png";
 
 interface SettingsData {
@@ -394,6 +395,8 @@ const Index = () => {
         <IntegrationHealthCard />
 
         <InboxV3SyncCard />
+
+        <TicketChannelTestCard />
 
 
 
