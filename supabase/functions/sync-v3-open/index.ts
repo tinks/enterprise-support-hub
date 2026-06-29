@@ -69,7 +69,13 @@ Deno.serve(async (req) => {
         operator: "AND",
         value: [
           { field: "team_assignee_id", operator: "=", value: parseInt(enterpriseInboxId) },
-          { field: "state", operator: "=", value: "open" },
+          {
+            operator: "OR",
+            value: [
+              { field: "state", operator: "=", value: "open" },
+              { field: "state", operator: "=", value: "snoozed" },
+            ],
+          },
           { field: "updated_at", operator: ">", value: sinceTs },
         ],
       },
