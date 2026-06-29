@@ -86,9 +86,19 @@ export default function AnalyticsV3() {
   const [includeOpen, setIncludeOpen] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [activeRows, setActiveRows] = useState<ActiveRow[]>([]);
+  const [ownerMap, setOwnerMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("settings").select("admin_owner_map").limit(1).maybeSingle();
+      if (data?.admin_owner_map) {
+        try { setOwnerMap(JSON.parse(data.admin_owner_map)); } catch { /* ignore */ }
+      }
+    })();
+  }, []);
 
   const range = useMemo(() => computeRange(preset, customFrom, customTo), [preset, customFrom, customTo]);
 
