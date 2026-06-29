@@ -11,6 +11,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Loader2, RefreshCw, ExternalLink, Beaker, Info } from "lucide-react";
 import { format, formatDistanceToNow, differenceInDays } from "date-fns";
 import { CLEAN_DATA_START_LABEL } from "@/pages/inbox-v3/constants";
+import { effectiveRsa } from "@/pages/inbox-v3/rsa";
+import { toast } from "@/hooks/use-toast";
 
 type Ticket = {
   id: string;
@@ -25,6 +27,7 @@ type Ticket = {
   state: string | null;
   lifecycle_status: string;
   tags: string[];
+  rsa_override: boolean | null;
   csat_rating: number | null;
   csat_remark: string | null;
   time_to_resolve_s: number | null;
@@ -69,7 +72,35 @@ export default function InboxV3() {
   const [search, setSearch] = useState("");
   const [owner, setOwner] = useState<string>(ANY);
   const [pa, setPa] = useState<string>(ANY);
+  const [rsaFilter, setRsaFilter] = useState<"all" | "required" | "not_required">("all");
   const [selected, setSelected] = useState<Ticket | null>(null);
+
+  // Cycle a ticket's RSA: derived → required → not_required → derived.
+  // Writes rsa_override on intercom_tickets_v3 and updates local state optimistically.
+  const cycleRsa = async (t: Ticket) => {
+    const next: boolean | null =
+      t.rsa_override === null ? true :
+      t.rsa_override === true ? false :
+      null;
+    const prev = t.rsa_override;
+    const apply = (rows: Ticket[]) =>
+      rows.map((r) => (r.id === t.id ? { ...r, rsa_override: next } : r));
+    setFinalizedRows(apply);
+    setActiveRows(apply);
+    setSelected((s) => (s && s.id === t.id ? { ...s, rsa_override: next } : s));
+    const { error } = await supabase
+      .from("intercom_tickets_v3")
+      .update({ rsa_override: next })
+      .eq("id", t.id);
+    if (error) {
+      const revert = (rows: Ticket[]) =>
+        rows.map((r) => (r.id === t.id ? { ...r, rsa_override: prev } : r));
+      setFinalizedRows(revert);
+      setActiveRows(revert);
+      setSelected((s) => (s && s.id === t.id ? { ...s, rsa_override: prev } : s));
+      toast({ title: "Couldn't update RSA", description: error.message, variant: "destructive" });
+    }
+  };
 
   const loadFinalized = async () => {
     setFinalizedLoading(true);
@@ -119,6 +150,11 @@ export default function InboxV3() {
     return currentRows.filter((r) => {
       if (owner !== ANY && r.owner !== owner) return false;
       if (tab === "finalized" && pa !== ANY && r.product_area !== pa) return false;
+      if (rsaFilter !== "all") {
+        const v = effectiveRsa(r).value;
+        if (rsaFilter === "required" && v !== "required") return false;
+        if (rsaFilter === "not_required" && v !== "not_required") return false;
+      }
       if (q) {
         const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, ...(r.tags || [])]
           .filter(Boolean).join(" ").toLowerCase();
@@ -126,7 +162,7 @@ export default function InboxV3() {
       }
       return true;
     });
-  }, [currentRows, search, owner, pa, tab]);
+  }, [currentRows, search, owner, pa, tab, rsaFilter]);
 
   const lastSync = useMemo(() => {
     const ts = currentRows.map((r) => r.last_synced_at).filter(Boolean).sort().pop();
@@ -197,11 +233,19 @@ export default function InboxV3() {
                 {ownerOpts.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Select value={rsaFilter} onValueChange={(v) => setRsaFilter(v as any)}>
+              <SelectTrigger className="h-9 w-[170px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">RSA: all</SelectItem>
+                <SelectItem value="required">RSA: required only</SelectItem>
+                <SelectItem value="not_required">RSA: not required only</SelectItem>
+              </SelectContent>
+            </Select>
             <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {currentRows.length}</span>
           </div>
 
           <TabsContent value="finalized" className="mt-4">
-            <FinalizedTable rows={filtered} loading={currentLoading} onSelect={setSelected} />
+            <FinalizedTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} />
           </TabsContent>
 
           <TabsContent value="active" className="mt-4 space-y-3">
@@ -212,7 +256,7 @@ export default function InboxV3() {
                 populated at close. Sorted oldest-first to surface stale backlog.
               </span>
             </div>
-            <ActiveTable rows={filtered} loading={currentLoading} onSelect={setSelected} />
+            <ActiveTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} />
           </TabsContent>
         </Tabs>
       </div>
@@ -237,6 +281,20 @@ export default function InboxV3() {
                 <Field label="Lifecycle" value={selected.lifecycle_status} />
                 <Field label="State" value={selected.state} />
                 <Field label="Owner" value={selected.owner} />
+                <div className="grid grid-cols-[140px_1fr] gap-3 items-center">
+                  <dt className="text-xs text-muted-foreground">RSA</dt>
+                  <dd className="text-sm flex items-center gap-2">
+                    <RsaBadge t={selected} onCycle={cycleRsa} />
+                    <span className="text-xs text-muted-foreground">
+                      {(() => {
+                        const { source } = effectiveRsa(selected);
+                        if (source === "manual") return "Manual override";
+                        if (source === "tag") return "From tag";
+                        return "Default";
+                      })()}
+                    </span>
+                  </dd>
+                </div>
                 {selected.lifecycle_status === "finalized" || selected.lifecycle_status === "reopened_after_finalize" ? (
                   <>
                     <Field label="Product area" value={selected.product_area} />
@@ -260,7 +318,31 @@ export default function InboxV3() {
   );
 }
 
-function FinalizedTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void }) {
+function RsaBadge({ t, onCycle }: { t: Ticket; onCycle: (t: Ticket) => void }) {
+  const { value, source } = effectiveRsa(t);
+  const required = value === "required";
+  const tip =
+    source === "manual" ? "Manual override — click to cycle" :
+    source === "tag" ? "Derived from tag (enterprise-fyi / enterprise-duplicate) — click to override" :
+    "Default — click to override";
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onCycle(t); }}
+      title={tip}
+      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] border ${
+        required
+          ? "border-border bg-secondary text-foreground"
+          : "border-destructive/40 bg-destructive/10 text-destructive"
+      } ${source === "manual" ? "ring-1 ring-primary/50" : ""} hover:bg-muted/70`}
+    >
+      {required ? "RSA" : "no-RSA"}
+      {source === "manual" && <span className="text-[9px] opacity-70">·M</span>}
+    </button>
+  );
+}
+
+function FinalizedTable({ rows, loading, onSelect, onCycleRsa }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void }) {
   return (
     <div className="rounded-md border border-border overflow-auto">
       <Table>
@@ -273,6 +355,7 @@ function FinalizedTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: 
             <TableHead className="w-[160px]">Product area</TableHead>
             <TableHead className="w-[140px]">Classification</TableHead>
             <TableHead className="w-[120px]">Lifecycle</TableHead>
+            <TableHead className="w-[90px]">RSA</TableHead>
             <TableHead className="w-[120px]">CSAT</TableHead>
             <TableHead className="w-[120px]">Resolve</TableHead>
             <TableHead className="w-[140px]">Closed</TableHead>
@@ -280,12 +363,12 @@ function FinalizedTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: 
         </TableHeader>
         <TableBody>
           {loading && (
-            <TableRow><TableCell colSpan={10} className="text-center py-6 text-muted-foreground">
+            <TableRow><TableCell colSpan={11} className="text-center py-6 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
             </TableCell></TableRow>
           )}
           {!loading && rows.length === 0 && (
-            <TableRow><TableCell colSpan={10} className="text-center py-6 text-muted-foreground">
+            <TableRow><TableCell colSpan={11} className="text-center py-6 text-muted-foreground">
               No rows match the current filters.
             </TableCell></TableRow>
           )}
@@ -316,6 +399,7 @@ function FinalizedTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: 
                   {r.lifecycle_status === "reopened_after_finalize" ? `reopened (${r.reopen_count})` : r.lifecycle_status}
                 </Badge>
               </TableCell>
+              <TableCell><RsaBadge t={r} onCycle={onCycleRsa} /></TableCell>
               <TableCell>{r.csat_rating ? `${CSAT_EMOJI[r.csat_rating]} ${r.csat_rating}` : "—"}</TableCell>
               <TableCell className="tabular-nums text-xs">{formatDuration(r.time_to_resolve_s)}</TableCell>
               <TableCell className="text-xs text-muted-foreground">
@@ -329,7 +413,7 @@ function FinalizedTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: 
   );
 }
 
-function ActiveTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void }) {
+function ActiveTable({ rows, loading, onSelect, onCycleRsa }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void }) {
   const now = Date.now();
   return (
     <div className="rounded-md border border-border overflow-auto">
@@ -342,6 +426,7 @@ function ActiveTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: boo
             <TableHead className="w-[120px]">Owner</TableHead>
             <TableHead className="w-[100px]">State</TableHead>
             <TableHead className="w-[140px]">Lifecycle</TableHead>
+            <TableHead className="w-[90px]">RSA</TableHead>
             <TableHead className="w-[120px]">Opened</TableHead>
             <TableHead className="w-[120px]">Last update</TableHead>
             <TableHead className="w-[80px]">Age</TableHead>
@@ -349,12 +434,12 @@ function ActiveTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: boo
         </TableHeader>
         <TableBody>
           {loading && (
-            <TableRow><TableCell colSpan={9} className="text-center py-6 text-muted-foreground">
+            <TableRow><TableCell colSpan={10} className="text-center py-6 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
             </TableCell></TableRow>
           )}
           {!loading && rows.length === 0 && (
-            <TableRow><TableCell colSpan={9} className="text-center py-6 text-muted-foreground">
+            <TableRow><TableCell colSpan={10} className="text-center py-6 text-muted-foreground">
               No active tickets match the current filters.
             </TableCell></TableRow>
           )}
@@ -385,6 +470,7 @@ function ActiveTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: boo
                     {r.lifecycle_status === "reopened_after_finalize" ? `reopened (${r.reopen_count})` : "open"}
                   </Badge>
                 </TableCell>
+                <TableCell><RsaBadge t={r} onCycle={onCycleRsa} /></TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   {r.intercom_created_at ? format(new Date(r.intercom_created_at), "MMM d, yyyy") : "—"}
                 </TableCell>
@@ -402,6 +488,7 @@ function ActiveTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: boo
     </div>
   );
 }
+
 
 function Field({ label, value, mono }: { label: string; value: string | null; mono?: boolean }) {
   return (

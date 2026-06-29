@@ -1,0 +1,1 @@
+ALTER TABLE public.intercom_tickets_v3 ADD COLUMN IF NOT EXISTS rsa_override boolean;

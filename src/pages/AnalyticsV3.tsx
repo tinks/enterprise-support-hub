@@ -15,6 +15,7 @@ import {
   CLEAN_DATA_START_DATE,
   CLEAN_DATA_START_LABEL,
 } from "@/pages/inbox-v3/constants";
+import { effectiveRsa } from "@/pages/inbox-v3/rsa";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from "recharts";
@@ -29,6 +30,8 @@ type Row = {
   csat_rating: number | null;
   time_to_resolve_s: number | null;
   admin_assignee_id: string | null;
+  tags: string[] | null;
+  rsa_override: boolean | null;
 };
 
 type ActiveRow = {
@@ -36,6 +39,8 @@ type ActiveRow = {
   intercom_created_at: string | null;
   lifecycle_status: string;
   reopen_count: number | null;
+  tags: string[] | null;
+  rsa_override: boolean | null;
 };
 
 type RangePreset = "7d" | "14d" | "30d" | "this_month" | "last_month" | "custom";
@@ -84,6 +89,7 @@ export default function AnalyticsV3() {
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
   const [includeOpen, setIncludeOpen] = useState(false);
+  const [excludeRsaFalse, setExcludeRsaFalse] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [activeRows, setActiveRows] = useState<ActiveRow[]>([]);
   const [ownerMap, setOwnerMap] = useState<Record<string, string>>({});
@@ -118,7 +124,7 @@ export default function AnalyticsV3() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,intercom_closed_at,finalized_at,lifecycle_status,state,csat_rating,time_to_resolve_s,admin_assignee_id")
+            .select("id,intercom_created_at,intercom_closed_at,finalized_at,lifecycle_status,state,csat_rating,time_to_resolve_s,admin_assignee_id,tags,rsa_override")
             .or(
               `and(intercom_created_at.gte.${fromIso},intercom_created_at.lte.${toIso}),` +
               `and(finalized_at.gte.${fromIso},finalized_at.lte.${toIso})`,
@@ -138,7 +144,7 @@ export default function AnalyticsV3() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,lifecycle_status,reopen_count")
+            .select("id,intercom_created_at,lifecycle_status,reopen_count,tags,rsa_override")
             .neq("lifecycle_status", "finalized")
             .order("intercom_created_at", { ascending: true })
             .range(aOff, aOff + PAGE - 1);
@@ -162,11 +168,33 @@ export default function AnalyticsV3() {
     return () => { cancelled = true; };
   }, [range.from.getTime(), range.to.getTime(), refreshKey]);
 
+  // Apply the RSA filter once, upstream of every memo, so KPIs, charts, and the
+  // per-engineer breakdown all agree on what counts as "Required Support Action".
+  const filteredRows = useMemo(
+    () => (excludeRsaFalse ? rows.filter((r) => effectiveRsa(r).value === "required") : rows),
+    [rows, excludeRsaFalse],
+  );
+  const filteredActiveRows = useMemo(
+    () => (excludeRsaFalse ? activeRows.filter((r) => effectiveRsa(r).value === "required") : activeRows),
+    [activeRows, excludeRsaFalse],
+  );
+  const rsaHiddenInRange = useMemo(() => {
+    if (!excludeRsaFalse) return 0;
+    const fromMs = range.from.getTime();
+    const toMs = range.to.getTime();
+    return rows.filter((r) => {
+      if (!r.intercom_created_at) return false;
+      const t = new Date(r.intercom_created_at).getTime();
+      if (t < fromMs || t > toMs) return false;
+      return effectiveRsa(r).value === "not_required";
+    }).length;
+  }, [rows, range.from, range.to, excludeRsaFalse]);
+
   // KPI stats: rows created in range, optionally filtered to finalized-only.
   const stats = useMemo(() => {
     const fromMs = range.from.getTime();
     const toMs = range.to.getTime();
-    const inRange = rows.filter((r) => {
+    const inRange = filteredRows.filter((r) => {
       if (!r.intercom_created_at) return false;
       const t = new Date(r.intercom_created_at).getTime();
       if (t < fromMs || t > toMs) return false;
@@ -183,28 +211,28 @@ export default function AnalyticsV3() {
       total, avgCsat, ratedN: ratings.length,
       medClose: median(closeTimes), closeN: closeTimes.length,
     };
-  }, [rows, range.from, range.to, includeOpen]);
+  }, [filteredRows, range.from, range.to, includeOpen]);
 
   // Active KPIs: snapshot of active backlog right now.
   const activeStats = useMemo(() => {
-    const openNow = activeRows.filter((r) => r.lifecycle_status === "open").length;
-    const reopened = activeRows.filter((r) => r.lifecycle_status === "reopened_after_finalize").length;
+    const openNow = filteredActiveRows.filter((r) => r.lifecycle_status === "open").length;
+    const reopened = filteredActiveRows.filter((r) => r.lifecycle_status === "reopened_after_finalize").length;
     const now = Date.now();
     let oldestAgeDays: number | null = null;
-    for (const r of activeRows) {
+    for (const r of filteredActiveRows) {
       if (!r.intercom_created_at) continue;
       const ageDays = Math.floor((now - new Date(r.intercom_created_at).getTime()) / 86_400_000);
       if (oldestAgeDays == null || ageDays > oldestAgeDays) oldestAgeDays = ageDays;
     }
     const fromMs = range.from.getTime();
     const toMs = range.to.getTime();
-    const openedInRange = rows.filter((r) => {
+    const openedInRange = filteredRows.filter((r) => {
       if (!r.intercom_created_at) return false;
       const t = new Date(r.intercom_created_at).getTime();
       return t >= fromMs && t <= toMs;
     }).length;
     return { openNow, reopened, oldestAgeDays, openedInRange };
-  }, [activeRows, rows, range.from, range.to]);
+  }, [filteredActiveRows, filteredRows, range.from, range.to]);
 
   // Opened vs Finalized over time
   const chartData = useMemo(() => {
@@ -216,7 +244,7 @@ export default function AnalyticsV3() {
     }
     const fromMs = range.from.getTime();
     const toMs = range.to.getTime();
-    for (const r of rows) {
+    for (const r of filteredRows) {
       if (r.intercom_created_at) {
         const t = new Date(r.intercom_created_at).getTime();
         if (t >= fromMs && t <= toMs) {
@@ -235,7 +263,7 @@ export default function AnalyticsV3() {
       }
     }
     return Array.from(buckets.values());
-  }, [rows, range.from, range.to]);
+  }, [filteredRows, range.from, range.to]);
 
   const rangeDays = Math.max(1, differenceInDays(range.to, range.from) + 1);
 
@@ -244,7 +272,7 @@ export default function AnalyticsV3() {
     const fromMs = range.from.getTime();
     const toMs = range.to.getTime();
     const counts = new Map<string, number>();
-    for (const r of rows) {
+    for (const r of filteredRows) {
       if (!r.finalized_at) continue;
       const t = new Date(r.finalized_at).getTime();
       if (t < fromMs || t > toMs) continue;
@@ -263,7 +291,7 @@ export default function AnalyticsV3() {
     });
     items.sort((a, b) => b.count - a.count);
     return { items, total };
-  }, [rows, range.from, range.to, ownerMap]);
+  }, [filteredRows, range.from, range.to, ownerMap]);
 
 
   return (
@@ -313,7 +341,23 @@ export default function AnalyticsV3() {
               {format(range.from, "MMM d, yyyy")} → {format(range.to, "MMM d, yyyy")}
             </div>
 
-            <div className="ml-auto inline-flex rounded-md border border-border overflow-hidden text-xs">
+            <label
+              className="ml-auto inline-flex items-center gap-2 text-xs cursor-pointer select-none"
+              title="Hide tickets tagged enterprise-fyi or enterprise-duplicate (or manually marked RSA=false)"
+            >
+              <input
+                type="checkbox"
+                className="h-3.5 w-3.5 accent-primary"
+                checked={excludeRsaFalse}
+                onChange={(e) => setExcludeRsaFalse(e.target.checked)}
+              />
+              <span>Exclude RSA = false</span>
+              {excludeRsaFalse && rsaHiddenInRange > 0 && (
+                <span className="text-muted-foreground">({rsaHiddenInRange} hidden)</span>
+              )}
+            </label>
+
+            <div className="inline-flex rounded-md border border-border overflow-hidden text-xs">
               <button
                 onClick={() => setIncludeOpen(false)}
                 className={`px-3 py-1.5 ${!includeOpen ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-muted/50"}`}
