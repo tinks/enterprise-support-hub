@@ -223,6 +223,8 @@ Deno.serve(async (req) => {
     }
   }
 
+  await recordIntegrationHealth(supabase, "inbox_v2_sync", "ok");
+
   return new Response(JSON.stringify({
     ok: true,
     windowHours,
