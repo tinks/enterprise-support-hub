@@ -33,7 +33,9 @@ Deno.serve(async (req) => {
 
   let body: { windowHours?: number } = {};
   try { body = await req.json(); } catch {}
-  const windowHours = Math.max(1, Math.min(168, body.windowHours ?? 2));
+  // Cap raised to 720h (30d) so a daily wide-sweep cron + on-demand backfills can
+  // pull idle-open tickets that the 5-min 2h pass never sees.
+  const windowHours = Math.max(1, Math.min(720, body.windowHours ?? 2));
 
   const { data: settings } = await supabase.from("settings").select("*").limit(1).single();
   if (!settings?.intercom_inbox_id) return json({ error: "No enterprise inbox configured" }, 400);
