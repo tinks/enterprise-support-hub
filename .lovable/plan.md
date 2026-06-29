@@ -1,29 +1,46 @@
-## Verify Slack channel C0BDZAY8R8A is configured for ticket-creation notifications
+## (HELD) Add Slack-bot KPI section to Analytics v3
 
-Goal: confirm `SLACK_BOT_TOKEN` can post to `C0BDZAY8R8A` (i.e. the bot is a member and the channel ID is correct) without creating a real ticket.
+Status: **on hold** — pick back up when ready.
 
-### Approach
+### Goal
 
-Add a tiny one-shot test edge function `test-ticket-channel-notify` that:
+Surface Ask Lovable Slack-bot ticket volume on the v3 Analytics page so it matches the Monthly Support Report's Slack column.
 
-1. Loads `SLACK_BOT_TOKEN`.
-2. Calls `chat.postMessage` to `C0BDZAY8R8A` with a clearly-labeled test payload identical in shape to the real notification, e.g.:
-   > 🧪 *Test* — Ticket channel notification check from `slack-interactions` config. Safe to ignore. (timestamp)
-3. Returns the raw Slack API response (`ok`, `error`, `channel`, `ts`) plus a friendly diagnosis:
-   - `ok: true` → ✅ Channel is configured correctly. Includes the message `ts` so you can find/delete it.
-   - `ok: false, error: "not_in_channel"` → ❌ Bot is not a member; run `/invite @<botname>` in the channel.
-   - `ok: false, error: "channel_not_found"` → ❌ Channel ID is wrong or private/inaccessible.
-   - any other error → returned verbatim with a note.
+### KPI cards (4)
 
-### Execution
+Received · Resolved · Escalated to human · Bot success rate (= bot-resolved / received), all scoped to the v3 page's date range/preset. Secondary line: median/avg resolution + owner mix.
 
-Invoke the function via the edge-function curl tool right after deploy. Report back the Slack response and the diagnosis. No real ticket is created, no DM is sent, no DB rows are touched.
+### Bot-handled identifier (REVISED 2026-06-29)
 
-### Cleanup options
+**Use `intercom_tickets_v3.admin_assignee_id = '9520895'` (Sam's Intercom admin ID), joined to Slack-origin tickets via `conversation_mappings.intercom_conversation_id`.**
 
-After the test, leave the function in place as a future re-test utility, OR delete it. Default: **leave it** (it's harmless and only acts when called). I'll mention both options in the result.
+Why this changed: `conversation_mappings.owner` is set at Slack-intake time and is **never updated** when a human takes the ticket over in Intercom. June test: the Slack-side heuristic (`cm.owner IN (NULL, 'Sam')` AND `status='resolved'`) returned 24 tickets, but joining to v3 showed only **13** were truly Sam-handled — the other 11 had been picked up in Intercom by Tine (7), Matt (2), Kristina (1), or an unknown admin 7987702 (1). `intercom_tickets_v3.admin_assignee_id` is refreshed every sync, so it's the source of truth.
 
-### Out of scope
+Do NOT use:
+- `conversation_mappings.owner` (stale after Intercom handoff)
+- "resolved without `intercom_conversation_id`" (every Slack thread mirrors to Intercom, so this is always 0)
 
-- No changes to the real `slack-interactions` flow.
-- No end-to-end ticket creation — that would require a live Slack mention and produce an Intercom ticket. The chat.postMessage call alone is the only thing that can fail in the new code path I added.
+### Query shape
+
+```sql
+SELECT cm.*, v3.admin_assignee_id, v3.owner AS intercom_owner
+FROM conversation_mappings cm
+JOIN intercom_tickets_v3 v3 ON v3.intercom_conversation_id = cm.intercom_conversation_id
+WHERE cm.created_at >= :from AND cm.created_at < :to
+  AND cm.is_test = false
+  AND cm.status <> 'cancelled'
+-- bot-resolved = status='resolved' AND v3.admin_assignee_id = '9520895'
+-- escalated   = v3.admin_assignee_id IS NOT NULL AND v3.admin_assignee_id <> '9520895'
+```
+
+Sam's admin ID `9520895` is already canonical (see `mem://team/owners`).
+
+### Scope guardrails
+
+- Single client-side query, same pattern as existing v3 cards.
+- No changes to `intercom_tickets_v3`, sync functions, v3 crons, Monthly Support Report, or existing v3 KPIs.
+- Out of scope: merging Slack counts into Total/CSAT/Resolve KPIs; Gmail column; new edge functions.
+
+### Standing-rule maintenance (when shipped)
+
+Update `.lovable/project-knowledge.md`, the Flow page node, and `changelog_entries`.
