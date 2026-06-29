@@ -18,7 +18,9 @@ import BulkImportReview from "./pages/BulkImportReview";
 import TestChannelReview from "./pages/TestChannelReview";
 import Insights from "./pages/Insights";
 import InboxV2 from "./pages/InboxV2";
+import AnalyticsV2 from "./pages/AnalyticsV2";
 import Changelog from "./pages/Changelog";
+
 
 const queryClient = new QueryClient();
 
@@ -33,6 +35,8 @@ const App = () => (
           <Route path="/" element={<ProtectedRoute><Stats /></ProtectedRoute>} />
           <Route path="/conversations" element={<ProtectedRoute><Conversations /></ProtectedRoute>} />
           <Route path="/inbox-v2" element={<ProtectedRoute><InboxV2 /></ProtectedRoute>} />
+          <Route path="/analytics-v2" element={<ProtectedRoute><AnalyticsV2 /></ProtectedRoute>} />
+
           <Route path="/conversations/:id" element={<ProtectedRoute><ConversationDetail /></ProtectedRoute>} />
           <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
           <Route path="/my/:owner" element={<ProtectedRoute><OwnerDashboard /></ProtectedRoute>} />

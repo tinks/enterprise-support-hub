@@ -1,35 +1,40 @@
-## Current health check coverage
 
-The `integration_health` table is written to by 5 edge functions via `_shared/integration-health.ts`, and the Settings → Integration health card (plus 10-min Slack alert cron `integration-health-alert`) reads it:
+## Goal
 
-| Key | Recorded by | Freshness window | Covers Inbox V2? |
-|---|---|---|---|
-| `intercom_poll` | `poll-intercom-inbox` | 30 min | No — different function |
-| `intercom_webhook` | `intercom-webhook` | 24 h | Partial — webhook hits live tables, not `inbox_v2_tickets` |
-| `intercom_csat` | `refresh-intercom-csat` | 3 h | No — only touches manual/gmail tables |
-| `intercom_import` | `import-intercom-ticket` | 30 d | No |
-| `gmail_poll` | `poll-gmail` | 30 min | No |
+Stand up a parallel reporting path that reads exclusively from `inbox_v2_tickets`, without touching the existing `/stats` or `/insights` code. Phase 1 ships a single page with three numbers; later phases layer on more.
 
-**Inbox V2 sync is invisible to health monitoring.** Neither `sync-inbox-v2` (crons: every 15 min + nightly 03:00 UTC) nor `classify-inbox-v2-engagement` call `recordIntegrationHealth`. If Intercom's token expires, rate-limits, or the function starts timing out (as it did during the recent full backfill), nothing surfaces in Settings or `#enterprise-support-hub-alerts` — the sandbox just silently goes stale.
+## Phase 1 scope (this plan)
 
-## Recommendation: add one new integration key
+New route **`/analytics-v2`** (sidebar entry "Analytics v2", Beaker icon, sits next to "Inbox v2"). The page renders:
 
-Add a single `inbox_v2_sync` health entry rather than splitting frequent vs nightly. The frequent run (15 min, 2 h window) is the canary; if it's healthy, the nightly is almost certainly fine too.
+1. **Total tickets** — count of `inbox_v2_tickets` in the selected window.
+2. **Average CSAT** — mean of `csat_rating` where not null, plus an `n =` subcount so a 1-rating month doesn't look like the headline.
+3. **Median time to resolve** — median of `raw_payload.statistics.time_to_last_close` (seconds), formatted as `Xh Ym` / `Xd Yh`. Same field the existing `intercom-month-stats` function uses, so the methodology matches.
 
-Skip a separate entry for `classify-inbox-v2-engagement` — it's on-demand only (no cron), so "stale" has no meaning. Per-call errors are already toasted in the UI.
+### Controls
 
-## Plan
+- **Date range picker** — same preset shape as the Inbox v2 export popover (Last 7 / 14 / 30 days, This month, Last month, Custom). Defaults to "Last 30 days". Filter is applied on `intercom_created_at`.
+- **Engagement toggle** — segmented `Engaged only` (default) / `All tickets`. "Engaged only" uses the same `effectiveEngagement()` priority chain already defined in `InboxV2.tsx` (override → AI guess → tag → default), keeping one source of truth.
+- **Refresh** button.
 
-1. **`_shared/integration-health.ts`** — extend `IntegrationKey` union with `"inbox_v2_sync"`.
-2. **`sync-inbox-v2/index.ts`** — call `recordIntegrationHealth(sb, "inbox_v2_sync", classifyHttpStatus(res.status), errorText)` after each Intercom search/conversation fetch, mirroring the pattern in `poll-intercom-inbox`. One `ok` write at the end of a successful run; `auth_error`/`error` on first failure with early return.
-3. **`IntegrationHealthCard.tsx`** — add `{ key: "inbox_v2_sync", label: "Inbox V2 sync", description: "Mirrors Intercom into the Inbox V2 sandbox (every 15 min).", maxStaleMin: 30 }` to the `INTEGRATIONS` array.
-4. **`integration-health-alert/index.ts`** — add the same entry to its `INTEGRATIONS` array so Slack alerts cover it with the same 6-hour re-notify dedup.
-5. **Docs** — update `.lovable/project-knowledge.md`, `mem://features/inbox-v2/sync-and-export`, and add a `changelog_entries` row.
+### What is NOT in Phase 1
 
-## Out of scope (call out, don't build)
+- No breakdowns by owner / product area / classification / tag.
+- No trend chart, no comparison-to-prior-period chip.
+- No `/insights-v2`. That comes in a later phase once you've used Phase 1 and decided which insights cards are worth porting.
+- No edits to `/stats`, `/insights`, `Stats.tsx`, `MonthStatsCards.tsx`, or the existing `useMonthData` hook.
 
-- Separate `inbox_v2_classify` health key — no cron, on-demand only.
-- Row-count drift alerts (e.g. "expected ~N tickets, got M") — different problem class; would need a baseline table.
-- Backfilling the historical `intercom_webhook` check to also write `inbox_v2_sync` — the webhook doesn't touch `inbox_v2_tickets` today, so it would be misleading.
+## Technical details
 
-Confirm and I'll implement.
+- New files:
+  - `src/pages/AnalyticsV2.tsx` — page shell, date range + engagement controls, three KPI cards.
+  - `src/pages/analytics-v2/useInboxV2Stats.ts` — fetches `inbox_v2_tickets` rows in the selected window (paginated 1000-row `.range()` batches like the v2 export), filters by engagement client-side using the existing `effectiveEngagement` helper, computes the three KPIs.
+- Shared helper: extract `effectiveEngagement` / `hasNoEngagementTag` / `NO_ENGAGEMENT_TAGS` from `InboxV2.tsx` into `src/pages/inbox-v2/engagement.ts` so both pages import the same logic. `InboxV2.tsx` keeps using it via re-export — no behavior change.
+- Median resolve time reads `raw_payload?.statistics?.time_to_last_close` (seconds). Rows where it's missing or status isn't `closed` are excluded from the median; the card shows `n =` so you can see how many rows contributed.
+- Sidebar: add an entry in `AppSidebar` / wherever the Inbox v2 entry lives, route `/analytics-v2`, Beaker icon, label "Analytics v2". Wrap the route in the existing `ProtectedRoute` in `App.tsx`.
+- Docs: update `.lovable/project-knowledge.md`, add `mem://features/inbox-v2/analytics-v2` memory, append a `changelog_entries` row. No Flow diagram changes (no logic rewiring).
+
+## Open follow-ups for later phases (not built now)
+
+- Phase 2 candidate: breakdowns (owner / product area / classification / tags) + trend-over-time chart.
+- Phase 3 candidate: `/insights-v2` rebuild of the Report / Customers / Channels tabs, scoped to what `inbox_v2_tickets` can actually express (no bug/FR flags, no Slack/Gmail split — those don't exist in the v2 source).
