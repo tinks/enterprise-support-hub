@@ -272,7 +272,7 @@ export default function InboxV3() {
           </div>
 
           <TabsContent value="finalized" className="mt-4">
-            <FinalizedTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} />
+            <FinalizedTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} onMarkFinalized={markAsFinalized} />
           </TabsContent>
 
           <TabsContent value="active" className="mt-4 space-y-3">
