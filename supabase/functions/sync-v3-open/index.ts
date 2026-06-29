@@ -106,6 +106,9 @@ Deno.serve(async (req) => {
     startingAfter = next;
   }
 
+  const snoozedCount = conversations.filter((c) => String(c.state) === "snoozed").length;
+  console.log(`[sync-v3-open] fetched ${conversations.length} convs (snoozed=${snoozedCount}) states=${JSON.stringify(conversations.map((c) => c.state).reduce((acc: any, s: string) => { acc[s] = (acc[s] || 0) + 1; return acc; }, {}))}`);
+
   // Pre-fetch existing rows so we don't overwrite finalized data
   const ids = conversations.map((c) => String(c.id));
   const existingFinalized = new Set<string>();
