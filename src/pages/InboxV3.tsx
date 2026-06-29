@@ -419,12 +419,24 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }
               <TableCell>{r.product_area || "—"}</TableCell>
               <TableCell>{r.classification || "—"}</TableCell>
               <TableCell>
-                <Badge variant={
-                  r.lifecycle_status === "finalized" ? "secondary" :
-                  r.lifecycle_status === "reopened_after_finalize" ? "destructive" : "outline"
-                } className="text-[10px]">
-                  {r.lifecycle_status === "reopened_after_finalize" ? `reopened (${r.reopen_count})` : r.lifecycle_status}
-                </Badge>
+                <div className="flex items-center gap-1">
+                  <Badge variant={
+                    r.lifecycle_status === "finalized" ? "secondary" :
+                    r.lifecycle_status === "reopened_after_finalize" ? "destructive" : "outline"
+                  } className="text-[10px]">
+                    {r.lifecycle_status === "reopened_after_finalize" ? `reopened (${r.reopen_count})` : r.lifecycle_status}
+                  </Badge>
+                  {r.lifecycle_status === "reopened_after_finalize" && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onMarkFinalized(r); }}
+                      title="Mark as finalized (clear reopened status)"
+                      className="inline-flex items-center justify-center rounded-md p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </TableCell>
               <TableCell><RsaBadge t={r} onCycle={onCycleRsa} /></TableCell>
               <TableCell>{r.csat_rating ? `${CSAT_EMOJI[r.csat_rating]} ${r.csat_rating}` : "—"}</TableCell>
