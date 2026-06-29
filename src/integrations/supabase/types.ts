@@ -558,6 +558,7 @@ export type Database = {
           product_area: string | null
           raw_payload: Json | null
           reopen_count: number
+          rsa_override: boolean | null
           state: string | null
           subject: string | null
           tags: string[]
@@ -590,6 +591,7 @@ export type Database = {
           product_area?: string | null
           raw_payload?: Json | null
           reopen_count?: number
+          rsa_override?: boolean | null
           state?: string | null
           subject?: string | null
           tags?: string[]
@@ -622,6 +624,7 @@ export type Database = {
           product_area?: string | null
           raw_payload?: Json | null
           reopen_count?: number
+          rsa_override?: boolean | null
           state?: string | null
           subject?: string | null
           tags?: string[]
