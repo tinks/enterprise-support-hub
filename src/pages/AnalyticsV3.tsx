@@ -89,6 +89,7 @@ export default function AnalyticsV3() {
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
   const [includeOpen, setIncludeOpen] = useState(false);
+  const [excludeRsaFalse, setExcludeRsaFalse] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [activeRows, setActiveRows] = useState<ActiveRow[]>([]);
   const [ownerMap, setOwnerMap] = useState<Record<string, string>>({});
