@@ -1,0 +1,193 @@
+// sync-v3-open
+// ---------------------------------------------------------------------------
+// Cheap freshness pass for OPEN enterprise tickets. Search-payload only.
+// Does NOT call GET /conversations/{id}. Deliberately skips product_area,
+// classification, tags, statistics, csat — those aren't trusted until close
+// (sync-v3-closed handles them).
+//
+// Writes minimal fields so the v3 inbox view can show open work in near-real-time.
+// ---------------------------------------------------------------------------
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import {
+  CLEAN_DATA_START_UNIX,
+  domainOf,
+  intercomHeaders,
+  stripHtml,
+  TIME_BUDGET_MS,
+  tsToIso,
+  V3_CORS_HEADERS,
+} from "../_shared/v3.ts";
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: V3_CORS_HEADERS });
+
+  const startedAt = Date.now();
+  const INTERCOM_API_TOKEN = Deno.env.get("INTERCOM_API_TOKEN");
+  if (!INTERCOM_API_TOKEN) return json({ error: "INTERCOM_API_TOKEN not configured" }, 500);
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+
+  let body: { windowHours?: number } = {};
+  try { body = await req.json(); } catch {}
+  const windowHours = Math.max(1, Math.min(168, body.windowHours ?? 2));
+
+  const { data: settings } = await supabase.from("settings").select("*").limit(1).single();
+  if (!settings?.intercom_inbox_id) return json({ error: "No enterprise inbox configured" }, 400);
+  const enterpriseInboxId = settings.intercom_inbox_id;
+
+  let adminOwnerMap: Record<string, string> = {};
+  try { adminOwnerMap = JSON.parse(settings.admin_owner_map || "{}"); } catch {}
+
+  const sinceTs = Math.max(
+    Math.floor((Date.now() - windowHours * 3600 * 1000) / 1000),
+    CLEAN_DATA_START_UNIX,
+  );
+
+  const { data: jobRow } = await supabase.from("intercom_sync_jobs_v3").insert({
+    kind: "open_refresh",
+    status: "running",
+    window_start: new Date(sinceTs * 1000).toISOString(),
+    started_at: new Date().toISOString(),
+  }).select("id").single();
+
+  const conversations: any[] = [];
+  let startingAfter: string | null = null;
+  let page = 0;
+  const MAX_PAGES = 40;
+
+  while (page < MAX_PAGES) {
+    if (Date.now() - startedAt > TIME_BUDGET_MS * 0.5) break;
+
+    const reqBody: any = {
+      query: {
+        operator: "AND",
+        value: [
+          { field: "team_assignee_id", operator: "=", value: parseInt(enterpriseInboxId) },
+          { field: "state", operator: "=", value: "open" },
+          { field: "updated_at", operator: ">", value: sinceTs },
+        ],
+      },
+      pagination: { per_page: 50 },
+    };
+    if (startingAfter) reqBody.pagination = { per_page: 50, starting_after: startingAfter };
+
+    const res = await fetch("https://api.intercom.io/conversations/search", {
+      method: "POST",
+      headers: intercomHeaders(INTERCOM_API_TOKEN),
+      body: JSON.stringify(reqBody),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      await supabase.from("intercom_sync_jobs_v3").update({
+        status: "error", last_error: `search ${res.status}: ${text.slice(0, 200)}`,
+        finished_at: new Date().toISOString(),
+      }).eq("id", jobRow?.id);
+      return json({ error: "Intercom search failed", status: res.status }, 502);
+    }
+    const data = await res.json();
+    const list = data.conversations || data.data || [];
+    for (const c of list) conversations.push(c);
+
+    page++;
+    const next = data.pages?.next?.starting_after;
+    if (!next) break;
+    startingAfter = next;
+  }
+
+  // Pre-fetch existing rows so we don't overwrite finalized data
+  const ids = conversations.map((c) => String(c.id));
+  const existingFinalized = new Set<string>();
+  if (ids.length) {
+    const { data: existing } = await supabase
+      .from("intercom_tickets_v3")
+      .select("intercom_conversation_id, lifecycle_status")
+      .in("intercom_conversation_id", ids);
+    for (const r of existing || []) {
+      if (r.lifecycle_status === "finalized") existingFinalized.add(String(r.intercom_conversation_id));
+    }
+  }
+
+  let inserted = 0, updated = 0, skipped = 0, failed = 0;
+
+  for (const conv of conversations) {
+    const convId = String(conv.id);
+    try {
+      // Don't downgrade a finalized row back to 'open'. A reopen is detected by
+      // sync-v3-closed when it runs next.
+      if (existingFinalized.has(convId)) { skipped++; continue; }
+
+      const createdIso = tsToIso(conv.created_at);
+      if (createdIso && createdIso < new Date(CLEAN_DATA_START_UNIX * 1000).toISOString()) {
+        skipped++; continue;
+      }
+
+      // Search-payload only (NO GET /conversations/{id})
+      const sa = conv.source?.author;
+      const contactName: string | null = sa?.name || sa?.email || null;
+      const contactEmail: string | null = sa?.email || null;
+      const adminId = String(conv.admin_assignee_id ?? "");
+      const owner = adminOwnerMap[adminId] || null;
+      const subject = stripHtml(conv.source?.subject || conv.title || `Intercom #${convId}`);
+
+      const row = {
+        intercom_conversation_id: convId,
+        team_assignee_id: String(conv.team_assignee_id ?? ""),
+        admin_assignee_id: adminId || null,
+        owner,
+        contact_name: contactName,
+        contact_email: contactEmail,
+        contact_domain: domainOf(contactEmail),
+        subject,
+        state: String(conv.state || "open"),
+        // lifecycle_status defaults to 'open' on insert; we only set on insert
+        intercom_created_at: createdIso,
+        intercom_updated_at: tsToIso(conv.updated_at),
+        last_synced_at: new Date().toISOString(),
+      };
+
+      // Use upsert; for existing open rows this refreshes the lightweight fields.
+      const { error, data: upserted } = await supabase
+        .from("intercom_tickets_v3")
+        .upsert(row, { onConflict: "intercom_conversation_id" })
+        .select("id, created_at");
+      if (error) { failed++; continue; }
+      // We can't easily distinguish insert vs update from upsert; treat newly-created
+      // rows (created_at within last 5s) as inserted.
+      if (upserted && upserted[0]) {
+        const isNew = Date.now() - new Date(upserted[0].created_at).getTime() < 5000;
+        if (isNew) inserted++; else updated++;
+      } else {
+        updated++;
+      }
+    } catch (e) {
+      console.error(`[sync-v3-open] err on ${convId}:`, (e as Error).message);
+      failed++;
+    }
+  }
+
+  await supabase.from("intercom_sync_jobs_v3").update({
+    status: "done",
+    processed: conversations.length,
+    inserted,
+    updated_count: updated,
+    failed,
+    finished_at: new Date().toISOString(),
+  }).eq("id", jobRow?.id);
+
+  return json({
+    ok: true, windowHours, fetched: conversations.length,
+    inserted, updated, skipped, failed,
+    elapsed_ms: Date.now() - startedAt,
+  });
+});
+
+function json(p: unknown, status = 200) {
+  return new Response(JSON.stringify(p), {
+    status,
+    headers: { ...V3_CORS_HEADERS, "Content-Type": "application/json" },
+  });
+}

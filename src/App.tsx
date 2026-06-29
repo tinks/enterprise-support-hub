@@ -19,6 +19,8 @@ import TestChannelReview from "./pages/TestChannelReview";
 import Insights from "./pages/Insights";
 import InboxV2 from "./pages/InboxV2";
 import AnalyticsV2 from "./pages/AnalyticsV2";
+import InboxV3 from "./pages/InboxV3";
+import AnalyticsV3 from "./pages/AnalyticsV3";
 import Changelog from "./pages/Changelog";
 
 
@@ -36,6 +38,8 @@ const App = () => (
           <Route path="/conversations" element={<ProtectedRoute><Conversations /></ProtectedRoute>} />
           <Route path="/inbox-v2" element={<ProtectedRoute><InboxV2 /></ProtectedRoute>} />
           <Route path="/analytics-v2" element={<ProtectedRoute><AnalyticsV2 /></ProtectedRoute>} />
+          <Route path="/inbox-v3" element={<ProtectedRoute><InboxV3 /></ProtectedRoute>} />
+          <Route path="/analytics-v3" element={<ProtectedRoute><AnalyticsV3 /></ProtectedRoute>} />
 
           <Route path="/conversations/:id" element={<ProtectedRoute><ConversationDetail /></ProtectedRoute>} />
           <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />

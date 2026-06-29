@@ -476,6 +476,162 @@ export type Database = {
         }
         Relationships: []
       }
+      intercom_sync_jobs_v3: {
+        Row: {
+          created_at: string
+          cursor_extra: Json | null
+          cursor_ts: string | null
+          failed: number
+          finished_at: string | null
+          id: string
+          inserted: number
+          kind: string
+          last_error: string | null
+          processed: number
+          started_at: string | null
+          status: string
+          updated_at: string
+          updated_count: number
+          window_end: string | null
+          window_start: string | null
+        }
+        Insert: {
+          created_at?: string
+          cursor_extra?: Json | null
+          cursor_ts?: string | null
+          failed?: number
+          finished_at?: string | null
+          id?: string
+          inserted?: number
+          kind: string
+          last_error?: string | null
+          processed?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          updated_count?: number
+          window_end?: string | null
+          window_start?: string | null
+        }
+        Update: {
+          created_at?: string
+          cursor_extra?: Json | null
+          cursor_ts?: string | null
+          failed?: number
+          finished_at?: string | null
+          id?: string
+          inserted?: number
+          kind?: string
+          last_error?: string | null
+          processed?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          updated_count?: number
+          window_end?: string | null
+          window_start?: string | null
+        }
+        Relationships: []
+      }
+      intercom_tickets_v3: {
+        Row: {
+          admin_assignee_id: string | null
+          classification: string | null
+          contact_domain: string | null
+          contact_email: string | null
+          contact_name: string | null
+          created_at: string
+          csat_rated_at: string | null
+          csat_rating: number | null
+          csat_remark: string | null
+          finalized_at: string | null
+          id: string
+          intercom_closed_at: string | null
+          intercom_conversation_id: string
+          intercom_created_at: string | null
+          intercom_updated_at: string | null
+          last_full_fetch_at: string | null
+          last_reopened_at: string | null
+          last_synced_at: string | null
+          lifecycle_status: string
+          owner: string | null
+          product_area: string | null
+          raw_payload: Json | null
+          reopen_count: number
+          state: string | null
+          subject: string | null
+          tags: string[]
+          team_assignee_id: string | null
+          time_to_first_admin_reply_s: number | null
+          time_to_resolve_s: number | null
+          updated_at: string
+        }
+        Insert: {
+          admin_assignee_id?: string | null
+          classification?: string | null
+          contact_domain?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          created_at?: string
+          csat_rated_at?: string | null
+          csat_rating?: number | null
+          csat_remark?: string | null
+          finalized_at?: string | null
+          id?: string
+          intercom_closed_at?: string | null
+          intercom_conversation_id: string
+          intercom_created_at?: string | null
+          intercom_updated_at?: string | null
+          last_full_fetch_at?: string | null
+          last_reopened_at?: string | null
+          last_synced_at?: string | null
+          lifecycle_status?: string
+          owner?: string | null
+          product_area?: string | null
+          raw_payload?: Json | null
+          reopen_count?: number
+          state?: string | null
+          subject?: string | null
+          tags?: string[]
+          team_assignee_id?: string | null
+          time_to_first_admin_reply_s?: number | null
+          time_to_resolve_s?: number | null
+          updated_at?: string
+        }
+        Update: {
+          admin_assignee_id?: string | null
+          classification?: string | null
+          contact_domain?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          created_at?: string
+          csat_rated_at?: string | null
+          csat_rating?: number | null
+          csat_remark?: string | null
+          finalized_at?: string | null
+          id?: string
+          intercom_closed_at?: string | null
+          intercom_conversation_id?: string
+          intercom_created_at?: string | null
+          intercom_updated_at?: string | null
+          last_full_fetch_at?: string | null
+          last_reopened_at?: string | null
+          last_synced_at?: string | null
+          lifecycle_status?: string
+          owner?: string | null
+          product_area?: string | null
+          raw_payload?: Json | null
+          reopen_count?: number
+          state?: string | null
+          subject?: string | null
+          tags?: string[]
+          team_assignee_id?: string | null
+          time_to_first_admin_reply_s?: number | null
+          time_to_resolve_s?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       knowledge_documents: {
         Row: {
           content: string
