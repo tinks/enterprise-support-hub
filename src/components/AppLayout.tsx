@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 const navItems = [
   { to: "/", icon: BarChart3, label: "Analytics", end: true },
   { to: "/analytics-v2", icon: Beaker, label: "Analytics v2" },
+  { to: "/analytics-v3", icon: Beaker, label: "Analytics v3" },
   { to: "/changelog", icon: ScrollText, label: "Changelog" },
   // Dashboards row is rendered between the first 3 items and the rest.
   { to: "/flow", icon: GitBranch, label: "Flow" },
@@ -15,7 +16,6 @@ const navItems = [
   { to: "/conversations", icon: MessageSquare, label: "Inbox" },
   { to: "/inbox-v2", icon: Beaker, label: "Inbox v2" },
   { to: "/inbox-v3", icon: Beaker, label: "Inbox v3" },
-  { to: "/analytics-v3", icon: Beaker, label: "Analytics v3" },
   { to: "/insights", icon: Sparkles, label: "Insights" },
   { to: "/knowledge", icon: BookOpen, label: "Knowledge" },
   { to: "/settings", icon: Settings, label: "Settings" },
@@ -94,7 +94,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         {/* Nav links */}
         <nav className="flex-1 flex flex-col justify-between">
           <div className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto overflow-x-hidden">
-              {navItems.slice(0, 3).map((item) => (
+              {navItems.slice(0, 4).map((item) => (
                 <TooltipProvider key={item.to} delayDuration={0}>
                   <Tooltip open={!expanded && activeTooltip === item.label}>
                     <TooltipTrigger asChild>
@@ -136,7 +136,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                 </Tooltip>
               </TooltipProvider>
 
-              {navItems.slice(3).map((item) => (
+              {navItems.slice(4).map((item) => (
                 <TooltipProvider key={item.to} delayDuration={0}>
                   <Tooltip open={!expanded && activeTooltip === item.label}>
                     <TooltipTrigger asChild>
