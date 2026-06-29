@@ -417,9 +417,11 @@ Dedup: `reminder_sent_at` prevents duplicate reminders; atomic status guard prev
 
 ---
 
-## 15. Group DM Notifications
+## 15. Ticket Creation Notifications
 
 - On every ticket creation, a group DM is sent to hardcoded Slack user IDs: `U0AFU714807` (Kristina) and `U091GANMA2U` (Joel)
+- The same message is also posted to channel `C0BDZAY8R8A` via `chat.postMessage` (independent try/catch — channel failure cannot break DM or ticket creation)
+- Channel-post failures are logged with the prefix `[ticket-channel-notify]`; `not_in_channel` errors include a hint to `/invite` the bot
 - Contains links to both the Slack thread and the Intercom conversation
 
 ---
