@@ -150,6 +150,11 @@ export default function InboxV3() {
     return currentRows.filter((r) => {
       if (owner !== ANY && r.owner !== owner) return false;
       if (tab === "finalized" && pa !== ANY && r.product_area !== pa) return false;
+      if (rsaFilter !== "all") {
+        const v = effectiveRsa(r).value;
+        if (rsaFilter === "required" && v !== "required") return false;
+        if (rsaFilter === "not_required" && v !== "not_required") return false;
+      }
       if (q) {
         const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, ...(r.tags || [])]
           .filter(Boolean).join(" ").toLowerCase();
@@ -157,7 +162,7 @@ export default function InboxV3() {
       }
       return true;
     });
-  }, [currentRows, search, owner, pa, tab]);
+  }, [currentRows, search, owner, pa, tab, rsaFilter]);
 
   const lastSync = useMemo(() => {
     const ts = currentRows.map((r) => r.last_synced_at).filter(Boolean).sort().pop();
