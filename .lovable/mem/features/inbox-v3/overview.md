@@ -36,8 +36,10 @@ Reporting-grade mirror of Intercom enterprise tickets. **Parallel** to Inbox v2 
 
 ## UI
 
-- `/inbox-v3` — read-only table (filter by lifecycle / owner / product area / search).
-- `/analytics-v3` — KPIs (Total / Avg CSAT / Median resolve). Date pickers clamped to data floor.
+- `/inbox-v3` — read-only, two tabs:
+  - **Finalized** — full column set (product area, classification, tags, CSAT, resolve). Lifecycle filter: Finalized / Reopened / All closed-side.
+  - **Active** — `lifecycle_status IN (open, reopened_after_finalize)`. Reduced columns (no product area / classification / tags / CSAT / resolve since open rows don't carry them). Sorted oldest-first; age >14d highlighted.
+- `/analytics-v3` — KPIs (Total / Avg CSAT / Median resolve) + **Active backlog** strip (Open now, Reopened, Oldest open age, Opened in range) + **Opened vs Finalized over time** daily line chart. Date pickers clamped to data floor.
 - Settings → **Inbox v3 sync** card — per-kind job status + manual buttons (Catch up closed, Run closed once, Run open refresh, Run gap scan).
 
 ## Constants

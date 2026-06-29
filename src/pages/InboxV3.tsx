@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, RefreshCw, ExternalLink, Beaker } from "lucide-react";
-import { format, formatDistanceToNow } from "date-fns";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Loader2, RefreshCw, ExternalLink, Beaker, Info } from "lucide-react";
+import { format, formatDistanceToNow, differenceInDays } from "date-fns";
 import { CLEAN_DATA_START_LABEL } from "@/pages/inbox-v3/constants";
 
 type Ticket = {
@@ -48,46 +49,76 @@ function formatDuration(seconds: number | null): string {
   return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
+function intercomUrl(id: string) {
+  return `https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${id}?view=List`;
+}
+
 export default function InboxV3() {
-  const [rows, setRows] = useState<Ticket[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<"finalized" | "active">("finalized");
+
+  // Finalized tab state
+  const [finalizedRows, setFinalizedRows] = useState<Ticket[]>([]);
+  const [finalizedLoading, setFinalizedLoading] = useState(true);
+  const [lifecycle, setLifecycle] = useState<"finalized" | "reopened" | "all">("finalized");
+
+  // Active tab state
+  const [activeRows, setActiveRows] = useState<Ticket[]>([]);
+  const [activeLoading, setActiveLoading] = useState(true);
+
+  // Shared filters
   const [search, setSearch] = useState("");
-  const [lifecycle, setLifecycle] = useState<"finalized" | "open" | "reopened" | "all">("finalized");
   const [owner, setOwner] = useState<string>(ANY);
   const [pa, setPa] = useState<string>(ANY);
   const [selected, setSelected] = useState<Ticket | null>(null);
 
-  const load = async () => {
-    setLoading(true);
+  const loadFinalized = async () => {
+    setFinalizedLoading(true);
     let q = supabase
       .from("intercom_tickets_v3")
       .select("*")
       .order("intercom_updated_at", { ascending: false, nullsFirst: false })
       .limit(1000);
     if (lifecycle === "finalized") q = q.eq("lifecycle_status", "finalized");
-    else if (lifecycle === "open") q = q.eq("lifecycle_status", "open");
     else if (lifecycle === "reopened") q = q.eq("lifecycle_status", "reopened_after_finalize");
+    else q = q.neq("lifecycle_status", "open"); // "all" closed-side = finalized + reopened
     const { data, error } = await q;
-    if (!error) setRows((data ?? []) as Ticket[]);
-    setLoading(false);
+    if (!error) setFinalizedRows((data ?? []) as Ticket[]);
+    setFinalizedLoading(false);
   };
 
-  useEffect(() => { load(); }, [lifecycle]);
+  const loadActive = async () => {
+    setActiveLoading(true);
+    const { data, error } = await supabase
+      .from("intercom_tickets_v3")
+      .select("*")
+      .in("lifecycle_status", ["open", "reopened_after_finalize"])
+      .order("intercom_created_at", { ascending: true, nullsFirst: false })
+      .limit(1000);
+    if (!error) setActiveRows((data ?? []) as Ticket[]);
+    setActiveLoading(false);
+  };
+
+  useEffect(() => { loadFinalized(); }, [lifecycle]);
+  useEffect(() => { loadActive(); }, []);
+
+  const currentRows = tab === "finalized" ? finalizedRows : activeRows;
+  const currentLoading = tab === "finalized" ? finalizedLoading : activeLoading;
+  const reload = tab === "finalized" ? loadFinalized : loadActive;
 
   const ownerOpts = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.owner).filter(Boolean))).sort() as string[],
-    [rows],
+    () => Array.from(new Set(currentRows.map((r) => r.owner).filter(Boolean))).sort() as string[],
+    [currentRows],
   );
   const paOpts = useMemo(
-    () => Array.from(new Set(rows.map((r) => r.product_area).filter(Boolean))).sort() as string[],
-    [rows],
+    () => Array.from(new Set(currentRows.map((r) => r.product_area).filter(Boolean))).sort() as string[],
+    [currentRows],
   );
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return rows.filter((r) => {
+    return currentRows.filter((r) => {
       if (owner !== ANY && r.owner !== owner) return false;
-      if (pa !== ANY && r.product_area !== pa) return false;
+      if (tab === "finalized" && pa !== ANY && r.product_area !== pa) return false;
       if (q) {
         const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, ...(r.tags || [])]
           .filter(Boolean).join(" ").toLowerCase();
@@ -95,15 +126,12 @@ export default function InboxV3() {
       }
       return true;
     });
-  }, [rows, search, owner, pa]);
-
-  const intercomUrl = (id: string) =>
-    `https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${id}?view=List`;
+  }, [currentRows, search, owner, pa, tab]);
 
   const lastSync = useMemo(() => {
-    const ts = rows.map((r) => r.last_synced_at).filter(Boolean).sort().pop();
+    const ts = currentRows.map((r) => r.last_synced_at).filter(Boolean).sort().pop();
     return ts ? formatDistanceToNow(new Date(ts), { addSuffix: true }) : "never";
-  }, [rows]);
+  }, [currentRows]);
 
   return (
     <AppLayout>
@@ -122,111 +150,71 @@ export default function InboxV3() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground">Last synced: {lastSync} · {rows.length} rows</span>
-            <Button onClick={load} disabled={loading} size="sm" variant="outline">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            <span className="text-xs text-muted-foreground">Last synced: {lastSync} · {currentRows.length} rows</span>
+            <Button onClick={reload} disabled={currentLoading} size="sm" variant="outline">
+              {currentLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
               Reload
             </Button>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Input
-            placeholder="Search subject, contact, Intercom ID…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="max-w-sm h-9"
-          />
-          <Select value={lifecycle} onValueChange={(v) => setLifecycle(v as any)}>
-            <SelectTrigger className="h-9 w-[180px] text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="finalized">Finalized only</SelectItem>
-              <SelectItem value="open">Open only</SelectItem>
-              <SelectItem value="reopened">Reopened after finalize</SelectItem>
-              <SelectItem value="all">All lifecycle</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={owner} onValueChange={setOwner}>
-            <SelectTrigger className="h-9 w-[150px] text-xs"><SelectValue placeholder="Owner" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ANY}>Owner: any</SelectItem>
-              {ownerOpts.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={pa} onValueChange={setPa}>
-            <SelectTrigger className="h-9 w-[180px] text-xs"><SelectValue placeholder="Product area" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ANY}>Product area: any</SelectItem>
-              {paOpts.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {rows.length}</span>
-        </div>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "finalized" | "active")}>
+          <TabsList>
+            <TabsTrigger value="finalized">Finalized ({finalizedRows.length})</TabsTrigger>
+            <TabsTrigger value="active">Active ({activeRows.length})</TabsTrigger>
+          </TabsList>
 
-        <div className="rounded-md border border-border overflow-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[140px]">Intercom ID</TableHead>
-                <TableHead className="w-[360px]">Subject</TableHead>
-                <TableHead className="w-[180px]">Contact</TableHead>
-                <TableHead className="w-[120px]">Owner</TableHead>
-                <TableHead className="w-[160px]">Product area</TableHead>
-                <TableHead className="w-[140px]">Classification</TableHead>
-                <TableHead className="w-[120px]">Lifecycle</TableHead>
-                <TableHead className="w-[120px]">CSAT</TableHead>
-                <TableHead className="w-[120px]">Resolve</TableHead>
-                <TableHead className="w-[140px]">Closed</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading && (
-                <TableRow><TableCell colSpan={10} className="text-center py-6 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
-                </TableCell></TableRow>
-              )}
-              {!loading && filtered.length === 0 && (
-                <TableRow><TableCell colSpan={10} className="text-center py-6 text-muted-foreground">
-                  No rows match the current filters.
-                </TableCell></TableRow>
-              )}
-              {!loading && filtered.map((r) => (
-                <TableRow key={r.id} className="cursor-pointer" onClick={() => setSelected(r)}>
-                  <TableCell className="font-mono text-xs">
-                    <a
-                      href={intercomUrl(r.intercom_conversation_id)} target="_blank" rel="noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="inline-flex items-center gap-1 hover:underline"
-                    >
-                      {r.intercom_conversation_id}<ExternalLink className="h-3 w-3" />
-                    </a>
-                  </TableCell>
-                  <TableCell className="truncate max-w-[360px]">{r.subject || "—"}</TableCell>
-                  <TableCell className="truncate max-w-[180px]">
-                    <div className="text-sm">{r.contact_name || "—"}</div>
-                    <div className="text-xs text-muted-foreground truncate">{r.contact_email || ""}</div>
-                  </TableCell>
-                  <TableCell>{r.owner || "—"}</TableCell>
-                  <TableCell>{r.product_area || "—"}</TableCell>
-                  <TableCell>{r.classification || "—"}</TableCell>
-                  <TableCell>
-                    <Badge variant={
-                      r.lifecycle_status === "finalized" ? "secondary" :
-                      r.lifecycle_status === "reopened_after_finalize" ? "destructive" : "outline"
-                    } className="text-[10px]">
-                      {r.lifecycle_status === "reopened_after_finalize" ? `reopened (${r.reopen_count})` : r.lifecycle_status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{r.csat_rating ? `${CSAT_EMOJI[r.csat_rating]} ${r.csat_rating}` : "—"}</TableCell>
-                  <TableCell className="tabular-nums text-xs">{formatDuration(r.time_to_resolve_s)}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {r.intercom_closed_at ? format(new Date(r.intercom_closed_at), "MMM d, yyyy") : "—"}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+          <div className="flex flex-wrap items-center gap-2 mt-4">
+            <Input
+              placeholder="Search subject, contact, Intercom ID…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="max-w-sm h-9"
+            />
+            {tab === "finalized" && (
+              <>
+                <Select value={lifecycle} onValueChange={(v) => setLifecycle(v as any)}>
+                  <SelectTrigger className="h-9 w-[200px] text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="finalized">Finalized only</SelectItem>
+                    <SelectItem value="reopened">Reopened after finalize</SelectItem>
+                    <SelectItem value="all">All closed-side</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={pa} onValueChange={setPa}>
+                  <SelectTrigger className="h-9 w-[180px] text-xs"><SelectValue placeholder="Product area" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={ANY}>Product area: any</SelectItem>
+                    {paOpts.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </>
+            )}
+            <Select value={owner} onValueChange={setOwner}>
+              <SelectTrigger className="h-9 w-[150px] text-xs"><SelectValue placeholder="Owner" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ANY}>Owner: any</SelectItem>
+                {ownerOpts.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {currentRows.length}</span>
+          </div>
+
+          <TabsContent value="finalized" className="mt-4">
+            <FinalizedTable rows={filtered} loading={currentLoading} onSelect={setSelected} />
+          </TabsContent>
+
+          <TabsContent value="active" className="mt-4 space-y-3">
+            <div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                Open tickets show search-payload fields only. Product area, classification, tags, CSAT, and resolve time are
+                populated at close. Sorted oldest-first to surface stale backlog.
+              </span>
+            </div>
+            <ActiveTable rows={filtered} loading={currentLoading} onSelect={setSelected} />
+          </TabsContent>
+        </Tabs>
       </div>
 
       <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
@@ -249,12 +237,16 @@ export default function InboxV3() {
                 <Field label="Lifecycle" value={selected.lifecycle_status} />
                 <Field label="State" value={selected.state} />
                 <Field label="Owner" value={selected.owner} />
-                <Field label="Product area" value={selected.product_area} />
-                <Field label="Classification" value={selected.classification} />
-                <Field label="Tags" value={(selected.tags || []).join(", ") || "—"} />
+                {selected.lifecycle_status === "finalized" || selected.lifecycle_status === "reopened_after_finalize" ? (
+                  <>
+                    <Field label="Product area" value={selected.product_area} />
+                    <Field label="Classification" value={selected.classification} />
+                    <Field label="Tags" value={(selected.tags || []).join(", ") || "—"} />
+                    <Field label="CSAT" value={selected.csat_rating ? `${CSAT_EMOJI[selected.csat_rating]} ${selected.csat_rating} — ${selected.csat_remark || ""}` : "—"} />
+                    <Field label="Time to resolve" value={formatDuration(selected.time_to_resolve_s)} />
+                  </>
+                ) : null}
                 <Field label="Contact" value={`${selected.contact_name ?? "—"} · ${selected.contact_email ?? "—"}`} />
-                <Field label="CSAT" value={selected.csat_rating ? `${CSAT_EMOJI[selected.csat_rating]} ${selected.csat_rating} — ${selected.csat_remark || ""}` : "—"} />
-                <Field label="Time to resolve" value={formatDuration(selected.time_to_resolve_s)} />
                 <Field label="Created" value={selected.intercom_created_at ? format(new Date(selected.intercom_created_at), "PPpp") : "—"} />
                 <Field label="Closed" value={selected.intercom_closed_at ? format(new Date(selected.intercom_closed_at), "PPpp") : "—"} />
                 <Field label="Finalized" value={selected.finalized_at ? format(new Date(selected.finalized_at), "PPpp") : "—"} />
@@ -265,6 +257,149 @@ export default function InboxV3() {
         </SheetContent>
       </Sheet>
     </AppLayout>
+  );
+}
+
+function FinalizedTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void }) {
+  return (
+    <div className="rounded-md border border-border overflow-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-[140px]">Intercom ID</TableHead>
+            <TableHead className="w-[360px]">Subject</TableHead>
+            <TableHead className="w-[180px]">Contact</TableHead>
+            <TableHead className="w-[120px]">Owner</TableHead>
+            <TableHead className="w-[160px]">Product area</TableHead>
+            <TableHead className="w-[140px]">Classification</TableHead>
+            <TableHead className="w-[120px]">Lifecycle</TableHead>
+            <TableHead className="w-[120px]">CSAT</TableHead>
+            <TableHead className="w-[120px]">Resolve</TableHead>
+            <TableHead className="w-[140px]">Closed</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading && (
+            <TableRow><TableCell colSpan={10} className="text-center py-6 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
+            </TableCell></TableRow>
+          )}
+          {!loading && rows.length === 0 && (
+            <TableRow><TableCell colSpan={10} className="text-center py-6 text-muted-foreground">
+              No rows match the current filters.
+            </TableCell></TableRow>
+          )}
+          {!loading && rows.map((r) => (
+            <TableRow key={r.id} className="cursor-pointer" onClick={() => onSelect(r)}>
+              <TableCell className="font-mono text-xs">
+                <a
+                  href={intercomUrl(r.intercom_conversation_id)} target="_blank" rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 hover:underline"
+                >
+                  {r.intercom_conversation_id}<ExternalLink className="h-3 w-3" />
+                </a>
+              </TableCell>
+              <TableCell className="truncate max-w-[360px]">{r.subject || "—"}</TableCell>
+              <TableCell className="truncate max-w-[180px]">
+                <div className="text-sm">{r.contact_name || "—"}</div>
+                <div className="text-xs text-muted-foreground truncate">{r.contact_email || ""}</div>
+              </TableCell>
+              <TableCell>{r.owner || "—"}</TableCell>
+              <TableCell>{r.product_area || "—"}</TableCell>
+              <TableCell>{r.classification || "—"}</TableCell>
+              <TableCell>
+                <Badge variant={
+                  r.lifecycle_status === "finalized" ? "secondary" :
+                  r.lifecycle_status === "reopened_after_finalize" ? "destructive" : "outline"
+                } className="text-[10px]">
+                  {r.lifecycle_status === "reopened_after_finalize" ? `reopened (${r.reopen_count})` : r.lifecycle_status}
+                </Badge>
+              </TableCell>
+              <TableCell>{r.csat_rating ? `${CSAT_EMOJI[r.csat_rating]} ${r.csat_rating}` : "—"}</TableCell>
+              <TableCell className="tabular-nums text-xs">{formatDuration(r.time_to_resolve_s)}</TableCell>
+              <TableCell className="text-xs text-muted-foreground">
+                {r.intercom_closed_at ? format(new Date(r.intercom_closed_at), "MMM d, yyyy") : "—"}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function ActiveTable({ rows, loading, onSelect }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void }) {
+  const now = Date.now();
+  return (
+    <div className="rounded-md border border-border overflow-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-[140px]">Intercom ID</TableHead>
+            <TableHead className="w-[400px]">Subject</TableHead>
+            <TableHead className="w-[200px]">Contact</TableHead>
+            <TableHead className="w-[120px]">Owner</TableHead>
+            <TableHead className="w-[100px]">State</TableHead>
+            <TableHead className="w-[140px]">Lifecycle</TableHead>
+            <TableHead className="w-[120px]">Opened</TableHead>
+            <TableHead className="w-[120px]">Last update</TableHead>
+            <TableHead className="w-[80px]">Age</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading && (
+            <TableRow><TableCell colSpan={9} className="text-center py-6 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
+            </TableCell></TableRow>
+          )}
+          {!loading && rows.length === 0 && (
+            <TableRow><TableCell colSpan={9} className="text-center py-6 text-muted-foreground">
+              No active tickets match the current filters.
+            </TableCell></TableRow>
+          )}
+          {!loading && rows.map((r) => {
+            const ageDays = r.intercom_created_at
+              ? differenceInDays(now, new Date(r.intercom_created_at).getTime())
+              : null;
+            return (
+              <TableRow key={r.id} className="cursor-pointer" onClick={() => onSelect(r)}>
+                <TableCell className="font-mono text-xs">
+                  <a
+                    href={intercomUrl(r.intercom_conversation_id)} target="_blank" rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 hover:underline"
+                  >
+                    {r.intercom_conversation_id}<ExternalLink className="h-3 w-3" />
+                  </a>
+                </TableCell>
+                <TableCell className="truncate max-w-[400px]">{r.subject || "—"}</TableCell>
+                <TableCell className="truncate max-w-[200px]">
+                  <div className="text-sm">{r.contact_name || "—"}</div>
+                  <div className="text-xs text-muted-foreground truncate">{r.contact_email || ""}</div>
+                </TableCell>
+                <TableCell>{r.owner || "—"}</TableCell>
+                <TableCell className="text-xs">{r.state || "—"}</TableCell>
+                <TableCell>
+                  <Badge variant={r.lifecycle_status === "reopened_after_finalize" ? "destructive" : "outline"} className="text-[10px]">
+                    {r.lifecycle_status === "reopened_after_finalize" ? `reopened (${r.reopen_count})` : "open"}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {r.intercom_created_at ? format(new Date(r.intercom_created_at), "MMM d, yyyy") : "—"}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {r.intercom_updated_at ? formatDistanceToNow(new Date(r.intercom_updated_at), { addSuffix: true }) : "—"}
+                </TableCell>
+                <TableCell className={`tabular-nums text-xs ${ageDays != null && ageDays > 14 ? "text-destructive font-medium" : ""}`}>
+                  {ageDays != null ? `${ageDays}d` : "—"}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
   );
 }
 
