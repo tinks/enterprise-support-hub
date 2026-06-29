@@ -144,7 +144,7 @@ export default function AnalyticsV3() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,lifecycle_status,reopen_count")
+            .select("id,intercom_created_at,lifecycle_status,reopen_count,tags,rsa_override")
             .neq("lifecycle_status", "finalized")
             .order("intercom_created_at", { ascending: true })
             .range(aOff, aOff + PAGE - 1);
