@@ -102,6 +102,33 @@ export default function InboxV3() {
     }
   };
 
+  // Manually clear lifecycle_status='reopened_after_finalize' back to 'finalized'.
+  // reopen_count / last_reopened_at are preserved as an audit trail. The next sync
+  // may flip it back if Intercom shows newer activity — accepted tradeoff.
+  const markAsFinalized = async (t: Ticket) => {
+    if (t.lifecycle_status !== "reopened_after_finalize") return;
+    const apply = (rows: Ticket[]) =>
+      rows.map((r) => (r.id === t.id ? { ...r, lifecycle_status: "finalized" } : r));
+    setFinalizedRows(apply);
+    setActiveRows(apply);
+    setSelected((s) => (s && s.id === t.id ? { ...s, lifecycle_status: "finalized" } : s));
+    const { error } = await supabase
+      .from("intercom_tickets_v3")
+      .update({ lifecycle_status: "finalized" })
+      .eq("id", t.id)
+      .eq("lifecycle_status", "reopened_after_finalize");
+    if (error) {
+      const revert = (rows: Ticket[]) =>
+        rows.map((r) => (r.id === t.id ? { ...r, lifecycle_status: "reopened_after_finalize" } : r));
+      setFinalizedRows(revert);
+      setActiveRows(revert);
+      setSelected((s) => (s && s.id === t.id ? { ...s, lifecycle_status: "reopened_after_finalize" } : s));
+      toast({ title: "Couldn't mark as finalized", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Marked as finalized", description: `Reopen count preserved (${t.reopen_count}).` });
+    }
+  };
+
   const loadFinalized = async () => {
     setFinalizedLoading(true);
     let q = supabase
