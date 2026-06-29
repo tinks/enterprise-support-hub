@@ -281,6 +281,20 @@ export default function InboxV3() {
                 <Field label="Lifecycle" value={selected.lifecycle_status} />
                 <Field label="State" value={selected.state} />
                 <Field label="Owner" value={selected.owner} />
+                <div className="grid grid-cols-[140px_1fr] gap-3 items-center">
+                  <dt className="text-xs text-muted-foreground">RSA</dt>
+                  <dd className="text-sm flex items-center gap-2">
+                    <RsaBadge t={selected} onCycle={cycleRsa} />
+                    <span className="text-xs text-muted-foreground">
+                      {(() => {
+                        const { source } = effectiveRsa(selected);
+                        if (source === "manual") return "Manual override";
+                        if (source === "tag") return "From tag";
+                        return "Default";
+                      })()}
+                    </span>
+                  </dd>
+                </div>
                 {selected.lifecycle_status === "finalized" || selected.lifecycle_status === "reopened_after_finalize" ? (
                   <>
                     <Field label="Product area" value={selected.product_area} />
