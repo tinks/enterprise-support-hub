@@ -244,7 +244,7 @@ export default function AnalyticsV3() {
     }
     const fromMs = range.from.getTime();
     const toMs = range.to.getTime();
-    for (const r of rows) {
+    for (const r of filteredRows) {
       if (r.intercom_created_at) {
         const t = new Date(r.intercom_created_at).getTime();
         if (t >= fromMs && t <= toMs) {
@@ -263,7 +263,7 @@ export default function AnalyticsV3() {
       }
     }
     return Array.from(buckets.values());
-  }, [rows, range.from, range.to]);
+  }, [filteredRows, range.from, range.to]);
 
   const rangeDays = Math.max(1, differenceInDays(range.to, range.from) + 1);
 
