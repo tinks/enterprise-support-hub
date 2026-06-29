@@ -305,7 +305,23 @@ export default function InboxV3() {
               </SheetHeader>
               <dl className="mt-6 space-y-3 text-sm">
                 <Field label="Intercom ID" value={selected.intercom_conversation_id} mono />
-                <Field label="Lifecycle" value={selected.lifecycle_status} />
+                <div className="grid grid-cols-[140px_1fr] gap-3 items-center">
+                  <dt className="text-xs text-muted-foreground">Lifecycle</dt>
+                  <dd className="text-sm flex items-center gap-2">
+                    <span>{selected.lifecycle_status}{selected.lifecycle_status === "reopened_after_finalize" ? ` (${selected.reopen_count})` : ""}</span>
+                    {selected.lifecycle_status === "reopened_after_finalize" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => markAsFinalized(selected)}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                        Mark as finalized
+                      </Button>
+                    )}
+                  </dd>
+                </div>
                 <Field label="State" value={selected.state} />
                 <Field label="Owner" value={selected.owner} />
                 <div className="grid grid-cols-[140px_1fr] gap-3 items-center">
