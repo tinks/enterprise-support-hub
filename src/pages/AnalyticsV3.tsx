@@ -28,6 +28,7 @@ type Row = {
   state: string | null;
   csat_rating: number | null;
   time_to_resolve_s: number | null;
+  admin_assignee_id: string | null;
 };
 
 type ActiveRow = {
@@ -85,9 +86,19 @@ export default function AnalyticsV3() {
   const [includeOpen, setIncludeOpen] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
   const [activeRows, setActiveRows] = useState<ActiveRow[]>([]);
+  const [ownerMap, setOwnerMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("settings").select("admin_owner_map").limit(1).maybeSingle();
+      if (data?.admin_owner_map) {
+        try { setOwnerMap(JSON.parse(data.admin_owner_map)); } catch { /* ignore */ }
+      }
+    })();
+  }, []);
 
   const range = useMemo(() => computeRange(preset, customFrom, customTo), [preset, customFrom, customTo]);
 
@@ -107,7 +118,7 @@ export default function AnalyticsV3() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,intercom_closed_at,finalized_at,lifecycle_status,state,csat_rating,time_to_resolve_s")
+            .select("id,intercom_created_at,intercom_closed_at,finalized_at,lifecycle_status,state,csat_rating,time_to_resolve_s,admin_assignee_id")
             .or(
               `and(intercom_created_at.gte.${fromIso},intercom_created_at.lte.${toIso}),` +
               `and(finalized_at.gte.${fromIso},finalized_at.lte.${toIso})`,
@@ -227,6 +238,33 @@ export default function AnalyticsV3() {
   }, [rows, range.from, range.to]);
 
   const rangeDays = Math.max(1, differenceInDays(range.to, range.from) + 1);
+
+  // Resolved per engineer: rows with finalized_at in range, grouped by admin_assignee_id.
+  const perEngineer = useMemo(() => {
+    const fromMs = range.from.getTime();
+    const toMs = range.to.getTime();
+    const counts = new Map<string, number>();
+    for (const r of rows) {
+      if (!r.finalized_at) continue;
+      const t = new Date(r.finalized_at).getTime();
+      if (t < fromMs || t > toMs) continue;
+      const key = r.admin_assignee_id ?? "__unassigned__";
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    const total = Array.from(counts.values()).reduce((a, b) => a + b, 0);
+    const max = Math.max(1, ...counts.values());
+    const items = Array.from(counts.entries()).map(([id, count]) => {
+      const name =
+        id === "__unassigned__"
+          ? "Unassigned"
+          : ownerMap[id] ?? `Admin ${id}`;
+      const mapped = id === "__unassigned__" || !!ownerMap[id];
+      return { id, name, count, pct: total ? (count / total) * 100 : 0, barPct: (count / max) * 100, mapped };
+    });
+    items.sort((a, b) => b.count - a.count);
+    return { items, total };
+  }, [rows, range.from, range.to, ownerMap]);
+
 
   return (
     <AppLayout>
@@ -348,6 +386,47 @@ export default function AnalyticsV3() {
                 </ResponsiveContainer>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Resolved by engineer</CardTitle>
+            <CardDescription className="text-xs">
+              Tickets with <code>finalized_at</code> in range, grouped by <code>admin_assignee_id</code>. Includes Sam
+              (AI agent) alongside human Enterprise Support Engineers. Unmapped IDs shown as <code>Admin &lt;id&gt;</code>.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="py-8 flex items-center justify-center text-muted-foreground text-sm">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…
+              </div>
+            ) : perEngineer.items.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">No resolved tickets in range.</div>
+            ) : (
+              <div className="space-y-1">
+                {perEngineer.items.map((row) => (
+                  <div key={row.id} className="grid grid-cols-[140px_1fr_60px_56px] items-center gap-3 py-1.5 text-sm">
+                    <div className="truncate font-medium" title={row.name}>
+                      {row.name}
+                      {!row.mapped && row.id !== "__unassigned__" && (
+                        <span className="ml-1.5 text-[10px] text-muted-foreground uppercase tracking-wide">unmapped</span>
+                      )}
+                    </div>
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full bg-primary" style={{ width: `${row.barPct}%` }} />
+                    </div>
+                    <div className="text-right tabular-nums">{row.count.toLocaleString()}</div>
+                    <div className="text-right tabular-nums text-xs text-muted-foreground">{row.pct.toFixed(1)}%</div>
+                  </div>
+                ))}
+                <div className="pt-2 mt-2 border-t border-border text-xs text-muted-foreground flex justify-between">
+                  <span>Total resolved in range</span>
+                  <span className="tabular-nums">{perEngineer.total.toLocaleString()}</span>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
