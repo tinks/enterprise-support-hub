@@ -239,6 +239,33 @@ export default function AnalyticsV3() {
 
   const rangeDays = Math.max(1, differenceInDays(range.to, range.from) + 1);
 
+  // Resolved per engineer: rows with finalized_at in range, grouped by admin_assignee_id.
+  const perEngineer = useMemo(() => {
+    const fromMs = range.from.getTime();
+    const toMs = range.to.getTime();
+    const counts = new Map<string, number>();
+    for (const r of rows) {
+      if (!r.finalized_at) continue;
+      const t = new Date(r.finalized_at).getTime();
+      if (t < fromMs || t > toMs) continue;
+      const key = r.admin_assignee_id ?? "__unassigned__";
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    const total = Array.from(counts.values()).reduce((a, b) => a + b, 0);
+    const max = Math.max(1, ...counts.values());
+    const items = Array.from(counts.entries()).map(([id, count]) => {
+      const name =
+        id === "__unassigned__"
+          ? "Unassigned"
+          : ownerMap[id] ?? `Admin ${id}`;
+      const mapped = id === "__unassigned__" || !!ownerMap[id];
+      return { id, name, count, pct: total ? (count / total) * 100 : 0, barPct: (count / max) * 100, mapped };
+    });
+    items.sort((a, b) => b.count - a.count);
+    return { items, total };
+  }, [rows, range.from, range.to, ownerMap]);
+
+
   return (
     <AppLayout>
       <div className="p-6 space-y-6 max-w-6xl mx-auto">
