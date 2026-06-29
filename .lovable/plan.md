@@ -1,30 +1,28 @@
-## Add Slack channel notification for new tickets (with surfaced failure logging)
+## Catch up Knowledge page + resume standing behavior
 
-In `supabase/functions/slack-interactions/index.ts`, after the existing group DM to `U0AFU714807` / `U091GANMA2U` posts successfully on new ticket creation, also post the same message body to channel `C0BDZAY8R8A` via `chat.postMessage`.
+### Part 1 — One-blob catch-up
 
-### Behavior
-- Same trigger: every new ticket creation (matches existing DM).
-- Same message body (verbatim — Slack thread link + Intercom conversation link).
-- Wrapped in its own try/catch so a channel-post failure cannot break ticket creation or the DM path.
-- Uses existing `SLACK_BOT_TOKEN` secret — no new secrets, no schema changes.
+Stage the current `.lovable/project-knowledge.md` into the `knowledge_documents` row (id `project-knowledge`) as `pending_content`, with a short `pending_summary` describing the window of drift.
 
-### Failure surfacing (the one-time check)
-- On the `chat.postMessage` response, inspect `data.ok`.
-- If `ok === false`, log a clear, distinguishable error line, e.g.:
-  `console.error("[ticket-channel-notify] chat.postMessage to C0BDZAY8R8A failed:", data.error, "— if 'not_in_channel', run /invite @<bot> in #channel")`
-- Also log on network/throw failures with the same prefix so it's greppable in edge function logs.
-- No retry, no persistence — single attempt per ticket, single log line. Easy to find via the `[ticket-channel-notify]` prefix.
+- Write `pending_content` = full current contents of `.lovable/project-knowledge.md`
+- Write `pending_summary` = "Catch-up: accumulated edits from 2026-06-10 through today, including Step 15 channel notification (C0BDZAY8R8A)"
+- Set `pending_at = now()`
+- Do NOT touch `content` — that stays as the last-approved version so the diff viewer on `/knowledge` shows old vs. new
 
-### Channel ID
-- Stored as a `const TICKET_NOTIFY_CHANNEL_ID = "C0BDZAY8R8A"` at the top of the notification block for easy future edits.
+Result: next time you load `/knowledge`, the page opens in `review` mode with the full delta. Approve once and the DB catches up.
 
-### Maintenance updates (per project standing rule)
-- `.lovable/project-knowledge.md` — note the new channel notification alongside the DM.
-- Flow page node for ticket creation — add "+ channel post to C0BDZAY8R8A".
-- Knowledge page Step 15 — update wording to mention both the group DM and the channel post.
-- `changelog_entries` — new entry describing the addition.
+### Part 2 — Resume standing behavior going forward
+
+From the next turn onward, any logic change that affects knowledge will:
+
+1. Edit `.lovable/project-knowledge.md` in the repo (source of truth, as today).
+2. In the **same turn**, write the updated markdown into `knowledge_documents.pending_content` (with a one-line `pending_summary` describing the change and `pending_at = now()`).
+3. Tell you in chat that there's a pending knowledge change to review on `/knowledge`.
+
+No silent writes to `content`. No repo-only edits. Approval always goes through your UI.
 
 ### Out of scope
-- No UI to configure the channel (hardcoded, matching existing DM pattern).
-- No change to DM recipients or message format.
-- No retries, backoff, or alerting beyond the single log line.
+
+- No change to the `/knowledge` UI itself (diff viewer already exists).
+- No backfill of per-change history — this is a single blob, as you chose.
+- No change to Flow page or `changelog_entries` workflow.
