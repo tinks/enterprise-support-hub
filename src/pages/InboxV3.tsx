@@ -109,8 +109,11 @@ export default function InboxV3() {
     if (t.lifecycle_status !== "reopened_after_finalize") return;
     const apply = (rows: Ticket[]) =>
       rows.map((r) => (r.id === t.id ? { ...r, lifecycle_status: "finalized" } : r));
+    const prevActive = activeRows;
+    const prevFinalized = finalizedRows;
+    // Finalized rows don't belong in the Active tab — remove instead of relabel.
+    setActiveRows((rows) => rows.filter((r) => r.id !== t.id));
     setFinalizedRows(apply);
-    setActiveRows(apply);
     setSelected((s) => (s && s.id === t.id ? { ...s, lifecycle_status: "finalized" } : s));
     const { error } = await supabase
       .from("intercom_tickets_v3")
@@ -118,10 +121,8 @@ export default function InboxV3() {
       .eq("id", t.id)
       .eq("lifecycle_status", "reopened_after_finalize");
     if (error) {
-      const revert = (rows: Ticket[]) =>
-        rows.map((r) => (r.id === t.id ? { ...r, lifecycle_status: "reopened_after_finalize" } : r));
-      setFinalizedRows(revert);
-      setActiveRows(revert);
+      setActiveRows(prevActive);
+      setFinalizedRows(prevFinalized);
       setSelected((s) => (s && s.id === t.id ? { ...s, lifecycle_status: "reopened_after_finalize" } : s));
       toast({ title: "Couldn't mark as finalized", description: error.message, variant: "destructive" });
     } else {
