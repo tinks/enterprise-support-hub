@@ -160,8 +160,8 @@ export default function InboxV3() {
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as "finalized" | "active")}>
           <TabsList>
-            <TabsTrigger value="finalized">Finalized ({finalizedRows.length})</TabsTrigger>
             <TabsTrigger value="active">Active ({activeRows.length})</TabsTrigger>
+            <TabsTrigger value="finalized">Finalized ({finalizedRows.length})</TabsTrigger>
           </TabsList>
 
           <div className="flex flex-wrap items-center gap-2 mt-4">
