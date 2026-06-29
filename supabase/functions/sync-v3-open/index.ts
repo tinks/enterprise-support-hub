@@ -189,9 +189,16 @@ Deno.serve(async (req) => {
     finished_at: new Date().toISOString(),
   }).eq("id", jobRow?.id);
 
+  const stateCounts = conversations.reduce((acc: any, c: any) => {
+    const s = String(c.state || "?");
+    acc[s] = (acc[s] || 0) + 1;
+    return acc;
+  }, {});
+
   return json({
     ok: true, windowHours, fetched: conversations.length,
     inserted, updated, skipped, failed,
+    stateCounts,
     elapsed_ms: Date.now() - startedAt,
   });
 });
