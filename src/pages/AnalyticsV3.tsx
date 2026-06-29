@@ -272,7 +272,7 @@ export default function AnalyticsV3() {
     const fromMs = range.from.getTime();
     const toMs = range.to.getTime();
     const counts = new Map<string, number>();
-    for (const r of rows) {
+    for (const r of filteredRows) {
       if (!r.finalized_at) continue;
       const t = new Date(r.finalized_at).getTime();
       if (t < fromMs || t > toMs) continue;
@@ -291,7 +291,7 @@ export default function AnalyticsV3() {
     });
     items.sort((a, b) => b.count - a.count);
     return { items, total };
-  }, [rows, range.from, range.to, ownerMap]);
+  }, [filteredRows, range.from, range.to, ownerMap]);
 
 
   return (
