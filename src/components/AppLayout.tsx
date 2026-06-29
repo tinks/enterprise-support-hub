@@ -136,7 +136,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                 </Tooltip>
               </TooltipProvider>
 
-              {navItems.slice(3).map((item) => (
+              {navItems.slice(4).map((item) => (
                 <TooltipProvider key={item.to} delayDuration={0}>
                   <Tooltip open={!expanded && activeTooltip === item.label}>
                     <TooltipTrigger asChild>
