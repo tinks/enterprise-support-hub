@@ -69,7 +69,13 @@ Deno.serve(async (req) => {
         operator: "AND",
         value: [
           { field: "team_assignee_id", operator: "=", value: parseInt(enterpriseInboxId) },
-          { field: "state", operator: "=", value: "open" },
+          {
+            operator: "OR",
+            value: [
+              { field: "state", operator: "=", value: "open" },
+              { field: "state", operator: "=", value: "snoozed" },
+            ],
+          },
           { field: "updated_at", operator: ">", value: sinceTs },
         ],
       },
@@ -99,6 +105,7 @@ Deno.serve(async (req) => {
     if (!next) break;
     startingAfter = next;
   }
+
 
   // Pre-fetch existing rows so we don't overwrite finalized data
   const ids = conversations.map((c) => String(c.id));
@@ -180,9 +187,16 @@ Deno.serve(async (req) => {
     finished_at: new Date().toISOString(),
   }).eq("id", jobRow?.id);
 
+  const stateCounts = conversations.reduce((acc: any, c: any) => {
+    const s = String(c.state || "?");
+    acc[s] = (acc[s] || 0) + 1;
+    return acc;
+  }, {});
+
   return json({
     ok: true, windowHours, fetched: conversations.length,
     inserted, updated, skipped, failed,
+    stateCounts,
     elapsed_ms: Date.now() - startedAt,
   });
 });

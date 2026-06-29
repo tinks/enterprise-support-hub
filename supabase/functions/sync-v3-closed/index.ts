@@ -127,22 +127,31 @@ Deno.serve(async (req) => {
   const conversations: any[] = [];
   let startingAfter: string | null = null;
   let page = 0;
-  const MAX_PAGES = 60;
+  // In backfill mode we paginate the entire window to exhaustion (subject only
+  // to the wall-clock time budget). In incremental mode we cap pages to keep
+  // each invocation cheap; the next run resumes from the cursor.
+  const MAX_PAGES = mode === "backfill" ? Number.MAX_SAFE_INTEGER : 60;
+  // Field used for the window filter. Gap-scan counts by statistics.last_close_at,
+  // so backfill must search by the same field or the windows won't align (a
+  // ticket closed in the day but touched the next day has updated_at outside
+  // the window and would be missed). Incremental mode keeps using updated_at
+  // so it picks up any post-close activity.
+  const windowField = mode === "backfill" ? "statistics.last_close_at" : "updated_at";
 
-  while (page < MAX_PAGES && conversations.length < maxBatch) {
+  while (page < MAX_PAGES && (mode === "backfill" || conversations.length < maxBatch)) {
     if (Date.now() - startedAt > TIME_BUDGET_MS * 0.4) break;
 
     const clauses: any[] = [
       { field: "team_assignee_id", operator: "=", value: parseInt(enterpriseInboxId) },
       { field: "state", operator: "=", value: "closed" },
-      { field: "updated_at", operator: ">", value: sinceTs },
+      { field: windowField, operator: ">", value: sinceTs },
     ];
-    if (untilTs) clauses.push({ field: "updated_at", operator: "<", value: untilTs });
+    if (untilTs) clauses.push({ field: windowField, operator: "<", value: untilTs });
 
     const reqBody: any = {
       query: { operator: "AND", value: clauses },
       pagination: { per_page: 50 },
-      sort_field: "updated_at",
+      sort_field: windowField,
       sort_order: "ascending",
     };
     if (startingAfter) reqBody.pagination = { per_page: 50, starting_after: startingAfter };
