@@ -283,7 +283,7 @@ export default function InboxV3() {
                 populated at close. Sorted oldest-first to surface stale backlog.
               </span>
             </div>
-            <ActiveTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} />
+            <ActiveTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} onMarkFinalized={markAsFinalized} />
           </TabsContent>
         </Tabs>
       </div>
