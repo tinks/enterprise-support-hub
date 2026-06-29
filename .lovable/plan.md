@@ -1,55 +1,35 @@
-## Goal
+## Current health check coverage
 
-Surface the **customer-submitted CSAT rating** (Intercom's native `conversation_rating`) on Inbox v2. Ignore the AI "CX Score" attribute.
+The `integration_health` table is written to by 5 edge functions via `_shared/integration-health.ts`, and the Settings → Integration health card (plus 10-min Slack alert cron `integration-health-alert`) reads it:
 
-126 / 301 current Inbox v2 tickets already carry this in `raw_payload.conversation_rating` — we just need to extract, store, and display it.
+| Key | Recorded by | Freshness window | Covers Inbox V2? |
+|---|---|---|---|
+| `intercom_poll` | `poll-intercom-inbox` | 30 min | No — different function |
+| `intercom_webhook` | `intercom-webhook` | 24 h | Partial — webhook hits live tables, not `inbox_v2_tickets` |
+| `intercom_csat` | `refresh-intercom-csat` | 3 h | No — only touches manual/gmail tables |
+| `intercom_import` | `import-intercom-ticket` | 30 d | No |
+| `gmail_poll` | `poll-gmail` | 30 min | No |
 
-## 1. Schema — `inbox_v2_tickets`
+**Inbox V2 sync is invisible to health monitoring.** Neither `sync-inbox-v2` (crons: every 15 min + nightly 03:00 UTC) nor `classify-inbox-v2-engagement` call `recordIntegrationHealth`. If Intercom's token expires, rate-limits, or the function starts timing out (as it did during the recent full backfill), nothing surfaces in Settings or `#enterprise-support-hub-alerts` — the sandbox just silently goes stale.
 
-Add three columns (mirror the pattern on `manual_conversations` / `gmail_conversations`):
+## Recommendation: add one new integration key
 
-- `csat_rating smallint` (1–5, nullable, validated 1–5 by reusing `validate_csat_rating` trigger)
-- `csat_remark text` (nullable)
-- `csat_rated_at timestamptz` (nullable)
+Add a single `inbox_v2_sync` health entry rather than splitting frequent vs nightly. The frequent run (15 min, 2 h window) is the canary; if it's healthy, the nightly is almost certainly fine too.
 
-Attach the existing `validate_csat_rating` trigger to the new table.
+Skip a separate entry for `classify-inbox-v2-engagement` — it's on-demand only (no cron), so "stale" has no meaning. Per-call errors are already toasted in the UI.
 
-## 2. `sync-inbox-v2` edge function
+## Plan
 
-In the upsert builder, extract from `icData.conversation_rating`:
+1. **`_shared/integration-health.ts`** — extend `IntegrationKey` union with `"inbox_v2_sync"`.
+2. **`sync-inbox-v2/index.ts`** — call `recordIntegrationHealth(sb, "inbox_v2_sync", classifyHttpStatus(res.status), errorText)` after each Intercom search/conversation fetch, mirroring the pattern in `poll-intercom-inbox`. One `ok` write at the end of a successful run; `auth_error`/`error` on first failure with early return.
+3. **`IntegrationHealthCard.tsx`** — add `{ key: "inbox_v2_sync", label: "Inbox V2 sync", description: "Mirrors Intercom into the Inbox V2 sandbox (every 15 min).", maxStaleMin: 30 }` to the `INTEGRATIONS` array.
+4. **`integration-health-alert/index.ts`** — add the same entry to its `INTEGRATIONS` array so Slack alerts cover it with the same 6-hour re-notify dedup.
+5. **Docs** — update `.lovable/project-knowledge.md`, `mem://features/inbox-v2/sync-and-export`, and add a `changelog_entries` row.
 
-```ts
-const cr = icData?.conversation_rating;
-csat_rating: typeof cr?.rating === "number" ? cr.rating : null,
-csat_remark: typeof cr?.remark === "string" ? cr.remark : null,
-csat_rated_at: cr?.created_at ? new Date(cr.created_at * 1000).toISOString() : null,
-```
+## Out of scope (call out, don't build)
 
-Overwrite on every sync (drift is the signal, consistent with the rest of this table).
+- Separate `inbox_v2_classify` health key — no cron, on-demand only.
+- Row-count drift alerts (e.g. "expected ~N tickets, got M") — different problem class; would need a baseline table.
+- Backfilling the historical `intercom_webhook` check to also write `inbox_v2_sync` — the webhook doesn't touch `inbox_v2_tickets` today, so it would be misleading.
 
-## 3. `src/pages/InboxV2.tsx` UI
-
-- **New "CSAT" column** (between Engagement and Owner):
-  - Renders the rating as an emoji + number: 😠1 / 🙁2 / 😐3 / 😀4 / 🤩5 (matches Slack-side CSAT prompt)
-  - Tooltip shows the remark + rated-at timestamp
-  - Blank cell when null
-- **Filter dropdown** "CSAT": All / 5 / 4 / 3 / 2 / 1 / Rated / Unrated
-- **Sortable** by CSAT (numeric, nulls last)
-- **CSV export** — add `csat_rating`, `csat_remark`, `csat_rated_at` columns
-
-## 4. Backfill
-
-After deploy, run `sync-inbox-v2` once with `{ full: true }` so the 126 existing rated rows get populated immediately without waiting for Intercom updates.
-
-## 5. Docs (standing rule)
-
-- Update `.lovable/project-knowledge.md` — Inbox v2 now mirrors customer CSAT
-- Update `mem://features/csat.md` — add Inbox v2 as a third storage location alongside `manual_conversations` / `gmail_conversations`
-- Update Flow page note for Inbox v2
-- Insert a `changelog_entries` row: "Customer CSAT on Inbox v2"
-
-## Out of scope (ask if you want any)
-
-- Aggregating Inbox v2 CSAT into the `/stats` "Customer satisfaction" card
-- Per-owner CSAT leaderboard on Inbox v2
-- A separate cron to backfill late-arriving ratings on Inbox v2 (the regular `sync-inbox-v2` already re-pulls recently-updated conversations, so late ratings will land naturally — but if a rating arrives on a long-quiet ticket, only a `full: true` run will catch it)
+Confirm and I'll implement.
