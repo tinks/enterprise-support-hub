@@ -168,6 +168,28 @@ export default function AnalyticsV3() {
     return () => { cancelled = true; };
   }, [range.from.getTime(), range.to.getTime(), refreshKey]);
 
+  // Apply the RSA filter once, upstream of every memo, so KPIs, charts, and the
+  // per-engineer breakdown all agree on what counts as "Required Support Action".
+  const filteredRows = useMemo(
+    () => (excludeRsaFalse ? rows.filter((r) => effectiveRsa(r).value === "required") : rows),
+    [rows, excludeRsaFalse],
+  );
+  const filteredActiveRows = useMemo(
+    () => (excludeRsaFalse ? activeRows.filter((r) => effectiveRsa(r).value === "required") : activeRows),
+    [activeRows, excludeRsaFalse],
+  );
+  const rsaHiddenInRange = useMemo(() => {
+    if (!excludeRsaFalse) return 0;
+    const fromMs = range.from.getTime();
+    const toMs = range.to.getTime();
+    return rows.filter((r) => {
+      if (!r.intercom_created_at) return false;
+      const t = new Date(r.intercom_created_at).getTime();
+      if (t < fromMs || t > toMs) return false;
+      return effectiveRsa(r).value === "not_required";
+    }).length;
+  }, [rows, range.from, range.to, excludeRsaFalse]);
+
   // KPI stats: rows created in range, optionally filtered to finalized-only.
   const stats = useMemo(() => {
     const fromMs = range.from.getTime();
