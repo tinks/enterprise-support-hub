@@ -468,7 +468,7 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }
   );
 }
 
-function ActiveTable({ rows, loading, onSelect, onCycleRsa }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void }) {
+function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void; onMarkFinalized: (t: Ticket) => void }) {
   const now = Date.now();
   return (
     <div className="rounded-md border border-border overflow-auto">
