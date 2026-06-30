@@ -36,6 +36,8 @@ type Ticket = {
   intercom_closed_at: string | null;
   finalized_at: string | null;
   reopen_count: number;
+  silent_update_count: number | null;
+  last_silent_change: any;
   last_synced_at: string | null;
   raw_payload: any;
 };
