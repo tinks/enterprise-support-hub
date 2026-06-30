@@ -22,8 +22,11 @@ import {
   recordIntegrationHealth,
 } from "../_shared/integration-health.ts";
 import {
+  buildReopenUpdate,
+  buildSilentNudgeUpdate,
   CLEAN_DATA_START_ISO,
   CLEAN_DATA_START_UNIX,
+  decideFinalizedUpdate,
   domainOf,
   extractFields,
   extractTags,
@@ -227,49 +230,27 @@ Deno.serve(async (req) => {
       // tag/label edits, custom-attribute edits, and admin notes bump updated_at
       // but do NOT bump count_reopens — those land on the silent path.
       if (existing && existing.lifecycle_status === "finalized") {
-        const existingUpdatedSec = existing.intercom_updated_at
-          ? Math.floor(new Date(existing.intercom_updated_at).getTime() / 1000)
-          : 0;
-        if (convUpdatedAt <= existingUpdatedSec) { skipped++; continue; }
-
-        // updated_at advanced → fetch full payload to inspect.
-        const fRes = await fetch(`https://api.intercom.io/conversations/${convId}`, {
-          headers: intercomHeaders(INTERCOM_API_TOKEN),
-        });
-        if (!fRes.ok) { failed++; continue; }
-        const fData = await fRes.json();
-
-        const newState = String(fData.state || "");
-        const newReopens = Number(fData?.statistics?.count_reopens ?? 0);
-        const baselineReopens = Number(existing.reopen_count_at_finalize ?? 0);
-        const isRealReopen = newState !== "closed" || newReopens > baselineReopens;
-
-        if (isRealReopen) {
-          await supabase.from("intercom_tickets_v3").update({
-            lifecycle_status: "reopened_after_finalize",
-            reopen_count: (existing.reopen_count || 0) + 1,
-            last_reopened_at: new Date().toISOString(),
-            intercom_updated_at: tsToIso(fData.updated_at) ?? tsToIso(convUpdatedAt),
-            state: newState || existing.lifecycle_status,
-            last_synced_at: new Date().toISOString(),
-            raw_payload: fData,
-          }).eq("id", existing.id);
+        const decision = await decideFinalizedUpdate(
+          async () => {
+            const fRes = await fetch(`https://api.intercom.io/conversations/${convId}`, {
+              headers: intercomHeaders(INTERCOM_API_TOKEN),
+            });
+            if (!fRes.ok) return null;
+            return await fRes.json();
+          },
+          existing,
+          convUpdatedAt,
+        );
+        if (decision.kind === "skip") { skipped++; continue; }
+        if (decision.kind === "reopen") {
+          await supabase.from("intercom_tickets_v3")
+            .update(buildReopenUpdate(existing, decision.fData, convUpdatedAt))
+            .eq("id", existing.id);
           reopened++;
         } else {
-          // Silent nudge — diff allowlisted fields against stored raw_payload.
-          const silentChange = diffSilentChange(existing.raw_payload, fData);
-          await supabase.from("intercom_tickets_v3").update({
-            intercom_updated_at: tsToIso(fData.updated_at) ?? tsToIso(convUpdatedAt),
-            last_synced_at: new Date().toISOString(),
-            silent_update_count: (existing.silent_update_count || 0) + 1,
-            last_silent_change: silentChange,
-            raw_payload: fData,
-            // also keep CSAT / tags fresh since those are the most common nudges
-            csat_rating: typeof fData?.conversation_rating?.rating === "number" ? fData.conversation_rating.rating : null,
-            csat_remark: typeof fData?.conversation_rating?.remark === "string" && fData.conversation_rating.remark.trim() ? fData.conversation_rating.remark.trim() : null,
-            csat_rated_at: tsToIso(fData?.conversation_rating?.created_at),
-            tags: extractTags(fData),
-          }).eq("id", existing.id);
+          await supabase.from("intercom_tickets_v3")
+            .update(buildSilentNudgeUpdate(existing, decision.fData, decision.silentChange, convUpdatedAt))
+            .eq("id", existing.id);
           silentNudges++;
         }
         continue;
@@ -428,66 +409,3 @@ async function finishJob(
   }).eq("id", id);
 }
 
-// Compare previous and current Intercom payloads on an allowlist of fields
-// commonly responsible for silent `updated_at` bumps. Returns a structured
-// summary safe to render in the UI; null if nothing on the allowlist changed.
-function diffSilentChange(prev: any, next: any): any {
-  const at = new Date().toISOString();
-  const fields: string[] = [];
-  const details: Record<string, any> = {};
-
-  // CSAT
-  const prevCsat = prev?.conversation_rating?.rating ?? null;
-  const nextCsat = next?.conversation_rating?.rating ?? null;
-  const prevRemark = prev?.conversation_rating?.remark ?? null;
-  const nextRemark = next?.conversation_rating?.remark ?? null;
-  if (prevCsat !== nextCsat || prevRemark !== nextRemark) {
-    fields.push("csat");
-    details.csat = { from: prevCsat, to: nextCsat, remark: nextRemark || null };
-  }
-
-  // Tags / labels
-  const prevTags = new Set<string>(((prev?.tags?.tags || []) as any[]).map((t) => String(t?.name ?? "")).filter(Boolean));
-  const nextTags = new Set<string>(((next?.tags?.tags || []) as any[]).map((t) => String(t?.name ?? "")).filter(Boolean));
-  const added = [...nextTags].filter((t) => !prevTags.has(t));
-  const removed = [...prevTags].filter((t) => !nextTags.has(t));
-  if (added.length || removed.length) {
-    fields.push("tags");
-    details.tags = { added, removed };
-  }
-
-  // Custom attributes (per-key add/remove/change) — covers "Conversation Label",
-  // "Affected Product Area", "Ticket type", etc.
-  const prevAttrs = (prev?.custom_attributes || {}) as Record<string, any>;
-  const nextAttrs = (next?.custom_attributes || {}) as Record<string, any>;
-  const allKeys = new Set([...Object.keys(prevAttrs), ...Object.keys(nextAttrs)]);
-  const attrChanges: Record<string, { from: any; to: any }> = {};
-  for (const k of allKeys) {
-    const a = prevAttrs[k] ?? null;
-    const b = nextAttrs[k] ?? null;
-    if (JSON.stringify(a) !== JSON.stringify(b)) attrChanges[k] = { from: a, to: b };
-  }
-  if (Object.keys(attrChanges).length) {
-    fields.push("custom_attributes");
-    details.custom_attributes = attrChanges;
-  }
-
-  // Assignee
-  const prevA = String(prev?.admin_assignee_id ?? "");
-  const nextA = String(next?.admin_assignee_id ?? "");
-  if (prevA !== nextA) {
-    fields.push("admin_assignee");
-    details.admin_assignee = { from: prevA || null, to: nextA || null };
-  }
-
-  // Conversation parts count — proxy for "an admin added a note / reply"
-  const prevParts = Number(prev?.statistics?.count_conversation_parts ?? prev?.conversation_parts?.total_count ?? 0);
-  const nextParts = Number(next?.statistics?.count_conversation_parts ?? next?.conversation_parts?.total_count ?? 0);
-  if (nextParts !== prevParts) {
-    fields.push("conversation_parts");
-    details.conversation_parts = { from: prevParts, to: nextParts };
-  }
-
-  if (!fields.length) return { at, fields: ["unknown"], details: {} };
-  return { at, fields, details };
-}
