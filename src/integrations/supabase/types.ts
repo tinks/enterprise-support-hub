@@ -552,13 +552,16 @@ export type Database = {
           intercom_updated_at: string | null
           last_full_fetch_at: string | null
           last_reopened_at: string | null
+          last_silent_change: Json | null
           last_synced_at: string | null
           lifecycle_status: string
           owner: string | null
           product_area: string | null
           raw_payload: Json | null
           reopen_count: number
+          reopen_count_at_finalize: number | null
           rsa_override: boolean | null
+          silent_update_count: number
           state: string | null
           subject: string | null
           tags: string[]
@@ -585,13 +588,16 @@ export type Database = {
           intercom_updated_at?: string | null
           last_full_fetch_at?: string | null
           last_reopened_at?: string | null
+          last_silent_change?: Json | null
           last_synced_at?: string | null
           lifecycle_status?: string
           owner?: string | null
           product_area?: string | null
           raw_payload?: Json | null
           reopen_count?: number
+          reopen_count_at_finalize?: number | null
           rsa_override?: boolean | null
+          silent_update_count?: number
           state?: string | null
           subject?: string | null
           tags?: string[]
@@ -618,13 +624,16 @@ export type Database = {
           intercom_updated_at?: string | null
           last_full_fetch_at?: string | null
           last_reopened_at?: string | null
+          last_silent_change?: Json | null
           last_synced_at?: string | null
           lifecycle_status?: string
           owner?: string | null
           product_area?: string | null
           raw_payload?: Json | null
           reopen_count?: number
+          reopen_count_at_finalize?: number | null
           rsa_override?: boolean | null
+          silent_update_count?: number
           state?: string | null
           subject?: string | null
           tags?: string[]
