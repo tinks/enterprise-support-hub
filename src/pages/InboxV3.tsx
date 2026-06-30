@@ -483,6 +483,19 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }
               <TableCell>{r.owner || "—"}</TableCell>
               <TableCell>{r.product_area || "—"}</TableCell>
               <TableCell>{r.classification || "—"}</TableCell>
+              <TableCell className="text-xs">
+                {(() => {
+                  const drift = r.state && r.state !== "closed";
+                  return (
+                    <span
+                      className={drift ? "text-destructive font-medium" : "text-muted-foreground"}
+                      title={drift ? "Intercom state is not 'closed' — pending reopen detection" : undefined}
+                    >
+                      {r.state || "—"}
+                    </span>
+                  );
+                })()}
+              </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1">
                   <Badge variant={
