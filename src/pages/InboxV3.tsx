@@ -445,6 +445,7 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }
             <TableHead className="w-[120px]">Owner</TableHead>
             <TableHead className="w-[160px]">Product area</TableHead>
             <TableHead className="w-[140px]">Classification</TableHead>
+            <TableHead className="w-[100px]" title="Live state from Intercom (last sync). Drift vs Lifecycle indicates an unprocessed reopen.">State</TableHead>
             <TableHead className="w-[120px]">Lifecycle</TableHead>
             <TableHead className="w-[90px]">RSA</TableHead>
             <TableHead className="w-[120px]">CSAT</TableHead>
@@ -454,12 +455,12 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }
         </TableHeader>
         <TableBody>
           {loading && (
-            <TableRow><TableCell colSpan={11} className="text-center py-6 text-muted-foreground">
+            <TableRow><TableCell colSpan={12} className="text-center py-6 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
             </TableCell></TableRow>
           )}
           {!loading && rows.length === 0 && (
-            <TableRow><TableCell colSpan={11} className="text-center py-6 text-muted-foreground">
+            <TableRow><TableCell colSpan={12} className="text-center py-6 text-muted-foreground">
               No rows match the current filters.
             </TableCell></TableRow>
           )}
@@ -482,6 +483,19 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }
               <TableCell>{r.owner || "—"}</TableCell>
               <TableCell>{r.product_area || "—"}</TableCell>
               <TableCell>{r.classification || "—"}</TableCell>
+              <TableCell className="text-xs">
+                {(() => {
+                  const drift = r.state && r.state !== "closed";
+                  return (
+                    <span
+                      className={drift ? "text-destructive font-medium" : "text-muted-foreground"}
+                      title={drift ? "Intercom state is not 'closed' — pending reopen detection" : undefined}
+                    >
+                      {r.state || "—"}
+                    </span>
+                  );
+                })()}
+              </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1">
                   <Badge variant={
