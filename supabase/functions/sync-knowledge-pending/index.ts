@@ -15,7 +15,10 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({} as Record<string, unknown>));
-    const inlineMarkdown = (body as { markdown?: string }).markdown;
+    // Accept either `markdown` (canonical) or `content` (common mistake — same shape).
+    const inlineMarkdown =
+      (body as { markdown?: string }).markdown ??
+      (body as { content?: string }).content;
     const sourceUrl =
       (body as { sourceUrl?: string }).sourceUrl ||
       "https://enterprise-support-hub.lovable.app/.lovable/project-knowledge.md";
@@ -35,6 +38,21 @@ Deno.serve(async (req) => {
         );
       }
       markdown = await res.text();
+      // Guard against the auth-walled HTML shell: published URLs behind login
+      // return an index.html that looks like a valid response but isn't markdown.
+      const ct = res.headers.get("content-type") || "";
+      const looksLikeHtml = ct.includes("text/html") ||
+        /^\s*<!doctype html|<html[\s>]/i.test(markdown.slice(0, 200));
+      if (looksLikeHtml) {
+        return new Response(
+          JSON.stringify({
+            error: "Source URL returned HTML, not markdown (likely auth-walled). Pass `markdown` (or `content`) in the request body instead of relying on the fallback fetch.",
+            contentType: ct,
+            length: markdown.length,
+          }),
+          { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
       if (!markdown || markdown.length < 100) {
         return new Response(
           JSON.stringify({ error: "Fetched markdown looks empty/invalid", length: markdown.length }),
@@ -42,6 +60,7 @@ Deno.serve(async (req) => {
         );
       }
     }
+
 
 
     const supabase = createClient(
