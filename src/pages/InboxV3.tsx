@@ -455,12 +455,12 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }
         </TableHeader>
         <TableBody>
           {loading && (
-            <TableRow><TableCell colSpan={11} className="text-center py-6 text-muted-foreground">
+            <TableRow><TableCell colSpan={12} className="text-center py-6 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
             </TableCell></TableRow>
           )}
           {!loading && rows.length === 0 && (
-            <TableRow><TableCell colSpan={11} className="text-center py-6 text-muted-foreground">
+            <TableRow><TableCell colSpan={12} className="text-center py-6 text-muted-foreground">
               No rows match the current filters.
             </TableCell></TableRow>
           )}
