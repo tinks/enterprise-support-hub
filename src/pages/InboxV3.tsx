@@ -372,6 +372,43 @@ export default function InboxV3() {
   );
 }
 
+function SilentChange({ change, count }: { change: any; count: number }) {
+  if (!change) {
+    return <span className="text-muted-foreground">{count} silent update{count === 1 ? "" : "s"} (no diff captured)</span>;
+  }
+  const at = change.at ? formatDistanceToNow(new Date(change.at), { addSuffix: true }) : "";
+  const fields: string[] = Array.isArray(change.fields) ? change.fields : [];
+  const details = change.details || {};
+  const lines: string[] = [];
+  if (fields.includes("csat") && details.csat) {
+    lines.push(`CSAT ${details.csat.from ?? "—"} → ${details.csat.to ?? "—"}${details.csat.remark ? ` ("${String(details.csat.remark).slice(0, 60)}")` : ""}`);
+  }
+  if (fields.includes("tags") && details.tags) {
+    const a = (details.tags.added || []).map((t: string) => `+${t}`);
+    const r = (details.tags.removed || []).map((t: string) => `−${t}`);
+    if (a.length || r.length) lines.push(`Tags: ${[...a, ...r].join(", ")}`);
+  }
+  if (fields.includes("custom_attributes") && details.custom_attributes) {
+    for (const [k, v] of Object.entries<any>(details.custom_attributes)) {
+      lines.push(`${k}: ${JSON.stringify(v.from) ?? "—"} → ${JSON.stringify(v.to) ?? "—"}`);
+    }
+  }
+  if (fields.includes("admin_assignee") && details.admin_assignee) {
+    lines.push(`Assignee: ${details.admin_assignee.from ?? "—"} → ${details.admin_assignee.to ?? "—"}`);
+  }
+  if (fields.includes("conversation_parts") && details.conversation_parts) {
+    const d = details.conversation_parts;
+    lines.push(`Conversation parts: ${d.from} → ${d.to} (note or reply added)`);
+  }
+  if (!lines.length) lines.push("Unknown change (no allowlisted field differed)");
+  return (
+    <div className="space-y-1">
+      <div className="text-muted-foreground">{at} · {count} total</div>
+      {lines.map((l, i) => <div key={i} className="font-mono text-[11px] break-all">{l}</div>)}
+    </div>
+  );
+}
+
 function RsaBadge({ t, onCycle }: { t: Ticket; onCycle: (t: Ticket) => void }) {
   const { value, source } = effectiveRsa(t);
   const required = value === "required";
