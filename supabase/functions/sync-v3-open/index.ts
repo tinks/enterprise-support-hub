@@ -10,7 +10,10 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import {
+  buildReopenUpdate,
+  buildSilentNudgeUpdate,
   CLEAN_DATA_START_UNIX,
+  decideFinalizedUpdate,
   domainOf,
   intercomHeaders,
   stripHtml,
