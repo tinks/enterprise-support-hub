@@ -445,6 +445,7 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }
             <TableHead className="w-[120px]">Owner</TableHead>
             <TableHead className="w-[160px]">Product area</TableHead>
             <TableHead className="w-[140px]">Classification</TableHead>
+            <TableHead className="w-[100px]" title="Live state from Intercom (last sync). Drift vs Lifecycle indicates an unprocessed reopen.">State</TableHead>
             <TableHead className="w-[120px]">Lifecycle</TableHead>
             <TableHead className="w-[90px]">RSA</TableHead>
             <TableHead className="w-[120px]">CSAT</TableHead>
