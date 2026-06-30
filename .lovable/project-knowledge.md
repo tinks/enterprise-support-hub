@@ -790,8 +790,11 @@ Reporting-grade mirror of Intercom enterprise tickets, built as a parallel stack
 
 - Crons (registered via `cron.schedule`, not via migration):
   - `sync-v3-closed-frequent` — every 15 min, `{mode:"incremental"}`
-  - `sync-v3-open-frequent` — every 5 min, `{windowHours:2}`
+  - `sync-v3-open-frequent` — every 5 min, `{windowHours:6}` (widened from 2 h on 2026-06-30 to compensate for Intercom search-index lag — any single `updated_at` now gets ≈72 chances to be picked up before falling out of the window)
+  - `sync-v3-open-daily-wide` — 06:15 UTC, `{windowHours:720}`
+  - `sync-v3-open-evening-wide` — 18:15 UTC, `{windowHours:720}` (second daily 30-day sweep so reopens are rechecked twice per day, not just once)
   - `sync-v3-gap-scan-nightly` — 04:00 UTC daily, `{lookbackDays:30}`
+  - `sync-v3-gap-scan-daily` — 06:45 UTC daily, `{lookbackDays:30}`
 
 - UI:
   - `/inbox-v3` (`src/pages/InboxV3.tsx`) — read-only, two tabs. **Finalized** tab: full column set (subject, contact, owner, product area, classification, lifecycle, CSAT, resolve, closed); lifecycle filter Finalized / Reopened / All closed-side. **Active** tab: `lifecycle_status IN (open, reopened_after_finalize)`; reduced columns (ID, subject, contact, owner, state, lifecycle, opened, last updated, age) since open rows lack product_area/classification/tags/csat/resolve; sorted oldest-first; age >14 d highlighted. Owner + search filters shared across tabs. Detail sheet hides finalize-only fields for active rows. **RSA badge** (Required Support Action) renders on every row and inside the detail sheet; clicking it cycles `rsa_override`: `null` (derived) → `true` (force Required) → `false` (force Not required) → `null`, with optimistic UI + Supabase write. A header **RSA filter** (All / Required only / Not required only, default All) filters both tabs by effective RSA. **Manual re-finalize**: reopened rows expose a `CheckCircle2` icon next to the lifecycle badge (Finalized tab) and a "Mark as finalized" button in the detail sheet. Both call `markAsFinalized(t)` which writes `lifecycle_status='finalized'` (guarded by `eq("lifecycle_status","reopened_after_finalize")`) and patches local state optimistically. `reopen_count` and `last_reopened_at` are preserved as an audit trail. No re-trigger guard — the next `sync-v3-closed` pass may flip the row back to `reopened_after_finalize` if Intercom shows newer activity, in which case the user re-clears.
