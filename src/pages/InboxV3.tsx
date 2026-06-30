@@ -243,8 +243,30 @@ export default function InboxV3() {
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as "finalized" | "active")}>
           <TabsList>
-            <TabsTrigger value="active">Active ({activeRows.length})</TabsTrigger>
-            <TabsTrigger value="finalized">Finalized ({finalizedRows.length})</TabsTrigger>
+            <TabsTrigger value="active" className="gap-2">
+              Active ({activeRows.length})
+              {activeAttention > 0 && (
+                <span
+                  title={`${activeAttention} row(s) not synced in the last 30 min`}
+                  className="inline-flex items-center gap-0.5 rounded-full bg-destructive/15 text-destructive px-1.5 py-0.5 text-[10px] font-medium"
+                >
+                  <AlertTriangle className="h-3 w-3" />
+                  {activeAttention}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="finalized" className="gap-2">
+              Finalized ({finalizedRows.length})
+              {finalizedAttention > 0 && (
+                <span
+                  title={`${finalizedAttention} finalized row(s) where Intercom state ≠ closed (pending reopen detection)`}
+                  className="inline-flex items-center gap-0.5 rounded-full bg-destructive/15 text-destructive px-1.5 py-0.5 text-[10px] font-medium"
+                >
+                  <AlertTriangle className="h-3 w-3" />
+                  {finalizedAttention}
+                </span>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           <div className="flex flex-wrap items-center gap-2 mt-4">
