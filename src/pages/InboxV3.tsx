@@ -199,6 +199,23 @@ export default function InboxV3() {
     return ts ? formatDistanceToNow(new Date(ts), { addSuffix: true }) : "never";
   }, [currentRows]);
 
+  // "Needs attention" counts surfaced as red badges on each tab.
+  //  - Active: rows whose last_synced_at is older than 30 min — sync hasn't touched them recently.
+  //  - Finalized: rows where Intercom state drifted away from 'closed' (pending reopen detection).
+  const STALE_MS = 30 * 60 * 1000;
+  const activeAttention = useMemo(() => {
+    const cutoff = Date.now() - STALE_MS;
+    return activeRows.filter(
+      (r) => !r.last_synced_at || new Date(r.last_synced_at).getTime() < cutoff,
+    ).length;
+  }, [activeRows]);
+  const finalizedAttention = useMemo(
+    () => finalizedRows.filter(
+      (r) => r.lifecycle_status === "finalized" && r.state && r.state !== "closed",
+    ).length,
+    [finalizedRows],
+  );
+
   return (
     <AppLayout>
       <div className="p-6 space-y-4">
