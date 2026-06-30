@@ -528,11 +528,25 @@ export default function AnalyticsV3() {
   );
 }
 
-function Kpi({ title, value, sub, loading, small }: { title: string; value: string; sub: string; loading: boolean; small?: boolean }) {
+function Kpi({ title, value, sub, loading, small, tooltip }: { title: string; value: string; sub: React.ReactNode; loading: boolean; small?: boolean; tooltip?: string }) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardDescription className="text-xs">{title}</CardDescription>
+        <CardDescription className="text-xs flex items-center gap-1.5">
+          <span>{title}</span>
+          {tooltip && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-muted-foreground hover:text-foreground transition-colors" aria-label={`About ${title}`}>
+                  <Info className="h-3 w-3" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs text-xs leading-relaxed">
+                {tooltip}
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </CardDescription>
         <CardTitle className={`${small ? "text-2xl" : "text-3xl"} font-semibold tracking-tight tabular-nums`}>
           {loading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : value}
         </CardTitle>
@@ -541,6 +555,7 @@ function Kpi({ title, value, sub, loading, small }: { title: string; value: stri
     </Card>
   );
 }
+
 
 function DateField({
   label, date, onSelect, minDate,
