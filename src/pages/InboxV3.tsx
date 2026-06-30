@@ -36,6 +36,8 @@ type Ticket = {
   intercom_closed_at: string | null;
   finalized_at: string | null;
   reopen_count: number;
+  silent_update_count: number | null;
+  last_silent_change: any;
   last_synced_at: string | null;
   raw_payload: any;
 };
@@ -353,12 +355,57 @@ export default function InboxV3() {
                 <Field label="Closed" value={selected.intercom_closed_at ? format(new Date(selected.intercom_closed_at), "PPpp") : "—"} />
                 <Field label="Finalized" value={selected.finalized_at ? format(new Date(selected.finalized_at), "PPpp") : "—"} />
                 <Field label="Reopens" value={String(selected.reopen_count)} />
+                {(selected.silent_update_count ?? 0) > 0 && (
+                  <div className="grid grid-cols-[140px_1fr] gap-3">
+                    <dt className="text-xs text-muted-foreground">Last change</dt>
+                    <dd className="text-xs">
+                      <SilentChange change={selected.last_silent_change} count={selected.silent_update_count ?? 0} />
+                    </dd>
+                  </div>
+                )}
               </dl>
             </>
           )}
         </SheetContent>
       </Sheet>
     </AppLayout>
+  );
+}
+
+function SilentChange({ change, count }: { change: any; count: number }) {
+  if (!change) {
+    return <span className="text-muted-foreground">{count} silent update{count === 1 ? "" : "s"} (no diff captured)</span>;
+  }
+  const at = change.at ? formatDistanceToNow(new Date(change.at), { addSuffix: true }) : "";
+  const fields: string[] = Array.isArray(change.fields) ? change.fields : [];
+  const details = change.details || {};
+  const lines: string[] = [];
+  if (fields.includes("csat") && details.csat) {
+    lines.push(`CSAT ${details.csat.from ?? "—"} → ${details.csat.to ?? "—"}${details.csat.remark ? ` ("${String(details.csat.remark).slice(0, 60)}")` : ""}`);
+  }
+  if (fields.includes("tags") && details.tags) {
+    const a = (details.tags.added || []).map((t: string) => `+${t}`);
+    const r = (details.tags.removed || []).map((t: string) => `−${t}`);
+    if (a.length || r.length) lines.push(`Tags: ${[...a, ...r].join(", ")}`);
+  }
+  if (fields.includes("custom_attributes") && details.custom_attributes) {
+    for (const [k, v] of Object.entries<any>(details.custom_attributes)) {
+      lines.push(`${k}: ${JSON.stringify(v.from) ?? "—"} → ${JSON.stringify(v.to) ?? "—"}`);
+    }
+  }
+  if (fields.includes("admin_assignee") && details.admin_assignee) {
+    lines.push(`Assignee: ${details.admin_assignee.from ?? "—"} → ${details.admin_assignee.to ?? "—"}`);
+  }
+  if (fields.includes("conversation_parts") && details.conversation_parts) {
+    const d = details.conversation_parts;
+    lines.push(`Conversation parts: ${d.from} → ${d.to} (note or reply added)`);
+  }
+  if (!lines.length) lines.push("Unknown change (no allowlisted field differed)");
+  return (
+    <div className="space-y-1">
+      <div className="text-muted-foreground">{at} · {count} total</div>
+      {lines.map((l, i) => <div key={i} className="font-mono text-[11px] break-all">{l}</div>)}
+    </div>
   );
 }
 

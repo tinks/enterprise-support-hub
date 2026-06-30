@@ -722,7 +722,7 @@ function buildNodes(
         edgeFunction: "sync-v3-closed",
         details: [
           "Table public.intercom_tickets_v3 keyed by intercom_conversation_id. Reporting columns only (no engagement / AI). lifecycle_status ∈ open / finalized / reopened_after_finalize. Pre-computes time_to_resolve_s at finalize so KPIs don't unmarshal jsonb.",
-          "sync-v3-closed (cron sync-v3-closed-frequent, every 15 min, mode=incremental): walks closed enterprise conversations with updated_at > cursor (clamped to CLEAN_DATA_START 2026-06-01). Full GET per row, writes everything, sets lifecycle_status=finalized. Existing finalized rows with newer activity flip to reopened_after_finalize and reopen_count++ — no refinalize.",
+          "sync-v3-closed (cron sync-v3-closed-frequent, every 15 min, mode=incremental): walks closed enterprise conversations with updated_at > cursor (clamped to CLEAN_DATA_START 2026-06-01). Full GET per row, writes everything, sets lifecycle_status=finalized. Existing finalized rows with newer activity are re-fetched and only flip to reopened_after_finalize when state≠closed OR statistics.count_reopens > reopen_count_at_finalize (snapshot stored at finalize). Otherwise treated as a silent nudge: silent_update_count++ and last_silent_change records the diff (CSAT/tags/custom_attributes/assignee/conversation_parts). Surfaced in the InboxV3 detail sheet.",
           "Time-boxed at 120s; cursor advances to max updated_at observed. Job state persisted in intercom_sync_jobs_v3(kind=closed_backfill).",
           "Backfill mode used by gap-scan and the Settings 'Catch up closed' button.",
         ],

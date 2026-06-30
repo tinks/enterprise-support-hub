@@ -1,49 +1,58 @@
-# Re-finalize reopened tickets (Inbox v3)
+# Fix false "reopened" flags in Inbox v3
 
-Give users a way to clear `lifecycle_status = 'reopened_after_finalize'` back to `'finalized'` after data-cleanup actions in Intercom (e.g., adding a tag) inadvertently trigger a reopen.
+Two related changes to `sync-v3-closed` and the v3 schema/UI. Built so (b) ships even if you skip (a).
 
-## Behavior
+## b) Stop CSAT / Label edits from flagging a reopen
 
-- **Action**: Mark a reopened ticket as finalized.
-- **What it changes**: `lifecycle_status = 'finalized'` only. `reopen_count` and `last_reopened_at` are preserved as an audit trail of prior reopens.
-- **No re-trigger guard**: if the next sync sees newer Intercom activity, it may flip back to reopened. Accepted tradeoff — the user can re-clear.
-- **Scope**: only available when current `lifecycle_status === 'reopened_after_finalize'`.
+Today, any `updated_at` bump on a finalized row flips `lifecycle_status` to `reopened_after_finalize`. Intercom bumps `updated_at` for lots of harmless things (CSAT submission, tag edits, custom-attribute edits, admin notes). Switch to authoritative signals.
 
-## UI surfaces
+**New reopen rule** (in `sync-v3-closed` finalized-row branch):
 
-Both live in `src/pages/InboxV3.tsx`:
+1. Pull the current `statistics.count_reopens` and `state` for the candidate. We already need this — fetch the full conversation only when `updated_at` advanced (same trigger as today, but now we do a GET instead of trusting the search payload).
+2. Flag reopen **only if** either:
+   - `state !== "closed"` (truly open/snoozed again), or
+   - `statistics.count_reopens > stored_reopen_count_at_finalize`
+3. Otherwise: update `intercom_updated_at` + `last_synced_at`, leave `lifecycle_status = finalized`, increment a new `silent_update_count` so we can monitor noise.
 
-1. **Row action** — Finalized tab only. On rows with `lifecycle_status = 'reopened_after_finalize'`, render a small icon button (e.g. `CheckCircle2`) next to the existing lifecycle badge. Click → no confirm, runs the update, shows a toast. Optimistic UI: badge flips immediately, reverts on error.
-2. **Detail sheet** — when an open ticket detail has `lifecycle_status = 'reopened_after_finalize'`, show a "Mark as finalized" button in the sheet's header/footer area. Same handler.
+**Schema:**
+- Add `reopen_count_at_finalize INT` to `intercom_tickets_v3`, populated at finalize time from `statistics.count_reopens`.
+- Add `silent_update_count INT NOT NULL DEFAULT 0`.
+- One-time backfill: set `reopen_count_at_finalize` for existing finalized rows from `raw_payload->'statistics'->>'count_reopens'`.
 
-## Data write
+**Cleanup of existing false flags:** for rows currently `reopened_after_finalize` where `state='closed'` and `(raw_payload->'statistics'->>'count_reopens')::int <= reopen_count_at_finalize`, flip back to `finalized`. (One-shot SQL, runs with the migration.)
 
-Single Supabase update from the client (table already has authenticated UPDATE permission via existing RLS):
+## a) Show what nudged `updated_at`
 
-```ts
-await supabase
-  .from("intercom_tickets_v3")
-  .update({ lifecycle_status: "finalized" })
-  .eq("id", row.id)
-  .eq("lifecycle_status", "reopened_after_finalize"); // guard against races
-```
+When (b)'s check decides "not a real reopen", capture *why* so we have forensic visibility.
 
-On success, patch local state in `rows`/`activeRows` so KPIs and the lifecycle filter update without a refetch.
+**Schema:**
+- Add `last_silent_change JSONB` to `intercom_tickets_v3` — shape `{ at: iso, fields: [..], details: {..} }`.
+
+**Diff logic** (only runs on the silent path, so cost is bounded):
+Compare new full GET payload to stored `raw_payload`. Detect changes in a fixed allowlist:
+- `csat_rating`, `csat_remark`, `csat_rated_at`
+- `tags` (added/removed)
+- `custom_attributes` (per-key added/removed/changed — surfaces "Affected Product Area", "Ticket type", "Conversation Label", etc.)
+- `admin_assignee_id`
+- `statistics.count_conversation_parts` (admin note added)
+- `state` transitions (defensive)
+
+Persist `last_silent_change` and increment `silent_update_count`.
+
+**UI (`/inbox-v3` Finalized tab):**
+- New small column / hover-card "Last change" showing the change summary (e.g. "CSAT set to 5", "Tag added: Conversation Label/Bug", "Note added") with the timestamp.
+- No change to Active tab — those rows aren't finalized.
 
 ## Out of scope
 
-- No bulk select.
-- No edge-function changes — purely client-side write.
-- No changes to sync logic; reopen detection in `sync-v3-closed` is unchanged.
-- No new column / migration.
-- Analytics v3 already keys off `lifecycle_status`, so cleared rows automatically count as finalized again — no Analytics changes needed.
+- No change to `sync-v3-open` (open rows can't be "reopened").
+- No change to v2.
+- No retroactive diffing for rows that already silently changed before this lands — `last_silent_change` will populate on the next silent nudge.
 
-## Files touched
+## Technical notes
 
-- `src/pages/InboxV3.tsx` — row-action button, detail-sheet button, `markAsFinalized(row)` handler, optimistic state patch.
-
-## Follow-up per project rules
-
-- Update `.lovable/project-knowledge.md` (v3 section) with the manual re-finalize action.
-- Add a `changelog_entries` row.
-- Flow page unchanged (no flow logic change).
+- `sync-v3-closed/index.ts` finalized-row branch (lines ~222–240) gets the new GET-then-decide flow. Time budget is unchanged; the extra GETs only happen for finalized rows whose `updated_at` advanced, which is already rare.
+- `sync-v3-closed` finalize path also writes `reopen_count_at_finalize` going forward.
+- One migration adds the three columns + grants are unchanged (existing table already has them).
+- Update `.lovable/project-knowledge.md` Inbox v3 section, Flow page reopen node, and add a `changelog_entries` row per the standing rule.
+- Memory update: revise `mem://features/inbox-v3/sync-logic` to describe the new reopen criteria.
