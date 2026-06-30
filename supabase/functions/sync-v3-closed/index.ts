@@ -230,49 +230,27 @@ Deno.serve(async (req) => {
       // tag/label edits, custom-attribute edits, and admin notes bump updated_at
       // but do NOT bump count_reopens — those land on the silent path.
       if (existing && existing.lifecycle_status === "finalized") {
-        const existingUpdatedSec = existing.intercom_updated_at
-          ? Math.floor(new Date(existing.intercom_updated_at).getTime() / 1000)
-          : 0;
-        if (convUpdatedAt <= existingUpdatedSec) { skipped++; continue; }
-
-        // updated_at advanced → fetch full payload to inspect.
-        const fRes = await fetch(`https://api.intercom.io/conversations/${convId}`, {
-          headers: intercomHeaders(INTERCOM_API_TOKEN),
-        });
-        if (!fRes.ok) { failed++; continue; }
-        const fData = await fRes.json();
-
-        const newState = String(fData.state || "");
-        const newReopens = Number(fData?.statistics?.count_reopens ?? 0);
-        const baselineReopens = Number(existing.reopen_count_at_finalize ?? 0);
-        const isRealReopen = newState !== "closed" || newReopens > baselineReopens;
-
-        if (isRealReopen) {
-          await supabase.from("intercom_tickets_v3").update({
-            lifecycle_status: "reopened_after_finalize",
-            reopen_count: (existing.reopen_count || 0) + 1,
-            last_reopened_at: new Date().toISOString(),
-            intercom_updated_at: tsToIso(fData.updated_at) ?? tsToIso(convUpdatedAt),
-            state: newState || existing.lifecycle_status,
-            last_synced_at: new Date().toISOString(),
-            raw_payload: fData,
-          }).eq("id", existing.id);
+        const decision = await decideFinalizedUpdate(
+          async () => {
+            const fRes = await fetch(`https://api.intercom.io/conversations/${convId}`, {
+              headers: intercomHeaders(INTERCOM_API_TOKEN),
+            });
+            if (!fRes.ok) return null;
+            return await fRes.json();
+          },
+          existing,
+          convUpdatedAt,
+        );
+        if (decision.kind === "skip") { skipped++; continue; }
+        if (decision.kind === "reopen") {
+          await supabase.from("intercom_tickets_v3")
+            .update(buildReopenUpdate(existing, decision.fData, convUpdatedAt))
+            .eq("id", existing.id);
           reopened++;
         } else {
-          // Silent nudge — diff allowlisted fields against stored raw_payload.
-          const silentChange = diffSilentChange(existing.raw_payload, fData);
-          await supabase.from("intercom_tickets_v3").update({
-            intercom_updated_at: tsToIso(fData.updated_at) ?? tsToIso(convUpdatedAt),
-            last_synced_at: new Date().toISOString(),
-            silent_update_count: (existing.silent_update_count || 0) + 1,
-            last_silent_change: silentChange,
-            raw_payload: fData,
-            // also keep CSAT / tags fresh since those are the most common nudges
-            csat_rating: typeof fData?.conversation_rating?.rating === "number" ? fData.conversation_rating.rating : null,
-            csat_remark: typeof fData?.conversation_rating?.remark === "string" && fData.conversation_rating.remark.trim() ? fData.conversation_rating.remark.trim() : null,
-            csat_rated_at: tsToIso(fData?.conversation_rating?.created_at),
-            tags: extractTags(fData),
-          }).eq("id", existing.id);
+          await supabase.from("intercom_tickets_v3")
+            .update(buildSilentNudgeUpdate(existing, decision.fData, decision.silentChange, convUpdatedAt))
+            .eq("id", existing.id);
           silentNudges++;
         }
         continue;
