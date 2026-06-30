@@ -110,31 +110,62 @@ Deno.serve(async (req) => {
   }
 
 
-  // Pre-fetch existing rows so we don't overwrite finalized data
+  // Pre-fetch existing rows so we can route finalized ones to the
+  // reopen/silent-nudge path (mirroring sync-v3-closed) instead of clobbering them.
   const ids = conversations.map((c) => String(c.id));
-  const existingFinalized = new Set<string>();
+  const existingFinalized = new Map<string, any>();
   if (ids.length) {
     const { data: existing } = await supabase
       .from("intercom_tickets_v3")
-      .select("intercom_conversation_id, lifecycle_status")
+      .select("id, intercom_conversation_id, lifecycle_status, intercom_updated_at, reopen_count, reopen_count_at_finalize, silent_update_count, raw_payload")
       .in("intercom_conversation_id", ids);
     for (const r of existing || []) {
-      if (r.lifecycle_status === "finalized") existingFinalized.add(String(r.intercom_conversation_id));
+      if (r.lifecycle_status === "finalized") {
+        existingFinalized.set(String(r.intercom_conversation_id), r);
+      }
     }
   }
 
-  let inserted = 0, updated = 0, skipped = 0, failed = 0;
+  let inserted = 0, updated = 0, skipped = 0, failed = 0, reopened = 0, silentNudges = 0;
 
   for (const conv of conversations) {
     const convId = String(conv.id);
     try {
-      // Don't downgrade a finalized row back to 'open'. A reopen is detected by
-      // sync-v3-closed when it runs next.
-      if (existingFinalized.has(convId)) { skipped++; continue; }
-
       const createdIso = tsToIso(conv.created_at);
       if (createdIso && createdIso < new Date(CLEAN_DATA_START_UNIX * 1000).toISOString()) {
         skipped++; continue;
+      }
+
+      // Finalized row that re-surfaced in the open/snoozed search → could be a
+      // true reopen OR a silent nudge (CSAT, tags, label, note). Use the shared
+      // helper so both syncs apply identical detection logic and field writes.
+      const finalized = existingFinalized.get(convId);
+      if (finalized) {
+        const convUpdatedAt = typeof conv.updated_at === "number" ? conv.updated_at : 0;
+        const decision = await decideFinalizedUpdate(
+          async () => {
+            const fRes = await fetch(`https://api.intercom.io/conversations/${convId}`, {
+              headers: intercomHeaders(INTERCOM_API_TOKEN),
+            });
+            if (!fRes.ok) return null;
+            return await fRes.json();
+          },
+          finalized,
+          convUpdatedAt,
+        );
+        if (decision.kind === "skip") { skipped++; continue; }
+        if (decision.kind === "reopen") {
+          await supabase.from("intercom_tickets_v3")
+            .update(buildReopenUpdate(finalized, decision.fData, convUpdatedAt))
+            .eq("id", finalized.id);
+          reopened++;
+        } else {
+          await supabase.from("intercom_tickets_v3")
+            .update(buildSilentNudgeUpdate(finalized, decision.fData, decision.silentChange, convUpdatedAt))
+            .eq("id", finalized.id);
+          silentNudges++;
+        }
+        continue;
       }
 
       // Search-payload only (NO GET /conversations/{id})
@@ -161,14 +192,11 @@ Deno.serve(async (req) => {
         last_synced_at: new Date().toISOString(),
       };
 
-      // Use upsert; for existing open rows this refreshes the lightweight fields.
       const { error, data: upserted } = await supabase
         .from("intercom_tickets_v3")
         .upsert(row, { onConflict: "intercom_conversation_id" })
         .select("id, created_at");
       if (error) { failed++; continue; }
-      // We can't easily distinguish insert vs update from upsert; treat newly-created
-      // rows (created_at within last 5s) as inserted.
       if (upserted && upserted[0]) {
         const isNew = Date.now() - new Date(upserted[0].created_at).getTime() < 5000;
         if (isNew) inserted++; else updated++;
@@ -198,7 +226,7 @@ Deno.serve(async (req) => {
 
   return json({
     ok: true, windowHours, fetched: conversations.length,
-    inserted, updated, skipped, failed,
+    inserted, updated, skipped, failed, reopened, silent_nudges: silentNudges,
     stateCounts,
     elapsed_ms: Date.now() - startedAt,
   });
