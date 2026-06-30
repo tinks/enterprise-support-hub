@@ -427,3 +427,67 @@ async function finishJob(
     finished_at: new Date().toISOString(),
   }).eq("id", id);
 }
+
+// Compare previous and current Intercom payloads on an allowlist of fields
+// commonly responsible for silent `updated_at` bumps. Returns a structured
+// summary safe to render in the UI; null if nothing on the allowlist changed.
+function diffSilentChange(prev: any, next: any): any {
+  const at = new Date().toISOString();
+  const fields: string[] = [];
+  const details: Record<string, any> = {};
+
+  // CSAT
+  const prevCsat = prev?.conversation_rating?.rating ?? null;
+  const nextCsat = next?.conversation_rating?.rating ?? null;
+  const prevRemark = prev?.conversation_rating?.remark ?? null;
+  const nextRemark = next?.conversation_rating?.remark ?? null;
+  if (prevCsat !== nextCsat || prevRemark !== nextRemark) {
+    fields.push("csat");
+    details.csat = { from: prevCsat, to: nextCsat, remark: nextRemark || null };
+  }
+
+  // Tags / labels
+  const prevTags = new Set<string>(((prev?.tags?.tags || []) as any[]).map((t) => String(t?.name ?? "")).filter(Boolean));
+  const nextTags = new Set<string>(((next?.tags?.tags || []) as any[]).map((t) => String(t?.name ?? "")).filter(Boolean));
+  const added = [...nextTags].filter((t) => !prevTags.has(t));
+  const removed = [...prevTags].filter((t) => !nextTags.has(t));
+  if (added.length || removed.length) {
+    fields.push("tags");
+    details.tags = { added, removed };
+  }
+
+  // Custom attributes (per-key add/remove/change) — covers "Conversation Label",
+  // "Affected Product Area", "Ticket type", etc.
+  const prevAttrs = (prev?.custom_attributes || {}) as Record<string, any>;
+  const nextAttrs = (next?.custom_attributes || {}) as Record<string, any>;
+  const allKeys = new Set([...Object.keys(prevAttrs), ...Object.keys(nextAttrs)]);
+  const attrChanges: Record<string, { from: any; to: any }> = {};
+  for (const k of allKeys) {
+    const a = prevAttrs[k] ?? null;
+    const b = nextAttrs[k] ?? null;
+    if (JSON.stringify(a) !== JSON.stringify(b)) attrChanges[k] = { from: a, to: b };
+  }
+  if (Object.keys(attrChanges).length) {
+    fields.push("custom_attributes");
+    details.custom_attributes = attrChanges;
+  }
+
+  // Assignee
+  const prevA = String(prev?.admin_assignee_id ?? "");
+  const nextA = String(next?.admin_assignee_id ?? "");
+  if (prevA !== nextA) {
+    fields.push("admin_assignee");
+    details.admin_assignee = { from: prevA || null, to: nextA || null };
+  }
+
+  // Conversation parts count — proxy for "an admin added a note / reply"
+  const prevParts = Number(prev?.statistics?.count_conversation_parts ?? prev?.conversation_parts?.total_count ?? 0);
+  const nextParts = Number(next?.statistics?.count_conversation_parts ?? next?.conversation_parts?.total_count ?? 0);
+  if (nextParts !== prevParts) {
+    fields.push("conversation_parts");
+    details.conversation_parts = { from: prevParts, to: nextParts };
+  }
+
+  if (!fields.length) return { at, fields: ["unknown"], details: {} };
+  return { at, fields, details };
+}
