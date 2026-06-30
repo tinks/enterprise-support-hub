@@ -17,8 +17,11 @@ import {
 } from "@/pages/inbox-v3/constants";
 import { effectiveRsa } from "@/pages/inbox-v3/rsa";
 import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip as RTooltip, CartesianGrid, Legend,
 } from "recharts";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
+
 
 type Row = {
   id: string;
