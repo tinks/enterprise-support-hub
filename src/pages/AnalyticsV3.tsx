@@ -377,20 +377,6 @@ export default function AnalyticsV3() {
               )}
             </label>
 
-            <div className="inline-flex rounded-md border border-border overflow-hidden text-xs">
-              <button
-                onClick={() => setIncludeOpen(false)}
-                className={`px-3 py-1.5 ${!includeOpen ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-muted/50"}`}
-              >
-                Finalized only
-              </button>
-              <button
-                onClick={() => setIncludeOpen(true)}
-                className={`px-3 py-1.5 border-l border-border ${includeOpen ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-muted/50"}`}
-              >
-                Include open
-              </button>
-            </div>
           </CardContent>
         </Card>
 
@@ -398,11 +384,48 @@ export default function AnalyticsV3() {
           <Card><CardContent className="p-4 text-sm text-destructive">Failed to load: {error}</CardContent></Card>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Kpi title="Total tickets" value={loading ? "…" : stats.total.toLocaleString()} sub={includeOpen ? "Finalized + open, created in range" : "Finalized only, created in range"} loading={loading} />
-          <Kpi title="Average CSAT" value={loading ? "…" : stats.avgCsat != null ? stats.avgCsat.toFixed(2) : "—"} sub={`n = ${stats.ratedN.toLocaleString()} rated`} loading={loading} />
-          <Kpi title="Median time to resolve" value={loading ? "…" : formatDuration(stats.medClose)} sub={`n = ${stats.closeN.toLocaleString()} with timing`} loading={loading} />
-        </div>
+        <TooltipProvider delayDuration={150}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Kpi
+              title="Tickets closed in period"
+              value={loading ? "…" : stats.total.toLocaleString()}
+              sub={
+                <span>
+                  <span className="text-muted-foreground">{activeStats.openedInRange.toLocaleString()} opened in same window</span>
+                </span>
+              }
+              tooltip="Tickets finalized (closed) during this date range, anchored on our internal finalized_at. Excludes tickets still in flight. Tickets opened in this window may close in a later period."
+              loading={loading}
+            />
+            <Kpi
+              title="Average CSAT"
+              value={loading ? "…" : stats.avgCsat != null ? stats.avgCsat.toFixed(2) : "—"}
+              sub={
+                <span className="text-muted-foreground">
+                  {stats.responseRate != null
+                    ? `${stats.responseRate.toFixed(0)}% response rate (${stats.ratedN.toLocaleString()} rated / ${stats.closedDenominator.toLocaleString()} closed)`
+                    : `n = ${stats.ratedN.toLocaleString()} rated`}
+                </span>
+              }
+              tooltip="CSAT averages can skew toward extremes when response rates are low. Treat anything under ~30% response with caution."
+              loading={loading}
+            />
+            <Kpi
+              title="Median time to resolve"
+              value={loading ? "…" : formatDuration(stats.medClose)}
+              sub={
+                <span className="text-muted-foreground">
+                  {stats.p90Eligible
+                    ? `P90: ${formatDuration(stats.p90Close)} · n = ${stats.closeN.toLocaleString()}`
+                    : `P90: insufficient data (n < 10) · n = ${stats.closeN.toLocaleString()}`}
+                </span>
+              }
+              tooltip="Median = the typical ticket. P90 = 90% of tickets resolve at or under this. Watch P90 for enterprise worst-case experience. Hidden when fewer than 10 finalized tickets in range."
+              loading={loading}
+            />
+          </div>
+        </TooltipProvider>
+
 
         <div>
           <h2 className="text-sm font-semibold tracking-tight mb-2 text-muted-foreground uppercase">Active backlog</h2>
