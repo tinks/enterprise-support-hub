@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Loader2, RefreshCw, ExternalLink, Beaker, Info, CheckCircle2 } from "lucide-react";
+import { Loader2, RefreshCw, ExternalLink, Beaker, Info, CheckCircle2, AlertTriangle } from "lucide-react";
 import { format, formatDistanceToNow, differenceInDays } from "date-fns";
 import { CLEAN_DATA_START_LABEL } from "@/pages/inbox-v3/constants";
 import { effectiveRsa } from "@/pages/inbox-v3/rsa";
