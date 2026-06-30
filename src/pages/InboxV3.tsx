@@ -355,6 +355,14 @@ export default function InboxV3() {
                 <Field label="Closed" value={selected.intercom_closed_at ? format(new Date(selected.intercom_closed_at), "PPpp") : "—"} />
                 <Field label="Finalized" value={selected.finalized_at ? format(new Date(selected.finalized_at), "PPpp") : "—"} />
                 <Field label="Reopens" value={String(selected.reopen_count)} />
+                {(selected.silent_update_count ?? 0) > 0 && (
+                  <div className="grid grid-cols-[140px_1fr] gap-3">
+                    <dt className="text-xs text-muted-foreground">Last change</dt>
+                    <dd className="text-xs">
+                      <SilentChange change={selected.last_silent_change} count={selected.silent_update_count ?? 0} />
+                    </dd>
+                  </div>
+                )}
               </dl>
             </>
           )}
