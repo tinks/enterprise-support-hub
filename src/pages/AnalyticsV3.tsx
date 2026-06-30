@@ -422,10 +422,11 @@ export default function AnalyticsV3() {
                       minTickGap={24}
                     />
                     <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={32} />
-                    <Tooltip
+                    <RTooltip
                       labelFormatter={(v) => format(new Date(v as string), "PP")}
                       formatter={(value: number, name: string) => [value, name]}
                     />
+
                     <Legend wrapperStyle={{ fontSize: 12 }} />
                     <Line type="monotone" dataKey="opened" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} name="Opened" />
                     <Line type="monotone" dataKey="finalized" stroke="hsl(var(--muted-foreground))" strokeWidth={2} dot={false} name="Finalized" />
