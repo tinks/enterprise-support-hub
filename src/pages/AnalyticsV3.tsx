@@ -205,28 +205,33 @@ export default function AnalyticsV3() {
     }).length;
   }, [rows, range.from, range.to, excludeRsaFalse]);
 
-  // KPI stats: rows created in range, optionally filtered to finalized-only.
+  // KPI stats: tickets FINALIZED in the selected range (anchored on finalized_at,
+  // our internal close timestamp). Excludes still-in-flight tickets — the inbound
+  // "opened in range" count lives in the Active backlog strip below.
   const stats = useMemo(() => {
     const fromMs = range.from.getTime();
     const toMs = range.to.getTime();
     const inRange = filteredRows.filter((r) => {
-      if (!r.intercom_created_at) return false;
-      const t = new Date(r.intercom_created_at).getTime();
-      if (t < fromMs || t > toMs) return false;
-      if (!includeOpen && r.lifecycle_status !== "finalized") return false;
-      return true;
+      if (r.lifecycle_status !== "finalized") return false;
+      if (!r.finalized_at) return false;
+      const t = new Date(r.finalized_at).getTime();
+      return t >= fromMs && t <= toMs;
     });
     const total = inRange.length;
     const ratings = inRange.map((r) => r.csat_rating).filter((v): v is number => typeof v === "number");
     const avgCsat = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null;
+    const responseRate = total > 0 ? (ratings.length / total) * 100 : null;
     const closeTimes = inRange
       .map((r) => r.time_to_resolve_s)
       .filter((v): v is number => typeof v === "number" && v > 0);
     return {
-      total, avgCsat, ratedN: ratings.length,
+      total, avgCsat, ratedN: ratings.length, closedDenominator: total, responseRate,
       medClose: median(closeTimes), closeN: closeTimes.length,
+      p90Close: closeTimes.length >= 10 ? percentile(closeTimes, 90) : null,
+      p90Eligible: closeTimes.length >= 10,
     };
-  }, [filteredRows, range.from, range.to, includeOpen]);
+  }, [filteredRows, range.from, range.to]);
+
 
   // Active KPIs: snapshot of active backlog right now.
   const activeStats = useMemo(() => {
