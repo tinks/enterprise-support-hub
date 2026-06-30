@@ -367,6 +367,7 @@ Deno.serve(async (req) => {
         last_synced_at: new Date().toISOString(),
         last_full_fetch_at: new Date().toISOString(),
         raw_payload: icData,
+        reopen_count_at_finalize: Number(icData?.statistics?.count_reopens ?? 0),
       };
 
       const { error } = await supabase
@@ -401,6 +402,7 @@ Deno.serve(async (req) => {
     inserted,
     updated,
     reopened,
+    silent_nudges: silentNudges,
     skipped,
     failed,
     cursor_ts: cursorIso,
