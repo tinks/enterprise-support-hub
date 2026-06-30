@@ -192,18 +192,21 @@ Deno.serve(async (req) => {
     intercom_closed_at: string | null;
     intercom_updated_at: string | null;
     reopen_count: number;
+    reopen_count_at_finalize: number | null;
+    silent_update_count: number | null;
+    raw_payload: any;
   }>();
   if (convIds.length) {
     const { data: existing } = await supabase
       .from("intercom_tickets_v3")
-      .select("id, intercom_conversation_id, lifecycle_status, intercom_closed_at, intercom_updated_at, reopen_count")
+      .select("id, intercom_conversation_id, lifecycle_status, intercom_closed_at, intercom_updated_at, reopen_count, reopen_count_at_finalize, silent_update_count, raw_payload")
       .in("intercom_conversation_id", convIds);
     for (const r of existing || []) {
       existingMap.set(String(r.intercom_conversation_id), r as any);
     }
   }
 
-  let inserted = 0, updated = 0, failed = 0, reopened = 0, skipped = 0;
+  let inserted = 0, updated = 0, failed = 0, reopened = 0, skipped = 0, silentNudges = 0;
   let maxUpdatedSeen = sinceTs;
 
   for (const conv of conversations) {
@@ -219,22 +222,55 @@ Deno.serve(async (req) => {
     try {
       const existing = existingMap.get(convId);
 
-      // Already-finalized row: only flag reopens, don't refetch / refinalize.
+      // Already-finalized row: decide reopen vs silent nudge using authoritative
+      // Intercom signals (state, statistics.count_reopens). CSAT submissions,
+      // tag/label edits, custom-attribute edits, and admin notes bump updated_at
+      // but do NOT bump count_reopens — those land on the silent path.
       if (existing && existing.lifecycle_status === "finalized") {
         const existingUpdatedSec = existing.intercom_updated_at
           ? Math.floor(new Date(existing.intercom_updated_at).getTime() / 1000)
           : 0;
-        if (convUpdatedAt > existingUpdatedSec) {
+        if (convUpdatedAt <= existingUpdatedSec) { skipped++; continue; }
+
+        // updated_at advanced → fetch full payload to inspect.
+        const fRes = await fetch(`https://api.intercom.io/conversations/${convId}`, {
+          headers: intercomHeaders(INTERCOM_API_TOKEN),
+        });
+        if (!fRes.ok) { failed++; continue; }
+        const fData = await fRes.json();
+
+        const newState = String(fData.state || "");
+        const newReopens = Number(fData?.statistics?.count_reopens ?? 0);
+        const baselineReopens = Number(existing.reopen_count_at_finalize ?? 0);
+        const isRealReopen = newState !== "closed" || newReopens > baselineReopens;
+
+        if (isRealReopen) {
           await supabase.from("intercom_tickets_v3").update({
             lifecycle_status: "reopened_after_finalize",
             reopen_count: (existing.reopen_count || 0) + 1,
             last_reopened_at: new Date().toISOString(),
-            intercom_updated_at: tsToIso(convUpdatedAt),
+            intercom_updated_at: tsToIso(fData.updated_at) ?? tsToIso(convUpdatedAt),
+            state: newState || existing.lifecycle_status,
             last_synced_at: new Date().toISOString(),
+            raw_payload: fData,
           }).eq("id", existing.id);
           reopened++;
         } else {
-          skipped++;
+          // Silent nudge — diff allowlisted fields against stored raw_payload.
+          const silentChange = diffSilentChange(existing.raw_payload, fData);
+          await supabase.from("intercom_tickets_v3").update({
+            intercom_updated_at: tsToIso(fData.updated_at) ?? tsToIso(convUpdatedAt),
+            last_synced_at: new Date().toISOString(),
+            silent_update_count: (existing.silent_update_count || 0) + 1,
+            last_silent_change: silentChange,
+            raw_payload: fData,
+            // also keep CSAT / tags fresh since those are the most common nudges
+            csat_rating: typeof fData?.conversation_rating?.rating === "number" ? fData.conversation_rating.rating : null,
+            csat_remark: typeof fData?.conversation_rating?.remark === "string" && fData.conversation_rating.remark.trim() ? fData.conversation_rating.remark.trim() : null,
+            csat_rated_at: tsToIso(fData?.conversation_rating?.created_at),
+            tags: extractTags(fData),
+          }).eq("id", existing.id);
+          silentNudges++;
         }
         continue;
       }
