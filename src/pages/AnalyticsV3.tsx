@@ -78,6 +78,18 @@ function median(values: number[]): number | null {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
+function percentile(values: number[], p: number): number | null {
+  if (!values.length) return null;
+  const s = [...values].sort((a, b) => a - b);
+  // Linear interpolation between closest ranks.
+  const rank = (p / 100) * (s.length - 1);
+  const lo = Math.floor(rank);
+  const hi = Math.ceil(rank);
+  if (lo === hi) return s[lo];
+  return s[lo] + (s[hi] - s[lo]) * (rank - lo);
+}
+
+
 function formatDuration(seconds: number | null): string {
   if (seconds == null) return "—";
   const m = Math.round(seconds / 60);
