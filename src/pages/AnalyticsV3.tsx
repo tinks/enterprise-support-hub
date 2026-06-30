@@ -17,8 +17,11 @@ import {
 } from "@/pages/inbox-v3/constants";
 import { effectiveRsa } from "@/pages/inbox-v3/rsa";
 import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip as RTooltip, CartesianGrid, Legend,
 } from "recharts";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
+
 
 type Row = {
   id: string;
@@ -75,6 +78,18 @@ function median(values: number[]): number | null {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
+function percentile(values: number[], p: number): number | null {
+  if (!values.length) return null;
+  const s = [...values].sort((a, b) => a - b);
+  // Linear interpolation between closest ranks.
+  const rank = (p / 100) * (s.length - 1);
+  const lo = Math.floor(rank);
+  const hi = Math.ceil(rank);
+  if (lo === hi) return s[lo];
+  return s[lo] + (s[hi] - s[lo]) * (rank - lo);
+}
+
+
 function formatDuration(seconds: number | null): string {
   if (seconds == null) return "—";
   const m = Math.round(seconds / 60);
@@ -88,9 +103,9 @@ export default function AnalyticsV3() {
   const [preset, setPreset] = useState<RangePreset>("30d");
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
-  const [includeOpen, setIncludeOpen] = useState(false);
   const [excludeRsaFalse, setExcludeRsaFalse] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
+
   const [activeRows, setActiveRows] = useState<ActiveRow[]>([]);
   const [ownerMap, setOwnerMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -190,28 +205,33 @@ export default function AnalyticsV3() {
     }).length;
   }, [rows, range.from, range.to, excludeRsaFalse]);
 
-  // KPI stats: rows created in range, optionally filtered to finalized-only.
+  // KPI stats: tickets FINALIZED in the selected range (anchored on finalized_at,
+  // our internal close timestamp). Excludes still-in-flight tickets — the inbound
+  // "opened in range" count lives in the Active backlog strip below.
   const stats = useMemo(() => {
     const fromMs = range.from.getTime();
     const toMs = range.to.getTime();
     const inRange = filteredRows.filter((r) => {
-      if (!r.intercom_created_at) return false;
-      const t = new Date(r.intercom_created_at).getTime();
-      if (t < fromMs || t > toMs) return false;
-      if (!includeOpen && r.lifecycle_status !== "finalized") return false;
-      return true;
+      if (r.lifecycle_status !== "finalized") return false;
+      if (!r.finalized_at) return false;
+      const t = new Date(r.finalized_at).getTime();
+      return t >= fromMs && t <= toMs;
     });
     const total = inRange.length;
     const ratings = inRange.map((r) => r.csat_rating).filter((v): v is number => typeof v === "number");
     const avgCsat = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null;
+    const responseRate = total > 0 ? (ratings.length / total) * 100 : null;
     const closeTimes = inRange
       .map((r) => r.time_to_resolve_s)
       .filter((v): v is number => typeof v === "number" && v > 0);
     return {
-      total, avgCsat, ratedN: ratings.length,
+      total, avgCsat, ratedN: ratings.length, closedDenominator: total, responseRate,
       medClose: median(closeTimes), closeN: closeTimes.length,
+      p90Close: closeTimes.length >= 10 ? percentile(closeTimes, 90) : null,
+      p90Eligible: closeTimes.length >= 10,
     };
-  }, [filteredRows, range.from, range.to, includeOpen]);
+  }, [filteredRows, range.from, range.to]);
+
 
   // Active KPIs: snapshot of active backlog right now.
   const activeStats = useMemo(() => {
@@ -357,20 +377,6 @@ export default function AnalyticsV3() {
               )}
             </label>
 
-            <div className="inline-flex rounded-md border border-border overflow-hidden text-xs">
-              <button
-                onClick={() => setIncludeOpen(false)}
-                className={`px-3 py-1.5 ${!includeOpen ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-muted/50"}`}
-              >
-                Finalized only
-              </button>
-              <button
-                onClick={() => setIncludeOpen(true)}
-                className={`px-3 py-1.5 border-l border-border ${includeOpen ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-muted/50"}`}
-              >
-                Include open
-              </button>
-            </div>
           </CardContent>
         </Card>
 
@@ -378,11 +384,48 @@ export default function AnalyticsV3() {
           <Card><CardContent className="p-4 text-sm text-destructive">Failed to load: {error}</CardContent></Card>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Kpi title="Total tickets" value={loading ? "…" : stats.total.toLocaleString()} sub={includeOpen ? "Finalized + open, created in range" : "Finalized only, created in range"} loading={loading} />
-          <Kpi title="Average CSAT" value={loading ? "…" : stats.avgCsat != null ? stats.avgCsat.toFixed(2) : "—"} sub={`n = ${stats.ratedN.toLocaleString()} rated`} loading={loading} />
-          <Kpi title="Median time to resolve" value={loading ? "…" : formatDuration(stats.medClose)} sub={`n = ${stats.closeN.toLocaleString()} with timing`} loading={loading} />
-        </div>
+        <TooltipProvider delayDuration={150}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Kpi
+              title="Tickets closed in period"
+              value={loading ? "…" : stats.total.toLocaleString()}
+              sub={
+                <span>
+                  <span className="text-muted-foreground">{activeStats.openedInRange.toLocaleString()} opened in same window</span>
+                </span>
+              }
+              tooltip="Tickets finalized (closed) during this date range, anchored on our internal finalized_at. Excludes tickets still in flight. Tickets opened in this window may close in a later period."
+              loading={loading}
+            />
+            <Kpi
+              title="Average CSAT"
+              value={loading ? "…" : stats.avgCsat != null ? stats.avgCsat.toFixed(2) : "—"}
+              sub={
+                <span className="text-muted-foreground">
+                  {stats.responseRate != null
+                    ? `${stats.responseRate.toFixed(0)}% response rate (${stats.ratedN.toLocaleString()} rated / ${stats.closedDenominator.toLocaleString()} closed)`
+                    : `n = ${stats.ratedN.toLocaleString()} rated`}
+                </span>
+              }
+              tooltip="CSAT averages can skew toward extremes when response rates are low. Treat anything under ~30% response with caution."
+              loading={loading}
+            />
+            <Kpi
+              title="Median time to resolve"
+              value={loading ? "…" : formatDuration(stats.medClose)}
+              sub={
+                <span className="text-muted-foreground">
+                  {stats.p90Eligible
+                    ? `P90: ${formatDuration(stats.p90Close)} · n = ${stats.closeN.toLocaleString()}`
+                    : `P90: insufficient data (n < 10) · n = ${stats.closeN.toLocaleString()}`}
+                </span>
+              }
+              tooltip="Median = the typical ticket. P90 = 90% of tickets resolve at or under this. Watch P90 for enterprise worst-case experience. Hidden when fewer than 10 finalized tickets in range."
+              loading={loading}
+            />
+          </div>
+        </TooltipProvider>
+
 
         <div>
           <h2 className="text-sm font-semibold tracking-tight mb-2 text-muted-foreground uppercase">Active backlog</h2>
@@ -419,10 +462,11 @@ export default function AnalyticsV3() {
                       minTickGap={24}
                     />
                     <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={32} />
-                    <Tooltip
+                    <RTooltip
                       labelFormatter={(v) => format(new Date(v as string), "PP")}
                       formatter={(value: number, name: string) => [value, name]}
                     />
+
                     <Legend wrapperStyle={{ fontSize: 12 }} />
                     <Line type="monotone" dataKey="opened" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} name="Opened" />
                     <Line type="monotone" dataKey="finalized" stroke="hsl(var(--muted-foreground))" strokeWidth={2} dot={false} name="Finalized" />
@@ -484,11 +528,25 @@ export default function AnalyticsV3() {
   );
 }
 
-function Kpi({ title, value, sub, loading, small }: { title: string; value: string; sub: string; loading: boolean; small?: boolean }) {
+function Kpi({ title, value, sub, loading, small, tooltip }: { title: string; value: string; sub: React.ReactNode; loading: boolean; small?: boolean; tooltip?: string }) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardDescription className="text-xs">{title}</CardDescription>
+        <CardDescription className="text-xs flex items-center gap-1.5">
+          <span>{title}</span>
+          {tooltip && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-muted-foreground hover:text-foreground transition-colors" aria-label={`About ${title}`}>
+                  <Info className="h-3 w-3" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs text-xs leading-relaxed">
+                {tooltip}
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </CardDescription>
         <CardTitle className={`${small ? "text-2xl" : "text-3xl"} font-semibold tracking-tight tabular-nums`}>
           {loading ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : value}
         </CardTitle>
@@ -497,6 +555,7 @@ function Kpi({ title, value, sub, loading, small }: { title: string; value: stri
     </Card>
   );
 }
+
 
 function DateField({
   label, date, onSelect, minDate,

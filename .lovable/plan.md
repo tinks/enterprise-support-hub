@@ -1,58 +1,52 @@
-# Fix false "reopened" flags in Inbox v3
 
-Two related changes to `sync-v3-closed` and the v3 schema/UI. Built so (b) ships even if you skip (a).
+# Analytics v3 — headline KPI tightening
 
-## b) Stop CSAT / Label edits from flagging a reopen
+Scope: only the three headline KPI cards at the top of `/analytics-v3`. No sync changes, no schema changes, no new edge functions. All values are already computable from `intercom_tickets_v3`.
 
-Today, any `updated_at` bump on a finalized row flips `lifecycle_status` to `reopened_after_finalize`. Intercom bumps `updated_at` for lots of harmless things (CSAT submission, tag edits, custom-attribute edits, admin notes). Switch to authoritative signals.
+## What changes
 
-**New reopen rule** (in `sync-v3-closed` finalized-row branch):
+### 1. "Total tickets" → "Tickets closed in period"
 
-1. Pull the current `statistics.count_reopens` and `state` for the candidate. We already need this — fetch the full conversation only when `updated_at` advanced (same trigger as today, but now we do a GET instead of trusting the search payload).
-2. Flag reopen **only if** either:
-   - `state !== "closed"` (truly open/snoozed again), or
-   - `statistics.count_reopens > stored_reopen_count_at_finalize`
-3. Otherwise: update `intercom_updated_at` + `last_synced_at`, leave `lifecycle_status = finalized`, increment a new `silent_update_count` so we can monitor noise.
+Today the card labels as "Total tickets" and depending on the toggle shows either finalized-only or finalized+open created-in-range. Leadership will misread that as inbound volume.
 
-**Schema:**
-- Add `reopen_count_at_finalize INT` to `intercom_tickets_v3`, populated at finalize time from `statistics.count_reopens`.
-- Add `silent_update_count INT NOT NULL DEFAULT 0`.
-- One-time backfill: set `reopen_count_at_finalize` for existing finalized rows from `raw_payload->'statistics'->>'count_reopens'`.
+- Headline number: **Tickets closed in period** — `lifecycle_status='finalized'` with `finalized_at` inside the selected range. Anchored on `finalized_at` (our internal close timestamp set by v3 sync), not `intercom_closed_at`, so the figure is consistent with the gap-scan reconciliation.
+- Drop the "Finalized only / Include open" toggle from the headline. "Opened in range" lives in the Active backlog strip, which is the right home for inbound volume.
+- Subline: small muted secondary line — "X opened in same window" — so leadership can see both at a glance without conflating them.
+- Tooltip on the title: "Tickets finalized (closed) during this date range, anchored on our internal finalized_at. Excludes tickets still in flight. Tickets opened in this window may close in a later period."
 
-**Cleanup of existing false flags:** for rows currently `reopened_after_finalize` where `state='closed'` and `(raw_payload->'statistics'->>'count_reopens')::int <= reopen_count_at_finalize`, flip back to `finalized`. (One-shot SQL, runs with the migration.)
+### 2. Average CSAT — add response rate
 
-## a) Show what nudged `updated_at`
+- Keep the average as the headline number.
+- Secondary line under it: **"X% response rate (n rated / m closed)"**, computed against the same closed-in-period set used for headline #1. Today the card only shows `n = … rated` with no denominator.
+- Tooltip: "CSAT averages can skew toward extremes when response rates are low. Treat anything under ~30% response with caution."
 
-When (b)'s check decides "not a real reopen", capture *why* so we have forensic visibility.
+### 3. Median time to resolve — add P90 companion (n ≥ 10 only)
 
-**Schema:**
-- Add `last_silent_change JSONB` to `intercom_tickets_v3` — shape `{ at: iso, fields: [..], details: {..} }`.
-
-**Diff logic** (only runs on the silent path, so cost is bounded):
-Compare new full GET payload to stored `raw_payload`. Detect changes in a fixed allowlist:
-- `csat_rating`, `csat_remark`, `csat_rated_at`
-- `tags` (added/removed)
-- `custom_attributes` (per-key added/removed/changed — surfaces "Affected Product Area", "Ticket type", "Conversation Label", etc.)
-- `admin_assignee_id`
-- `statistics.count_conversation_parts` (admin note added)
-- `state` transitions (defensive)
-
-Persist `last_silent_change` and increment `silent_update_count`.
-
-**UI (`/inbox-v3` Finalized tab):**
-- New small column / hover-card "Last change" showing the change summary (e.g. "CSAT set to 5", "Tag added: Conversation Label/Bug", "Note added") with the timestamp.
-- No change to Active tab — those rows aren't finalized.
-
-## Out of scope
-
-- No change to `sync-v3-open` (open rows can't be "reopened").
-- No change to v2.
-- No retroactive diffing for rows that already silently changed before this lands — `last_silent_change` will populate on the next silent nudge.
+- Keep median as the headline.
+- Secondary line: **"P90: Xh Ym"** computed from the same `time_to_resolve_s` array.
+- Threshold: only render the P90 line when `n ≥ 10`. Below the threshold, render a muted "P90: insufficient data (n &lt; 10)" line — keeps the card layout stable instead of jumping.
+- Tooltip: "Median = the typical ticket. P90 = 90% of tickets resolve at or under this. Watch P90 for enterprise worst-case experience. Hidden when fewer than 10 finalized tickets in range."
 
 ## Technical notes
 
-- `sync-v3-closed/index.ts` finalized-row branch (lines ~222–240) gets the new GET-then-decide flow. Time budget is unchanged; the extra GETs only happen for finalized rows whose `updated_at` advanced, which is already rare.
-- `sync-v3-closed` finalize path also writes `reopen_count_at_finalize` going forward.
-- One migration adds the three columns + grants are unchanged (existing table already has them).
-- Update `.lovable/project-knowledge.md` Inbox v3 section, Flow page reopen node, and add a `changelog_entries` row per the standing rule.
-- Memory update: revise `mem://features/inbox-v3/sync-logic` to describe the new reopen criteria.
+- Single file edit: `src/pages/AnalyticsV3.tsx`.
+- New helper `percentile(values, p)` next to the existing `median` helper.
+- `stats` memo changes:
+  - `inRange` becomes "finalized rows with `finalized_at` in range" (not "created_at in range"). Drop the `includeOpen` branch and the toggle UI.
+  - Add `closedDenominator` (= inRange length), reuse `openedInRange` from `activeStats`.
+  - Add `p90Close` from the same `closeTimes` array; gate render on `closeTimes.length >= 10`.
+- `Kpi` component already supports a `sub` line. Extend it (or pass JSX into `sub`) to render the secondary stat plus tooltip via existing `Tooltip` primitives.
+- No DB / edge / migration work.
+
+## Out of scope
+
+- Per-source breakdown (Slack/Gmail/Intercom) — v3 is Intercom-only by design.
+- Replacing the Active backlog strip.
+- Anything on Analytics or Analytics v2.
+
+## Mandatory housekeeping (per standing rule)
+
+- Update `.lovable/project-knowledge.md` Analytics v3 section with the new KPI definitions.
+- Stage the same content as `pending_content` on `knowledge_documents` (id=`project-knowledge`) via `sync-knowledge-pending` so it surfaces for review on `/knowledge`.
+- Add a `changelog_entries` row.
+- Flow page: no change (no logic flow changed, only KPI labeling).
