@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Loader2, RefreshCw, ExternalLink, Beaker, Info, CheckCircle2 } from "lucide-react";
+import { Loader2, RefreshCw, ExternalLink, Beaker, Info, CheckCircle2, AlertTriangle } from "lucide-react";
 import { format, formatDistanceToNow, differenceInDays } from "date-fns";
 import { CLEAN_DATA_START_LABEL } from "@/pages/inbox-v3/constants";
 import { effectiveRsa } from "@/pages/inbox-v3/rsa";
@@ -199,6 +199,23 @@ export default function InboxV3() {
     return ts ? formatDistanceToNow(new Date(ts), { addSuffix: true }) : "never";
   }, [currentRows]);
 
+  // "Needs attention" counts surfaced as red badges on each tab.
+  //  - Active: rows whose last_synced_at is older than 30 min — sync hasn't touched them recently.
+  //  - Finalized: rows where Intercom state drifted away from 'closed' (pending reopen detection).
+  const STALE_MS = 30 * 60 * 1000;
+  const activeAttention = useMemo(() => {
+    const cutoff = Date.now() - STALE_MS;
+    return activeRows.filter(
+      (r) => !r.last_synced_at || new Date(r.last_synced_at).getTime() < cutoff,
+    ).length;
+  }, [activeRows]);
+  const finalizedAttention = useMemo(
+    () => finalizedRows.filter(
+      (r) => r.lifecycle_status === "finalized" && r.state && r.state !== "closed",
+    ).length,
+    [finalizedRows],
+  );
+
   return (
     <AppLayout>
       <div className="p-6 space-y-4">
@@ -226,8 +243,30 @@ export default function InboxV3() {
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as "finalized" | "active")}>
           <TabsList>
-            <TabsTrigger value="active">Active ({activeRows.length})</TabsTrigger>
-            <TabsTrigger value="finalized">Finalized ({finalizedRows.length})</TabsTrigger>
+            <TabsTrigger value="active" className="gap-2">
+              Active ({activeRows.length})
+              {activeAttention > 0 && (
+                <span
+                  title={`${activeAttention} row(s) not synced in the last 30 min`}
+                  className="inline-flex items-center gap-0.5 rounded-full bg-destructive/15 text-destructive px-1.5 py-0.5 text-[10px] font-medium"
+                >
+                  <AlertTriangle className="h-3 w-3" />
+                  {activeAttention}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="finalized" className="gap-2">
+              Finalized ({finalizedRows.length})
+              {finalizedAttention > 0 && (
+                <span
+                  title={`${finalizedAttention} finalized row(s) where Intercom state ≠ closed (pending reopen detection)`}
+                  className="inline-flex items-center gap-0.5 rounded-full bg-destructive/15 text-destructive px-1.5 py-0.5 text-[10px] font-medium"
+                >
+                  <AlertTriangle className="h-3 w-3" />
+                  {finalizedAttention}
+                </span>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           <div className="flex flex-wrap items-center gap-2 mt-4">
