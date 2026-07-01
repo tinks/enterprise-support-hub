@@ -129,7 +129,12 @@ export async function decideFinalizedUpdate(
   const newState = String(fData.state || "");
   const newReopens = Number(fData?.statistics?.count_reopens ?? 0);
   const baselineReopens = Number(existing.reopen_count_at_finalize ?? 0);
-  const isRealReopen = newState !== "closed" || newReopens > baselineReopens;
+  // Tickets stay top-level state="open" even when ticket.state="resolved";
+  // use isClosedLike so a resolved ticket doesn't get re-flagged as a reopen
+  // on every sync.
+  const stillClosed = newState === "closed" || (isTicketPayload(fData) && isFinalizedTicketState(fData));
+  const isRealReopen = !stillClosed || newReopens > baselineReopens;
+
 
   if (isRealReopen) return { kind: "reopen", fData };
   return { kind: "silent", fData, silentChange: diffSilentChange(existing.raw_payload, fData) };
