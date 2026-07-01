@@ -801,9 +801,6 @@ function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, acc
                 </TableCell>
                 <TableCell><RsaBadge t={r} onCycle={onCycleRsa} /></TableCell>
                 <TableCell className="text-xs text-muted-foreground">
-                  {r.intercom_created_at ? format(new Date(r.intercom_created_at), "MMM d, yyyy") : "—"}
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
                   {r.intercom_updated_at ? formatDistanceToNow(new Date(r.intercom_updated_at), { addSuffix: true }) : "—"}
                 </TableCell>
                 <TableCell className={`tabular-nums text-xs ${ageDays != null && ageDays > 14 ? "text-destructive font-medium" : ""}`}>
