@@ -16,11 +16,15 @@ import {
   decideFinalizedUpdate,
   domainOf,
   intercomHeaders,
+  isFinalizedTicketState,
+  isTicketPayload,
   stripHtml,
   TIME_BUDGET_MS,
   tsToIso,
   V3_CORS_HEADERS,
 } from "../_shared/v3.ts";
+import { finalizeConversation } from "../_shared/v3-finalize.ts";
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: V3_CORS_HEADERS });
