@@ -423,6 +423,18 @@ export default function AnalyticsV3() {
               {format(range.from, "MMM d, yyyy")} → {format(range.to, "MMM d, yyyy")}
             </div>
 
+            <Select value={customerFilter} onValueChange={setCustomerFilter}>
+              <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue placeholder="Customer" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__any__">Customer: any</SelectItem>
+                {accounts.map((a) => (
+                  <SelectItem key={a.account_key} value={a.account_key}>{a.label}</SelectItem>
+                ))}
+                <SelectItem value="domain:_personal">Personal email</SelectItem>
+                <SelectItem value="unknown">Unknown</SelectItem>
+              </SelectContent>
+            </Select>
+
             <label
               className="ml-auto inline-flex items-center gap-2 text-xs cursor-pointer select-none"
               title="Hide tickets tagged enterprise-fyi or enterprise-duplicate (or manually marked RSA=false)"
