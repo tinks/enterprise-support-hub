@@ -544,6 +544,13 @@ export type Database = {
           csat_rated_at: string | null
           csat_rating: number | null
           csat_remark: string | null
+          customer_key: string | null
+          customer_kind: string | null
+          customer_override_at: string | null
+          customer_override_by: string | null
+          customer_override_key: string | null
+          customer_override_reason: string | null
+          customer_source: string | null
           finalized_at: string | null
           id: string
           intercom_closed_at: string | null
@@ -580,6 +587,13 @@ export type Database = {
           csat_rated_at?: string | null
           csat_rating?: number | null
           csat_remark?: string | null
+          customer_key?: string | null
+          customer_kind?: string | null
+          customer_override_at?: string | null
+          customer_override_by?: string | null
+          customer_override_key?: string | null
+          customer_override_reason?: string | null
+          customer_source?: string | null
           finalized_at?: string | null
           id?: string
           intercom_closed_at?: string | null
@@ -616,6 +630,13 @@ export type Database = {
           csat_rated_at?: string | null
           csat_rating?: number | null
           csat_remark?: string | null
+          customer_key?: string | null
+          customer_kind?: string | null
+          customer_override_at?: string | null
+          customer_override_by?: string | null
+          customer_override_key?: string | null
+          customer_override_reason?: string | null
+          customer_source?: string | null
           finalized_at?: string | null
           id?: string
           intercom_closed_at?: string | null
@@ -955,12 +976,60 @@ export type Database = {
         }
         Relationships: []
       }
+      v3_customer_accounts: {
+        Row: {
+          account_key: string
+          created_at: string
+          domains: string[]
+          label: string
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_key: string
+          created_at?: string
+          domains?: string[]
+          label: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_key?: string
+          created_at?: string
+          domains?: string[]
+          label?: string
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      v3_personal_email_domains: {
+        Row: {
+          created_at: string
+          domain: string
+        }
+        Insert: {
+          created_at?: string
+          domain: string
+        }
+        Update: {
+          created_at?: string
+          domain?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       auto_close_gmail_threads: { Args: never; Returns: undefined }
+      backfill_v3_customer_keys: {
+        Args: { _batch?: number; _force?: boolean }
+        Returns: {
+          updated_count: number
+        }[]
+      }
       claim_intercom_part: {
         Args: { p_mapping_id: string; p_part_id: string }
         Returns: boolean
@@ -990,6 +1059,14 @@ export type Database = {
         Returns: {
           result_id: string
           result_source: string
+        }[]
+      }
+      v3_derive_customer: {
+        Args: { _contact_email: string; _override_key: string }
+        Returns: {
+          customer_key: string
+          customer_kind: string
+          customer_source: string
         }[]
       }
     }

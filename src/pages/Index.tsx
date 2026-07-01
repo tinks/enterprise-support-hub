@@ -19,6 +19,7 @@ import IntegrationHealthCard from "@/components/IntegrationHealthCard";
 import InboxV3SyncCard from "@/components/InboxV3SyncCard";
 import TicketChannelTestCard from "@/components/TicketChannelTestCard";
 import RolesCard from "@/components/RolesCard";
+import CustomerAccountsCard from "@/components/CustomerAccountsCard";
 import lovableLogo from "@/assets/lovable-logo.png";
 
 interface SettingsData {
@@ -400,6 +401,8 @@ const Index = () => {
         <TicketChannelTestCard />
 
         <RolesCard />
+
+        <CustomerAccountsCard />
 
 
 
