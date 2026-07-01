@@ -35,6 +35,8 @@ type Row = {
   admin_assignee_id: string | null;
   tags: string[] | null;
   rsa_override: boolean | null;
+  customer_key: string | null;
+  customer_kind: string | null;
 };
 
 type ActiveRow = {
@@ -44,7 +46,10 @@ type ActiveRow = {
   reopen_count: number | null;
   tags: string[] | null;
   rsa_override: boolean | null;
+  customer_key: string | null;
 };
+
+type AccountOpt = { account_key: string; label: string };
 
 type RangePreset = "7d" | "14d" | "30d" | "this_month" | "last_month" | "custom";
 
@@ -108,6 +113,8 @@ export default function AnalyticsV3() {
 
   const [activeRows, setActiveRows] = useState<ActiveRow[]>([]);
   const [ownerMap, setOwnerMap] = useState<Record<string, string>>({});
+  const [accounts, setAccounts] = useState<AccountOpt[]>([]);
+  const [customerFilter, setCustomerFilter] = useState<string>("__any__");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -118,8 +125,22 @@ export default function AnalyticsV3() {
       if (data?.admin_owner_map) {
         try { setOwnerMap(JSON.parse(data.admin_owner_map)); } catch { /* ignore */ }
       }
+      const { data: a } = await supabase.from("v3_customer_accounts").select("account_key,label").order("label");
+      setAccounts((a ?? []) as AccountOpt[]);
     })();
   }, []);
+
+  const accountLabel = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of accounts) m.set(a.account_key, a.label);
+    return (key: string | null) => {
+      if (!key) return "—";
+      if (key === "unknown") return "Unknown";
+      if (key === "domain:_personal") return "Personal email";
+      if (key.startsWith("domain:")) return key.slice(7);
+      return m.get(key) ?? key;
+    };
+  }, [accounts]);
 
   const range = useMemo(() => computeRange(preset, customFrom, customTo), [preset, customFrom, customTo]);
 
@@ -139,7 +160,7 @@ export default function AnalyticsV3() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,intercom_closed_at,finalized_at,lifecycle_status,state,csat_rating,time_to_resolve_s,admin_assignee_id,tags,rsa_override")
+            .select("id,intercom_created_at,intercom_closed_at,finalized_at,lifecycle_status,state,csat_rating,time_to_resolve_s,admin_assignee_id,tags,rsa_override,customer_key,customer_kind")
             .or(
               `and(intercom_created_at.gte.${fromIso},intercom_created_at.lte.${toIso}),` +
               `and(finalized_at.gte.${fromIso},finalized_at.lte.${toIso})`,
@@ -159,7 +180,7 @@ export default function AnalyticsV3() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,lifecycle_status,reopen_count,tags,rsa_override")
+            .select("id,intercom_created_at,lifecycle_status,reopen_count,tags,rsa_override,customer_key")
             .neq("lifecycle_status", "finalized")
             .order("intercom_created_at", { ascending: true })
             .range(aOff, aOff + PAGE - 1);
@@ -185,14 +206,16 @@ export default function AnalyticsV3() {
 
   // Apply the RSA filter once, upstream of every memo, so KPIs, charts, and the
   // per-engineer breakdown all agree on what counts as "Required Support Action".
-  const filteredRows = useMemo(
-    () => (excludeRsaFalse ? rows.filter((r) => effectiveRsa(r).value === "required") : rows),
-    [rows, excludeRsaFalse],
-  );
-  const filteredActiveRows = useMemo(
-    () => (excludeRsaFalse ? activeRows.filter((r) => effectiveRsa(r).value === "required") : activeRows),
-    [activeRows, excludeRsaFalse],
-  );
+  const filteredRows = useMemo(() => {
+    let r = excludeRsaFalse ? rows.filter((x) => effectiveRsa(x).value === "required") : rows;
+    if (customerFilter !== "__any__") r = r.filter((x) => x.customer_key === customerFilter);
+    return r;
+  }, [rows, excludeRsaFalse, customerFilter]);
+  const filteredActiveRows = useMemo(() => {
+    let r = excludeRsaFalse ? activeRows.filter((x) => effectiveRsa(x).value === "required") : activeRows;
+    if (customerFilter !== "__any__") r = r.filter((x) => x.customer_key === customerFilter);
+    return r;
+  }, [activeRows, excludeRsaFalse, customerFilter]);
   const rsaHiddenInRange = useMemo(() => {
     if (!excludeRsaFalse) return 0;
     const fromMs = range.from.getTime();
@@ -313,6 +336,45 @@ export default function AnalyticsV3() {
     return { items, total };
   }, [filteredRows, range.from, range.to, ownerMap]);
 
+  // Top customers: aggregated over finalized-in-range rows and current active backlog.
+  const topCustomers = useMemo(() => {
+    const fromMs = range.from.getTime();
+    const toMs = range.to.getTime();
+    type Agg = { closed: number; csatSum: number; csatN: number; resolveTimes: number[]; open: number; reopened: number };
+    const map = new Map<string, Agg>();
+    const get = (k: string): Agg => {
+      let v = map.get(k);
+      if (!v) { v = { closed: 0, csatSum: 0, csatN: 0, resolveTimes: [], open: 0, reopened: 0 }; map.set(k, v); }
+      return v;
+    };
+    for (const r of filteredRows) {
+      if (r.lifecycle_status !== "finalized" || !r.finalized_at) continue;
+      const t = new Date(r.finalized_at).getTime();
+      if (t < fromMs || t > toMs) continue;
+      const a = get(r.customer_key ?? "unknown");
+      a.closed++;
+      if (typeof r.csat_rating === "number") { a.csatSum += r.csat_rating; a.csatN++; }
+      if (typeof r.time_to_resolve_s === "number" && r.time_to_resolve_s > 0) a.resolveTimes.push(r.time_to_resolve_s);
+    }
+    for (const r of filteredActiveRows) {
+      const a = get(r.customer_key ?? "unknown");
+      if (r.lifecycle_status === "reopened_after_finalize") a.reopened++;
+      else a.open++;
+    }
+    return Array.from(map.entries())
+      .map(([k, v]) => ({
+        key: k,
+        label: accountLabel(k),
+        closed: v.closed,
+        avgCsat: v.csatN ? v.csatSum / v.csatN : null,
+        medResolve: median(v.resolveTimes),
+        open: v.open,
+        reopened: v.reopened,
+      }))
+      .sort((a, b) => (b.closed + b.open + b.reopened) - (a.closed + a.open + a.reopened));
+  }, [filteredRows, filteredActiveRows, range.from, range.to, accountLabel]);
+
+
 
   return (
     <AppLayout>
@@ -360,6 +422,18 @@ export default function AnalyticsV3() {
             <div className="text-xs text-muted-foreground ml-1">
               {format(range.from, "MMM d, yyyy")} → {format(range.to, "MMM d, yyyy")}
             </div>
+
+            <Select value={customerFilter} onValueChange={setCustomerFilter}>
+              <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue placeholder="Customer" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__any__">Customer: any</SelectItem>
+                {accounts.map((a) => (
+                  <SelectItem key={a.account_key} value={a.account_key}>{a.label}</SelectItem>
+                ))}
+                <SelectItem value="domain:_personal">Personal email</SelectItem>
+                <SelectItem value="unknown">Unknown</SelectItem>
+              </SelectContent>
+            </Select>
 
             <label
               className="ml-auto inline-flex items-center gap-2 text-xs cursor-pointer select-none"
@@ -517,6 +591,57 @@ export default function AnalyticsV3() {
             )}
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Top customers</CardTitle>
+            <CardDescription className="text-xs">
+              Aggregated by <code>customer_key</code>. Closed = finalized in range. Open/Reopened = current backlog snapshot.
+              Click a row to drill into Inbox v3 filtered by that customer.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="py-8 flex items-center justify-center text-muted-foreground text-sm">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…
+              </div>
+            ) : topCustomers.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">No customer activity in range.</div>
+            ) : (
+              <div className="rounded-md border border-border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40 text-xs text-muted-foreground">
+                    <tr>
+                      <th className="text-left px-3 py-2">Customer</th>
+                      <th className="text-right px-3 py-2">Closed</th>
+                      <th className="text-right px-3 py-2">Avg CSAT</th>
+                      <th className="text-right px-3 py-2">Median resolve</th>
+                      <th className="text-right px-3 py-2">Open</th>
+                      <th className="text-right px-3 py-2">Reopened</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topCustomers.slice(0, 30).map((c) => (
+                      <tr
+                        key={c.key}
+                        className="border-t border-border hover:bg-muted/30 cursor-pointer"
+                        onClick={() => { window.location.href = `/inbox-v3?customer=${encodeURIComponent(c.key)}`; }}
+                      >
+                        <td className="px-3 py-1.5 font-medium">{c.label}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{c.closed}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{c.avgCsat != null ? c.avgCsat.toFixed(2) : "—"}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums text-xs">{formatDuration(c.medResolve)}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{c.open}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{c.reopened}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
 
         <p className="text-xs text-muted-foreground">
           Time-to-resolve reads the pre-computed <code>time_to_resolve_s</code> snapshot taken at finalize (Intercom's

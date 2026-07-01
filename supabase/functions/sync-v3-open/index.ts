@@ -176,6 +176,9 @@ Deno.serve(async (req) => {
       const owner = adminOwnerMap[adminId] || null;
       const subject = stripHtml(conv.source?.subject || conv.title || `Intercom #${convId}`);
 
+      // NOTE: customer_key / customer_kind / customer_source are populated by
+      // the BEFORE INSERT/UPDATE trigger `intercom_tickets_v3_apply_customer`.
+      // Keep DB trigger + Deno helper (_shared/v3-customer.ts) in lockstep.
       const row = {
         intercom_conversation_id: convId,
         team_assignee_id: String(conv.team_assignee_id ?? ""),

@@ -40,7 +40,14 @@ type Ticket = {
   last_silent_change: any;
   last_synced_at: string | null;
   raw_payload: any;
+  customer_key: string | null;
+  customer_kind: string | null;
+  customer_source: string | null;
+  customer_override_key: string | null;
+  customer_override_reason: string | null;
 };
+
+type AccountOpt = { account_key: string; label: string };
 
 const ANY = "__any__";
 const CSAT_EMOJI: Record<number, string> = { 1: "😠", 2: "🙁", 3: "😐", 4: "😀", 5: "🤩" };
@@ -70,12 +77,44 @@ export default function InboxV3() {
   const [activeRows, setActiveRows] = useState<Ticket[]>([]);
   const [activeLoading, setActiveLoading] = useState(true);
 
+  // Customer accounts (for override picker + label lookup)
+  const [accounts, setAccounts] = useState<AccountOpt[]>([]);
+  useEffect(() => {
+    supabase
+      .from("v3_customer_accounts")
+      .select("account_key,label")
+      .order("label")
+      .then(({ data }) => setAccounts((data ?? []) as AccountOpt[]));
+  }, []);
+  const accountLabel = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of accounts) m.set(a.account_key, a.label);
+    return (key: string | null) => {
+      if (!key) return "—";
+      if (key === "unknown") return "Unknown";
+      if (key === "domain:_personal") return "Personal email";
+      if (key.startsWith("domain:")) return key.slice(7);
+      return m.get(key) ?? key;
+    };
+  }, [accounts]);
+
   // Shared filters
   const [search, setSearch] = useState("");
   const [owner, setOwner] = useState<string>(ANY);
   const [pa, setPa] = useState<string>(ANY);
   const [rsaFilter, setRsaFilter] = useState<"all" | "required" | "not_required">("all");
+  const [customerFilter, setCustomerFilter] = useState<string>(ANY);
   const [selected, setSelected] = useState<Ticket | null>(null);
+
+  // Override picker state (inside the sheet)
+  const [overrideDraft, setOverrideDraft] = useState<string>("");
+  const [overrideReason, setOverrideReason] = useState<string>("");
+  const [savingOverride, setSavingOverride] = useState(false);
+
+  useEffect(() => {
+    setOverrideDraft(selected?.customer_override_key ?? "");
+    setOverrideReason(selected?.customer_override_reason ?? "");
+  }, [selected?.id]);
 
   // Cycle a ticket's RSA: derived → required → not_required → derived.
   // Writes rsa_override on intercom_tickets_v3 and updates local state optimistically.
@@ -162,6 +201,68 @@ export default function InboxV3() {
   useEffect(() => { loadFinalized(); }, [lifecycle]);
   useEffect(() => { loadActive(); }, []);
 
+  // Deep-link support: /inbox-v3?customer=<key>
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get("customer");
+    if (p) setCustomerFilter(p);
+  }, []);
+
+  // Save/reset per-ticket customer override. Not admin-gated by design.
+  const saveOverride = async () => {
+    if (!selected) return;
+    setSavingOverride(true);
+    const key = overrideDraft.trim() || null;
+    const { data: { session } } = await supabase.auth.getSession();
+    const { error } = await supabase
+      .from("intercom_tickets_v3")
+      .update({
+        customer_override_key: key,
+        customer_override_reason: overrideReason.trim() || null,
+        customer_override_by: key ? (session?.user?.id ?? null) : null,
+        customer_override_at: key ? new Date().toISOString() : null,
+      })
+      .eq("id", selected.id);
+    setSavingOverride(false);
+    if (error) { toast({ title: "Couldn't save override", description: error.message, variant: "destructive" }); return; }
+    // Refetch the row so we pick up the trigger-recomputed customer_* columns.
+    const { data: fresh } = await supabase
+      .from("intercom_tickets_v3").select("*").eq("id", selected.id).single();
+    if (fresh) {
+      const apply = (rows: Ticket[]) => rows.map((r) => r.id === fresh.id ? (fresh as Ticket) : r);
+      setFinalizedRows(apply);
+      setActiveRows(apply);
+      setSelected(fresh as Ticket);
+    }
+    toast({ title: key ? "Override saved" : "Override cleared" });
+  };
+  const resetOverride = async () => {
+    setOverrideDraft("");
+    setOverrideReason("");
+    // Save with empty draft (clears override, trigger re-derives).
+    if (!selected) return;
+    setSavingOverride(true);
+    const { error } = await supabase
+      .from("intercom_tickets_v3")
+      .update({
+        customer_override_key: null,
+        customer_override_reason: null,
+        customer_override_by: null,
+        customer_override_at: null,
+      })
+      .eq("id", selected.id);
+    setSavingOverride(false);
+    if (error) { toast({ title: "Couldn't reset", description: error.message, variant: "destructive" }); return; }
+    const { data: fresh } = await supabase
+      .from("intercom_tickets_v3").select("*").eq("id", selected.id).single();
+    if (fresh) {
+      const apply = (rows: Ticket[]) => rows.map((r) => r.id === fresh.id ? (fresh as Ticket) : r);
+      setFinalizedRows(apply);
+      setActiveRows(apply);
+      setSelected(fresh as Ticket);
+    }
+    toast({ title: "Reset to auto-derived" });
+  };
+
   const currentRows = tab === "finalized" ? finalizedRows : activeRows;
   const currentLoading = tab === "finalized" ? finalizedLoading : activeLoading;
   const reload = tab === "finalized" ? loadFinalized : loadActive;
@@ -175,11 +276,18 @@ export default function InboxV3() {
     [currentRows],
   );
 
+  const customerOpts = useMemo(() => {
+    const keys = new Set<string>();
+    for (const r of currentRows) if (r.customer_key) keys.add(r.customer_key);
+    return Array.from(keys).sort();
+  }, [currentRows]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return currentRows.filter((r) => {
       if (owner !== ANY && r.owner !== owner) return false;
       if (tab === "finalized" && pa !== ANY && r.product_area !== pa) return false;
+      if (customerFilter !== ANY && r.customer_key !== customerFilter) return false;
       if (rsaFilter !== "all") {
         const v = effectiveRsa(r).value;
         if (rsaFilter === "required" && v !== "required") return false;
@@ -192,7 +300,7 @@ export default function InboxV3() {
       }
       return true;
     });
-  }, [currentRows, search, owner, pa, tab, rsaFilter]);
+  }, [currentRows, search, owner, pa, tab, rsaFilter, customerFilter]);
 
   const lastSync = useMemo(() => {
     const ts = currentRows.map((r) => r.last_synced_at).filter(Boolean).sort().pop();
@@ -310,6 +418,15 @@ export default function InboxV3() {
                 <SelectItem value="not_required">RSA: not required only</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={customerFilter} onValueChange={setCustomerFilter}>
+              <SelectTrigger className="h-9 w-[200px] text-xs"><SelectValue placeholder="Customer" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ANY}>Customer: any</SelectItem>
+                {customerOpts.map((k) => (
+                  <SelectItem key={k} value={k}>{accountLabel(k)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {currentRows.length}</span>
           </div>
 
@@ -390,6 +507,47 @@ export default function InboxV3() {
                   </>
                 ) : null}
                 <Field label="Contact" value={`${selected.contact_name ?? "—"} · ${selected.contact_email ?? "—"}`} />
+                <div className="grid grid-cols-[140px_1fr] gap-3 items-start">
+                  <dt className="text-xs text-muted-foreground">Customer</dt>
+                  <dd className="text-sm space-y-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="secondary" className="text-xs">{accountLabel(selected.customer_key)}</Badge>
+                      <span className="text-[10px] text-muted-foreground uppercase">
+                        {selected.customer_source ?? "—"}
+                      </span>
+                    </div>
+                    <div className="space-y-1.5 rounded-md border border-border p-2 bg-muted/20">
+                      <div className="text-[11px] text-muted-foreground">Override</div>
+                      <Select value={overrideDraft || "__none__"} onValueChange={(v) => setOverrideDraft(v === "__none__" ? "" : v)}>
+                        <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="No override" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No override (auto-derive)</SelectItem>
+                          <SelectItem value="unknown">Unknown</SelectItem>
+                          <SelectItem value="domain:_personal">Personal email</SelectItem>
+                          {accounts.map((a) => (
+                            <SelectItem key={a.account_key} value={a.account_key}>{a.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        placeholder="Reason (optional)"
+                        value={overrideReason}
+                        onChange={(e) => setOverrideReason(e.target.value)}
+                        className="h-8 text-xs"
+                      />
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" className="h-7 text-xs" onClick={saveOverride} disabled={savingOverride}>
+                          Save override
+                        </Button>
+                        {selected.customer_override_key && (
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={resetOverride} disabled={savingOverride}>
+                            Reset to auto
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </dd>
+                </div>
                 <Field label="Created" value={selected.intercom_created_at ? format(new Date(selected.intercom_created_at), "PPpp") : "—"} />
                 <Field label="Closed" value={selected.intercom_closed_at ? format(new Date(selected.intercom_closed_at), "PPpp") : "—"} />
                 <Field label="Finalized" value={selected.finalized_at ? format(new Date(selected.finalized_at), "PPpp") : "—"} />

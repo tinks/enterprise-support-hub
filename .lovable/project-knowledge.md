@@ -821,3 +821,12 @@ Reporting-grade mirror of Intercom enterprise tickets, built as a parallel stack
 - Required Support Action (RSA): `intercom_tickets_v3.rsa_override boolean null` is the only RSA storage; derivation lives client-side in `src/pages/inbox-v3/rsa.ts`. `effectiveRsa({ tags, rsa_override })` resolves with priority **manual override → tag → default**: `rsa_override=true` → `required` (source `manual`); `rsa_override=false` → `not_required` (source `manual`); else if tags include `enterprise-fyi` or `enterprise-duplicate` (case-insensitive, in `RSA_FALSE_TAGS`) → `not_required` (source `tag`); otherwise `required` (source `default`). Sync functions never touch `rsa_override` — it's UI-set only. v2 keeps its own engagement chain; the two systems are independent.
 
 - Out of scope (deliberate non-goals): no edits to `inbox_v2_tickets`, `sync-inbox-v2`, `InboxV2.tsx`, `AnalyticsV2.tsx`, or any existing cron. No engagement classification in v3 (RSA replaces that role). Reopens are flagged only — never re-finalize. No automatic v2→v3 cutover; both run in parallel until manually cut over.
+
+## v3 Customer slices (shipped)
+- `v3_customer_accounts` (admin-only via `has_role`) maps email domains → labeled accounts. `v3_personal_email_domains` allowlists consumer providers (gmail.com etc.).
+- `intercom_tickets_v3` gains `customer_key/kind/source` (derived) + `customer_override_key/by/at/reason` (manual, per-ticket).
+- Derivation order (LOCKSTEP across SQL derive fn, accounts-propagation trigger, and Deno `_shared/v3-customer.ts`): override → domain-match → personal allowlist → generic `domain:<dom>` → `unknown`.
+- BEFORE INSERT/UPDATE trigger `intercom_tickets_v3_apply_customer` runs derivation on every write; sync-v3-closed/open do not compute it themselves.
+- Domain-collision guard on `v3_customer_accounts` rejects a domain claimed by another account.
+- `backfill_v3_customer_keys(force, batch)` re-derives existing rows in 5k batches; `force=true` needed after rule/allowlist edits.
+- UI: Settings → Customer accounts (admin CRUD), Inbox v3 sheet override + reset-to-auto, Analytics v3 Customer filter + Top customers table + `/inbox-v3?customer=<key>` deep-link.
