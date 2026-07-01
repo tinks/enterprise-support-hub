@@ -1,52 +1,56 @@
+# Roles & admin UI (foundation)
 
-# Analytics v3 — headline KPI tightening
+Pause the v3 Customer-slices plan. Ship the roles scaffold now so future admin-gated features (starting with `v3_customer_accounts`) have something to check against, and seed matt.niiro@lovable.dev as the first admin.
 
-Scope: only the three headline KPI cards at the top of `/analytics-v3`. No sync changes, no schema changes, no new edge functions. All values are already computable from `intercom_tickets_v3`.
+## Database migration
 
-## What changes
+1. `CREATE TYPE public.app_role AS ENUM ('admin', 'user');`
+2. `CREATE TABLE public.user_roles` — `id uuid pk`, `user_id uuid references auth.users(id) on delete cascade not null`, `role app_role not null`, `created_at timestamptz default now()`, `unique (user_id, role)`.
+3. Grants: `SELECT` to `authenticated`, `ALL` to `service_role`. No `anon`.
+4. Enable RLS.
+5. `has_role(_user_id uuid, _role app_role)` — `security definer`, `stable`, `set search_path = public`, returns exists-check against `user_roles`. Standard recursion-safe pattern.
+6. Policies on `user_roles`:
+   - SELECT: user can read their own rows (`auth.uid() = user_id`) OR `has_role(auth.uid(), 'admin')`.
+   - INSERT / UPDATE / DELETE: `has_role(auth.uid(), 'admin')` only.
+7. Seed: `INSERT INTO public.user_roles (user_id, role) VALUES ('1d7bf5c8-520b-4a57-9aba-fe3f5e8357b1', 'admin') ON CONFLICT DO NOTHING;` (matt.niiro@lovable.dev, id already verified).
 
-### 1. "Total tickets" → "Tickets closed in period"
+## Client helper
 
-Today the card labels as "Total tickets" and depending on the toggle shows either finalized-only or finalized+open created-in-range. Leadership will misread that as inbound volume.
+- `src/hooks/useIsAdmin.ts` — TanStack Query hook. Selects from `user_roles` where `user_id = auth.uid() AND role = 'admin'`. Returns `{ isAdmin, isLoading }`. RLS on the SELECT policy already restricts what non-admins see, so this is safe on the client.
+- Used to gate admin-only UI. Server-side enforcement always comes from the RLS policies + `has_role()`, never from the client flag.
 
-- Headline number: **Tickets closed in period** — `lifecycle_status='finalized'` with `finalized_at` inside the selected range. Anchored on `finalized_at` (our internal close timestamp set by v3 sync), not `intercom_closed_at`, so the figure is consistent with the gap-scan reconciliation.
-- Drop the "Finalized only / Include open" toggle from the headline. "Opened in range" lives in the Active backlog strip, which is the right home for inbound volume.
-- Subline: small muted secondary line — "X opened in same window" — so leadership can see both at a glance without conflating them.
-- Tooltip on the title: "Tickets finalized (closed) during this date range, anchored on our internal finalized_at. Excludes tickets still in flight. Tickets opened in this window may close in a later period."
+## Settings → Team → Roles admin UI
 
-### 2. Average CSAT — add response rate
+New route/section `Settings → Team → Roles` (admin-only; non-admins get a "You don't have access" empty state, and the nav item is hidden via `useIsAdmin`).
 
-- Keep the average as the headline number.
-- Secondary line under it: **"X% response rate (n rated / m closed)"**, computed against the same closed-in-period set used for headline #1. Today the card only shows `n = … rated` with no denominator.
-- Tooltip: "CSAT averages can skew toward extremes when response rates are low. Treat anything under ~30% response with caution."
+Card contents:
 
-### 3. Median time to resolve — add P90 companion (n ≥ 10 only)
+- **Members table** — one row per `auth.users` record joined to their `user_roles`. Columns: Email, Roles (badges), Joined, Actions.
+  - Data source: a new `list_users_with_roles()` `security definer` SQL function that returns `id, email, created_at, roles text[]` from `auth.users` + `user_roles`. Guarded internally by `has_role(auth.uid(), 'admin')` — raises if the caller isn't an admin. Keeps `auth.users` reads off the client.
+- **Grant / revoke admin** — per-row toggle. Writes directly to `user_roles` (INSERT for grant, DELETE for revoke). RLS admin-only policy is the real gate.
+- **Guard**: cannot revoke your own `admin` role if you're the last admin. Enforced two ways:
+  1. Client: disable the toggle with a tooltip when `roles.filter(admin).count === 1 && row.id === auth.uid()`.
+  2. DB: `BEFORE DELETE` trigger on `user_roles` that raises if the delete would leave zero admin rows. Belt-and-suspenders — the DB check is the real guarantee.
 
-- Keep median as the headline.
-- Secondary line: **"P90: Xh Ym"** computed from the same `time_to_resolve_s` array.
-- Threshold: only render the P90 line when `n ≥ 10`. Below the threshold, render a muted "P90: insufficient data (n &lt; 10)" line — keeps the card layout stable instead of jumping.
-- Tooltip: "Median = the typical ticket. P90 = 90% of tickets resolve at or under this. Watch P90 for enterprise worst-case experience. Hidden when fewer than 10 finalized tickets in range."
+No invite/create-user flow in this pass — new users still arrive via existing auth; admins grant them the role after first sign-in.
 
-## Technical notes
+## Housekeeping
 
-- Single file edit: `src/pages/AnalyticsV3.tsx`.
-- New helper `percentile(values, p)` next to the existing `median` helper.
-- `stats` memo changes:
-  - `inRange` becomes "finalized rows with `finalized_at` in range" (not "created_at in range"). Drop the `includeOpen` branch and the toggle UI.
-  - Add `closedDenominator` (= inRange length), reuse `openedInRange` from `activeStats`.
-  - Add `p90Close` from the same `closeTimes` array; gate render on `closeTimes.length >= 10`.
-- `Kpi` component already supports a `sub` line. Extend it (or pass JSX into `sub`) to render the secondary stat plus tooltip via existing `Tooltip` primitives.
-- No DB / edge / migration work.
+- Update `.lovable/project-knowledge.md` — new "Roles & permissions" section documenting the enum, `user_roles` table, `has_role()` helper, admin-only RLS pattern, last-admin guard, and the Settings → Team → Roles page.
+- New memory `mem://features/roles-and-permissions.md` — describes the scaffold and the rule that all future admin-gated tables/features use `has_role(auth.uid(), 'admin')` in RLS rather than checking `user_roles` directly.
+- `changelog_entries` row: "Added Roles & permissions with admin UI. matt.niiro@lovable.dev seeded as first admin."
+- Leave the v3 Customer-slices plan on hold; when we resume it, the admin RLS on `v3_customer_accounts` will use `has_role()` from this scaffold.
+
+## Verification before shipping
+
+1. Sign in as matt.niiro@lovable.dev → Settings → Team → Roles renders, table lists users, admin badge on your row.
+2. Grant admin to a second test user → they can now see the page. Revoke it → their access disappears on next query.
+3. Attempt to revoke your own admin while you're the only admin → blocked with clear error (both client tooltip and DB trigger).
+4. Sign in as a non-admin → nav item hidden; direct navigation to the route shows the empty state; a manual `insert` into `user_roles` via the client fails on RLS.
 
 ## Out of scope
 
-- Per-source breakdown (Slack/Gmail/Intercom) — v3 is Intercom-only by design.
-- Replacing the Active backlog strip.
-- Anything on Analytics or Analytics v2.
-
-## Mandatory housekeeping (per standing rule)
-
-- Update `.lovable/project-knowledge.md` Analytics v3 section with the new KPI definitions.
-- Stage the same content as `pending_content` on `knowledge_documents` (id=`project-knowledge`) via `sync-knowledge-pending` so it surfaces for review on `/knowledge`.
-- Add a `changelog_entries` row.
-- Flow page: no change (no logic flow changed, only KPI labeling).
+- v3 `customer_key` / `v3_customer_accounts` / customer override UI — paused, resume after this ships.
+- Additional roles beyond `admin` / `user`.
+- User invite / creation flow.
+- Per-feature permission grid (single `admin` role is enough for now).
