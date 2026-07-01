@@ -592,6 +592,57 @@ export default function AnalyticsV3() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Top customers</CardTitle>
+            <CardDescription className="text-xs">
+              Aggregated by <code>customer_key</code>. Closed = finalized in range. Open/Reopened = current backlog snapshot.
+              Click a row to drill into Inbox v3 filtered by that customer.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="py-8 flex items-center justify-center text-muted-foreground text-sm">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…
+              </div>
+            ) : topCustomers.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">No customer activity in range.</div>
+            ) : (
+              <div className="rounded-md border border-border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/40 text-xs text-muted-foreground">
+                    <tr>
+                      <th className="text-left px-3 py-2">Customer</th>
+                      <th className="text-right px-3 py-2">Closed</th>
+                      <th className="text-right px-3 py-2">Avg CSAT</th>
+                      <th className="text-right px-3 py-2">Median resolve</th>
+                      <th className="text-right px-3 py-2">Open</th>
+                      <th className="text-right px-3 py-2">Reopened</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topCustomers.slice(0, 30).map((c) => (
+                      <tr
+                        key={c.key}
+                        className="border-t border-border hover:bg-muted/30 cursor-pointer"
+                        onClick={() => { window.location.href = `/inbox-v3?customer=${encodeURIComponent(c.key)}`; }}
+                      >
+                        <td className="px-3 py-1.5 font-medium">{c.label}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{c.closed}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{c.avgCsat != null ? c.avgCsat.toFixed(2) : "—"}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums text-xs">{formatDuration(c.medResolve)}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{c.open}</td>
+                        <td className="px-3 py-1.5 text-right tabular-nums">{c.reopened}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+
         <p className="text-xs text-muted-foreground">
           Time-to-resolve reads the pre-computed <code>time_to_resolve_s</code> snapshot taken at finalize (Intercom's
           <code> statistics.time_to_last_close</code>). Active backlog reflects every non-finalized row regardless of date.
