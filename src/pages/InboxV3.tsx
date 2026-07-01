@@ -431,7 +431,7 @@ export default function InboxV3() {
           </div>
 
           <TabsContent value="finalized" className="mt-4">
-            <FinalizedTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} onMarkFinalized={markAsFinalized} />
+            <FinalizedTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} onMarkFinalized={markAsFinalized} accountLabel={accountLabel} />
           </TabsContent>
 
           <TabsContent value="active" className="mt-4 space-y-3">
@@ -442,7 +442,7 @@ export default function InboxV3() {
                 populated at close. Sorted oldest-first to surface stale backlog.
               </span>
             </div>
-            <ActiveTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} onMarkFinalized={markAsFinalized} />
+            <ActiveTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} onMarkFinalized={markAsFinalized} accountLabel={accountLabel} />
           </TabsContent>
         </Tabs>
       </div>
