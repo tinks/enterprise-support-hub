@@ -1,0 +1,1 @@
+- [v3 Customer slices](mem://features/v3-customer-slices) — account/domain mapping, personal-email allowlist, override UI, Top customers table, and the three-place lockstep contract
