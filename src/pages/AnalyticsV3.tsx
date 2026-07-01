@@ -35,6 +35,8 @@ type Row = {
   admin_assignee_id: string | null;
   tags: string[] | null;
   rsa_override: boolean | null;
+  customer_key: string | null;
+  customer_kind: string | null;
 };
 
 type ActiveRow = {
@@ -44,7 +46,10 @@ type ActiveRow = {
   reopen_count: number | null;
   tags: string[] | null;
   rsa_override: boolean | null;
+  customer_key: string | null;
 };
+
+type AccountOpt = { account_key: string; label: string };
 
 type RangePreset = "7d" | "14d" | "30d" | "this_month" | "last_month" | "custom";
 
