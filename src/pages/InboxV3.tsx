@@ -719,9 +719,6 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, 
               <TableCell><RsaBadge t={r} onCycle={onCycleRsa} /></TableCell>
               <TableCell>{r.csat_rating ? `${CSAT_EMOJI[r.csat_rating]} ${r.csat_rating}` : "—"}</TableCell>
               <TableCell className="tabular-nums text-xs">{formatDuration(r.time_to_resolve_s)}</TableCell>
-              <TableCell className="text-xs text-muted-foreground">
-                {r.intercom_closed_at ? format(new Date(r.intercom_closed_at), "MMM d, yyyy") : "—"}
-              </TableCell>
             </TableRow>
           ))}
         </TableBody>
