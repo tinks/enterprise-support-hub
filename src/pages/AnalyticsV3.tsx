@@ -206,14 +206,16 @@ export default function AnalyticsV3() {
 
   // Apply the RSA filter once, upstream of every memo, so KPIs, charts, and the
   // per-engineer breakdown all agree on what counts as "Required Support Action".
-  const filteredRows = useMemo(
-    () => (excludeRsaFalse ? rows.filter((r) => effectiveRsa(r).value === "required") : rows),
-    [rows, excludeRsaFalse],
-  );
-  const filteredActiveRows = useMemo(
-    () => (excludeRsaFalse ? activeRows.filter((r) => effectiveRsa(r).value === "required") : activeRows),
-    [activeRows, excludeRsaFalse],
-  );
+  const filteredRows = useMemo(() => {
+    let r = excludeRsaFalse ? rows.filter((x) => effectiveRsa(x).value === "required") : rows;
+    if (customerFilter !== "__any__") r = r.filter((x) => x.customer_key === customerFilter);
+    return r;
+  }, [rows, excludeRsaFalse, customerFilter]);
+  const filteredActiveRows = useMemo(() => {
+    let r = excludeRsaFalse ? activeRows.filter((x) => effectiveRsa(x).value === "required") : activeRows;
+    if (customerFilter !== "__any__") r = r.filter((x) => x.customer_key === customerFilter);
+    return r;
+  }, [activeRows, excludeRsaFalse, customerFilter]);
   const rsaHiddenInRange = useMemo(() => {
     if (!excludeRsaFalse) return 0;
     const fromMs = range.from.getTime();
