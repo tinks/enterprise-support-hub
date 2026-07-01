@@ -322,6 +322,9 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // NOTE: customer_key / customer_kind / customer_source are populated by
+      // the BEFORE INSERT/UPDATE trigger `intercom_tickets_v3_apply_customer`.
+      // See supabase/functions/_shared/v3-customer.ts for the lockstep contract.
       const row = {
         intercom_conversation_id: convId,
         team_assignee_id: String(icData.team_assignee_id ?? ""),
