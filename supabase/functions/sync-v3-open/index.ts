@@ -16,11 +16,15 @@ import {
   decideFinalizedUpdate,
   domainOf,
   intercomHeaders,
+  isFinalizedTicketState,
+  isTicketPayload,
   stripHtml,
   TIME_BUDGET_MS,
   tsToIso,
   V3_CORS_HEADERS,
 } from "../_shared/v3.ts";
+import { finalizeConversation } from "../_shared/v3-finalize.ts";
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: V3_CORS_HEADERS });
@@ -126,7 +130,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  let inserted = 0, updated = 0, skipped = 0, failed = 0, reopened = 0, silentNudges = 0;
+  let inserted = 0, updated = 0, skipped = 0, failed = 0, reopened = 0, silentNudges = 0, ticketsFinalized = 0;
 
   for (const conv of conversations) {
     const convId = String(conv.id);
@@ -167,6 +171,27 @@ Deno.serve(async (req) => {
         }
         continue;
       }
+
+      // Intercom Tickets (conversations converted to tickets) keep top-level
+      // state="open" even when resolved — closed-sync never sees them. If the
+      // search payload shows a resolved/archived ticket, run the full finalize
+      // path here (single GET) so it lands on the Finalized tab.
+      if (isTicketPayload(conv) && isFinalizedTicketState(conv)) {
+        const result = await finalizeConversation({
+          supabase,
+          intercomToken: INTERCOM_API_TOKEN,
+          convId,
+          enterpriseInboxId,
+          adminOwnerMap,
+          existing: null,
+        });
+        if (result.kind === "inserted" || result.kind === "updated") ticketsFinalized++;
+        else if (result.kind === "skipped") skipped++;
+        else failed++;
+        continue;
+      }
+
+
 
       // Search-payload only (NO GET /conversations/{id})
       const sa = conv.source?.author;
@@ -229,7 +254,7 @@ Deno.serve(async (req) => {
 
   return json({
     ok: true, windowHours, fetched: conversations.length,
-    inserted, updated, skipped, failed, reopened, silent_nudges: silentNudges,
+    inserted, updated, skipped, failed, reopened, silent_nudges: silentNudges, tickets_finalized: ticketsFinalized,
     stateCounts,
     elapsed_ms: Date.now() - startedAt,
   });
