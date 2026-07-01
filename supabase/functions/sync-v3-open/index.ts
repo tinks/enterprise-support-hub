@@ -172,6 +172,27 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // Intercom Tickets (conversations converted to tickets) keep top-level
+      // state="open" even when resolved — closed-sync never sees them. If the
+      // search payload shows a resolved/archived ticket, run the full finalize
+      // path here (single GET) so it lands on the Finalized tab.
+      if (isTicketPayload(conv) && isFinalizedTicketState(conv)) {
+        const result = await finalizeConversation({
+          supabase,
+          intercomToken: INTERCOM_API_TOKEN,
+          convId,
+          enterpriseInboxId,
+          adminOwnerMap,
+          existing: null,
+        });
+        if (result.kind === "inserted" || result.kind === "updated") ticketsFinalized++;
+        else if (result.kind === "skipped") skipped++;
+        else failed++;
+        continue;
+      }
+
+
+
       // Search-payload only (NO GET /conversations/{id})
       const sa = conv.source?.author;
       const contactName: string | null = sa?.name || sa?.email || null;
