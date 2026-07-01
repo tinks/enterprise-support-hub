@@ -108,7 +108,20 @@ A Slack-to-Intercom support bridge for enterprise customers. When a user @mentio
 - If mismatch → returns 403 and refuses to process
 - `slack-interactions` caches the bot user ID per isolate for performance
 
+### Roles & permissions
+- Enum `public.app_role` (`admin`, `user`) + table `public.user_roles (user_id, role)` (unique per pair)
+- Security-definer function `public.has_role(uuid, app_role)` is the ONLY approved way to check roles in RLS — never query `user_roles` directly from a policy on `user_roles` (recursion)
+- `user_roles` RLS: users read their own rows; admins read all; only admins insert/update/delete
+- `BEFORE DELETE` trigger `user_roles_prevent_last_admin_delete` blocks removing the final admin row
+- Admin-only RPC `public.list_users_with_roles()` returns every `auth.users` row + their roles; raises if caller isn't admin (keeps `auth.users` off the client)
+- Client hook `useIsAdmin()` (`src/hooks/useIsAdmin.ts`) gates UI only — server enforcement is always RLS + `has_role()`
+- Managed via **Settings → Roles & permissions** card (`src/components/RolesCard.tsx`); non-admins don't see the card
+- First admin: `matt.niiro@lovable.dev`
+- All future admin-gated tables MUST use `public.has_role(auth.uid(), 'admin')` in policies rather than reimplementing the check
+
 ---
+
+
 
 ## 5. Conversation Lifecycle & Statuses
 
