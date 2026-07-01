@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  let inserted = 0, updated = 0, skipped = 0, failed = 0, reopened = 0, silentNudges = 0;
+  let inserted = 0, updated = 0, skipped = 0, failed = 0, reopened = 0, silentNudges = 0, ticketsFinalized = 0;
 
   for (const conv of conversations) {
     const convId = String(conv.id);
