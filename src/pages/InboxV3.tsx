@@ -727,7 +727,7 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, 
   );
 }
 
-function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void; onMarkFinalized: (t: Ticket) => void }) {
+function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, accountLabel }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void; onMarkFinalized: (t: Ticket) => void; accountLabel: (key: string | null) => string }) {
   const now = Date.now();
   return (
     <div className="rounded-md border border-border overflow-auto">
@@ -735,13 +735,13 @@ function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }: {
         <TableHeader>
           <TableRow>
             <TableHead className="w-[140px]">Intercom ID</TableHead>
-            <TableHead className="w-[400px]">Subject</TableHead>
+            <TableHead className="w-[360px]">Subject</TableHead>
             <TableHead className="w-[200px]">Contact</TableHead>
+            <TableHead className="w-[140px]">Customer</TableHead>
             <TableHead className="w-[120px]">Owner</TableHead>
             <TableHead className="w-[100px]">State</TableHead>
             <TableHead className="w-[140px]">Lifecycle</TableHead>
             <TableHead className="w-[90px]">RSA</TableHead>
-            <TableHead className="w-[120px]">Opened</TableHead>
             <TableHead className="w-[120px]">Last update</TableHead>
             <TableHead className="w-[80px]">Age</TableHead>
           </TableRow>
