@@ -336,6 +336,45 @@ export default function AnalyticsV3() {
     return { items, total };
   }, [filteredRows, range.from, range.to, ownerMap]);
 
+  // Top customers: aggregated over finalized-in-range rows and current active backlog.
+  const topCustomers = useMemo(() => {
+    const fromMs = range.from.getTime();
+    const toMs = range.to.getTime();
+    type Agg = { closed: number; csatSum: number; csatN: number; resolveTimes: number[]; open: number; reopened: number };
+    const map = new Map<string, Agg>();
+    const get = (k: string): Agg => {
+      let v = map.get(k);
+      if (!v) { v = { closed: 0, csatSum: 0, csatN: 0, resolveTimes: [], open: 0, reopened: 0 }; map.set(k, v); }
+      return v;
+    };
+    for (const r of filteredRows) {
+      if (r.lifecycle_status !== "finalized" || !r.finalized_at) continue;
+      const t = new Date(r.finalized_at).getTime();
+      if (t < fromMs || t > toMs) continue;
+      const a = get(r.customer_key ?? "unknown");
+      a.closed++;
+      if (typeof r.csat_rating === "number") { a.csatSum += r.csat_rating; a.csatN++; }
+      if (typeof r.time_to_resolve_s === "number" && r.time_to_resolve_s > 0) a.resolveTimes.push(r.time_to_resolve_s);
+    }
+    for (const r of filteredActiveRows) {
+      const a = get(r.customer_key ?? "unknown");
+      if (r.lifecycle_status === "reopened_after_finalize") a.reopened++;
+      else a.open++;
+    }
+    return Array.from(map.entries())
+      .map(([k, v]) => ({
+        key: k,
+        label: accountLabel(k),
+        closed: v.closed,
+        avgCsat: v.csatN ? v.csatSum / v.csatN : null,
+        medResolve: median(v.resolveTimes),
+        open: v.open,
+        reopened: v.reopened,
+      }))
+      .sort((a, b) => (b.closed + b.open + b.reopened) - (a.closed + a.open + a.reopened));
+  }, [filteredRows, filteredActiveRows, range.from, range.to, accountLabel]);
+
+
 
   return (
     <AppLayout>
