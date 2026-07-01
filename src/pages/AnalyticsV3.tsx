@@ -113,6 +113,8 @@ export default function AnalyticsV3() {
 
   const [activeRows, setActiveRows] = useState<ActiveRow[]>([]);
   const [ownerMap, setOwnerMap] = useState<Record<string, string>>({});
+  const [accounts, setAccounts] = useState<AccountOpt[]>([]);
+  const [customerFilter, setCustomerFilter] = useState<string>("__any__");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -123,8 +125,22 @@ export default function AnalyticsV3() {
       if (data?.admin_owner_map) {
         try { setOwnerMap(JSON.parse(data.admin_owner_map)); } catch { /* ignore */ }
       }
+      const { data: a } = await supabase.from("v3_customer_accounts").select("account_key,label").order("label");
+      setAccounts((a ?? []) as AccountOpt[]);
     })();
   }, []);
+
+  const accountLabel = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const a of accounts) m.set(a.account_key, a.label);
+    return (key: string | null) => {
+      if (!key) return "—";
+      if (key === "unknown") return "Unknown";
+      if (key === "domain:_personal") return "Personal email";
+      if (key.startsWith("domain:")) return key.slice(7);
+      return m.get(key) ?? key;
+    };
+  }, [accounts]);
 
   const range = useMemo(() => computeRange(preset, customFrom, customTo), [preset, customFrom, customTo]);
 
