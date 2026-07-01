@@ -630,15 +630,16 @@ function RsaBadge({ t, onCycle }: { t: Ticket; onCycle: (t: Ticket) => void }) {
   );
 }
 
-function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void; onMarkFinalized: (t: Ticket) => void }) {
+function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, accountLabel }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void; onMarkFinalized: (t: Ticket) => void; accountLabel: (key: string | null) => string }) {
   return (
     <div className="rounded-md border border-border overflow-auto">
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead className="w-[140px]">Intercom ID</TableHead>
-            <TableHead className="w-[360px]">Subject</TableHead>
+            <TableHead className="w-[320px]">Subject</TableHead>
             <TableHead className="w-[180px]">Contact</TableHead>
+            <TableHead className="w-[140px]">Customer</TableHead>
             <TableHead className="w-[120px]">Owner</TableHead>
             <TableHead className="w-[160px]">Product area</TableHead>
             <TableHead className="w-[140px]">Classification</TableHead>
@@ -647,7 +648,6 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }
             <TableHead className="w-[90px]">RSA</TableHead>
             <TableHead className="w-[120px]">CSAT</TableHead>
             <TableHead className="w-[120px]">Resolve</TableHead>
-            <TableHead className="w-[140px]">Closed</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
