@@ -18,6 +18,7 @@ import SlackChannelAccountMapCard from "@/components/SlackChannelAccountMapCard"
 import IntegrationHealthCard from "@/components/IntegrationHealthCard";
 import InboxV3SyncCard from "@/components/InboxV3SyncCard";
 import TicketChannelTestCard from "@/components/TicketChannelTestCard";
+import RolesCard from "@/components/RolesCard";
 import lovableLogo from "@/assets/lovable-logo.png";
 
 interface SettingsData {
