@@ -431,7 +431,7 @@ export default function InboxV3() {
           </div>
 
           <TabsContent value="finalized" className="mt-4">
-            <FinalizedTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} onMarkFinalized={markAsFinalized} />
+            <FinalizedTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} onMarkFinalized={markAsFinalized} accountLabel={accountLabel} />
           </TabsContent>
 
           <TabsContent value="active" className="mt-4 space-y-3">
@@ -442,7 +442,7 @@ export default function InboxV3() {
                 populated at close. Sorted oldest-first to surface stale backlog.
               </span>
             </div>
-            <ActiveTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} onMarkFinalized={markAsFinalized} />
+            <ActiveTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} onMarkFinalized={markAsFinalized} accountLabel={accountLabel} />
           </TabsContent>
         </Tabs>
       </div>
@@ -630,15 +630,16 @@ function RsaBadge({ t, onCycle }: { t: Ticket; onCycle: (t: Ticket) => void }) {
   );
 }
 
-function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void; onMarkFinalized: (t: Ticket) => void }) {
+function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, accountLabel }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void; onMarkFinalized: (t: Ticket) => void; accountLabel: (key: string | null) => string }) {
   return (
     <div className="rounded-md border border-border overflow-auto">
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead className="w-[140px]">Intercom ID</TableHead>
-            <TableHead className="w-[360px]">Subject</TableHead>
+            <TableHead className="w-[320px]">Subject</TableHead>
             <TableHead className="w-[180px]">Contact</TableHead>
+            <TableHead className="w-[140px]">Customer</TableHead>
             <TableHead className="w-[120px]">Owner</TableHead>
             <TableHead className="w-[160px]">Product area</TableHead>
             <TableHead className="w-[140px]">Classification</TableHead>
@@ -647,7 +648,6 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }
             <TableHead className="w-[90px]">RSA</TableHead>
             <TableHead className="w-[120px]">CSAT</TableHead>
             <TableHead className="w-[120px]">Resolve</TableHead>
-            <TableHead className="w-[140px]">Closed</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -672,10 +672,13 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }
                   {r.intercom_conversation_id}<ExternalLink className="h-3 w-3" />
                 </a>
               </TableCell>
-              <TableCell className="truncate max-w-[360px]">{r.subject || "—"}</TableCell>
+              <TableCell className="truncate max-w-[320px]">{r.subject || "—"}</TableCell>
               <TableCell className="truncate max-w-[180px]">
                 <div className="text-sm">{r.contact_name || "—"}</div>
                 <div className="text-xs text-muted-foreground truncate">{r.contact_email || ""}</div>
+              </TableCell>
+              <TableCell className="truncate max-w-[140px]">
+                <Badge variant="secondary" className="text-xs">{accountLabel(r.customer_key)}</Badge>
               </TableCell>
               <TableCell>{r.owner || "—"}</TableCell>
               <TableCell>{r.product_area || "—"}</TableCell>
@@ -716,9 +719,6 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }
               <TableCell><RsaBadge t={r} onCycle={onCycleRsa} /></TableCell>
               <TableCell>{r.csat_rating ? `${CSAT_EMOJI[r.csat_rating]} ${r.csat_rating}` : "—"}</TableCell>
               <TableCell className="tabular-nums text-xs">{formatDuration(r.time_to_resolve_s)}</TableCell>
-              <TableCell className="text-xs text-muted-foreground">
-                {r.intercom_closed_at ? format(new Date(r.intercom_closed_at), "MMM d, yyyy") : "—"}
-              </TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -727,7 +727,7 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }
   );
 }
 
-function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void; onMarkFinalized: (t: Ticket) => void }) {
+function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, accountLabel }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void; onMarkFinalized: (t: Ticket) => void; accountLabel: (key: string | null) => string }) {
   const now = Date.now();
   return (
     <div className="rounded-md border border-border overflow-auto">
@@ -735,13 +735,13 @@ function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }: {
         <TableHeader>
           <TableRow>
             <TableHead className="w-[140px]">Intercom ID</TableHead>
-            <TableHead className="w-[400px]">Subject</TableHead>
+            <TableHead className="w-[360px]">Subject</TableHead>
             <TableHead className="w-[200px]">Contact</TableHead>
+            <TableHead className="w-[140px]">Customer</TableHead>
             <TableHead className="w-[120px]">Owner</TableHead>
             <TableHead className="w-[100px]">State</TableHead>
             <TableHead className="w-[140px]">Lifecycle</TableHead>
             <TableHead className="w-[90px]">RSA</TableHead>
-            <TableHead className="w-[120px]">Opened</TableHead>
             <TableHead className="w-[120px]">Last update</TableHead>
             <TableHead className="w-[80px]">Age</TableHead>
           </TableRow>
@@ -772,10 +772,13 @@ function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }: {
                     {r.intercom_conversation_id}<ExternalLink className="h-3 w-3" />
                   </a>
                 </TableCell>
-                <TableCell className="truncate max-w-[400px]">{r.subject || "—"}</TableCell>
+                <TableCell className="truncate max-w-[360px]">{r.subject || "—"}</TableCell>
                 <TableCell className="truncate max-w-[200px]">
                   <div className="text-sm">{r.contact_name || "—"}</div>
                   <div className="text-xs text-muted-foreground truncate">{r.contact_email || ""}</div>
+                </TableCell>
+                <TableCell className="truncate max-w-[140px]">
+                  <Badge variant="secondary" className="text-xs">{accountLabel(r.customer_key)}</Badge>
                 </TableCell>
                 <TableCell>{r.owner || "—"}</TableCell>
                 <TableCell className="text-xs">{r.state || "—"}</TableCell>
@@ -797,9 +800,6 @@ function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized }: {
                   </div>
                 </TableCell>
                 <TableCell><RsaBadge t={r} onCycle={onCycleRsa} /></TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {r.intercom_created_at ? format(new Date(r.intercom_created_at), "MMM d, yyyy") : "—"}
-                </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   {r.intercom_updated_at ? formatDistanceToNow(new Date(r.intercom_updated_at), { addSuffix: true }) : "—"}
                 </TableCell>
