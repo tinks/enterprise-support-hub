@@ -498,6 +498,7 @@ export default function AnalyticsV3() {
               }
               tooltip="Median = the typical ticket. P90 = 90% of tickets resolve at or under this. Watch P90 for enterprise worst-case experience. Hidden when fewer than 10 finalized tickets in range."
               loading={loading}
+            />
             <Kpi
               title="Average time to resolve"
               value={loading ? "…" : formatDuration(stats.avgClose)}
