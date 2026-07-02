@@ -247,9 +247,11 @@ export default function AnalyticsV3() {
     const closeTimes = inRange
       .map((r) => r.time_to_resolve_s)
       .filter((v): v is number => typeof v === "number" && v > 0);
+    const avgClose = closeTimes.length ? closeTimes.reduce((a, b) => a + b, 0) / closeTimes.length : null;
     return {
       total, avgCsat, ratedN: ratings.length, closedDenominator: total, responseRate,
       medClose: median(closeTimes), closeN: closeTimes.length,
+      avgClose,
       p90Close: closeTimes.length >= 10 ? percentile(closeTimes, 90) : null,
       p90Eligible: closeTimes.length >= 10,
     };
@@ -459,7 +461,7 @@ export default function AnalyticsV3() {
         )}
 
         <TooltipProvider delayDuration={150}>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Kpi
               title="Tickets closed in period"
               value={loading ? "…" : stats.total.toLocaleString()}
@@ -495,6 +497,17 @@ export default function AnalyticsV3() {
                 </span>
               }
               tooltip="Median = the typical ticket. P90 = 90% of tickets resolve at or under this. Watch P90 for enterprise worst-case experience. Hidden when fewer than 10 finalized tickets in range."
+              loading={loading}
+            />
+            <Kpi
+              title="Average time to resolve"
+              value={loading ? "…" : formatDuration(stats.avgClose)}
+              sub={
+                <span className="text-muted-foreground">
+                  n = {stats.closeN.toLocaleString()}
+                </span>
+              }
+              tooltip="Mean resolution time across finalized tickets in range. Sensitive to outliers — compare against the median to spot skew from a few very long tickets."
               loading={loading}
             />
           </div>
