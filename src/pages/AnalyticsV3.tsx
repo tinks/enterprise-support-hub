@@ -498,6 +498,16 @@ export default function AnalyticsV3() {
               }
               tooltip="Median = the typical ticket. P90 = 90% of tickets resolve at or under this. Watch P90 for enterprise worst-case experience. Hidden when fewer than 10 finalized tickets in range."
               loading={loading}
+            <Kpi
+              title="Average time to resolve"
+              value={loading ? "…" : formatDuration(stats.avgClose)}
+              sub={
+                <span className="text-muted-foreground">
+                  n = {stats.closeN.toLocaleString()}
+                </span>
+              }
+              tooltip="Mean resolution time across finalized tickets in range. Sensitive to outliers — compare against the median to spot skew from a few very long tickets."
+              loading={loading}
             />
           </div>
         </TooltipProvider>
