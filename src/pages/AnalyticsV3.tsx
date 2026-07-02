@@ -247,9 +247,11 @@ export default function AnalyticsV3() {
     const closeTimes = inRange
       .map((r) => r.time_to_resolve_s)
       .filter((v): v is number => typeof v === "number" && v > 0);
+    const avgClose = closeTimes.length ? closeTimes.reduce((a, b) => a + b, 0) / closeTimes.length : null;
     return {
       total, avgCsat, ratedN: ratings.length, closedDenominator: total, responseRate,
       medClose: median(closeTimes), closeN: closeTimes.length,
+      avgClose,
       p90Close: closeTimes.length >= 10 ? percentile(closeTimes, 90) : null,
       p90Eligible: closeTimes.length >= 10,
     };
