@@ -22,6 +22,7 @@ import AnalyticsV2 from "./pages/AnalyticsV2";
 import InboxV3 from "./pages/InboxV3";
 import AnalyticsV3 from "./pages/AnalyticsV3";
 import Changelog from "./pages/Changelog";
+import SlaTest from "./pages/SlaTest";
 
 
 const queryClient = new QueryClient();
@@ -51,6 +52,7 @@ const App = () => (
           <Route path="/flow" element={<ProtectedRoute><FlowDiagram /></ProtectedRoute>} />
           <Route path="/knowledge" element={<ProtectedRoute><ProjectKnowledge /></ProtectedRoute>} />
           <Route path="/changelog" element={<ProtectedRoute><Changelog /></ProtectedRoute>} />
+          <Route path="/sla-test" element={<ProtectedRoute><SlaTest /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
