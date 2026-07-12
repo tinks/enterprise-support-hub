@@ -125,25 +125,37 @@ export async function syncTicketAttributes(
   }
 
   // Delete keys no longer present on the payload — keeps store as exact mirror.
-  const keepKeys = rows.map((r) => r.attr_key);
-  let delQuery = supabase
+  // Fetch current keys, diff, and delete the stale ones by key. This avoids
+  // brittle PostgREST `not.in` quoting when keys contain commas or quotes.
+  const keepSet = new Set(rows.map((r) => r.attr_key));
+  const { data: currentRows, error: fetchErr } = await supabase
     .from("v3_ticket_attributes")
-    .delete()
+    .select("attr_key")
     .eq("ticket_id", ticketId);
-  if (keepKeys.length) {
-    // PostgREST needs a properly-quoted `in` list.
-    delQuery = delQuery.not(
-      "attr_key",
-      "in",
-      `(${keepKeys.map((k) => `"${k.replace(/"/g, '\\"')}"`).join(",")})`,
-    );
-  }
-  const { error: delErr, count } = await delQuery.select("id", { count: "exact", head: true });
-  if (delErr) {
+  if (fetchErr) {
     console.error(
-      `[v3-attributes] delete stale failed ticket=${ticketId} conv=${ctx.convId ?? "?"}: ${delErr.message}`,
+      `[v3-attributes] fetch existing keys failed ticket=${ticketId} conv=${ctx.convId ?? "?"}: ${fetchErr.message}`,
     );
+    return { upserted, deleted: 0 };
+  }
+  const staleKeys = (currentRows ?? [])
+    .map((r: any) => r.attr_key as string)
+    .filter((k) => !keepSet.has(k));
+  let deleted = 0;
+  if (staleKeys.length) {
+    const { error: delErr } = await supabase
+      .from("v3_ticket_attributes")
+      .delete()
+      .eq("ticket_id", ticketId)
+      .in("attr_key", staleKeys);
+    if (delErr) {
+      console.error(
+        `[v3-attributes] delete stale failed ticket=${ticketId} conv=${ctx.convId ?? "?"}: ${delErr.message}`,
+      );
+    } else {
+      deleted = staleKeys.length;
+    }
   }
 
-  return { upserted, deleted: count ?? 0 };
+  return { upserted, deleted };
 }
