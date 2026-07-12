@@ -14,6 +14,7 @@ import {
   CLEAN_DATA_START_ISO,
   domainOf,
 } from "./v3.ts";
+import { syncTicketAttributes } from "./v3-attributes.ts";
 
 export type FinalizeResult =
   | { kind: "inserted" | "updated" }
