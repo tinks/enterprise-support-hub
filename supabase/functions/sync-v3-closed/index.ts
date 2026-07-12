@@ -359,10 +359,16 @@ Deno.serve(async (req) => {
         reopen_count_at_finalize: Number(icData?.statistics?.count_reopens ?? 0),
       };
 
-      const { error } = await supabase
+      const { data: upserted, error } = await supabase
         .from("intercom_tickets_v3")
-        .upsert(row, { onConflict: "intercom_conversation_id" });
+        .upsert(row, { onConflict: "intercom_conversation_id" })
+        .select("id")
+        .single();
       if (error) { console.error(`[sync-v3-closed] upsert ${convId}:`, error.message); failed++; continue; }
+      if (upserted?.id) {
+        try { await syncTicketAttributes(supabase, upserted.id, icData, { convId }); }
+        catch (e) { console.error(`[sync-v3-closed] attr sync ${convId}: ${(e as Error).message}`); }
+      }
       if (existing) updated++; else inserted++;
     } catch (e) {
       console.error(`[sync-v3-closed] err on ${convId}:`, (e as Error).message);
