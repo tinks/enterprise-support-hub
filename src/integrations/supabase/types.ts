@@ -544,12 +544,15 @@ export type Database = {
           csat_rated_at: string | null
           csat_rating: number | null
           csat_remark: string | null
+          custom_attributes: Json | null
+          customer_confidence: string | null
           customer_key: string | null
           customer_kind: string | null
           customer_override_at: string | null
           customer_override_by: string | null
           customer_override_key: string | null
           customer_override_reason: string | null
+          customer_resolution_method: string | null
           customer_source: string | null
           finalized_at: string | null
           id: string
@@ -587,12 +590,15 @@ export type Database = {
           csat_rated_at?: string | null
           csat_rating?: number | null
           csat_remark?: string | null
+          custom_attributes?: Json | null
+          customer_confidence?: string | null
           customer_key?: string | null
           customer_kind?: string | null
           customer_override_at?: string | null
           customer_override_by?: string | null
           customer_override_key?: string | null
           customer_override_reason?: string | null
+          customer_resolution_method?: string | null
           customer_source?: string | null
           finalized_at?: string | null
           id?: string
@@ -630,12 +636,15 @@ export type Database = {
           csat_rated_at?: string | null
           csat_rating?: number | null
           csat_remark?: string | null
+          custom_attributes?: Json | null
+          customer_confidence?: string | null
           customer_key?: string | null
           customer_kind?: string | null
           customer_override_at?: string | null
           customer_override_by?: string | null
           customer_override_key?: string | null
           customer_override_reason?: string | null
+          customer_resolution_method?: string | null
           customer_source?: string | null
           finalized_at?: string | null
           id?: string
@@ -976,29 +985,73 @@ export type Database = {
         }
         Relationships: []
       }
-      v3_customer_accounts: {
+      v3_channel_account_map: {
         Row: {
           account_key: string
           created_at: string
-          domains: string[]
-          label: string
-          notes: string | null
+          label: string | null
+          slack_channel_id: string
           updated_at: string
         }
         Insert: {
           account_key: string
           created_at?: string
-          domains?: string[]
-          label: string
-          notes?: string | null
+          label?: string | null
+          slack_channel_id: string
           updated_at?: string
         }
         Update: {
           account_key?: string
           created_at?: string
+          label?: string | null
+          slack_channel_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "v3_channel_account_map_account_key_fkey"
+            columns: ["account_key"]
+            isOneToOne: false
+            referencedRelation: "v3_customer_accounts"
+            referencedColumns: ["account_key"]
+          },
+        ]
+      }
+      v3_customer_accounts: {
+        Row: {
+          account_key: string
+          aliases: string[] | null
+          created_at: string
+          csm_owner: string | null
+          domains: string[]
+          label: string
+          notes: string | null
+          status: string | null
+          tier: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_key: string
+          aliases?: string[] | null
+          created_at?: string
+          csm_owner?: string | null
+          domains?: string[]
+          label: string
+          notes?: string | null
+          status?: string | null
+          tier?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_key?: string
+          aliases?: string[] | null
+          created_at?: string
+          csm_owner?: string | null
           domains?: string[]
           label?: string
           notes?: string | null
+          status?: string | null
+          tier?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -1017,6 +1070,44 @@ export type Database = {
           domain?: string
         }
         Relationships: []
+      }
+      v3_ticket_attributes: {
+        Row: {
+          attr_key: string
+          attr_value_bool: boolean | null
+          attr_value_num: number | null
+          attr_value_text: string | null
+          id: string
+          synced_at: string
+          ticket_id: string
+        }
+        Insert: {
+          attr_key: string
+          attr_value_bool?: boolean | null
+          attr_value_num?: number | null
+          attr_value_text?: string | null
+          id?: string
+          synced_at?: string
+          ticket_id: string
+        }
+        Update: {
+          attr_key?: string
+          attr_value_bool?: boolean | null
+          attr_value_num?: number | null
+          attr_value_text?: string | null
+          id?: string
+          synced_at?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "v3_ticket_attributes_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "intercom_tickets_v3"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
