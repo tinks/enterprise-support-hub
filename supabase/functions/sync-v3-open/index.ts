@@ -24,6 +24,7 @@ import {
   V3_CORS_HEADERS,
 } from "../_shared/v3.ts";
 import { finalizeConversation } from "../_shared/v3-finalize.ts";
+import { syncTicketAttributes } from "../_shared/v3-attributes.ts";
 
 
 Deno.serve(async (req) => {
