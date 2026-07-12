@@ -129,9 +129,21 @@ export async function finalizeConversation(params: {
     reopen_count_at_finalize: Number(icData?.statistics?.count_reopens ?? 0),
   };
 
-  const { error } = await supabase
+  const { data: upserted, error } = await supabase
     .from("intercom_tickets_v3")
-    .upsert(row, { onConflict: "intercom_conversation_id" });
+    .upsert(row, { onConflict: "intercom_conversation_id" })
+    .select("id")
+    .single();
   if (error) return { kind: "failed", reason: error.message };
+
+  // Mirror custom_attributes into jsonb + normalized store. Errors logged, not thrown.
+  if (upserted?.id) {
+    try {
+      await syncTicketAttributes(supabase, upserted.id, icData, { convId });
+    } catch (e) {
+      console.error(`[v3-finalize] attribute sync threw for conv=${convId}: ${(e as Error).message}`);
+    }
+  }
+
   return { kind: existing ? "updated" : "inserted" };
 }
