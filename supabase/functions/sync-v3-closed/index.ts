@@ -247,11 +247,15 @@ Deno.serve(async (req) => {
           await supabase.from("intercom_tickets_v3")
             .update(buildReopenUpdate(existing, decision.fData, convUpdatedAt))
             .eq("id", existing.id);
+          try { await syncTicketAttributes(supabase, existing.id, decision.fData, { convId }); }
+          catch (e) { console.error(`[sync-v3-closed] attr sync (reopen) ${convId}: ${(e as Error).message}`); }
           reopened++;
         } else {
           await supabase.from("intercom_tickets_v3")
             .update(buildSilentNudgeUpdate(existing, decision.fData, decision.silentChange, convUpdatedAt))
             .eq("id", existing.id);
+          try { await syncTicketAttributes(supabase, existing.id, decision.fData, { convId }); }
+          catch (e) { console.error(`[sync-v3-closed] attr sync (silent) ${convId}: ${(e as Error).message}`); }
           silentNudges++;
         }
         continue;
