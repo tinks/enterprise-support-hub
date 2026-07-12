@@ -24,6 +24,7 @@ import {
   V3_CORS_HEADERS,
 } from "../_shared/v3.ts";
 import { finalizeConversation } from "../_shared/v3-finalize.ts";
+import { syncTicketAttributes } from "../_shared/v3-attributes.ts";
 
 
 Deno.serve(async (req) => {
@@ -162,11 +163,15 @@ Deno.serve(async (req) => {
           await supabase.from("intercom_tickets_v3")
             .update(buildReopenUpdate(finalized, decision.fData, convUpdatedAt))
             .eq("id", finalized.id);
+          try { await syncTicketAttributes(supabase, finalized.id, decision.fData, { convId }); }
+          catch (e) { console.error(`[sync-v3-open] attr sync (reopen) ${convId}: ${(e as Error).message}`); }
           reopened++;
         } else {
           await supabase.from("intercom_tickets_v3")
             .update(buildSilentNudgeUpdate(finalized, decision.fData, decision.silentChange, convUpdatedAt))
             .eq("id", finalized.id);
+          try { await syncTicketAttributes(supabase, finalized.id, decision.fData, { convId }); }
+          catch (e) { console.error(`[sync-v3-open] attr sync (silent) ${convId}: ${(e as Error).message}`); }
           silentNudges++;
         }
         continue;

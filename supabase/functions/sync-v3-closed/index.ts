@@ -36,6 +36,7 @@ import {
   tsToIso,
   V3_CORS_HEADERS,
 } from "../_shared/v3.ts";
+import { syncTicketAttributes } from "../_shared/v3-attributes.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: V3_CORS_HEADERS });
@@ -246,11 +247,15 @@ Deno.serve(async (req) => {
           await supabase.from("intercom_tickets_v3")
             .update(buildReopenUpdate(existing, decision.fData, convUpdatedAt))
             .eq("id", existing.id);
+          try { await syncTicketAttributes(supabase, existing.id, decision.fData, { convId }); }
+          catch (e) { console.error(`[sync-v3-closed] attr sync (reopen) ${convId}: ${(e as Error).message}`); }
           reopened++;
         } else {
           await supabase.from("intercom_tickets_v3")
             .update(buildSilentNudgeUpdate(existing, decision.fData, decision.silentChange, convUpdatedAt))
             .eq("id", existing.id);
+          try { await syncTicketAttributes(supabase, existing.id, decision.fData, { convId }); }
+          catch (e) { console.error(`[sync-v3-closed] attr sync (silent) ${convId}: ${(e as Error).message}`); }
           silentNudges++;
         }
         continue;
@@ -354,10 +359,16 @@ Deno.serve(async (req) => {
         reopen_count_at_finalize: Number(icData?.statistics?.count_reopens ?? 0),
       };
 
-      const { error } = await supabase
+      const { data: upserted, error } = await supabase
         .from("intercom_tickets_v3")
-        .upsert(row, { onConflict: "intercom_conversation_id" });
+        .upsert(row, { onConflict: "intercom_conversation_id" })
+        .select("id")
+        .single();
       if (error) { console.error(`[sync-v3-closed] upsert ${convId}:`, error.message); failed++; continue; }
+      if (upserted?.id) {
+        try { await syncTicketAttributes(supabase, upserted.id, icData, { convId }); }
+        catch (e) { console.error(`[sync-v3-closed] attr sync ${convId}: ${(e as Error).message}`); }
+      }
       if (existing) updated++; else inserted++;
     } catch (e) {
       console.error(`[sync-v3-closed] err on ${convId}:`, (e as Error).message);

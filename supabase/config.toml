@@ -83,3 +83,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.bulk-import-slack]
 verify_jwt = false
+[functions.backfill-v3-ticket-attributes]
+verify_jwt = false
