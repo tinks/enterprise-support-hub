@@ -1026,6 +1026,51 @@ export type Database = {
           },
         ]
       }
+      v3_coverage_snapshots: {
+        Row: {
+          attributed: number
+          created_at: string
+          m_domain: number
+          m_override: number
+          m_slack_channel: number
+          m_unresolved: number
+          m_workspace_id: number
+          pct_attributed: number
+          snapshot_date: string
+          total_tickets: number
+          unattributed: number
+          updated_at: string
+        }
+        Insert: {
+          attributed?: number
+          created_at?: string
+          m_domain?: number
+          m_override?: number
+          m_slack_channel?: number
+          m_unresolved?: number
+          m_workspace_id?: number
+          pct_attributed?: number
+          snapshot_date: string
+          total_tickets?: number
+          unattributed?: number
+          updated_at?: string
+        }
+        Update: {
+          attributed?: number
+          created_at?: string
+          m_domain?: number
+          m_override?: number
+          m_slack_channel?: number
+          m_unresolved?: number
+          m_workspace_id?: number
+          pct_attributed?: number
+          snapshot_date?: string
+          total_tickets?: number
+          unattributed?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       v3_customer_accounts: {
         Row: {
           account_key: string
@@ -1226,6 +1271,43 @@ export type Database = {
           result_source: string
         }[]
       }
+      v3_capture_coverage_snapshot: {
+        Args: never
+        Returns: {
+          attributed: number
+          created_at: string
+          m_domain: number
+          m_override: number
+          m_slack_channel: number
+          m_unresolved: number
+          m_workspace_id: number
+          pct_attributed: number
+          snapshot_date: string
+          total_tickets: number
+          unattributed: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "v3_coverage_snapshots"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      v3_coverage_current: {
+        Args: never
+        Returns: {
+          attributed: number
+          m_domain: number
+          m_override: number
+          m_slack_channel: number
+          m_unresolved: number
+          m_workspace_id: number
+          pct_attributed: number
+          total_tickets: number
+          unattributed: number
+        }[]
+      }
       v3_derive_customer:
         | {
             Args: { _contact_email: string; _override_key: string }
@@ -1251,6 +1333,14 @@ export type Database = {
               customer_source: string
             }[]
           }
+      v3_unattributed_groups: {
+        Args: never
+        Returns: {
+          group_key: string
+          group_kind: string
+          ticket_count: number
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "user"
