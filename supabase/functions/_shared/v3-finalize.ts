@@ -15,6 +15,7 @@ import {
   domainOf,
 } from "./v3.ts";
 import { syncTicketAttributes } from "./v3-attributes.ts";
+import { writeV3Signals } from "./v3-signals.ts";
 
 export type FinalizeResult =
   | { kind: "inserted" | "updated" }
