@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
-import { Settings, BarChart3, GitBranch, MessageSquare, BookOpen, Import, Users, LogOut, Sparkles, Beaker, ScrollText, Gauge } from "lucide-react";
+import { Settings, BarChart3, GitBranch, MessageSquare, BookOpen, Import, Users, LogOut, Sparkles, Beaker, ScrollText, Gauge, Building2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -11,6 +11,7 @@ const navItems = [
   { to: "/analytics-v3", icon: Beaker, label: "Analytics v3" },
   { to: "/changelog", icon: ScrollText, label: "Changelog" },
   // Dashboards row is rendered between the first 3 items and the rest.
+  { to: "/customers", icon: Building2, label: "Customers" },
   { to: "/flow", icon: GitBranch, label: "Flow" },
   { to: "/import", icon: Import, label: "Import" },
   { to: "/conversations", icon: MessageSquare, label: "Inbox" },
