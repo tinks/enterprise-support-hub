@@ -85,3 +85,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.backfill-v3-ticket-attributes]
 verify_jwt = false
+[functions.backfill-v3-signals]
+verify_jwt = false

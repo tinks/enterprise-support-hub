@@ -15,6 +15,7 @@ import {
   domainOf,
 } from "./v3.ts";
 import { syncTicketAttributes } from "./v3-attributes.ts";
+import { writeV3Signals } from "./v3-signals.ts";
 
 export type FinalizeResult =
   | { kind: "inserted" | "updated" }
@@ -142,6 +143,11 @@ export async function finalizeConversation(params: {
       await syncTicketAttributes(supabase, upserted.id, icData, { convId });
     } catch (e) {
       console.error(`[v3-finalize] attribute sync threw for conv=${convId}: ${(e as Error).message}`);
+    }
+    try {
+      await writeV3Signals(supabase, upserted.id, icData, { convId });
+    } catch (e) {
+      console.error(`[v3-finalize] signal write threw for conv=${convId}: ${(e as Error).message}`);
     }
   }
 

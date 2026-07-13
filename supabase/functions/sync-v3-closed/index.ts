@@ -37,6 +37,7 @@ import {
   V3_CORS_HEADERS,
 } from "../_shared/v3.ts";
 import { syncTicketAttributes } from "../_shared/v3-attributes.ts";
+import { writeV3Signals } from "../_shared/v3-signals.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: V3_CORS_HEADERS });
@@ -249,6 +250,8 @@ Deno.serve(async (req) => {
             .eq("id", existing.id);
           try { await syncTicketAttributes(supabase, existing.id, decision.fData, { convId }); }
           catch (e) { console.error(`[sync-v3-closed] attr sync (reopen) ${convId}: ${(e as Error).message}`); }
+          try { await writeV3Signals(supabase, existing.id, decision.fData, { convId }); }
+          catch (e) { console.error(`[sync-v3-closed] signal write (reopen) ${convId}: ${(e as Error).message}`); }
           reopened++;
         } else {
           await supabase.from("intercom_tickets_v3")
@@ -256,6 +259,8 @@ Deno.serve(async (req) => {
             .eq("id", existing.id);
           try { await syncTicketAttributes(supabase, existing.id, decision.fData, { convId }); }
           catch (e) { console.error(`[sync-v3-closed] attr sync (silent) ${convId}: ${(e as Error).message}`); }
+          try { await writeV3Signals(supabase, existing.id, decision.fData, { convId }); }
+          catch (e) { console.error(`[sync-v3-closed] signal write (silent) ${convId}: ${(e as Error).message}`); }
           silentNudges++;
         }
         continue;
@@ -368,6 +373,8 @@ Deno.serve(async (req) => {
       if (upserted?.id) {
         try { await syncTicketAttributes(supabase, upserted.id, icData, { convId }); }
         catch (e) { console.error(`[sync-v3-closed] attr sync ${convId}: ${(e as Error).message}`); }
+        try { await writeV3Signals(supabase, upserted.id, icData, { convId }); }
+        catch (e) { console.error(`[sync-v3-closed] signal write ${convId}: ${(e as Error).message}`); }
       }
       if (existing) updated++; else inserted++;
     } catch (e) {

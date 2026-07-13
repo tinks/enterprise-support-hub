@@ -25,6 +25,7 @@ import {
 } from "../_shared/v3.ts";
 import { finalizeConversation } from "../_shared/v3-finalize.ts";
 import { syncTicketAttributes } from "../_shared/v3-attributes.ts";
+import { writeV3Signals } from "../_shared/v3-signals.ts";
 
 
 Deno.serve(async (req) => {
@@ -165,6 +166,8 @@ Deno.serve(async (req) => {
             .eq("id", finalized.id);
           try { await syncTicketAttributes(supabase, finalized.id, decision.fData, { convId }); }
           catch (e) { console.error(`[sync-v3-open] attr sync (reopen) ${convId}: ${(e as Error).message}`); }
+          try { await writeV3Signals(supabase, finalized.id, decision.fData, { convId }); }
+          catch (e) { console.error(`[sync-v3-open] signal write (reopen) ${convId}: ${(e as Error).message}`); }
           reopened++;
         } else {
           await supabase.from("intercom_tickets_v3")
@@ -172,6 +175,8 @@ Deno.serve(async (req) => {
             .eq("id", finalized.id);
           try { await syncTicketAttributes(supabase, finalized.id, decision.fData, { convId }); }
           catch (e) { console.error(`[sync-v3-open] attr sync (silent) ${convId}: ${(e as Error).message}`); }
+          try { await writeV3Signals(supabase, finalized.id, decision.fData, { convId }); }
+          catch (e) { console.error(`[sync-v3-open] signal write (silent) ${convId}: ${(e as Error).message}`); }
           silentNudges++;
         }
         continue;
