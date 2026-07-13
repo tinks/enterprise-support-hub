@@ -11,6 +11,7 @@ const navItems = [
   { to: "/analytics-v3", icon: Beaker, label: "Analytics v3" },
   { to: "/changelog", icon: ScrollText, label: "Changelog" },
   // Dashboards row is rendered between the first 3 items and the rest.
+  { to: "/customers", icon: Building2, label: "Customers" },
   { to: "/flow", icon: GitBranch, label: "Flow" },
   { to: "/import", icon: Import, label: "Import" },
   { to: "/conversations", icon: MessageSquare, label: "Inbox" },
