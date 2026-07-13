@@ -25,6 +25,7 @@ import {
 } from "../_shared/v3.ts";
 import { finalizeConversation } from "../_shared/v3-finalize.ts";
 import { syncTicketAttributes } from "../_shared/v3-attributes.ts";
+import { writeV3Signals } from "../_shared/v3-signals.ts";
 
 
 Deno.serve(async (req) => {
