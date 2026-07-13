@@ -23,6 +23,7 @@ import InboxV3 from "./pages/InboxV3";
 import AnalyticsV3 from "./pages/AnalyticsV3";
 import Changelog from "./pages/Changelog";
 import SlaTest from "./pages/SlaTest";
+import Customers from "./pages/Customers";
 
 
 const queryClient = new QueryClient();
