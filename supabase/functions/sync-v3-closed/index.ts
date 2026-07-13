@@ -37,6 +37,7 @@ import {
   V3_CORS_HEADERS,
 } from "../_shared/v3.ts";
 import { syncTicketAttributes } from "../_shared/v3-attributes.ts";
+import { writeV3Signals } from "../_shared/v3-signals.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: V3_CORS_HEADERS });
