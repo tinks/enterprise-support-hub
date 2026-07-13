@@ -1,0 +1,1 @@
+ALTER VIEW public.v3_channel_names SET (security_invoker = true);
