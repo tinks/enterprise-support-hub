@@ -24,7 +24,7 @@ export type V3Signals = {
 };
 
 const SLACK_ARCHIVES_RE = /\/archives\/(C[A-Z0-9]+)/;
-const WORKSPACE_RE = /workspace_[a-z0-9]+/g;
+const WORKSPACE_RE = /workspace_[0-9a-z]{16,}/gi;
 const PROJECT_UUID_RE =
   /lovable\.dev\/projects\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
 
