@@ -250,6 +250,8 @@ Deno.serve(async (req) => {
             .eq("id", existing.id);
           try { await syncTicketAttributes(supabase, existing.id, decision.fData, { convId }); }
           catch (e) { console.error(`[sync-v3-closed] attr sync (reopen) ${convId}: ${(e as Error).message}`); }
+          try { await writeV3Signals(supabase, existing.id, decision.fData, { convId }); }
+          catch (e) { console.error(`[sync-v3-closed] signal write (reopen) ${convId}: ${(e as Error).message}`); }
           reopened++;
         } else {
           await supabase.from("intercom_tickets_v3")
