@@ -567,11 +567,13 @@ export type Database = {
           lifecycle_status: string
           owner: string | null
           product_area: string | null
+          project_uuid_detected: string | null
           raw_payload: Json | null
           reopen_count: number
           reopen_count_at_finalize: number | null
           rsa_override: boolean | null
           silent_update_count: number
+          slack_channel_id_detected: string | null
           state: string | null
           subject: string | null
           tags: string[]
@@ -579,6 +581,7 @@ export type Database = {
           time_to_first_admin_reply_s: number | null
           time_to_resolve_s: number | null
           updated_at: string
+          workspace_id_detected: string | null
         }
         Insert: {
           admin_assignee_id?: string | null
@@ -613,11 +616,13 @@ export type Database = {
           lifecycle_status?: string
           owner?: string | null
           product_area?: string | null
+          project_uuid_detected?: string | null
           raw_payload?: Json | null
           reopen_count?: number
           reopen_count_at_finalize?: number | null
           rsa_override?: boolean | null
           silent_update_count?: number
+          slack_channel_id_detected?: string | null
           state?: string | null
           subject?: string | null
           tags?: string[]
@@ -625,6 +630,7 @@ export type Database = {
           time_to_first_admin_reply_s?: number | null
           time_to_resolve_s?: number | null
           updated_at?: string
+          workspace_id_detected?: string | null
         }
         Update: {
           admin_assignee_id?: string | null
@@ -659,11 +665,13 @@ export type Database = {
           lifecycle_status?: string
           owner?: string | null
           product_area?: string | null
+          project_uuid_detected?: string | null
           raw_payload?: Json | null
           reopen_count?: number
           reopen_count_at_finalize?: number | null
           rsa_override?: boolean | null
           silent_update_count?: number
+          slack_channel_id_detected?: string | null
           state?: string | null
           subject?: string | null
           tags?: string[]
@@ -671,6 +679,7 @@ export type Database = {
           time_to_first_admin_reply_s?: number | null
           time_to_resolve_s?: number | null
           updated_at?: string
+          workspace_id_detected?: string | null
         }
         Relationships: []
       }
@@ -1056,6 +1065,30 @@ export type Database = {
         }
         Relationships: []
       }
+      v3_internal_channels: {
+        Row: {
+          channel_name: string
+          created_at: string
+          note: string | null
+          slack_channel_id: string
+          updated_at: string
+        }
+        Insert: {
+          channel_name: string
+          created_at?: string
+          note?: string | null
+          slack_channel_id: string
+          updated_at?: string
+        }
+        Update: {
+          channel_name?: string
+          created_at?: string
+          note?: string | null
+          slack_channel_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       v3_personal_email_domains: {
         Row: {
           created_at: string
@@ -1106,6 +1139,47 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "intercom_tickets_v3"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      v3_workspace_customer_map: {
+        Row: {
+          account_key: string
+          created_at: string
+          resolved_at: string
+          source: string
+          tier: string | null
+          updated_at: string
+          workspace_id: string
+          workspace_name: string | null
+        }
+        Insert: {
+          account_key: string
+          created_at?: string
+          resolved_at?: string
+          source?: string
+          tier?: string | null
+          updated_at?: string
+          workspace_id: string
+          workspace_name?: string | null
+        }
+        Update: {
+          account_key?: string
+          created_at?: string
+          resolved_at?: string
+          source?: string
+          tier?: string | null
+          updated_at?: string
+          workspace_id?: string
+          workspace_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "v3_workspace_customer_map_account_key_fkey"
+            columns: ["account_key"]
+            isOneToOne: false
+            referencedRelation: "v3_customer_accounts"
+            referencedColumns: ["account_key"]
           },
         ]
       }
