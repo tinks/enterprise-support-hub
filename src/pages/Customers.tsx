@@ -11,7 +11,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Users, RefreshCw, ChevronDown, ChevronRight, ExternalLink, Building2, Hash, Ban, Shield } from "lucide-react";
+import {
+  Loader2, Users, RefreshCw, ChevronDown, ChevronRight, ExternalLink,
+  Building2, Hash, Ban, Shield, AlertTriangle, Plus, Trash2, Pencil,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { format } from "date-fns";
@@ -25,23 +28,47 @@ type Coverage = {
   total_tickets: number;
   attributed: number;
   unattributed: number;
+  orphan_overrides: number;
   pct_attributed: number;
   m_override: number;
+  m_orphan_override: number;
   m_slack_channel: number;
   m_domain: number;
   m_workspace_id: number;
   m_unresolved: number;
 };
 
-type Snapshot = Coverage & { snapshot_date: string };
+type Snapshot = {
+  snapshot_date: string;
+  total_tickets: number;
+  attributed: number;
+  unattributed: number;
+  pct_attributed: number;
+  m_override: number;
+  m_orphan_override: number | null;
+  m_slack_channel: number;
+  m_domain: number;
+  m_workspace_id: number;
+  m_unresolved: number;
+};
 
 type GroupRow = {
   group_kind: "domain" | "channel" | "workspace" | "no_signal";
   group_key: string;
+  display_name: string | null;
   ticket_count: number;
 };
 
-type AccountOpt = { account_key: string; label: string; domains: string[] };
+type AccountOpt = {
+  account_key: string;
+  label: string;
+  domains: string[];
+  aliases?: string[] | null;
+  tier?: string | null;
+  csm_owner?: string | null;
+  status?: string | null;
+  notes?: string | null;
+};
 
 type UnTicket = {
   id: string;
@@ -54,6 +81,31 @@ type UnTicket = {
   intercom_created_at: string | null;
 };
 
+type ChannelRow = {
+  slack_channel_id: string;
+  channel_name: string | null;
+  ticket_count: number;
+  status: "mapped" | "internal" | "unmapped";
+  account_key: string | null;
+  account_label: string | null;
+};
+
+type WorkspaceMapRow = {
+  workspace_id: string;
+  account_key: string;
+  workspace_name: string | null;
+  tier: string | null;
+  source: string | null;
+};
+
+type InternalChannelRow = {
+  slack_channel_id: string;
+  channel_name: string | null;
+  note: string | null;
+};
+
+type OrphanRow = { customer_key: string; ticket_count: number };
+
 function intercomUrl(id: string) {
   return `https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${id}?view=List`;
 }
@@ -62,9 +114,13 @@ function slugify(s: string) {
   return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 }
 
+function channelLabel(id: string, name: string | null) {
+  return name ? `#${name} (${id})` : id;
+}
+
 export default function Customers() {
   const { isAdmin } = useIsAdmin();
-  const [tab, setTab] = useState<"coverage" | "unattributed">("coverage");
+  const [tab, setTab] = useState<"coverage" | "unattributed" | "channels" | "registry">("coverage");
 
   return (
     <AppLayout>
@@ -80,13 +136,13 @@ export default function Customers() {
           <TabsList>
             <TabsTrigger value="coverage">Coverage</TabsTrigger>
             <TabsTrigger value="unattributed">Unattributed queue</TabsTrigger>
+            <TabsTrigger value="channels">Channels</TabsTrigger>
+            <TabsTrigger value="registry">Registry</TabsTrigger>
           </TabsList>
-          <TabsContent value="coverage" className="pt-4">
-            <CoverageTab isAdmin={isAdmin} />
-          </TabsContent>
-          <TabsContent value="unattributed" className="pt-4">
-            <UnattributedTab isAdmin={isAdmin} />
-          </TabsContent>
+          <TabsContent value="coverage" className="pt-4"><CoverageTab isAdmin={isAdmin} /></TabsContent>
+          <TabsContent value="unattributed" className="pt-4"><UnattributedTab isAdmin={isAdmin} /></TabsContent>
+          <TabsContent value="channels" className="pt-4"><ChannelsTab isAdmin={isAdmin} /></TabsContent>
+          <TabsContent value="registry" className="pt-4"><RegistryTab isAdmin={isAdmin} /></TabsContent>
         </Tabs>
       </div>
     </AppLayout>
@@ -128,21 +184,18 @@ function CoverageTab({ isAdmin }: { isAdmin: boolean }) {
   if (loading) return <Loader2 className="h-5 w-5 animate-spin" />;
   if (!cov) return <p className="text-sm text-muted-foreground">No data.</p>;
 
-  const chartData = snaps.map(s => ({
-    date: s.snapshot_date,
-    pct: Number(s.pct_attributed),
-  }));
+  const chartData = snaps.map(s => ({ date: s.snapshot_date, pct: Number(s.pct_attributed) }));
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Attributed</CardDescription>
+            <CardDescription>Verified attributed</CardDescription>
             <CardTitle className="text-3xl">{Number(cov.pct_attributed).toFixed(1)}%</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            {cov.attributed} of {cov.total_tickets} tickets
+            {cov.attributed} of {cov.total_tickets} → known registry account
           </CardContent>
         </Card>
         <Card>
@@ -150,23 +203,22 @@ function CoverageTab({ isAdmin }: { isAdmin: boolean }) {
             <CardDescription>Unattributed</CardDescription>
             <CardTitle className="text-3xl">{cov.unattributed}</CardTitle>
           </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">Awaiting reclaim</CardContent>
+        </Card>
+        <Card className={cov.orphan_overrides > 0 ? "border-yellow-500/40 bg-yellow-500/5" : ""}>
+          <CardHeader className="pb-2">
+            <CardDescription className="flex items-center gap-1">
+              {cov.orphan_overrides > 0 && <AlertTriangle className="h-3 w-3 text-yellow-600" />}
+              Orphan overrides
+            </CardDescription>
+            <CardTitle className="text-3xl">{cov.orphan_overrides}</CardTitle>
+          </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            Awaiting reclaim
+            Overrides pointing at a missing account_key
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Total tickets</CardDescription>
-            <CardTitle className="text-3xl">{cov.total_tickets}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            in intercom_tickets_v3
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Actions</CardDescription>
-          </CardHeader>
+          <CardHeader className="pb-2"><CardDescription>Actions</CardDescription></CardHeader>
           <CardContent className="space-y-2">
             <Button size="sm" variant="outline" onClick={load} className="w-full">
               <RefreshCw className="h-4 w-4 mr-2" />Refresh
@@ -184,14 +236,18 @@ function CoverageTab({ isAdmin }: { isAdmin: boolean }) {
       <Card>
         <CardHeader>
           <CardTitle>Method distribution</CardTitle>
-          <CardDescription>How the currently-attributed tickets were resolved.</CardDescription>
+          <CardDescription>
+            How verified-attributed tickets were resolved. Orphan overrides are counted separately — they resolve to
+            an account_key that no longer exists in the registry.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <Bucket label="Override" value={cov.m_override} tone="default" />
-            <Bucket label="Slack channel" value={cov.m_slack_channel} tone="default" />
-            <Bucket label="Domain" value={cov.m_domain} tone="default" />
-            <Bucket label="Workspace ID" value={cov.m_workspace_id} tone="default" />
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+            <Bucket label="Override (verified)" value={cov.m_override} />
+            <Bucket label="Orphan / needs reconciliation" value={cov.m_orphan_override} tone="warn" />
+            <Bucket label="Slack channel" value={cov.m_slack_channel} />
+            <Bucket label="Domain" value={cov.m_domain} />
+            <Bucket label="Workspace ID" value={cov.m_workspace_id} />
             <Bucket label="Unresolved" value={cov.m_unresolved} tone="warn" />
           </div>
         </CardContent>
@@ -199,8 +255,8 @@ function CoverageTab({ isAdmin }: { isAdmin: boolean }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Coverage trend</CardTitle>
-          <CardDescription>Daily snapshot of % attributed. Auto-captured at 06:00 UTC.</CardDescription>
+          <CardTitle>Verified coverage trend</CardTitle>
+          <CardDescription>Daily snapshot of % verified-attributed. Auto-captured at 06:00 UTC.</CardDescription>
         </CardHeader>
         <CardContent style={{ height: 280 }}>
           {chartData.length === 0 ? (
@@ -222,7 +278,7 @@ function CoverageTab({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
-function Bucket({ label, value, tone }: { label: string; value: number; tone: "default" | "warn" }) {
+function Bucket({ label, value, tone }: { label: string; value: number; tone?: "warn" }) {
   return (
     <div className={`rounded-md border p-3 ${tone === "warn" ? "border-yellow-500/40 bg-yellow-500/5" : ""}`}>
       <div className="text-xs text-muted-foreground">{label}</div>
@@ -240,9 +296,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [expandedTickets, setExpandedTickets] = useState<Record<string, UnTicket[]>>({});
   const [selected, setSelected] = useState<Record<string, Set<string>>>({});
-
-  // Dialog state
-  const [dialog, setDialog] = useState<null | { kind: "domain-new" | "domain-attach" | "channel-map" | "channel-internal" | "workspace-seed" | "ticket-assign" | "bulk-assign"; group?: GroupRow; ticketIds?: string[] }>(null);
+  const [dialog, setDialog] = useState<null | { kind: string; group?: GroupRow; ticketIds?: string[] }>(null);
 
   const load = async () => {
     setLoading(true);
@@ -264,7 +318,6 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
   const loadTickets = async (g: GroupRow) => {
     const gid = groupId(g);
     if (expandedTickets[gid]) return;
-    // Query filter depends on group_kind
     let q = sb.from("intercom_tickets_v3")
       .select("id,intercom_conversation_id,subject,contact_email,contact_domain,slack_channel_id_detected,workspace_id_detected,intercom_created_at")
       .eq("customer_key", "unattributed")
@@ -273,16 +326,13 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
     if (g.group_kind === "domain") q = q.eq("contact_domain", g.group_key);
     else if (g.group_kind === "channel") q = q.eq("slack_channel_id_detected", g.group_key);
     else if (g.group_kind === "workspace") q = q.eq("workspace_id_detected", g.group_key);
-    // no_signal handled below by filtering client-side against the group definition
     const { data, error } = await q;
     if (error) { console.error(error); toast.error("Failed to load tickets"); return; }
     let rows = (data ?? []) as UnTicket[];
     if (g.group_kind === "no_signal") {
-      // Filter to tickets that classify as no_signal
       const domSet = new Set(accounts.flatMap(a => a.domains));
       rows = rows.filter(r => {
         const hasDomain = r.contact_domain && r.contact_domain !== "" && r.contact_domain !== "lovable.dev" && !domSet.has(r.contact_domain);
-        // Cannot cheaply reproduce personal/internal/mapped tables here — approximate:
         const hasChan = !!r.slack_channel_id_detected;
         const hasWs = !!r.workspace_id_detected;
         return !hasDomain && !hasChan && !hasWs;
@@ -370,6 +420,9 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
                 const open = expanded === gid;
                 const tickets = expandedTickets[gid] ?? [];
                 const sel = selected[gid] ?? new Set<string>();
+                const signalLabel = g.group_kind === "channel"
+                  ? channelLabel(g.group_key, g.display_name)
+                  : (g.group_key || "");
                 return (
                   <>
                     <TableRow key={gid} className="cursor-pointer" onClick={() => toggle(g)}>
@@ -381,7 +434,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
                         </div>
                       </TableCell>
                       <TableCell className="font-mono text-xs">
-                        {g.group_key || <span className="text-muted-foreground italic">no signal</span>}
+                        {signalLabel || <span className="text-muted-foreground italic">no signal</span>}
                       </TableCell>
                       <TableCell className="text-right font-semibold">{g.ticket_count}</TableCell>
                       <TableCell onClick={(e) => e.stopPropagation()}>{groupActions(g)}</TableCell>
@@ -416,10 +469,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
                                   {tickets.map(t => (
                                     <TableRow key={t.id}>
                                       <TableCell>
-                                        <Checkbox
-                                          checked={sel.has(t.id)}
-                                          onCheckedChange={() => toggleSelect(gid, t.id)}
-                                        />
+                                        <Checkbox checked={sel.has(t.id)} onCheckedChange={() => toggleSelect(gid, t.id)} />
                                       </TableCell>
                                       <TableCell className="max-w-md truncate">{t.subject || "—"}</TableCell>
                                       <TableCell className="text-xs">{t.contact_email || "—"}</TableCell>
@@ -460,7 +510,592 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
   );
 }
 
-/* ---------------- Action dialog ---------------- */
+/* ---------------- Channels tab ---------------- */
+
+function ChannelsTab({ isAdmin }: { isAdmin: boolean }) {
+  const [rows, setRows] = useState<ChannelRow[]>([]);
+  const [accounts, setAccounts] = useState<AccountOpt[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialog, setDialog] = useState<null | { kind: "map" | "internal"; row: ChannelRow }>(null);
+
+  const load = async () => {
+    setLoading(true);
+    const [{ data: r, error: e1 }, { data: a }] = await Promise.all([
+      sb.rpc("v3_channels_usage"),
+      sb.from("v3_customer_accounts").select("account_key,label,domains").order("label"),
+    ]);
+    if (e1) { console.error(e1); toast.error("Failed to load channels"); }
+    setRows((r ?? []) as ChannelRow[]);
+    setAccounts((a ?? []) as AccountOpt[]);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const unmap = async (row: ChannelRow) => {
+    if (!confirm(`Unmap ${channelLabel(row.slack_channel_id, row.channel_name)} from ${row.account_label}? Tickets will re-attribute.`)) return;
+    const { error } = await sb.from("v3_channel_account_map").delete().eq("slack_channel_id", row.slack_channel_id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Unmapped");
+    load();
+  };
+
+  const unmarkInternal = async (row: ChannelRow) => {
+    if (!confirm(`Unmark ${channelLabel(row.slack_channel_id, row.channel_name)} as internal?`)) return;
+    const { error } = await sb.from("v3_internal_channels").delete().eq("slack_channel_id", row.slack_channel_id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Unmarked");
+    load();
+  };
+
+  if (loading) return <Loader2 className="h-5 w-5 animate-spin" />;
+
+  const unmapped = rows.filter(r => r.status === "unmapped").length;
+  const mapped = rows.filter(r => r.status === "mapped").length;
+  const internal = rows.filter(r => r.status === "internal").length;
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <StatCard label="Total customer channels" value={rows.length} />
+        <StatCard label="Mapped" value={mapped} />
+        <StatCard label="Internal" value={internal} />
+        <StatCard label="Unmapped" value={unmapped} tone={unmapped > 0 ? "warn" : undefined} />
+      </div>
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Channel</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Account</TableHead>
+                <TableHead className="text-right">Tickets</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map(r => (
+                <TableRow key={r.slack_channel_id}>
+                  <TableCell className="font-mono text-xs">{channelLabel(r.slack_channel_id, r.channel_name)}</TableCell>
+                  <TableCell>
+                    <Badge variant={r.status === "unmapped" ? "outline" : "secondary"}>{r.status}</Badge>
+                  </TableCell>
+                  <TableCell>{r.account_label || <span className="text-muted-foreground">—</span>}</TableCell>
+                  <TableCell className="text-right font-semibold">{r.ticket_count}</TableCell>
+                  <TableCell>
+                    {isAdmin ? (
+                      <div className="flex gap-2">
+                        {r.status === "unmapped" && (
+                          <>
+                            <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "map", row: r })}>Map</Button>
+                            <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "internal", row: r })}>Mark internal</Button>
+                          </>
+                        )}
+                        {r.status === "mapped" && (
+                          <>
+                            <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "map", row: r })}>Remap</Button>
+                            <Button size="sm" variant="ghost" onClick={() => unmap(r)}><Trash2 className="h-3 w-3" /></Button>
+                          </>
+                        )}
+                        {r.status === "internal" && (
+                          <Button size="sm" variant="ghost" onClick={() => unmarkInternal(r)}>Unmark</Button>
+                        )}
+                      </div>
+                    ) : <span className="text-xs text-muted-foreground">read-only</span>}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {rows.length === 0 && (
+                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">No customer channels detected.</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {dialog && (
+        <ChannelDialog
+          state={dialog}
+          accounts={accounts}
+          onClose={() => setDialog(null)}
+          onDone={() => { setDialog(null); load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ChannelDialog({ state, accounts, onClose, onDone }: {
+  state: { kind: "map" | "internal"; row: ChannelRow };
+  accounts: AccountOpt[];
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [accountKey, setAccountKey] = useState(state.row.account_key ?? "");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const run = async () => {
+    setSaving(true);
+    try {
+      if (state.kind === "map") {
+        if (!accountKey) throw new Error("Pick an account");
+        const { error } = await sb.from("v3_channel_account_map").upsert({
+          slack_channel_id: state.row.slack_channel_id, account_key: accountKey,
+        }, { onConflict: "slack_channel_id" });
+        if (error) throw error;
+        toast.success("Channel mapped");
+      } else {
+        const { error } = await sb.from("v3_internal_channels").insert({
+          slack_channel_id: state.row.slack_channel_id,
+          channel_name: state.row.channel_name,
+          note: note || null,
+        });
+        if (error) throw error;
+        toast.success("Channel marked internal");
+      }
+      onDone();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Failed");
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {state.kind === "map" ? "Map channel to account" : "Mark channel internal"}
+          </DialogTitle>
+          <DialogDescription>
+            {channelLabel(state.row.slack_channel_id, state.row.channel_name)} · {state.row.ticket_count} tickets
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          {state.kind === "map" ? (
+            <div className="space-y-1">
+              <Label>Account</Label>
+              <Select value={accountKey} onValueChange={setAccountKey}>
+                <SelectTrigger><SelectValue placeholder="Pick an account" /></SelectTrigger>
+                <SelectContent>
+                  {accounts.map(a => <SelectItem key={a.account_key} value={a.account_key}>{a.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <Label>Note (optional)</Label>
+              <Input value={note} onChange={(e) => setNote(e.target.value)} />
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={run} disabled={saving}>{saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StatCard({ label, value, tone }: { label: string; value: number; tone?: "warn" }) {
+  return (
+    <Card className={tone === "warn" ? "border-yellow-500/40 bg-yellow-500/5" : ""}>
+      <CardHeader className="pb-2"><CardDescription>{label}</CardDescription><CardTitle className="text-2xl">{value}</CardTitle></CardHeader>
+    </Card>
+  );
+}
+
+/* ---------------- Registry tab ---------------- */
+
+function RegistryTab({ isAdmin }: { isAdmin: boolean }) {
+  const [accounts, setAccounts] = useState<AccountOpt[]>([]);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [workspaces, setWorkspaces] = useState<WorkspaceMapRow[]>([]);
+  const [internals, setInternals] = useState<InternalChannelRow[]>([]);
+  const [orphans, setOrphans] = useState<OrphanRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<AccountOpt | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [wsDialog, setWsDialog] = useState(false);
+  const [icDialog, setIcDialog] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    const [{ data: a }, { data: u }, { data: w }, { data: i }, { data: o }] = await Promise.all([
+      sb.from("v3_customer_accounts").select("*").order("label"),
+      sb.rpc("v3_accounts_usage"),
+      sb.from("v3_workspace_customer_map").select("*").order("workspace_id"),
+      sb.from("v3_internal_channels").select("slack_channel_id,channel_name,note").order("channel_name"),
+      sb.rpc("v3_orphan_overrides"),
+    ]);
+    setAccounts((a ?? []) as AccountOpt[]);
+    const cmap: Record<string, number> = {};
+    for (const row of (u ?? []) as { account_key: string; ticket_count: number }[]) cmap[row.account_key] = row.ticket_count;
+    setCounts(cmap);
+    setWorkspaces((w ?? []) as WorkspaceMapRow[]);
+    setInternals((i ?? []) as InternalChannelRow[]);
+    setOrphans((o ?? []) as OrphanRow[]);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const removeAccount = async (a: AccountOpt) => {
+    if (!confirm(`Delete account "${a.label}"? Tickets attached by domain/channel/workspace will re-attribute.`)) return;
+    const { error } = await sb.from("v3_customer_accounts").delete().eq("account_key", a.account_key);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Deleted");
+    load();
+  };
+
+  const removeWs = async (w: WorkspaceMapRow) => {
+    if (!confirm(`Remove workspace mapping ${w.workspace_id}?`)) return;
+    const { error } = await sb.from("v3_workspace_customer_map").delete().eq("workspace_id", w.workspace_id);
+    if (error) { toast.error(error.message); return; }
+    load();
+  };
+
+  const removeInternal = async (row: InternalChannelRow) => {
+    if (!confirm(`Unmark ${row.slack_channel_id} as internal?`)) return;
+    const { error } = await sb.from("v3_internal_channels").delete().eq("slack_channel_id", row.slack_channel_id);
+    if (error) { toast.error(error.message); return; }
+    load();
+  };
+
+  if (loading) return <Loader2 className="h-5 w-5 animate-spin" />;
+
+  return (
+    <div className="space-y-4">
+      {orphans.length > 0 && (
+        <Card className="border-yellow-500/40 bg-yellow-500/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              Unrecognized override keys ({orphans.length})
+            </CardTitle>
+            <CardDescription>
+              These override values don't match any account_key in the registry. Create the missing account or fix the override.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {orphans.map(o => (
+                <Badge key={o.customer_key} variant="outline" className="font-mono text-xs">
+                  {o.customer_key} · {o.ticket_count}
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Customer accounts</CardTitle>
+            <CardDescription>Registry of known customer accounts. Domains/aliases trigger auto-attribution.</CardDescription>
+          </div>
+          {isAdmin && <Button size="sm" onClick={() => setCreating(true)}><Plus className="h-4 w-4 mr-1" />New account</Button>}
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Label</TableHead>
+                <TableHead>Key</TableHead>
+                <TableHead>Domains</TableHead>
+                <TableHead>Tier</TableHead>
+                <TableHead>CSM</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Tickets</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {accounts.map(a => (
+                <TableRow key={a.account_key}>
+                  <TableCell className="font-medium">{a.label}</TableCell>
+                  <TableCell className="font-mono text-xs">{a.account_key}</TableCell>
+                  <TableCell className="text-xs">
+                    <div className="flex flex-wrap gap-1">
+                      {(a.domains ?? []).map(d => <Badge key={d} variant="outline">{d}</Badge>)}
+                    </div>
+                  </TableCell>
+                  <TableCell>{a.tier || "—"}</TableCell>
+                  <TableCell>{a.csm_owner || "—"}</TableCell>
+                  <TableCell>{a.status || "—"}</TableCell>
+                  <TableCell className="text-right">{counts[a.account_key] ?? 0}</TableCell>
+                  <TableCell>
+                    {isAdmin && (
+                      <div className="flex gap-1">
+                        <Button size="sm" variant="ghost" onClick={() => setEditing(a)}><Pencil className="h-3 w-3" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => removeAccount(a)}><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Workspace cache</CardTitle>
+            <CardDescription>Workspace ID → account overrides.</CardDescription>
+          </div>
+          {isAdmin && <Button size="sm" onClick={() => setWsDialog(true)}><Plus className="h-4 w-4 mr-1" />Add</Button>}
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Workspace ID</TableHead>
+                <TableHead>Account</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Source</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {workspaces.length === 0 && (
+                <TableRow><TableCell colSpan={5} className="text-muted-foreground text-center py-4">Empty.</TableCell></TableRow>
+              )}
+              {workspaces.map(w => (
+                <TableRow key={w.workspace_id}>
+                  <TableCell className="font-mono text-xs">{w.workspace_id}</TableCell>
+                  <TableCell>{accounts.find(a => a.account_key === w.account_key)?.label || w.account_key}</TableCell>
+                  <TableCell>{w.workspace_name || "—"}</TableCell>
+                  <TableCell>{w.source || "—"}</TableCell>
+                  <TableCell>
+                    {isAdmin && <Button size="sm" variant="ghost" onClick={() => removeWs(w)}><Trash2 className="h-3 w-3" /></Button>}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Internal channels</CardTitle>
+            <CardDescription>Slack channels excluded from customer attribution.</CardDescription>
+          </div>
+          {isAdmin && <Button size="sm" onClick={() => setIcDialog(true)}><Plus className="h-4 w-4 mr-1" />Add</Button>}
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Channel ID</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Note</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {internals.length === 0 && (
+                <TableRow><TableCell colSpan={4} className="text-muted-foreground text-center py-4">Empty.</TableCell></TableRow>
+              )}
+              {internals.map(i => (
+                <TableRow key={i.slack_channel_id}>
+                  <TableCell className="font-mono text-xs">{i.slack_channel_id}</TableCell>
+                  <TableCell>{i.channel_name || "—"}</TableCell>
+                  <TableCell>{i.note || "—"}</TableCell>
+                  <TableCell>
+                    {isAdmin && <Button size="sm" variant="ghost" onClick={() => removeInternal(i)}><Trash2 className="h-3 w-3" /></Button>}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {(editing || creating) && (
+        <AccountEditDialog
+          account={editing}
+          onClose={() => { setEditing(null); setCreating(false); }}
+          onDone={() => { setEditing(null); setCreating(false); load(); }}
+        />
+      )}
+      {wsDialog && (
+        <WorkspaceAddDialog accounts={accounts} onClose={() => setWsDialog(false)} onDone={() => { setWsDialog(false); load(); }} />
+      )}
+      {icDialog && (
+        <InternalAddDialog onClose={() => setIcDialog(false)} onDone={() => { setIcDialog(false); load(); }} />
+      )}
+    </div>
+  );
+}
+
+function AccountEditDialog({ account, onClose, onDone }: {
+  account: AccountOpt | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const editing = !!account;
+  const [label, setLabel] = useState(account?.label ?? "");
+  const [key, setKey] = useState(account?.account_key ?? "");
+  const [domains, setDomains] = useState((account?.domains ?? []).join(", "));
+  const [aliases, setAliases] = useState((account?.aliases ?? []).join(", "));
+  const [tier, setTier] = useState(account?.tier ?? "");
+  const [csm, setCsm] = useState(account?.csm_owner ?? "");
+  const [status, setStatus] = useState(account?.status ?? "active");
+  const [notes, setNotes] = useState(account?.notes ?? "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { if (!editing && label) setKey(slugify(label)); }, [label, editing]);
+
+  const run = async () => {
+    setSaving(true);
+    try {
+      const payload: any = {
+        account_key: key || slugify(label),
+        label: label.trim(),
+        domains: domains.split(",").map(s => s.trim().toLowerCase()).filter(Boolean),
+        aliases: aliases.split(",").map(s => s.trim()).filter(Boolean),
+        tier: tier || null,
+        csm_owner: csm || null,
+        status: status || null,
+        notes: notes || null,
+      };
+      if (!payload.label || !payload.account_key) throw new Error("Label and key required");
+      if (editing) {
+        const { account_key, ...rest } = payload;
+        const { error } = await sb.from("v3_customer_accounts").update(rest).eq("account_key", account!.account_key);
+        if (error) throw error;
+      } else {
+        const { error } = await sb.from("v3_customer_accounts").insert(payload);
+        if (error) throw error;
+      }
+      toast.success(editing ? "Updated" : "Created");
+      onDone();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Failed");
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{editing ? `Edit ${account!.label}` : "New account"}</DialogTitle>
+          <DialogDescription>Adding domains reclaims matching unattributed tickets automatically.</DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1"><Label>Label</Label><Input value={label} onChange={(e) => setLabel(e.target.value)} /></div>
+          <div className="space-y-1">
+            <Label>account_key</Label>
+            <Input value={key} onChange={(e) => setKey(e.target.value)} disabled={editing} />
+          </div>
+          <div className="space-y-1 col-span-2"><Label>Domains (comma-separated)</Label><Input value={domains} onChange={(e) => setDomains(e.target.value)} placeholder="acme.com, acme.io" /></div>
+          <div className="space-y-1 col-span-2"><Label>Aliases (comma-separated)</Label><Input value={aliases} onChange={(e) => setAliases(e.target.value)} /></div>
+          <div className="space-y-1"><Label>Tier</Label><Input value={tier} onChange={(e) => setTier(e.target.value)} placeholder="enterprise / smb / free" /></div>
+          <div className="space-y-1"><Label>CSM owner</Label><Input value={csm} onChange={(e) => setCsm(e.target.value)} /></div>
+          <div className="space-y-1"><Label>Status</Label><Input value={status} onChange={(e) => setStatus(e.target.value)} placeholder="active / churned" /></div>
+          <div className="space-y-1"><Label>Notes</Label><Input value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={run} disabled={saving}>{saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function WorkspaceAddDialog({ accounts, onClose, onDone }: {
+  accounts: AccountOpt[]; onClose: () => void; onDone: () => void;
+}) {
+  const [wsId, setWsId] = useState("");
+  const [name, setName] = useState("");
+  const [accountKey, setAccountKey] = useState("");
+  const [saving, setSaving] = useState(false);
+  const run = async () => {
+    setSaving(true);
+    try {
+      if (!wsId || !accountKey) throw new Error("workspace_id and account required");
+      const { error } = await sb.from("v3_workspace_customer_map").insert({
+        workspace_id: wsId.trim(), account_key: accountKey, workspace_name: name || null, source: "manual",
+      });
+      if (error) throw error;
+      toast.success("Added");
+      onDone();
+    } catch (e: any) { console.error(e); toast.error(e.message); }
+    finally { setSaving(false); }
+  };
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Add workspace mapping</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1"><Label>Workspace ID</Label><Input value={wsId} onChange={e => setWsId(e.target.value)} placeholder="workspace_xxx" /></div>
+          <div className="space-y-1"><Label>Workspace name (optional)</Label><Input value={name} onChange={e => setName(e.target.value)} /></div>
+          <div className="space-y-1">
+            <Label>Account</Label>
+            <Select value={accountKey} onValueChange={setAccountKey}>
+              <SelectTrigger><SelectValue placeholder="Pick an account" /></SelectTrigger>
+              <SelectContent>
+                {accounts.map(a => <SelectItem key={a.account_key} value={a.account_key}>{a.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={run} disabled={saving}>{saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function InternalAddDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [id, setId] = useState("");
+  const [name, setName] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const run = async () => {
+    setSaving(true);
+    try {
+      if (!id) throw new Error("channel id required");
+      const { error } = await sb.from("v3_internal_channels").insert({
+        slack_channel_id: id.trim(), channel_name: name || null, note: note || null,
+      });
+      if (error) throw error;
+      toast.success("Added");
+      onDone();
+    } catch (e: any) { console.error(e); toast.error(e.message); }
+    finally { setSaving(false); }
+  };
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Add internal channel</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1"><Label>Slack channel ID</Label><Input value={id} onChange={e => setId(e.target.value)} placeholder="C0XXXXXXX" /></div>
+          <div className="space-y-1"><Label>Channel name (optional)</Label><Input value={name} onChange={e => setName(e.target.value)} /></div>
+          <div className="space-y-1"><Label>Note (optional)</Label><Input value={note} onChange={e => setNote(e.target.value)} /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={run} disabled={saving}>{saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ---------------- Action dialog (unattributed reclaim) ---------------- */
 
 function ActionDialog({ state, accounts, onClose, onDone }: {
   state: null | { kind: string; group?: GroupRow; ticketIds?: string[] };
@@ -473,9 +1108,7 @@ function ActionDialog({ state, accounts, onClose, onDone }: {
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    setLabel(""); setAccountKey(""); setReason("");
-  }, [state]);
+  useEffect(() => { setLabel(""); setAccountKey(""); setReason(""); }, [state]);
 
   if (!state) return null;
   const { kind, group, ticketIds } = state;
@@ -539,9 +1172,7 @@ function ActionDialog({ state, accounts, onClose, onDone }: {
     } catch (e: any) {
       console.error("action failed", e);
       toast.error(e.message || "Action failed");
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   const title =
@@ -572,9 +1203,7 @@ function ActionDialog({ state, accounts, onClose, onDone }: {
             <div className="space-y-1">
               <Label>{kind === "domain-new" ? "Account label" : "Channel name (optional)"}</Label>
               <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={kind === "domain-new" ? "e.g. Acme Corp" : "e.g. #internal-support"} />
-              {kind === "domain-new" && label && (
-                <p className="text-xs text-muted-foreground">account_key: <code>{slugify(label)}</code></p>
-              )}
+              {kind === "domain-new" && label && <p className="text-xs text-muted-foreground">account_key: <code>{slugify(label)}</code></p>}
             </div>
           )}
           {needsAccountPicker && (
@@ -583,26 +1212,18 @@ function ActionDialog({ state, accounts, onClose, onDone }: {
               <Select value={accountKey} onValueChange={setAccountKey}>
                 <SelectTrigger><SelectValue placeholder="Pick an account" /></SelectTrigger>
                 <SelectContent>
-                  {accounts.map(a => (
-                    <SelectItem key={a.account_key} value={a.account_key}>{a.label}</SelectItem>
-                  ))}
+                  {accounts.map(a => <SelectItem key={a.account_key} value={a.account_key}>{a.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           )}
           {(kind === "ticket-assign" || kind === "bulk-assign" || kind === "channel-internal") && (
-            <div className="space-y-1">
-              <Label>Reason (optional)</Label>
-              <Input value={reason} onChange={(e) => setReason(e.target.value)} />
-            </div>
+            <div className="space-y-1"><Label>Reason (optional)</Label><Input value={reason} onChange={(e) => setReason(e.target.value)} /></div>
           )}
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button onClick={run} disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-            Save
-          </Button>
+          <Button onClick={run} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}Save</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1031,6 +1031,7 @@ export type Database = {
           attributed: number
           created_at: string
           m_domain: number
+          m_orphan_override: number
           m_override: number
           m_slack_channel: number
           m_unresolved: number
@@ -1045,6 +1046,7 @@ export type Database = {
           attributed?: number
           created_at?: string
           m_domain?: number
+          m_orphan_override?: number
           m_override?: number
           m_slack_channel?: number
           m_unresolved?: number
@@ -1059,6 +1061,7 @@ export type Database = {
           attributed?: number
           created_at?: string
           m_domain?: number
+          m_orphan_override?: number
           m_override?: number
           m_slack_channel?: number
           m_unresolved?: number
@@ -1230,7 +1233,13 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v3_channel_names: {
+        Row: {
+          channel_name: string | null
+          slack_channel_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       auto_close_gmail_threads: { Args: never; Returns: undefined }
@@ -1271,12 +1280,20 @@ export type Database = {
           result_source: string
         }[]
       }
+      v3_accounts_usage: {
+        Args: never
+        Returns: {
+          account_key: string
+          ticket_count: number
+        }[]
+      }
       v3_capture_coverage_snapshot: {
         Args: never
         Returns: {
           attributed: number
           created_at: string
           m_domain: number
+          m_orphan_override: number
           m_override: number
           m_slack_channel: number
           m_unresolved: number
@@ -1294,15 +1311,28 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      v3_channels_usage: {
+        Args: never
+        Returns: {
+          account_key: string
+          account_label: string
+          channel_name: string
+          slack_channel_id: string
+          status: string
+          ticket_count: number
+        }[]
+      }
       v3_coverage_current: {
         Args: never
         Returns: {
           attributed: number
           m_domain: number
+          m_orphan_override: number
           m_override: number
           m_slack_channel: number
           m_unresolved: number
           m_workspace_id: number
+          orphan_overrides: number
           pct_attributed: number
           total_tickets: number
           unattributed: number
@@ -1333,9 +1363,17 @@ export type Database = {
               customer_source: string
             }[]
           }
+      v3_orphan_overrides: {
+        Args: never
+        Returns: {
+          customer_key: string
+          ticket_count: number
+        }[]
+      }
       v3_unattributed_groups: {
         Args: never
         Returns: {
+          display_name: string
           group_key: string
           group_kind: string
           ticket_count: number
