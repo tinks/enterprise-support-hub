@@ -373,6 +373,8 @@ Deno.serve(async (req) => {
       if (upserted?.id) {
         try { await syncTicketAttributes(supabase, upserted.id, icData, { convId }); }
         catch (e) { console.error(`[sync-v3-closed] attr sync ${convId}: ${(e as Error).message}`); }
+        try { await writeV3Signals(supabase, upserted.id, icData, { convId }); }
+        catch (e) { console.error(`[sync-v3-closed] signal write ${convId}: ${(e as Error).message}`); }
       }
       if (existing) updated++; else inserted++;
     } catch (e) {
