@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { NavLink } from "@/components/NavLink";
-import { Settings, BarChart3, GitBranch, MessageSquare, BookOpen, Import, Users, LogOut, Sparkles, Beaker, ScrollText, Gauge } from "lucide-react";
+import { Settings, BarChart3, GitBranch, MessageSquare, BookOpen, Import, Users, LogOut, Sparkles, Beaker, ScrollText, Gauge, Building2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 
