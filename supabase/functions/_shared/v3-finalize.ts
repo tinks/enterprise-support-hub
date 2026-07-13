@@ -144,6 +144,11 @@ export async function finalizeConversation(params: {
     } catch (e) {
       console.error(`[v3-finalize] attribute sync threw for conv=${convId}: ${(e as Error).message}`);
     }
+    try {
+      await writeV3Signals(supabase, upserted.id, icData, { convId });
+    } catch (e) {
+      console.error(`[v3-finalize] signal write threw for conv=${convId}: ${(e as Error).message}`);
+    }
   }
 
   return { kind: existing ? "updated" : "inserted" };
