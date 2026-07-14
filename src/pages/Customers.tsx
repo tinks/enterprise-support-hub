@@ -634,6 +634,7 @@ function ChannelsTab({ isAdmin }: { isAdmin: boolean }) {
   const [accounts, setAccounts] = useState<AccountOpt[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialog, setDialog] = useState<null | { kind: "map" | "internal"; row: ChannelRow }>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
