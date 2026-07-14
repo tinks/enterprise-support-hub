@@ -1498,6 +1498,7 @@ function OrphanReconciliationPanel({
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8"></TableHead>
                 <TableHead>Orphan key</TableHead>
                 <TableHead className="text-right">Tickets</TableHead>
                 <TableHead>Match</TableHead>
@@ -1506,41 +1507,62 @@ function OrphanReconciliationPanel({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {suggestions.map(s => (
-                <TableRow key={s.orphan_key}>
-                  <TableCell className="font-mono text-xs">{s.orphan_key}</TableCell>
-                  <TableCell className="text-right">{s.ticket_count}</TableCell>
-                  <TableCell>
-                    <Badge variant={s.match_kind === "exact_normalized" ? "default" : s.match_kind === "fuzzy" ? "secondary" : "outline"}>
-                      {s.match_kind}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {s.suggested_account_key ? (
-                      <span><span className="font-medium">{s.suggested_label}</span> <span className="text-xs text-muted-foreground font-mono">({s.suggested_account_key})</span></span>
-                    ) : <span className="text-muted-foreground">no match</span>}
-                  </TableCell>
-                  <TableCell>
-                    {isAdmin ? (
-                      <div className="flex flex-wrap gap-1 items-center">
-                        {s.suggested_account_key && (
-                          <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmSuggestion(s)}>Confirm</Button>
-                        )}
-                        <Select value={override[s.orphan_key] ?? ""} onValueChange={(v) => setOverride(o => ({ ...o, [s.orphan_key]: v }))}>
-                          <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Pick different…" /></SelectTrigger>
-                          <SelectContent>
-                            {accounts.map(a => <SelectItem key={a.account_key} value={a.account_key}>{a.label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        {override[s.orphan_key] && (
-                          <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmPicked(s)}>Apply pick</Button>
-                        )}
-                        <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => dismiss(s)}>Dismiss</Button>
-                      </div>
-                    ) : <span className="text-xs text-muted-foreground">read-only</span>}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {suggestions.map(s => {
+                const open = expanded === s.orphan_key;
+                return (
+                  <>
+                    <TableRow key={s.orphan_key}>
+                      <TableCell>
+                        <Button
+                          size="sm" variant="ghost" className="h-6 w-6 p-0"
+                          onClick={() => setExpanded(open ? null : s.orphan_key)}
+                          aria-label={open ? "Collapse" : "Expand"}
+                        >
+                          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </Button>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{s.orphan_key}</TableCell>
+                      <TableCell className="text-right">{s.ticket_count}</TableCell>
+                      <TableCell>
+                        <Badge variant={s.match_kind === "exact_normalized" ? "default" : s.match_kind === "fuzzy" ? "secondary" : "outline"}>
+                          {s.match_kind}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {s.suggested_account_key ? (
+                          <span><span className="font-medium">{s.suggested_label}</span> <span className="text-xs text-muted-foreground font-mono">({s.suggested_account_key})</span></span>
+                        ) : <span className="text-muted-foreground">no match</span>}
+                      </TableCell>
+                      <TableCell>
+                        {isAdmin ? (
+                          <div className="flex flex-wrap gap-1 items-center">
+                            {s.suggested_account_key && (
+                              <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmSuggestion(s)}>Confirm</Button>
+                            )}
+                            <Select value={override[s.orphan_key] ?? ""} onValueChange={(v) => setOverride(o => ({ ...o, [s.orphan_key]: v }))}>
+                              <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Pick different…" /></SelectTrigger>
+                              <SelectContent>
+                                {accounts.map(a => <SelectItem key={a.account_key} value={a.account_key}>{a.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            {override[s.orphan_key] && (
+                              <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmPicked(s)}>Apply pick</Button>
+                            )}
+                            <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => dismiss(s)}>Dismiss</Button>
+                          </div>
+                        ) : <span className="text-xs text-muted-foreground">read-only</span>}
+                      </TableCell>
+                    </TableRow>
+                    {open && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="bg-muted/30 p-0">
+                          <EvidenceTickets rpc="v3_tickets_for_override_key" arg={s.orphan_key} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
+                );
+              })}
             </TableBody>
           </Table>
         )}
