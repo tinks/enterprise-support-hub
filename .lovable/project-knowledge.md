@@ -822,11 +822,69 @@ Reporting-grade mirror of Intercom enterprise tickets, built as a parallel stack
 
 - Out of scope (deliberate non-goals): no edits to `inbox_v2_tickets`, `sync-inbox-v2`, `InboxV2.tsx`, `AnalyticsV2.tsx`, or any existing cron. No engagement classification in v3 (RSA replaces that role). Reopens are flagged only — never re-finalize. No automatic v2→v3 cutover; both run in parallel until manually cut over.
 
-## v3 Customer slices (shipped)
-- `v3_customer_accounts` (admin-only via `has_role`) maps email domains → labeled accounts. `v3_personal_email_domains` allowlists consumer providers (gmail.com etc.).
-- `intercom_tickets_v3` gains `customer_key/kind/source` (derived) + `customer_override_key/by/at/reason` (manual, per-ticket).
-- Derivation order (LOCKSTEP across SQL derive fn, accounts-propagation trigger, and Deno `_shared/v3-customer.ts`): override → domain-match → personal allowlist → generic `domain:<dom>` → `unknown`.
-- BEFORE INSERT/UPDATE trigger `intercom_tickets_v3_apply_customer` runs derivation on every write; sync-v3-closed/open do not compute it themselves.
-- Domain-collision guard on `v3_customer_accounts` rejects a domain claimed by another account.
-- `backfill_v3_customer_keys(force, batch)` re-derives existing rows in 5k batches; `force=true` needed after rule/allowlist edits.
-- UI: Settings → Customer accounts (admin CRUD), Inbox v3 sheet override + reset-to-auto, Analytics v3 Customer filter + Top customers table + `/inbox-v3?customer=<key>` deep-link.
+## v3 Customer resolution (Track A)
+
+Attributes each `intercom_tickets_v3` ticket to a known **customer account** so support data can be sliced by customer. Intercom is read-only — all customer mapping lives in Lovable and nothing is written back.
+
+### Data model
+
+- **`v3_customer_accounts`** — canonical registry (`account_key` PK, `label`, `domains text[]`, `aliases text[]`, `tier`, `csm_owner`, `status`, `notes`). Admin-only writes via `has_role(auth.uid(),'admin')`; any authenticated user can read. Domain-collision guard trigger rejects a domain claimed by another account; domains are lower-cased and de-duplicated on save.
+- **`v3_channel_account_map`** — Slack channel id → `account_key` (customer shared channels).
+- **`v3_internal_channels`** — exclusion list of channels that must never resolve to a customer (seeded with `C0AJ1KPQ084` / `team-enterprise-support`).
+- **`v3_workspace_customer_map`** — Lovable `workspace_id` → `account_key` (+`tier`), seeded manually/assisted. Rescues CSM-on-behalf tickets.
+- **`v3_ticket_attributes`** + **`intercom_tickets_v3.custom_attributes` (jsonb mirror)** — every Intercom custom attribute, flattened at sync-time.
+- **`v3_coverage_snapshots`** — daily per-method snapshot; powers the trend chart. Written by `v3_capture_coverage_snapshot()` under pg_cron.
+- **`v3_channel_account_proposals`** — pending auto-suggested channel→account mappings (suggest-then-confirm; never auto-applied).
+- **`v3_personal_email_domains`** — allowlist of consumer email providers (gmail.com, etc.).
+- New columns on `intercom_tickets_v3`: `customer_resolution_method`, `customer_confidence`, `custom_attributes`, `slack_channel_id_detected`, `workspace_id_detected`, `project_uuid_detected` — alongside existing `customer_key/kind/source` and `customer_override_key/by/at/reason`.
+
+### Signal extraction (sync-time, TypeScript)
+
+- `supabase/functions/_shared/v3-signals.ts` extracts from a ticket's `raw_payload`:
+  - **Slack channel id** — ONLY from the auto-generated bot `conversation_parts` note whose `external_id` starts with `slack-url-` (parses `/archives/<CHANNELID>`). Human/admin notes and any other Slack links are ignored — they usually point at internal troubleshooting channels.
+  - **workspace_id** — first `workspace_[0-9a-z]{16,}` match across source body + every conversation part. Multiple distinct ids log a loud warning.
+  - **project uuid** — first `lovable.dev/projects/<uuid>` match.
+- `supabase/functions/_shared/v3-attributes.ts` flattens `raw_payload.custom_attributes` into `v3_ticket_attributes` + the jsonb mirror.
+- Both run in every full-payload write path: `sync-v3-closed`, `sync-v3-open` (finalize/reopen/silent-nudge), `_shared/v3-finalize.ts`. Standalone backfills: `backfill-v3-signals`, `backfill-v3-ticket-attributes`.
+
+### Resolver — LOCKSTEP contract
+
+Resolution order (first match wins), over the `*_detected` columns + lookup tables only — no `raw_payload` parsing in SQL:
+
+1. **override** — `customer_override_key` set → `high` confidence, method `override`. Top authority; never overwritten.
+2. **slack_channel** — `slack_channel_id_detected` present, NOT in `v3_internal_channels`, found in `v3_channel_account_map` → `high`, method `slack_channel`.
+3. **domain** — contact email domain matches `v3_customer_accounts.domains`, excluding `lovable.dev` and any `v3_personal_email_domains` entry → `high`, method `domain`.
+4. **workspace_id** — `workspace_id_detected` found in `v3_workspace_customer_map` → `medium`, method `workspace_id` (best guess, confirmable).
+5. otherwise → `customer_key='unattributed'`, method `unresolved`.
+
+Three implementations MUST stay in lockstep — edit all of them when rules change:
+
+- SQL `public.v3_derive_customer` (authoritative; called by BEFORE INSERT/UPDATE trigger `intercom_tickets_v3_apply_customer`).
+- Propagate triggers: `v3_customer_accounts_propagate`, `v3_channel_account_map_propagate`, `v3_internal_channels_propagate`, `v3_workspace_customer_map_propagate` — bump `updated_at` on affected tickets, which re-fires the derive trigger. Result: mapping a channel/domain/workspace once retroactively re-attributes all matching existing tickets AND all future ones.
+- Deno `supabase/functions/_shared/v3-customer.ts` (`resolveV3Customer()` — thin wrapper over the SQL function for sync-time convenience/logging; the DB trigger is still authoritative on every write).
+
+`backfill_v3_customer_keys(_force boolean, _batch integer)` re-derives existing rows in 5k batches; pass `force=true` after any rule/allowlist change (else only NULLs are filled).
+
+### Verified coverage
+
+"Attributed" counts only tickets resolved to a known registry account. Manually-entered `customer_override_key` values that don't match any registered account are **orphans** — surfaced separately for reconciliation, NOT counted as clean attribution (keeps the metric honest). `v3_coverage_current()` returns live numbers; `v3_capture_coverage_snapshot()` runs daily under pg_cron into `v3_coverage_snapshots` for the trend chart.
+
+### UI — `/customers` (`src/pages/Customers.tsx`), 4 tabs
+
+- **Coverage** — % verified-attributed KPI, method distribution (override / slack_channel / domain / workspace_id / unresolved), orphan count, trend chart from `v3_coverage_snapshots`.
+- **Unattributed** — queue of tickets not yet attributed, grouped by reclaim signal (domain / channel / workspace / no-signal) via `v3_unattributed_groups`; per-ticket + bulk assign.
+- **Channels** — channel list (`v3_channels_usage`) with human-readable names + mapped/internal/unmapped status; auto-suggested mappings from `v3_channel_account_proposals` (high = domain co-occurrence, medium = name-token match on the registrable domain label — token strip list excludes `ext/external/lovable/admin/customer/support/help/team/proj/project/account`). Actions: Map / Mark internal / Confirm / Edit / Reject.
+- **Registry** — CRUD on `v3_customer_accounts` (+ workspace cache and internal channels); orphan-override reconciliation with fuzzy-match suggestions from `v3_orphan_override_suggestions`.
+- Rows on Channels / suggestions / orphan panel **expand** to show the underlying tickets via `v3_tickets_for_channel` / `v3_tickets_for_override_key`, each with a deep link to Intercom for verification. Read-only disclosure — no per-ticket actions in the drill-down.
+
+**Permissions:** per-ticket override (writing `customer_override_key`) is open to any authenticated user. All structural registry writes — account create/edit, channel map, internal-channel mark, workspace seed, proposal generation and confirm/reject — are admin-only.
+
+### Key RPCs / views
+
+`v3_derive_customer`, `v3_coverage_current`, `v3_capture_coverage_snapshot`, `v3_unattributed_groups`, `v3_channels_usage`, `v3_accounts_usage`, `v3_orphan_overrides`, `v3_orphan_override_suggestions`, `v3_generate_channel_proposals`, `v3_channel_proposals_pending`, `v3_tickets_for_channel`, `v3_tickets_for_override_key`, `backfill_v3_customer_keys`.
+
+### Design principles
+
+- **Surface problems loudly, never silently default** — unresolved tickets go to a visible queue and a coverage KPI, never a guessed bucket.
+- **Human signals are advisory; stored attribution is system-derived** — a bad manual entry can only fail to match (→ queue), never corrupt data.
+- **Prospect / not-yet-customer companies are still real accounts** — prospect status is carried by an `enterprise-prospect` Intercom tag (temporal, read-only), not an account field.
