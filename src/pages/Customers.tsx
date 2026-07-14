@@ -580,6 +580,8 @@ function ChannelsTab({ isAdmin }: { isAdmin: boolean }) {
         <StatCard label="Internal" value={internal} />
         <StatCard label="Unmapped" value={unmapped} tone={unmapped > 0 ? "warn" : undefined} />
       </div>
+      <ChannelProposalsSection accounts={accounts} isAdmin={isAdmin} onDone={load} />
+
       <Card>
         <CardContent className="p-0">
           <Table>
