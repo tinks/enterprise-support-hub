@@ -136,6 +136,105 @@ function channelLabel(id: string, name: string | null) {
   return name ? `#${name} (${id})` : id;
 }
 
+/* ---------------- Evidence drill-down ---------------- */
+
+type EvidenceTicket = {
+  id: string;
+  intercom_conversation_id: string | null;
+  subject: string | null;
+  intercom_created_at: string | null;
+  customer_key: string | null;
+  customer_resolution_method: string | null;
+  total_count: number;
+};
+
+function EvidenceTickets({
+  rpc, arg,
+}: {
+  rpc: "v3_tickets_for_channel" | "v3_tickets_for_override_key";
+  arg: string;
+}) {
+  const [rows, setRows] = useState<EvidenceTicket[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const param = rpc === "v3_tickets_for_channel" ? { _channel_id: arg } : { _key: arg };
+      const { data, error } = await sb.rpc(rpc, param);
+      if (cancelled) return;
+      if (error) {
+        console.error(`${rpc} failed`, error);
+        setError(error.message);
+        setRows([]);
+        toast.error(`Failed to load evidence: ${error.message}`);
+        return;
+      }
+      setRows((data ?? []) as EvidenceTicket[]);
+    })();
+    return () => { cancelled = true; };
+  }, [rpc, arg]);
+
+  if (rows === null) {
+    return <div className="p-3"><Loader2 className="h-4 w-4 animate-spin" /></div>;
+  }
+  if (error) {
+    return <div className="p-3 text-sm text-destructive">Failed: {error}</div>;
+  }
+  if (rows.length === 0) {
+    return <div className="p-3 text-sm text-muted-foreground">No tickets match this signal.</div>;
+  }
+  const total = Number(rows[0]?.total_count ?? rows.length);
+  const shown = rows.length;
+  const more = Math.max(0, total - shown);
+
+  return (
+    <div className="p-2 space-y-2">
+      <div className="text-xs text-muted-foreground px-1">
+        Showing {shown} of {total} ticket{total === 1 ? "" : "s"}
+        {more > 0 ? ` (+${more} more not shown)` : ""}
+      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Subject</TableHead>
+            <TableHead className="w-[110px]">Created</TableHead>
+            <TableHead className="w-[220px]">Current attribution</TableHead>
+            <TableHead className="w-[80px] text-right">Intercom</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map(t => (
+            <TableRow key={t.id}>
+              <TableCell className="max-w-md truncate">{t.subject || "—"}</TableCell>
+              <TableCell className="text-xs">
+                {t.intercom_created_at ? format(new Date(t.intercom_created_at), "yyyy-MM-dd") : "—"}
+              </TableCell>
+              <TableCell className="text-xs">
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-mono truncate">{t.customer_key || "—"}</span>
+                  {t.customer_resolution_method && (
+                    <Badge variant="outline" className="w-fit text-[10px] px-1 py-0">
+                      {t.customer_resolution_method}
+                    </Badge>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell className="text-right">
+                {t.intercom_conversation_id ? (
+                  <a href={intercomUrl(t.intercom_conversation_id)} target="_blank" rel="noreferrer">
+                    <Button size="sm" variant="ghost"><ExternalLink className="h-3 w-3" /></Button>
+                  </a>
+                ) : <span className="text-muted-foreground text-xs">—</span>}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
 export default function Customers() {
   const { isAdmin } = useIsAdmin();
   const [tab, setTab] = useState<"coverage" | "unattributed" | "channels" | "registry">("coverage");
@@ -535,6 +634,7 @@ function ChannelsTab({ isAdmin }: { isAdmin: boolean }) {
   const [accounts, setAccounts] = useState<AccountOpt[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialog, setDialog] = useState<null | { kind: "map" | "internal"; row: ChannelRow }>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -587,6 +687,7 @@ function ChannelsTab({ isAdmin }: { isAdmin: boolean }) {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8"></TableHead>
                 <TableHead>Channel</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Account</TableHead>
@@ -595,39 +696,60 @@ function ChannelsTab({ isAdmin }: { isAdmin: boolean }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map(r => (
-                <TableRow key={r.slack_channel_id}>
-                  <TableCell className="font-mono text-xs">{channelLabel(r.slack_channel_id, r.channel_name)}</TableCell>
-                  <TableCell>
-                    <Badge variant={r.status === "unmapped" ? "outline" : "secondary"}>{r.status}</Badge>
-                  </TableCell>
-                  <TableCell>{r.account_label || <span className="text-muted-foreground">—</span>}</TableCell>
-                  <TableCell className="text-right font-semibold">{r.ticket_count}</TableCell>
-                  <TableCell>
-                    {isAdmin ? (
-                      <div className="flex gap-2">
-                        {r.status === "unmapped" && (
-                          <>
-                            <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "map", row: r })}>Map</Button>
-                            <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "internal", row: r })}>Mark internal</Button>
-                          </>
-                        )}
-                        {r.status === "mapped" && (
-                          <>
-                            <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "map", row: r })}>Remap</Button>
-                            <Button size="sm" variant="ghost" onClick={() => unmap(r)}><Trash2 className="h-3 w-3" /></Button>
-                          </>
-                        )}
-                        {r.status === "internal" && (
-                          <Button size="sm" variant="ghost" onClick={() => unmarkInternal(r)}>Unmark</Button>
-                        )}
-                      </div>
-                    ) : <span className="text-xs text-muted-foreground">read-only</span>}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {rows.map(r => {
+                const open = expanded === r.slack_channel_id;
+                return (
+                  <>
+                    <TableRow key={r.slack_channel_id}>
+                      <TableCell>
+                        <Button
+                          size="sm" variant="ghost" className="h-6 w-6 p-0"
+                          onClick={() => setExpanded(open ? null : r.slack_channel_id)}
+                          aria-label={open ? "Collapse" : "Expand"}
+                        >
+                          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </Button>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{channelLabel(r.slack_channel_id, r.channel_name)}</TableCell>
+                      <TableCell>
+                        <Badge variant={r.status === "unmapped" ? "outline" : "secondary"}>{r.status}</Badge>
+                      </TableCell>
+                      <TableCell>{r.account_label || <span className="text-muted-foreground">—</span>}</TableCell>
+                      <TableCell className="text-right font-semibold">{r.ticket_count}</TableCell>
+                      <TableCell>
+                        {isAdmin ? (
+                          <div className="flex gap-2">
+                            {r.status === "unmapped" && (
+                              <>
+                                <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "map", row: r })}>Map</Button>
+                                <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "internal", row: r })}>Mark internal</Button>
+                              </>
+                            )}
+                            {r.status === "mapped" && (
+                              <>
+                                <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "map", row: r })}>Remap</Button>
+                                <Button size="sm" variant="ghost" onClick={() => unmap(r)}><Trash2 className="h-3 w-3" /></Button>
+                              </>
+                            )}
+                            {r.status === "internal" && (
+                              <Button size="sm" variant="ghost" onClick={() => unmarkInternal(r)}>Unmark</Button>
+                            )}
+                          </div>
+                        ) : <span className="text-xs text-muted-foreground">read-only</span>}
+                      </TableCell>
+                    </TableRow>
+                    {open && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="bg-muted/30 p-0">
+                          <EvidenceTickets rpc="v3_tickets_for_channel" arg={r.slack_channel_id} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
+                );
+              })}
               {rows.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">No customer channels detected.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">No customer channels detected.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -1249,6 +1371,7 @@ function OrphanReconciliationPanel({
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [override, setOverride] = useState<Record<string, string>>({});
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -1375,6 +1498,7 @@ function OrphanReconciliationPanel({
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8"></TableHead>
                 <TableHead>Orphan key</TableHead>
                 <TableHead className="text-right">Tickets</TableHead>
                 <TableHead>Match</TableHead>
@@ -1383,41 +1507,62 @@ function OrphanReconciliationPanel({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {suggestions.map(s => (
-                <TableRow key={s.orphan_key}>
-                  <TableCell className="font-mono text-xs">{s.orphan_key}</TableCell>
-                  <TableCell className="text-right">{s.ticket_count}</TableCell>
-                  <TableCell>
-                    <Badge variant={s.match_kind === "exact_normalized" ? "default" : s.match_kind === "fuzzy" ? "secondary" : "outline"}>
-                      {s.match_kind}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {s.suggested_account_key ? (
-                      <span><span className="font-medium">{s.suggested_label}</span> <span className="text-xs text-muted-foreground font-mono">({s.suggested_account_key})</span></span>
-                    ) : <span className="text-muted-foreground">no match</span>}
-                  </TableCell>
-                  <TableCell>
-                    {isAdmin ? (
-                      <div className="flex flex-wrap gap-1 items-center">
-                        {s.suggested_account_key && (
-                          <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmSuggestion(s)}>Confirm</Button>
-                        )}
-                        <Select value={override[s.orphan_key] ?? ""} onValueChange={(v) => setOverride(o => ({ ...o, [s.orphan_key]: v }))}>
-                          <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Pick different…" /></SelectTrigger>
-                          <SelectContent>
-                            {accounts.map(a => <SelectItem key={a.account_key} value={a.account_key}>{a.label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        {override[s.orphan_key] && (
-                          <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmPicked(s)}>Apply pick</Button>
-                        )}
-                        <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => dismiss(s)}>Dismiss</Button>
-                      </div>
-                    ) : <span className="text-xs text-muted-foreground">read-only</span>}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {suggestions.map(s => {
+                const open = expanded === s.orphan_key;
+                return (
+                  <>
+                    <TableRow key={s.orphan_key}>
+                      <TableCell>
+                        <Button
+                          size="sm" variant="ghost" className="h-6 w-6 p-0"
+                          onClick={() => setExpanded(open ? null : s.orphan_key)}
+                          aria-label={open ? "Collapse" : "Expand"}
+                        >
+                          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </Button>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{s.orphan_key}</TableCell>
+                      <TableCell className="text-right">{s.ticket_count}</TableCell>
+                      <TableCell>
+                        <Badge variant={s.match_kind === "exact_normalized" ? "default" : s.match_kind === "fuzzy" ? "secondary" : "outline"}>
+                          {s.match_kind}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {s.suggested_account_key ? (
+                          <span><span className="font-medium">{s.suggested_label}</span> <span className="text-xs text-muted-foreground font-mono">({s.suggested_account_key})</span></span>
+                        ) : <span className="text-muted-foreground">no match</span>}
+                      </TableCell>
+                      <TableCell>
+                        {isAdmin ? (
+                          <div className="flex flex-wrap gap-1 items-center">
+                            {s.suggested_account_key && (
+                              <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmSuggestion(s)}>Confirm</Button>
+                            )}
+                            <Select value={override[s.orphan_key] ?? ""} onValueChange={(v) => setOverride(o => ({ ...o, [s.orphan_key]: v }))}>
+                              <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Pick different…" /></SelectTrigger>
+                              <SelectContent>
+                                {accounts.map(a => <SelectItem key={a.account_key} value={a.account_key}>{a.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            {override[s.orphan_key] && (
+                              <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmPicked(s)}>Apply pick</Button>
+                            )}
+                            <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => dismiss(s)}>Dismiss</Button>
+                          </div>
+                        ) : <span className="text-xs text-muted-foreground">read-only</span>}
+                      </TableCell>
+                    </TableRow>
+                    {open && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="bg-muted/30 p-0">
+                          <EvidenceTickets rpc="v3_tickets_for_override_key" arg={s.orphan_key} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
+                );
+              })}
             </TableBody>
           </Table>
         )}
@@ -1438,6 +1583,7 @@ export function ChannelProposalsSection({
   const [rows, setRows] = useState<ChannelProposal[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [override, setOverride] = useState<Record<string, string>>({});
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const load = async () => {
     const { data, error } = await sb.rpc("v3_channel_proposals_pending");
@@ -1554,6 +1700,7 @@ export function ChannelProposalsSection({
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8"></TableHead>
                 <TableHead>Channel</TableHead>
                 <TableHead className="text-right">Tickets</TableHead>
                 <TableHead>Confidence</TableHead>
@@ -1563,37 +1710,58 @@ export function ChannelProposalsSection({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map(p => (
-                <TableRow key={p.slack_channel_id}>
-                  <TableCell className="font-mono text-xs">{channelLabel(p.slack_channel_id, p.channel_name)}</TableCell>
-                  <TableCell className="text-right">{p.ticket_count}</TableCell>
-                  <TableCell>
-                    <Badge variant={p.confidence === "high" ? "default" : "secondary"}>{p.confidence}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-medium">{p.account_label}</span>{" "}
-                    <span className="text-xs text-muted-foreground font-mono">({p.proposed_account_key})</span>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground max-w-md">{p.evidence}</TableCell>
-                  <TableCell>
-                    {isAdmin ? (
-                      <div className="flex flex-wrap gap-1 items-center">
-                        <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmOne(p, p.proposed_account_key)}>Confirm</Button>
-                        <Select value={override[p.slack_channel_id] ?? ""} onValueChange={(v) => setOverride(o => ({ ...o, [p.slack_channel_id]: v }))}>
-                          <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Edit…" /></SelectTrigger>
-                          <SelectContent>
-                            {accounts.map(a => <SelectItem key={a.account_key} value={a.account_key}>{a.label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        {override[p.slack_channel_id] && (
-                          <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmOne(p, override[p.slack_channel_id])}>Apply</Button>
-                        )}
-                        <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => reject(p)}>Reject</Button>
-                      </div>
-                    ) : <span className="text-xs text-muted-foreground">read-only</span>}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {rows.map(p => {
+                const open = expanded === p.slack_channel_id;
+                return (
+                  <>
+                    <TableRow key={p.slack_channel_id}>
+                      <TableCell>
+                        <Button
+                          size="sm" variant="ghost" className="h-6 w-6 p-0"
+                          onClick={() => setExpanded(open ? null : p.slack_channel_id)}
+                          aria-label={open ? "Collapse" : "Expand"}
+                        >
+                          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </Button>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{channelLabel(p.slack_channel_id, p.channel_name)}</TableCell>
+                      <TableCell className="text-right">{p.ticket_count}</TableCell>
+                      <TableCell>
+                        <Badge variant={p.confidence === "high" ? "default" : "secondary"}>{p.confidence}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-medium">{p.account_label}</span>{" "}
+                        <span className="text-xs text-muted-foreground font-mono">({p.proposed_account_key})</span>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-md">{p.evidence}</TableCell>
+                      <TableCell>
+                        {isAdmin ? (
+                          <div className="flex flex-wrap gap-1 items-center">
+                            <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmOne(p, p.proposed_account_key)}>Confirm</Button>
+                            <Select value={override[p.slack_channel_id] ?? ""} onValueChange={(v) => setOverride(o => ({ ...o, [p.slack_channel_id]: v }))}>
+                              <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Edit…" /></SelectTrigger>
+                              <SelectContent>
+                                {accounts.map(a => <SelectItem key={a.account_key} value={a.account_key}>{a.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            {override[p.slack_channel_id] && (
+                              <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmOne(p, override[p.slack_channel_id])}>Apply</Button>
+                            )}
+                            <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => reject(p)}>Reject</Button>
+                          </div>
+                        ) : <span className="text-xs text-muted-foreground">read-only</span>}
+                      </TableCell>
+                    </TableRow>
+                    {open && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="bg-muted/30 p-0">
+                          <EvidenceTickets rpc="v3_tickets_for_channel" arg={p.slack_channel_id} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
+                );
+              })}
             </TableBody>
           </Table>
         )}

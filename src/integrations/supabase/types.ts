@@ -1437,6 +1437,30 @@ export type Database = {
           ticket_count: number
         }[]
       }
+      v3_tickets_for_channel: {
+        Args: { _channel_id: string }
+        Returns: {
+          customer_key: string
+          customer_resolution_method: string
+          id: string
+          intercom_conversation_id: string
+          intercom_created_at: string
+          subject: string
+          total_count: number
+        }[]
+      }
+      v3_tickets_for_override_key: {
+        Args: { _key: string }
+        Returns: {
+          customer_key: string
+          customer_resolution_method: string
+          id: string
+          intercom_conversation_id: string
+          intercom_created_at: string
+          subject: string
+          total_count: number
+        }[]
+      }
       v3_unattributed_groups: {
         Args: never
         Returns: {
