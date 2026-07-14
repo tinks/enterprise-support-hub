@@ -1026,6 +1026,50 @@ export type Database = {
           },
         ]
       }
+      v3_channel_account_proposals: {
+        Row: {
+          channel_name: string | null
+          confidence: string
+          created_at: string
+          evidence: string
+          id: string
+          proposed_account_key: string
+          slack_channel_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          channel_name?: string | null
+          confidence: string
+          created_at?: string
+          evidence: string
+          id?: string
+          proposed_account_key: string
+          slack_channel_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          channel_name?: string | null
+          confidence?: string
+          created_at?: string
+          evidence?: string
+          id?: string
+          proposed_account_key?: string
+          slack_channel_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "v3_channel_account_proposals_proposed_account_key_fkey"
+            columns: ["proposed_account_key"]
+            isOneToOne: false
+            referencedRelation: "v3_customer_accounts"
+            referencedColumns: ["account_key"]
+          },
+        ]
+      }
       v3_coverage_snapshots: {
         Row: {
           attributed: number
@@ -1311,6 +1355,18 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      v3_channel_proposals_pending: {
+        Args: never
+        Returns: {
+          account_label: string
+          channel_name: string
+          confidence: string
+          evidence: string
+          proposed_account_key: string
+          slack_channel_id: string
+          ticket_count: number
+        }[]
+      }
       v3_channels_usage: {
         Args: never
         Returns: {
@@ -1363,6 +1419,17 @@ export type Database = {
               customer_source: string
             }[]
           }
+      v3_generate_channel_proposals: { Args: never; Returns: number }
+      v3_orphan_override_suggestions: {
+        Args: never
+        Returns: {
+          match_kind: string
+          orphan_key: string
+          suggested_account_key: string
+          suggested_label: string
+          ticket_count: number
+        }[]
+      }
       v3_orphan_overrides: {
         Args: never
         Returns: {
