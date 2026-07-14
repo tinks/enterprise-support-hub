@@ -1677,6 +1677,7 @@ export function ChannelProposalsSection({
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8"></TableHead>
                 <TableHead>Channel</TableHead>
                 <TableHead className="text-right">Tickets</TableHead>
                 <TableHead>Confidence</TableHead>
@@ -1686,37 +1687,58 @@ export function ChannelProposalsSection({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map(p => (
-                <TableRow key={p.slack_channel_id}>
-                  <TableCell className="font-mono text-xs">{channelLabel(p.slack_channel_id, p.channel_name)}</TableCell>
-                  <TableCell className="text-right">{p.ticket_count}</TableCell>
-                  <TableCell>
-                    <Badge variant={p.confidence === "high" ? "default" : "secondary"}>{p.confidence}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <span className="font-medium">{p.account_label}</span>{" "}
-                    <span className="text-xs text-muted-foreground font-mono">({p.proposed_account_key})</span>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground max-w-md">{p.evidence}</TableCell>
-                  <TableCell>
-                    {isAdmin ? (
-                      <div className="flex flex-wrap gap-1 items-center">
-                        <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmOne(p, p.proposed_account_key)}>Confirm</Button>
-                        <Select value={override[p.slack_channel_id] ?? ""} onValueChange={(v) => setOverride(o => ({ ...o, [p.slack_channel_id]: v }))}>
-                          <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Edit…" /></SelectTrigger>
-                          <SelectContent>
-                            {accounts.map(a => <SelectItem key={a.account_key} value={a.account_key}>{a.label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        {override[p.slack_channel_id] && (
-                          <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmOne(p, override[p.slack_channel_id])}>Apply</Button>
-                        )}
-                        <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => reject(p)}>Reject</Button>
-                      </div>
-                    ) : <span className="text-xs text-muted-foreground">read-only</span>}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {rows.map(p => {
+                const open = expanded === p.slack_channel_id;
+                return (
+                  <>
+                    <TableRow key={p.slack_channel_id}>
+                      <TableCell>
+                        <Button
+                          size="sm" variant="ghost" className="h-6 w-6 p-0"
+                          onClick={() => setExpanded(open ? null : p.slack_channel_id)}
+                          aria-label={open ? "Collapse" : "Expand"}
+                        >
+                          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </Button>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{channelLabel(p.slack_channel_id, p.channel_name)}</TableCell>
+                      <TableCell className="text-right">{p.ticket_count}</TableCell>
+                      <TableCell>
+                        <Badge variant={p.confidence === "high" ? "default" : "secondary"}>{p.confidence}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-medium">{p.account_label}</span>{" "}
+                        <span className="text-xs text-muted-foreground font-mono">({p.proposed_account_key})</span>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground max-w-md">{p.evidence}</TableCell>
+                      <TableCell>
+                        {isAdmin ? (
+                          <div className="flex flex-wrap gap-1 items-center">
+                            <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmOne(p, p.proposed_account_key)}>Confirm</Button>
+                            <Select value={override[p.slack_channel_id] ?? ""} onValueChange={(v) => setOverride(o => ({ ...o, [p.slack_channel_id]: v }))}>
+                              <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Edit…" /></SelectTrigger>
+                              <SelectContent>
+                                {accounts.map(a => <SelectItem key={a.account_key} value={a.account_key}>{a.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            {override[p.slack_channel_id] && (
+                              <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmOne(p, override[p.slack_channel_id])}>Apply</Button>
+                            )}
+                            <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => reject(p)}>Reject</Button>
+                          </div>
+                        ) : <span className="text-xs text-muted-foreground">read-only</span>}
+                      </TableCell>
+                    </TableRow>
+                    {open && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="bg-muted/30 p-0">
+                          <EvidenceTickets rpc="v3_tickets_for_channel" arg={p.slack_channel_id} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
+                );
+              })}
             </TableBody>
           </Table>
         )}
