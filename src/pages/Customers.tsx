@@ -1232,3 +1232,371 @@ function ActionDialog({ state, accounts, onClose, onDone }: {
     </Dialog>
   );
 }
+
+/* ---------------- Orphan reconciliation ---------------- */
+
+function OrphanReconciliationPanel({
+  orphans, accounts, isAdmin, onDone,
+}: {
+  orphans: OrphanRow[];
+  accounts: AccountOpt[];
+  isAdmin: boolean;
+  onDone: () => void;
+}) {
+  const [suggestions, setSuggestions] = useState<OrphanSuggestion[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [override, setOverride] = useState<Record<string, string>>({});
+
+  const load = async () => {
+    setLoading(true);
+    const { data, error } = await sb.rpc("v3_orphan_override_suggestions");
+    if (error) { console.error(error); toast.error("Failed to load suggestions"); }
+    setSuggestions((data ?? []) as OrphanSuggestion[]);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [orphans.length]);
+
+  if (orphans.length === 0) return null;
+
+  const rewriteOverride = async (orphanKey: string, newKey: string, reason: string) => {
+    setBusy(orphanKey);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id ?? null;
+      const { error } = await sb
+        .from("intercom_tickets_v3")
+        .update({
+          customer_override_key: newKey,
+          customer_override_by: uid,
+          customer_override_at: new Date().toISOString(),
+          customer_override_reason: reason,
+        })
+        .eq("customer_override_key", orphanKey);
+      if (error) throw error;
+      toast.success(`Reconciled "${orphanKey}" → ${newKey}`);
+      onDone();
+      load();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Failed");
+    } finally { setBusy(null); }
+  };
+
+  const confirmSuggestion = (s: OrphanSuggestion) => {
+    if (!s.suggested_account_key) return;
+    rewriteOverride(s.orphan_key, s.suggested_account_key, `reconciled via ${s.match_kind}`);
+  };
+
+  const confirmPicked = (s: OrphanSuggestion) => {
+    const picked = override[s.orphan_key];
+    if (!picked) { toast.error("Pick an account first"); return; }
+    rewriteOverride(s.orphan_key, picked, "reconciled via manual pick");
+  };
+
+  const dismiss = async (s: OrphanSuggestion) => {
+    if (!confirm(`Dismiss "${s.orphan_key}"? Its ${s.ticket_count} ticket(s) will lose their override and re-attribute via the resolver rules.`)) return;
+    setBusy(s.orphan_key);
+    try {
+      const { error } = await sb
+        .from("intercom_tickets_v3")
+        .update({
+          customer_override_key: null,
+          customer_override_by: null,
+          customer_override_at: null,
+          customer_override_reason: null,
+        })
+        .eq("customer_override_key", s.orphan_key);
+      if (error) throw error;
+      toast.success(`Cleared override for "${s.orphan_key}"`);
+      onDone();
+      load();
+    } catch (e: any) {
+      console.error(e); toast.error(e.message || "Failed");
+    } finally { setBusy(null); }
+  };
+
+  const acceptAllExact = async () => {
+    if (!suggestions) return;
+    const exact = suggestions.filter(s => s.match_kind === "exact_normalized" && s.suggested_account_key);
+    if (exact.length === 0) return;
+    if (!confirm(`Accept ${exact.length} exact-match suggestion(s)?`)) return;
+    setBusy("__bulk__");
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id ?? null;
+      for (const s of exact) {
+        const { error } = await sb
+          .from("intercom_tickets_v3")
+          .update({
+            customer_override_key: s.suggested_account_key!,
+            customer_override_by: uid,
+            customer_override_at: new Date().toISOString(),
+            customer_override_reason: "reconciled via exact_normalized (bulk)",
+          })
+          .eq("customer_override_key", s.orphan_key);
+        if (error) throw error;
+      }
+      toast.success(`Reconciled ${exact.length} orphan(s).`);
+      onDone();
+      load();
+    } catch (e: any) {
+      console.error(e); toast.error(e.message || "Bulk failed");
+    } finally { setBusy(null); }
+  };
+
+  const exactCount = suggestions?.filter(s => s.match_kind === "exact_normalized").length ?? 0;
+
+  return (
+    <Card className="border-yellow-500/40 bg-yellow-500/5">
+      <CardHeader className="pb-2 flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="text-base flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-yellow-600" />
+            Unrecognized override keys ({orphans.length})
+          </CardTitle>
+          <CardDescription>
+            Suggestions match each orphan key to an existing account by normalized name or token. Confirming rewrites the override on all affected tickets.
+          </CardDescription>
+        </div>
+        {isAdmin && exactCount > 0 && (
+          <Button size="sm" variant="outline" disabled={busy !== null} onClick={acceptAllExact}>
+            Accept all {exactCount} exact matches
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent className="p-0">
+        {loading || !suggestions ? (
+          <div className="p-4"><Loader2 className="h-4 w-4 animate-spin" /></div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Orphan key</TableHead>
+                <TableHead className="text-right">Tickets</TableHead>
+                <TableHead>Match</TableHead>
+                <TableHead>Suggestion</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {suggestions.map(s => (
+                <TableRow key={s.orphan_key}>
+                  <TableCell className="font-mono text-xs">{s.orphan_key}</TableCell>
+                  <TableCell className="text-right">{s.ticket_count}</TableCell>
+                  <TableCell>
+                    <Badge variant={s.match_kind === "exact_normalized" ? "default" : s.match_kind === "fuzzy" ? "secondary" : "outline"}>
+                      {s.match_kind}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {s.suggested_account_key ? (
+                      <span><span className="font-medium">{s.suggested_label}</span> <span className="text-xs text-muted-foreground font-mono">({s.suggested_account_key})</span></span>
+                    ) : <span className="text-muted-foreground">no match</span>}
+                  </TableCell>
+                  <TableCell>
+                    {isAdmin ? (
+                      <div className="flex flex-wrap gap-1 items-center">
+                        {s.suggested_account_key && (
+                          <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmSuggestion(s)}>Confirm</Button>
+                        )}
+                        <Select value={override[s.orphan_key] ?? ""} onValueChange={(v) => setOverride(o => ({ ...o, [s.orphan_key]: v }))}>
+                          <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Pick different…" /></SelectTrigger>
+                          <SelectContent>
+                            {accounts.map(a => <SelectItem key={a.account_key} value={a.account_key}>{a.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        {override[s.orphan_key] && (
+                          <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmPicked(s)}>Apply pick</Button>
+                        )}
+                        <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => dismiss(s)}>Dismiss</Button>
+                      </div>
+                    ) : <span className="text-xs text-muted-foreground">read-only</span>}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ---------------- Channel proposals ---------------- */
+
+export function ChannelProposalsSection({
+  accounts, isAdmin, onDone,
+}: {
+  accounts: AccountOpt[];
+  isAdmin: boolean;
+  onDone: () => void;
+}) {
+  const [rows, setRows] = useState<ChannelProposal[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [override, setOverride] = useState<Record<string, string>>({});
+
+  const load = async () => {
+    const { data, error } = await sb.rpc("v3_channel_proposals_pending");
+    if (error) { console.error(error); toast.error("Failed to load proposals"); return; }
+    setRows((data ?? []) as ChannelProposal[]);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const regenerate = async () => {
+    setBusy("__regen__");
+    try {
+      const { error } = await sb.rpc("v3_generate_channel_proposals");
+      if (error) throw error;
+      toast.success("Proposals regenerated");
+      await load();
+    } catch (e: any) { console.error(e); toast.error(e.message || "Failed"); }
+    finally { setBusy(null); }
+  };
+
+  const confirmOne = async (p: ChannelProposal, accountKey: string) => {
+    setBusy(p.slack_channel_id);
+    try {
+      const { error: mapErr } = await sb.from("v3_channel_account_map").upsert({
+        slack_channel_id: p.slack_channel_id, account_key: accountKey,
+      }, { onConflict: "slack_channel_id" });
+      if (mapErr) throw mapErr;
+      const { error: stErr } = await sb
+        .from("v3_channel_account_proposals")
+        .update({ status: "confirmed" })
+        .eq("slack_channel_id", p.slack_channel_id);
+      if (stErr) throw stErr;
+      toast.success(`Mapped ${p.channel_name ?? p.slack_channel_id} → ${accountKey}`);
+      onDone();
+      await load();
+    } catch (e: any) { console.error(e); toast.error(e.message || "Failed"); }
+    finally { setBusy(null); }
+  };
+
+  const reject = async (p: ChannelProposal) => {
+    if (!confirm(`Reject suggestion for ${p.channel_name ?? p.slack_channel_id}?`)) return;
+    setBusy(p.slack_channel_id);
+    try {
+      const { error } = await sb
+        .from("v3_channel_account_proposals")
+        .update({ status: "rejected" })
+        .eq("slack_channel_id", p.slack_channel_id);
+      if (error) throw error;
+      toast.success("Rejected");
+      await load();
+    } catch (e: any) { console.error(e); toast.error(e.message || "Failed"); }
+    finally { setBusy(null); }
+  };
+
+  const acceptAllHigh = async () => {
+    if (!rows) return;
+    const high = rows.filter(r => r.confidence === "high");
+    if (high.length === 0) return;
+    if (!confirm(`Accept ${high.length} high-confidence proposal(s)?`)) return;
+    setBusy("__bulk__");
+    try {
+      for (const p of high) {
+        const { error: mapErr } = await sb.from("v3_channel_account_map").upsert({
+          slack_channel_id: p.slack_channel_id, account_key: p.proposed_account_key,
+        }, { onConflict: "slack_channel_id" });
+        if (mapErr) throw mapErr;
+        const { error: stErr } = await sb
+          .from("v3_channel_account_proposals")
+          .update({ status: "confirmed" })
+          .eq("slack_channel_id", p.slack_channel_id);
+        if (stErr) throw stErr;
+      }
+      toast.success(`Confirmed ${high.length} channel(s).`);
+      onDone();
+      await load();
+    } catch (e: any) { console.error(e); toast.error(e.message || "Bulk failed"); }
+    finally { setBusy(null); }
+  };
+
+  if (rows === null) return <div className="p-2"><Loader2 className="h-4 w-4 animate-spin" /></div>;
+  if (rows.length === 0 && !isAdmin) return null;
+
+  const highCount = rows.filter(r => r.confidence === "high").length;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Hash className="h-4 w-4" />
+            Suggested channel mappings ({rows.length})
+          </CardTitle>
+          <CardDescription>
+            Pending suggestions for unmapped, non-internal channels. High = domain co-occurrence, medium = channel-name token.
+          </CardDescription>
+        </div>
+        {isAdmin && (
+          <div className="flex gap-2">
+            {highCount > 0 && (
+              <Button size="sm" variant="outline" disabled={busy !== null} onClick={acceptAllHigh}>
+                Accept all {highCount} high-confidence
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" disabled={busy !== null} onClick={regenerate}>
+              <RefreshCw className="h-3 w-3 mr-1" />Regenerate
+            </Button>
+          </div>
+        )}
+      </CardHeader>
+      <CardContent className="p-0">
+        {rows.length === 0 ? (
+          <div className="text-sm text-muted-foreground text-center py-6">No pending suggestions.</div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Channel</TableHead>
+                <TableHead className="text-right">Tickets</TableHead>
+                <TableHead>Confidence</TableHead>
+                <TableHead>Proposed account</TableHead>
+                <TableHead>Evidence</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map(p => (
+                <TableRow key={p.slack_channel_id}>
+                  <TableCell className="font-mono text-xs">{channelLabel(p.slack_channel_id, p.channel_name)}</TableCell>
+                  <TableCell className="text-right">{p.ticket_count}</TableCell>
+                  <TableCell>
+                    <Badge variant={p.confidence === "high" ? "default" : "secondary"}>{p.confidence}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-medium">{p.account_label}</span>{" "}
+                    <span className="text-xs text-muted-foreground font-mono">({p.proposed_account_key})</span>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground max-w-md">{p.evidence}</TableCell>
+                  <TableCell>
+                    {isAdmin ? (
+                      <div className="flex flex-wrap gap-1 items-center">
+                        <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmOne(p, p.proposed_account_key)}>Confirm</Button>
+                        <Select value={override[p.slack_channel_id] ?? ""} onValueChange={(v) => setOverride(o => ({ ...o, [p.slack_channel_id]: v }))}>
+                          <SelectTrigger className="h-8 w-40 text-xs"><SelectValue placeholder="Edit…" /></SelectTrigger>
+                          <SelectContent>
+                            {accounts.map(a => <SelectItem key={a.account_key} value={a.account_key}>{a.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        {override[p.slack_channel_id] && (
+                          <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => confirmOne(p, override[p.slack_channel_id])}>Apply</Button>
+                        )}
+                        <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => reject(p)}>Reject</Button>
+                      </div>
+                    ) : <span className="text-xs text-muted-foreground">read-only</span>}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
