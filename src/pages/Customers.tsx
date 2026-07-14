@@ -1560,6 +1560,7 @@ export function ChannelProposalsSection({
   const [rows, setRows] = useState<ChannelProposal[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [override, setOverride] = useState<Record<string, string>>({});
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const load = async () => {
     const { data, error } = await sb.rpc("v3_channel_proposals_pending");
