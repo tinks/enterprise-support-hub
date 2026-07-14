@@ -106,6 +106,24 @@ type InternalChannelRow = {
 
 type OrphanRow = { customer_key: string; ticket_count: number };
 
+type OrphanSuggestion = {
+  orphan_key: string;
+  ticket_count: number;
+  suggested_account_key: string | null;
+  suggested_label: string | null;
+  match_kind: "exact_normalized" | "fuzzy" | "none";
+};
+
+type ChannelProposal = {
+  slack_channel_id: string;
+  channel_name: string | null;
+  proposed_account_key: string;
+  account_label: string;
+  evidence: string;
+  confidence: "high" | "medium";
+  ticket_count: number;
+};
+
 function intercomUrl(id: string) {
   return `https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${id}?view=List`;
 }
