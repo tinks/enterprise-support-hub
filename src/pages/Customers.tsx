@@ -136,6 +136,105 @@ function channelLabel(id: string, name: string | null) {
   return name ? `#${name} (${id})` : id;
 }
 
+/* ---------------- Evidence drill-down ---------------- */
+
+type EvidenceTicket = {
+  id: string;
+  intercom_conversation_id: string | null;
+  subject: string | null;
+  intercom_created_at: string | null;
+  customer_key: string | null;
+  customer_resolution_method: string | null;
+  total_count: number;
+};
+
+function EvidenceTickets({
+  rpc, arg,
+}: {
+  rpc: "v3_tickets_for_channel" | "v3_tickets_for_override_key";
+  arg: string;
+}) {
+  const [rows, setRows] = useState<EvidenceTicket[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const param = rpc === "v3_tickets_for_channel" ? { _channel_id: arg } : { _key: arg };
+      const { data, error } = await sb.rpc(rpc, param);
+      if (cancelled) return;
+      if (error) {
+        console.error(`${rpc} failed`, error);
+        setError(error.message);
+        setRows([]);
+        toast.error(`Failed to load evidence: ${error.message}`);
+        return;
+      }
+      setRows((data ?? []) as EvidenceTicket[]);
+    })();
+    return () => { cancelled = true; };
+  }, [rpc, arg]);
+
+  if (rows === null) {
+    return <div className="p-3"><Loader2 className="h-4 w-4 animate-spin" /></div>;
+  }
+  if (error) {
+    return <div className="p-3 text-sm text-destructive">Failed: {error}</div>;
+  }
+  if (rows.length === 0) {
+    return <div className="p-3 text-sm text-muted-foreground">No tickets match this signal.</div>;
+  }
+  const total = Number(rows[0]?.total_count ?? rows.length);
+  const shown = rows.length;
+  const more = Math.max(0, total - shown);
+
+  return (
+    <div className="p-2 space-y-2">
+      <div className="text-xs text-muted-foreground px-1">
+        Showing {shown} of {total} ticket{total === 1 ? "" : "s"}
+        {more > 0 ? ` (+${more} more not shown)` : ""}
+      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Subject</TableHead>
+            <TableHead className="w-[110px]">Created</TableHead>
+            <TableHead className="w-[220px]">Current attribution</TableHead>
+            <TableHead className="w-[80px] text-right">Intercom</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map(t => (
+            <TableRow key={t.id}>
+              <TableCell className="max-w-md truncate">{t.subject || "—"}</TableCell>
+              <TableCell className="text-xs">
+                {t.intercom_created_at ? format(new Date(t.intercom_created_at), "yyyy-MM-dd") : "—"}
+              </TableCell>
+              <TableCell className="text-xs">
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-mono truncate">{t.customer_key || "—"}</span>
+                  {t.customer_resolution_method && (
+                    <Badge variant="outline" className="w-fit text-[10px] px-1 py-0">
+                      {t.customer_resolution_method}
+                    </Badge>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell className="text-right">
+                {t.intercom_conversation_id ? (
+                  <a href={intercomUrl(t.intercom_conversation_id)} target="_blank" rel="noreferrer">
+                    <Button size="sm" variant="ghost"><ExternalLink className="h-3 w-3" /></Button>
+                  </a>
+                ) : <span className="text-muted-foreground text-xs">—</span>}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
 export default function Customers() {
   const { isAdmin } = useIsAdmin();
   const [tab, setTab] = useState<"coverage" | "unattributed" | "channels" | "registry">("coverage");
