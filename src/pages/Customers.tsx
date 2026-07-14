@@ -787,28 +787,13 @@ function RegistryTab({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div className="space-y-4">
-      {orphans.length > 0 && (
-        <Card className="border-yellow-500/40 bg-yellow-500/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-yellow-600" />
-              Unrecognized override keys ({orphans.length})
-            </CardTitle>
-            <CardDescription>
-              These override values don't match any account_key in the registry. Create the missing account or fix the override.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {orphans.map(o => (
-                <Badge key={o.customer_key} variant="outline" className="font-mono text-xs">
-                  {o.customer_key} · {o.ticket_count}
-                </Badge>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <OrphanReconciliationPanel
+        orphans={orphans}
+        accounts={accounts}
+        isAdmin={isAdmin}
+        onDone={load}
+      />
+
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
