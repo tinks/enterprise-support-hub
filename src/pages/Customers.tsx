@@ -686,6 +686,7 @@ function ChannelsTab({ isAdmin }: { isAdmin: boolean }) {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8"></TableHead>
                 <TableHead>Channel</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Account</TableHead>
@@ -694,39 +695,60 @@ function ChannelsTab({ isAdmin }: { isAdmin: boolean }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map(r => (
-                <TableRow key={r.slack_channel_id}>
-                  <TableCell className="font-mono text-xs">{channelLabel(r.slack_channel_id, r.channel_name)}</TableCell>
-                  <TableCell>
-                    <Badge variant={r.status === "unmapped" ? "outline" : "secondary"}>{r.status}</Badge>
-                  </TableCell>
-                  <TableCell>{r.account_label || <span className="text-muted-foreground">—</span>}</TableCell>
-                  <TableCell className="text-right font-semibold">{r.ticket_count}</TableCell>
-                  <TableCell>
-                    {isAdmin ? (
-                      <div className="flex gap-2">
-                        {r.status === "unmapped" && (
-                          <>
-                            <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "map", row: r })}>Map</Button>
-                            <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "internal", row: r })}>Mark internal</Button>
-                          </>
-                        )}
-                        {r.status === "mapped" && (
-                          <>
-                            <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "map", row: r })}>Remap</Button>
-                            <Button size="sm" variant="ghost" onClick={() => unmap(r)}><Trash2 className="h-3 w-3" /></Button>
-                          </>
-                        )}
-                        {r.status === "internal" && (
-                          <Button size="sm" variant="ghost" onClick={() => unmarkInternal(r)}>Unmark</Button>
-                        )}
-                      </div>
-                    ) : <span className="text-xs text-muted-foreground">read-only</span>}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {rows.map(r => {
+                const open = expanded === r.slack_channel_id;
+                return (
+                  <>
+                    <TableRow key={r.slack_channel_id}>
+                      <TableCell>
+                        <Button
+                          size="sm" variant="ghost" className="h-6 w-6 p-0"
+                          onClick={() => setExpanded(open ? null : r.slack_channel_id)}
+                          aria-label={open ? "Collapse" : "Expand"}
+                        >
+                          {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </Button>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{channelLabel(r.slack_channel_id, r.channel_name)}</TableCell>
+                      <TableCell>
+                        <Badge variant={r.status === "unmapped" ? "outline" : "secondary"}>{r.status}</Badge>
+                      </TableCell>
+                      <TableCell>{r.account_label || <span className="text-muted-foreground">—</span>}</TableCell>
+                      <TableCell className="text-right font-semibold">{r.ticket_count}</TableCell>
+                      <TableCell>
+                        {isAdmin ? (
+                          <div className="flex gap-2">
+                            {r.status === "unmapped" && (
+                              <>
+                                <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "map", row: r })}>Map</Button>
+                                <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "internal", row: r })}>Mark internal</Button>
+                              </>
+                            )}
+                            {r.status === "mapped" && (
+                              <>
+                                <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "map", row: r })}>Remap</Button>
+                                <Button size="sm" variant="ghost" onClick={() => unmap(r)}><Trash2 className="h-3 w-3" /></Button>
+                              </>
+                            )}
+                            {r.status === "internal" && (
+                              <Button size="sm" variant="ghost" onClick={() => unmarkInternal(r)}>Unmark</Button>
+                            )}
+                          </div>
+                        ) : <span className="text-xs text-muted-foreground">read-only</span>}
+                      </TableCell>
+                    </TableRow>
+                    {open && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="bg-muted/30 p-0">
+                          <EvidenceTickets rpc="v3_tickets_for_channel" arg={r.slack_channel_id} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
+                );
+              })}
               {rows.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-6">No customer channels detected.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-6">No customer channels detected.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
