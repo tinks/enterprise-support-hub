@@ -837,7 +837,7 @@ Attributes each `intercom_tickets_v3` ticket to a known **customer account** so 
 - **`v3_coverage_snapshots`** — daily per-method snapshot; powers the trend chart. Written by `v3_capture_coverage_snapshot()` under pg_cron.
 - **`v3_channel_account_proposals`** — pending auto-suggested channel→account mappings (suggest-then-confirm; never auto-applied).
 - **`v3_personal_email_domains`** — allowlist of consumer email providers (gmail.com, etc.).
-- New columns on `intercom_tickets_v3`: `customer_resolution_method`, `customer_confidence`, `custom_attributes`, `slack_channel_id_detected`, `workspace_id_detected`, `project_uuid_detected` — alongside existing `customer_key/kind/source` and `customer_override_key/by/at/reason`.
+- New columns on `intercom_tickets_v3`: `customer_resolution_method`, `customer_confidence`, `custom_attributes`, `slack_channel_id_detected`, `workspace_id_detected`, `project_uuid_detected` — alongside existing `customer_key/kind/source` and `customer_override_key/by/at/reason`. `customer_kind` and `customer_resolution_method` now include the value `not_enterprise` (population-gate result — see Resolver Rule 0).
 
 ### Signal extraction (sync-time, TypeScript)
 
