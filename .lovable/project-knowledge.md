@@ -889,3 +889,17 @@ Three implementations MUST stay in lockstep — edit all of them when rules chan
 - **Surface problems loudly, never silently default** — unresolved tickets go to a visible queue and a coverage KPI, never a guessed bucket.
 - **Human signals are advisory; stored attribution is system-derived** — a bad manual entry can only fail to match (→ queue), never corrupt data.
 - **Prospect / not-yet-customer companies are still real accounts** — prospect status is carried by an `enterprise-prospect` Intercom tag (temporal, read-only), not an account field.
+
+### Auto-registration from Slack #closed-won
+
+New customer accounts are seeded automatically from the Slack "closed-won" channel so the registry stays current without manual entry.
+
+- **Function:** `poll-slack-closed-won` (edge function, `verify_jwt = false`).
+- **Schedule:** `pg_cron` job `poll-slack-closed-won-daily`, `0 4 * * *` (daily at 04:00 UTC).
+- **Source:** Slack channel `C09CL5E028N`, read via the "11 - PICK THIS BOT CONNECTION" bot token (`SLACK_API_KEY_1`) through the connector gateway `conversations.history`.
+- **Window:** every run scans messages with `ts >= now − 2 days` (today−1 and today−2), so a missed run self-heals the next day.
+- **Extraction:** per message text, pulls the value after `Company Name:` and `Company Domain:` (markdown stripped, domain lower-cased).
+- **`account_key` derivation:** company name → lowercase → spaces to `_` → strip non-alphanumerics.
+- **Dedup:** skips candidates whose `domain` is already present in any `v3_customer_accounts.domains` array (via `.overlaps`) OR whose `account_key` already exists. Also dedupes within the batch.
+- **Insert shape:** `{ account_key, label: <company name>, domains: [<domain>], notes: 'Auto-created from Slack #closed-won' }`. All other columns default.
+- **Idempotent:** re-running the same day is a no-op because dedup fires on both keys.
