@@ -305,16 +305,19 @@ function CoverageTab({ isAdmin }: { isAdmin: boolean }) {
 
   const chartData = snaps.map(s => ({ date: s.snapshot_date, pct: Number(s.pct_attributed) }));
 
+  const excludedNotEnterprise = cov.excluded_not_enterprise ?? 0;
+  const population = cov.population ?? Math.max(0, cov.total_tickets - excludedNotEnterprise);
+
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Verified attributed</CardDescription>
             <CardTitle className="text-3xl">{Number(cov.pct_attributed).toFixed(1)}%</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            {cov.attributed} of {cov.total_tickets} → known registry account
+            {cov.attributed} of {population} in-scope tickets
           </CardContent>
         </Card>
         <Card>
@@ -334,6 +337,17 @@ function CoverageTab({ isAdmin }: { isAdmin: boolean }) {
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
             Overrides pointing at a missing account_key
+          </CardContent>
+        </Card>
+        <Card
+          title="Tickets tagged `enterprise-not-enterprise` — a Support Engineer assisting a non-Enterprise party. Excluded from the attribution denominator; re-included automatically if the label is removed."
+        >
+          <CardHeader className="pb-2">
+            <CardDescription>Non-Enterprise (excluded)</CardDescription>
+            <CardTitle className="text-3xl">{excludedNotEnterprise}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Excluded from attribution denominator
           </CardContent>
         </Card>
         <Card>
