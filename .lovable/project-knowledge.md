@@ -25,6 +25,7 @@ A Slack-to-Intercom support bridge for enterprise customers. When a user @mentio
 | `poll-intercom-inbox` | Cron reconciler that scans the Intercom inbox for tickets the webhook missed and imports them |
 | `context-reminder` | 5-min cron: posts a reminder at 15 min and auto-creates the Intercom ticket at 30 min for stuck `awaiting_context` bot-flow conversations |
 | `promote-pending-intercom-links` | 2-min cron: late-reconciles or promotes `pending_intercom_links` rows older than 20 min into `manual_conversations` |
+| `poll-slack-closed-won` | Daily cron (04:00 UTC): reads the last 2 days of messages from Slack channel `C09CL5E028N` via the "11 - PICK THIS BOT CONNECTION" bot (`SLACK_API_KEY_1`), extracts `Company Name:` / `Company Domain:` lines, and inserts new rows into `v3_customer_accounts` (dedupe by `domains` + `account_key`) |
 | `backfill-intercom-replies` | Reconciliation that fetches missing Intercom parts (replies + notes) into `manual_messages`. `?recent=true` is also called by a 5-min cron as a webhook safety net |
 | `backfill-enterprise-inbox` | One-shot/manual backfill of enterprise inbox Intercom conversations into `manual_conversations` |
 | `backfill-gmail-headers` | Backfills missing `to_emails`/`cc_emails`/`from_*` on existing `gmail_conversations` rows |
