@@ -1074,6 +1074,7 @@ export type Database = {
         Row: {
           attributed: number
           created_at: string
+          excluded_not_enterprise: number
           m_domain: number
           m_orphan_override: number
           m_override: number
@@ -1089,6 +1090,7 @@ export type Database = {
         Insert: {
           attributed?: number
           created_at?: string
+          excluded_not_enterprise?: number
           m_domain?: number
           m_orphan_override?: number
           m_override?: number
@@ -1104,6 +1106,7 @@ export type Database = {
         Update: {
           attributed?: number
           created_at?: string
+          excluded_not_enterprise?: number
           m_domain?: number
           m_orphan_override?: number
           m_override?: number
@@ -1336,6 +1339,7 @@ export type Database = {
         Returns: {
           attributed: number
           created_at: string
+          excluded_not_enterprise: number
           m_domain: number
           m_orphan_override: number
           m_override: number
@@ -1382,6 +1386,7 @@ export type Database = {
         Args: never
         Returns: {
           attributed: number
+          excluded_not_enterprise: number
           m_domain: number
           m_orphan_override: number
           m_override: number
@@ -1390,6 +1395,7 @@ export type Database = {
           m_workspace_id: number
           orphan_overrides: number
           pct_attributed: number
+          population: number
           total_tickets: number
           unattributed: number
         }[]
@@ -1409,6 +1415,23 @@ export type Database = {
               _contact_email: string
               _override_key: string
               _slack_channel_id_detected?: string
+              _workspace_id_detected?: string
+            }
+            Returns: {
+              customer_confidence: string
+              customer_key: string
+              customer_kind: string
+              customer_resolution_method: string
+              customer_source: string
+            }[]
+          }
+        | {
+            Args: {
+              _contact_domain?: string
+              _contact_email: string
+              _override_key: string
+              _slack_channel_id_detected?: string
+              _tags?: string[]
               _workspace_id_detected?: string
             }
             Returns: {
