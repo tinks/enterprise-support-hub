@@ -25,6 +25,7 @@ A Slack-to-Intercom support bridge for enterprise customers. When a user @mentio
 | `poll-intercom-inbox` | Cron reconciler that scans the Intercom inbox for tickets the webhook missed and imports them |
 | `context-reminder` | 5-min cron: posts a reminder at 15 min and auto-creates the Intercom ticket at 30 min for stuck `awaiting_context` bot-flow conversations |
 | `promote-pending-intercom-links` | 2-min cron: late-reconciles or promotes `pending_intercom_links` rows older than 20 min into `manual_conversations` |
+| `poll-slack-closed-won` | Daily cron (04:00 UTC): reads the last 2 days of messages from Slack channel `C09CL5E028N` via the "11 - PICK THIS BOT CONNECTION" bot (`SLACK_API_KEY_1`), extracts `Company Name:` / `Company Domain:` lines, and inserts new rows into `v3_customer_accounts` (dedupe by `domains` + `account_key`) |
 | `backfill-intercom-replies` | Reconciliation that fetches missing Intercom parts (replies + notes) into `manual_messages`. `?recent=true` is also called by a 5-min cron as a webhook safety net |
 | `backfill-enterprise-inbox` | One-shot/manual backfill of enterprise inbox Intercom conversations into `manual_conversations` |
 | `backfill-gmail-headers` | Backfills missing `to_emails`/`cc_emails`/`from_*` on existing `gmail_conversations` rows |
@@ -888,3 +889,17 @@ Three implementations MUST stay in lockstep — edit all of them when rules chan
 - **Surface problems loudly, never silently default** — unresolved tickets go to a visible queue and a coverage KPI, never a guessed bucket.
 - **Human signals are advisory; stored attribution is system-derived** — a bad manual entry can only fail to match (→ queue), never corrupt data.
 - **Prospect / not-yet-customer companies are still real accounts** — prospect status is carried by an `enterprise-prospect` Intercom tag (temporal, read-only), not an account field.
+
+### Auto-registration from Slack #closed-won
+
+New customer accounts are seeded automatically from the Slack "closed-won" channel so the registry stays current without manual entry.
+
+- **Function:** `poll-slack-closed-won` (edge function, `verify_jwt = false`).
+- **Schedule:** `pg_cron` job `poll-slack-closed-won-daily`, `0 4 * * *` (daily at 04:00 UTC).
+- **Source:** Slack channel `C09CL5E028N`, read via the "11 - PICK THIS BOT CONNECTION" bot token (`SLACK_API_KEY_1`) through the connector gateway `conversations.history`.
+- **Window:** every run scans messages with `ts >= now − 2 days` (today−1 and today−2), so a missed run self-heals the next day.
+- **Extraction:** per message text, pulls the value after `Company Name:` and `Company Domain:` (markdown stripped, domain lower-cased).
+- **`account_key` derivation:** company name → lowercase → spaces to `_` → strip non-alphanumerics.
+- **Dedup:** skips candidates whose `domain` is already present in any `v3_customer_accounts.domains` array (via `.overlaps`) OR whose `account_key` already exists. Also dedupes within the batch.
+- **Insert shape:** `{ account_key, label: <company name>, domains: [<domain>], notes: 'Auto-created from Slack #closed-won' }`. All other columns default.
+- **Idempotent:** re-running the same day is a no-op because dedup fires on both keys.
