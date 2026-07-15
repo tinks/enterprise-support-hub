@@ -873,6 +873,8 @@ Tag propagation: the BEFORE trigger `intercom_tickets_v3_apply_customer` passes 
 
 "Attributed" counts only tickets resolved to a known registry account. Manually-entered `customer_override_key` values that don't match any registered account are **orphans** — surfaced separately for reconciliation, NOT counted as clean attribution (keeps the metric honest). `v3_coverage_current()` returns live numbers; `v3_capture_coverage_snapshot()` runs daily under pg_cron into `v3_coverage_snapshots` for the trend chart.
 
+**Population gate in coverage:** `v3_coverage_current()` now also returns `excluded_not_enterprise` (count of tickets gated to `not_enterprise` by Rule 0) and `population` (= `total_tickets − excluded_not_enterprise`). `pct_attributed` is computed over `population` (in-scope tickets), NOT over `total_tickets`. `v3_coverage_snapshots` gained an `excluded_not_enterprise` column, persisted by `v3_capture_coverage_snapshot()`. _Why:_ excluding out-of-scope tickets from the denominator keeps coverage honest — an assist to a non-Enterprise party shouldn't count for or against attribution. The excluded count is shown, never silently dropped.
+
 ### UI — `/customers` (`src/pages/Customers.tsx`), 4 tabs
 
 - **Coverage** — % verified-attributed KPI, method distribution (override / slack_channel / domain / workspace_id / unresolved), orphan count, trend chart from `v3_coverage_snapshots`.
