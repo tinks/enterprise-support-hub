@@ -837,7 +837,7 @@ Attributes each `intercom_tickets_v3` ticket to a known **customer account** so 
 - **`v3_coverage_snapshots`** — daily per-method snapshot; powers the trend chart. Written by `v3_capture_coverage_snapshot()` under pg_cron.
 - **`v3_channel_account_proposals`** — pending auto-suggested channel→account mappings (suggest-then-confirm; never auto-applied).
 - **`v3_personal_email_domains`** — allowlist of consumer email providers (gmail.com, etc.).
-- New columns on `intercom_tickets_v3`: `customer_resolution_method`, `customer_confidence`, `custom_attributes`, `slack_channel_id_detected`, `workspace_id_detected`, `project_uuid_detected` — alongside existing `customer_key/kind/source` and `customer_override_key/by/at/reason`.
+- New columns on `intercom_tickets_v3`: `customer_resolution_method`, `customer_confidence`, `custom_attributes`, `slack_channel_id_detected`, `workspace_id_detected`, `project_uuid_detected` — alongside existing `customer_key/kind/source` and `customer_override_key/by/at/reason`. `customer_kind` and `customer_resolution_method` now include the value `not_enterprise` (population-gate result — see Resolver Rule 0).
 
 ### Signal extraction (sync-time, TypeScript)
 
@@ -850,9 +850,10 @@ Attributes each `intercom_tickets_v3` ticket to a known **customer account** so 
 
 ### Resolver — LOCKSTEP contract
 
-Resolution order (first match wins), over the `*_detected` columns + lookup tables only — no `raw_payload` parsing in SQL:
+Resolution order (first match wins), over the `*_detected` columns + `tags` + lookup tables only — no `raw_payload` parsing in SQL:
 
-1. **override** — `customer_override_key` set → `high` confidence, method `override`. Top authority; never overwritten.
+0. **population gate** — if the ticket's Intercom `tags` contain `enterprise-not-enterprise`, resolve to `customer_key/kind/method = 'not_enterprise'` (confidence `high`). Evaluated ABOVE override so an out-of-scope ticket is excluded even if an override was set. _Why:_ whether a ticket is Enterprise work is a *population* question, separate from *which customer* it is. It's driven by a ticket tag (not an account field) because enterprise-ness is temporal — a ticket reflects the customer's status at its moment. Because the gate reads the live tag, removing the label re-derives the ticket normally on the next write/sync (future-proof if the company later upgrades/returns to Enterprise).
+1. **override** — `customer_override_key` set → `high` confidence, method `override`. Top authority among *which customer* rules; never overwritten.
 2. **slack_channel** — `slack_channel_id_detected` present, NOT in `v3_internal_channels`, found in `v3_channel_account_map` → `high`, method `slack_channel`.
 3. **domain** — contact email domain matches `v3_customer_accounts.domains`, excluding `lovable.dev` and any `v3_personal_email_domains` entry → `high`, method `domain`.
 4. **workspace_id** — `workspace_id_detected` found in `v3_workspace_customer_map` → `medium`, method `workspace_id` (best guess, confirmable).
@@ -860,9 +861,11 @@ Resolution order (first match wins), over the `*_detected` columns + lookup tabl
 
 Three implementations MUST stay in lockstep — edit all of them when rules change:
 
-- SQL `public.v3_derive_customer` (authoritative; called by BEFORE INSERT/UPDATE trigger `intercom_tickets_v3_apply_customer`).
+- SQL `public.v3_derive_customer` (authoritative; called by BEFORE INSERT/UPDATE trigger `intercom_tickets_v3_apply_customer`). Signature is now `(_contact_email, _override_key, _contact_domain, _slack_channel_id_detected, _workspace_id_detected, _tags text[])` — 6 args. The old 5-arg and 2-arg overloads were dropped; a single canonical function remains.
 - Propagate triggers: `v3_customer_accounts_propagate`, `v3_channel_account_map_propagate`, `v3_internal_channels_propagate`, `v3_workspace_customer_map_propagate` — bump `updated_at` on affected tickets, which re-fires the derive trigger. Result: mapping a channel/domain/workspace once retroactively re-attributes all matching existing tickets AND all future ones.
 - Deno `supabase/functions/_shared/v3-customer.ts` (`resolveV3Customer()` — thin wrapper over the SQL function for sync-time convenience/logging; the DB trigger is still authoritative on every write).
+
+Tag propagation: the BEFORE trigger `intercom_tickets_v3_apply_customer` passes `NEW.tags`; `backfill_v3_customer_keys` passes each ticket's tags; the Deno wrapper passes `_tags`. All lockstep components updated together.
 
 `backfill_v3_customer_keys(_force boolean, _batch integer)` re-derives existing rows in 5k batches; pass `force=true` after any rule/allowlist change (else only NULLs are filled).
 
@@ -870,9 +873,11 @@ Three implementations MUST stay in lockstep — edit all of them when rules chan
 
 "Attributed" counts only tickets resolved to a known registry account. Manually-entered `customer_override_key` values that don't match any registered account are **orphans** — surfaced separately for reconciliation, NOT counted as clean attribution (keeps the metric honest). `v3_coverage_current()` returns live numbers; `v3_capture_coverage_snapshot()` runs daily under pg_cron into `v3_coverage_snapshots` for the trend chart.
 
+**Population gate in coverage:** `v3_coverage_current()` now also returns `excluded_not_enterprise` (count of tickets gated to `not_enterprise` by Rule 0) and `population` (= `total_tickets − excluded_not_enterprise`). `pct_attributed` is computed over `population` (in-scope tickets), NOT over `total_tickets`. `v3_coverage_snapshots` gained an `excluded_not_enterprise` column, persisted by `v3_capture_coverage_snapshot()`. _Why:_ excluding out-of-scope tickets from the denominator keeps coverage honest — an assist to a non-Enterprise party shouldn't count for or against attribution. The excluded count is shown, never silently dropped.
+
 ### UI — `/customers` (`src/pages/Customers.tsx`), 4 tabs
 
-- **Coverage** — % verified-attributed KPI, method distribution (override / slack_channel / domain / workspace_id / unresolved), orphan count, trend chart from `v3_coverage_snapshots`.
+- **Coverage** — % verified-attributed KPI (denominator = in-scope `population`, shown as "N of {population} in-scope tickets"), a **"Non-Enterprise (excluded)"** KPI card (with tooltip) showing `excluded_not_enterprise`, method distribution (override / slack_channel / domain / workspace_id / unresolved), orphan count, trend chart from `v3_coverage_snapshots`.
 - **Unattributed** — queue of tickets not yet attributed, grouped by reclaim signal (domain / channel / workspace / no-signal) via `v3_unattributed_groups`; per-ticket + bulk assign.
 - **Channels** — channel list (`v3_channels_usage`) with human-readable names + mapped/internal/unmapped status; auto-suggested mappings from `v3_channel_account_proposals` (high = domain co-occurrence, medium = name-token match on the registrable domain label — token strip list excludes `ext/external/lovable/admin/customer/support/help/team/proj/project/account`). Actions: Map / Mark internal / Confirm / Edit / Reject.
 - **Registry** — CRUD on `v3_customer_accounts` (+ workspace cache and internal channels); orphan-override reconciliation with fuzzy-match suggestions from `v3_orphan_override_suggestions`.
@@ -888,7 +893,10 @@ Three implementations MUST stay in lockstep — edit all of them when rules chan
 
 - **Surface problems loudly, never silently default** — unresolved tickets go to a visible queue and a coverage KPI, never a guessed bucket.
 - **Human signals are advisory; stored attribution is system-derived** — a bad manual entry can only fail to match (→ queue), never corrupt data.
-- **Prospect / not-yet-customer companies are still real accounts** — prospect status is carried by an `enterprise-prospect` Intercom tag (temporal, read-only), not an account field.
+- **Ticket-status taxonomy (three-way, all carried on the ticket via read-only Intercom tags — status is temporal, so it rides on the ticket rather than a mutable account field):**
+  - **not-enterprise** — never an Enterprise customer / out of scope (e.g. a Support Engineer assisting a non-Enterprise party) → `enterprise-not-enterprise` tag → excluded from the population (Resolver Rule 0).
+  - **prospect** — pre-sales inbound (pricing, security, exploring upgrade) → `enterprise-prospect` tag + a real registry account → counted (pre-sales load).
+  - **customer (incl. former)** — is or was a real Enterprise customer, even briefly (e.g. a churned/torn-down account) → plain registry account, no tag → attributed and counted.
 
 ### Auto-registration from Slack #closed-won
 
