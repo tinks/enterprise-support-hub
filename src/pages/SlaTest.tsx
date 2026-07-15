@@ -3,10 +3,25 @@ import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, RefreshCw, Gauge, ArrowUpDown } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, RefreshCw, Gauge, ArrowUpDown, ExternalLink, PlayCircle } from "lucide-react";
 import { format } from "date-fns";
-import { aggregate, computeTicketSla, formatDuration, type TicketSla } from "@/lib/slaMetrics";
+import {
+  aggregate,
+  computeTicketSla,
+  computeSla,
+  formatDuration,
+  type TicketSla,
+  type SlaResult,
+  type TimelinePart,
+  type Actor,
+} from "@/lib/slaMetrics";
 
+// ============================================================================
+// Tab 2 (legacy stored batch) — types
+// ============================================================================
 type Row = {
   id: string;
   intercom_conversation_id: string;
@@ -21,10 +36,373 @@ type Row = {
 };
 
 type Enriched = Row & { sla: TicketSla };
-
 type SortKey = "closed" | "firstReply" | "rawResolve" | "responseGap" | "bhHandling" | "parts";
 
+// ============================================================================
+// Tab 1 (live analyze) — types
+// ============================================================================
+type LiveResult =
+  | { id: string; ok: true; conversation: any }
+  | { id: string; ok: false; status?: number; error?: string };
+
+type LiveResponse = {
+  ok?: boolean;
+  truncated?: boolean;
+  results?: LiveResult[];
+  error?: string;
+};
+
+function parseIds(input: string): string[] {
+  const raw = input.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+  const out: string[] = [];
+  for (const tok of raw) {
+    // Extract last path segment for URLs, strip "conversation_" prefix
+    let s = tok;
+    if (s.includes("/")) s = s.split("/").filter(Boolean).pop() ?? s;
+    s = s.replace(/^conversation_/, "");
+    s = s.replace(/[^0-9]/g, "");
+    if (s.length >= 5) out.push(s);
+  }
+  return Array.from(new Set(out));
+}
+
+// ============================================================================
+// Page
+// ============================================================================
 export default function SlaTest() {
+  return (
+    <AppLayout>
+      <div className="p-6 space-y-6 max-w-7xl mx-auto">
+        <div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide">
+            <Gauge className="h-3.5 w-3.5" /> Prototype · SLA validation
+          </div>
+          <h1 className="text-2xl font-semibold tracking-tight mt-1">SLA test</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Live SLA validation tool. Paste Intercom conversation IDs to fetch & spot-check our computed metrics
+            against Intercom's own statistics, or browse the stored batch of finalized tickets.
+            Business hours = Europe/Berlin, Mon–Fri 09:00–24:00.
+          </p>
+        </div>
+
+        <Tabs defaultValue="live" className="w-full">
+          <TabsList>
+            <TabsTrigger value="live">Analyze by ID (live)</TabsTrigger>
+            <TabsTrigger value="batch">Batch (stored)</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="live" className="mt-4">
+            <LiveAnalyzeTab />
+          </TabsContent>
+
+          <TabsContent value="batch" className="mt-4">
+            <BatchStoredTab />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </AppLayout>
+  );
+}
+
+// ============================================================================
+// TAB 1 · Live analyze
+// ============================================================================
+function LiveAnalyzeTab() {
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [results, setResults] = useState<LiveResult[]>([]);
+  const [truncated, setTruncated] = useState(false);
+
+  const parsed = useMemo(() => parseIds(input), [input]);
+  const canRun = !loading && parsed.length > 0;
+
+  const onAnalyze = async () => {
+    if (!canRun) return;
+    setLoading(true);
+    setError(null);
+    setResults([]);
+    setTruncated(false);
+    try {
+      const { data, error: err } = await supabase.functions.invoke("sla-ticket-analyze", {
+        body: { ids: parsed.slice(0, 10) },
+      });
+      if (err) throw err;
+      const resp = (data ?? {}) as LiveResponse;
+      if (resp.error) throw new Error(resp.error);
+      setResults(resp.results ?? []);
+      setTruncated(!!resp.truncated);
+    } catch (e: any) {
+      setError(e?.message ?? String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Fetch & analyze</CardTitle>
+          <CardDescription>
+            Paste up to 10 Intercom conversation IDs (comma, space, or newline separated). URLs and
+            {" "}<code className="text-[11px]">conversation_</code> prefixes are OK.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="215475084592550, 215475084592551 …"
+            rows={3}
+            className="font-mono text-xs"
+          />
+          <div className="flex items-center gap-3">
+            <Button onClick={onAnalyze} disabled={!canRun} size="sm">
+              {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <PlayCircle className="h-4 w-4 mr-2" />}
+              Analyze
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              {parsed.length} valid id{parsed.length === 1 ? "" : "s"} parsed
+              {parsed.length > 10 && <> · will send first 10</>}
+            </span>
+          </div>
+          {error && <div className="text-sm text-destructive">{error}</div>}
+          {truncated && (
+            <div className="text-xs text-muted-foreground">Server truncated the batch — showing first 10.</div>
+          )}
+        </CardContent>
+      </Card>
+
+      {results.map((r) => {
+        if (r.ok === true) {
+          return <TicketCard key={r.id} id={r.id} conversation={r.conversation} />;
+        }
+        const failed = r as { id: string; ok: false; status?: number; error?: string };
+        return (
+          <Card key={failed.id}>
+            <CardContent className="p-4 text-sm">
+              <div className="font-medium text-destructive">Failed · {failed.id}</div>
+              <div className="text-muted-foreground text-xs mt-1">
+                status={failed.status ?? "—"} · {failed.error ?? "unknown error"}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+function TicketCard({ id, conversation }: { id: string; conversation: any }) {
+  const sla: SlaResult = useMemo(() => computeSla(conversation), [conversation]);
+  const src = conversation?.source ?? {};
+  const subject: string = src.subject || conversation?.title || `Intercom #${id}`;
+  const contactName: string | null = src?.author?.name ?? null;
+  const contactEmail: string | null = src?.author?.email ?? null;
+  const state: string | null = conversation?.state ?? null;
+  const stats = conversation?.statistics ?? {};
+
+  const inboxUrl: string =
+    conversation?.ticket?.url ||
+    `https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${id}`;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <CardTitle className="text-base truncate" title={subject}>{subject}</CardTitle>
+            <CardDescription className="mt-1 flex flex-wrap gap-x-3 gap-y-1 items-center">
+              <span className="truncate">
+                {contactName || contactEmail || "—"}
+                {contactName && contactEmail && (
+                  <span className="text-muted-foreground/70"> · {contactEmail}</span>
+                )}
+              </span>
+              {state && <span className="text-xs">state: <span className="font-mono">{state}</span></span>}
+              <span className="text-xs text-muted-foreground">#{id}</span>
+            </CardDescription>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {sla.flags.isTicket && <Badge variant="secondary">isTicket</Badge>}
+              {sla.flags.samParticipated && <Badge variant="secondary">samParticipated</Badge>}
+              {sla.flags.noHumanReply && <Badge variant="outline">noHumanReply</Badge>}
+              {!sla.flags.hasParts && <Badge variant="outline">no parts</Badge>}
+            </div>
+          </div>
+          <a
+            href={inboxUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="shrink-0 inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-md border border-border hover:bg-muted transition-colors"
+          >
+            <ExternalLink className="h-3.5 w-3.5" /> Open in Intercom
+          </a>
+        </div>
+      </CardHeader>
+      <CardContent className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <TimelineView timeline={sla.timeline} />
+        <MetricsCompare sla={sla} stats={stats} />
+      </CardContent>
+    </Card>
+  );
+}
+
+// ----- Actor color chip -----
+const ACTOR_STYLES: Record<Actor, { label: string; className: string }> = {
+  customer:     { label: "customer",     className: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30" },
+  human_admin:  { label: "human admin",  className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30" },
+  sam_ai:       { label: "Sam · AI",     className: "bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300 border-fuchsia-500/40" },
+  operator_bot: { label: "operator bot", className: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30" },
+  system:       { label: "system",       className: "bg-muted text-muted-foreground border-border" },
+};
+
+function ActorChip({ actor }: { actor: Actor }) {
+  const s = ACTOR_STYLES[actor];
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-medium uppercase tracking-wide ${s.className}`}>
+      {s.label}
+    </span>
+  );
+}
+
+function eventTag(p: TimelinePart): string {
+  if (p.isNote) return "note";
+  if (p.isPublicReply) return "reply";
+  return p.partType || "event";
+}
+
+function TimelineView({ timeline }: { timeline: TimelinePart[] }) {
+  return (
+    <div className="min-w-0">
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Timeline</div>
+      <div className="border border-border rounded-md divide-y divide-border">
+        {timeline.length === 0 && (
+          <div className="p-3 text-sm text-muted-foreground">No timeline parts.</div>
+        )}
+        {timeline.map((p, i) => {
+          const isNote = p.isNote;
+          return (
+            <div
+              key={i}
+              className={`p-2.5 text-xs flex flex-col gap-1 ${isNote ? "bg-muted/30 opacity-80" : ""}`}
+            >
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="tabular-nums text-muted-foreground">
+                  {format(new Date(p.ts * 1000), "MMM d, HH:mm:ss")}
+                </span>
+                <ActorChip actor={p.actor} />
+                <span className="font-medium truncate max-w-[180px]" title={p.authorName ?? ""}>
+                  {p.authorName || "—"}
+                </span>
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground border border-border rounded px-1 py-0.5">
+                  {eventTag(p)}
+                </span>
+                {p.assignedToType && (
+                  <span className="text-[10px] text-muted-foreground">
+                    → {p.assignedToType}:{p.assignedToId ?? "?"}
+                  </span>
+                )}
+              </div>
+              {p.body && (
+                <div className={`text-xs leading-snug line-clamp-2 ${isNote ? "text-muted-foreground italic" : "text-foreground/80"}`}>
+                  {p.body}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MetricRow({ label, value, hint, emphasize }: { label: string; value: string; hint?: string; emphasize?: boolean }) {
+  return (
+    <div className={`flex items-baseline justify-between gap-3 py-1.5 border-b border-border/60 last:border-0 ${emphasize ? "bg-primary/5 -mx-2 px-2 rounded" : ""}`}>
+      <div className="min-w-0">
+        <div className={`text-xs ${emphasize ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{label}</div>
+        {hint && <div className="text-[10px] text-muted-foreground/80">{hint}</div>}
+      </div>
+      <div className={`text-sm tabular-nums ${emphasize ? "font-bold" : "font-semibold"}`}>{value}</div>
+    </div>
+  );
+}
+
+function MetricsCompare({ sla, stats }: { sla: SlaResult; stats: any }) {
+  const teamFrt: Array<{ team_name?: string; response_time?: number | null }> =
+    Array.isArray(stats?.assigned_team_first_response_time) ? stats.assigned_team_first_response_time : [];
+  const teamFrtBH: Array<{ team_name?: string; response_time?: number | null }> =
+    Array.isArray(stats?.assigned_team_first_response_time_in_office_hours)
+      ? stats.assigned_team_first_response_time_in_office_hours
+      : [];
+
+  const num = (v: any): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+  return (
+    <div className="min-w-0 space-y-4">
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Our metrics</div>
+        <div className="border border-border rounded-md px-3 py-1">
+          <MetricRow label="First response (any agent)" value={formatDuration(sla.firstResponseAnyAgentS)} />
+          <MetricRow
+            label="Time to escalation"
+            hint={sla.escalationBasis ? `basis: ${sla.escalationBasis}` : undefined}
+            value={formatDuration(sla.timeToEscalationS)}
+          />
+          <MetricRow
+            label="Human first reply (from escalation)"
+            value={formatDuration(sla.firstHumanReplyFromEscalationS)}
+            emphasize
+          />
+          <MetricRow label="Human first reply (from open)" value={formatDuration(sla.firstHumanReplyFromOpenS)} />
+          <MetricRow label="TTR" value={formatDuration(sla.ttrS)} />
+          <MetricRow label="Reopens" value={String(sla.reopenCount)} />
+          <MetricRow label="Handling time" value={formatDuration(sla.handlingTimeS)} />
+          <MetricRow label="Handling (business hrs)" value={formatDuration(sla.handlingTimeBusinessHoursS)} />
+        </div>
+      </div>
+
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Intercom's stats</div>
+        <div className="border border-border rounded-md px-3 py-1">
+          <MetricRow label="time_to_admin_reply" value={formatDuration(num(stats?.time_to_admin_reply))} />
+          <MetricRow label="time_to_first_close" value={formatDuration(num(stats?.time_to_first_close))} />
+          <MetricRow label="time_to_last_close" value={formatDuration(num(stats?.time_to_last_close))} />
+          <MetricRow label="median_time_to_reply" value={formatDuration(num(stats?.median_time_to_reply))} />
+          <MetricRow label="count_reopens" value={String(stats?.count_reopens ?? 0)} />
+          {teamFrt.length === 0 ? (
+            <MetricRow label="assigned_team_first_response_time" value="—" />
+          ) : (
+            teamFrt.map((t, i) => (
+              <MetricRow
+                key={`frt-${i}`}
+                label={`team FRT · ${t.team_name ?? "?"}`}
+                value={formatDuration(num(t.response_time))}
+              />
+            ))
+          )}
+          {teamFrtBH.length === 0 ? (
+            <MetricRow label="assigned_team_first_response_time_in_office_hours" value="—" />
+          ) : (
+            teamFrtBH.map((t, i) => (
+              <MetricRow
+                key={`frtbh-${i}`}
+                label={`team FRT (office hrs) · ${t.team_name ?? "?"}`}
+                value={formatDuration(num(t.response_time))}
+              />
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// TAB 2 · Batch (stored) — unchanged behavior, moved into a component
+// ============================================================================
+function BatchStoredTab() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -98,111 +476,99 @@ export default function SlaTest() {
   };
 
   return (
-    <AppLayout>
-      <div className="p-6 space-y-6 max-w-7xl mx-auto">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide">
-              <Gauge className="h-3.5 w-3.5" /> Prototype · SLA
-            </div>
-            <h1 className="text-2xl font-semibold tracking-tight mt-1">SLA test</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Comparing four latency metrics across Matt's finalized v3 tickets. All values computed from Intercom part metadata.
-              Business hours = Mon–Fri, 09:00–23:59 UTC.
-            </p>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => setRefreshKey((k) => k + 1)} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh
-          </Button>
-        </div>
-
-        {error && (
-          <Card><CardContent className="p-4 text-sm text-destructive">{error}</CardContent></Card>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard
-            title="Time to first admin reply"
-            desc="Intercom time_to_admin_reply"
-            agg={kpis.firstReply}
-          />
-          <KpiCard
-            title="Raw time to resolve"
-            desc="Intercom time_to_last_close (wall clock)"
-            agg={kpis.rawResolve}
-          />
-          <KpiCard
-            title="Response-gap sum"
-            desc="Σ user→admin reply gaps"
-            agg={kpis.responseGap}
-          />
-          <KpiCard
-            title="Business-hours handling"
-            desc="Response-gap sum, clipped to Mon–Fri 09–24 UTC"
-            agg={kpis.bhHandling}
-          />
-        </div>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">
-              Per-ticket breakdown
-              {loading && <Loader2 className="h-4 w-4 inline ml-2 animate-spin text-muted-foreground" />}
-            </CardTitle>
-            <CardDescription>{enriched.length} finalized tickets for Matt</CardDescription>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-                  <tr>
-                    <SortableTh label="Closed" k="closed" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                    <th className="text-left px-3 py-2 font-medium">Subject</th>
-                    <th className="text-left px-3 py-2 font-medium">Contact</th>
-                    <SortableTh label="First reply" k="firstReply" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
-                    <SortableTh label="Raw resolve" k="rawResolve" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
-                    <SortableTh label="Response-gap" k="responseGap" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
-                    <SortableTh label="Business-hrs" k="bhHandling" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
-                    <SortableTh label="Parts" k="parts" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {sorted.map((r) => (
-                    <tr key={r.id} className="border-t border-border hover:bg-muted/20">
-                      <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
-                        {r.intercom_closed_at ? format(new Date(r.intercom_closed_at), "MMM d, yyyy") : "—"}
-                      </td>
-                      <td className="px-3 py-2 max-w-[320px] truncate">
-                        <a
-                          href={`https://app.intercom.com/a/inbox/_/inbox/conversation/${r.intercom_conversation_id}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-foreground hover:underline"
-                          title={r.subject ?? ""}
-                        >
-                          {r.subject || `Intercom #${r.intercom_conversation_id}`}
-                        </a>
-                      </td>
-                      <td className="px-3 py-2 max-w-[200px] truncate text-muted-foreground" title={r.contact_email ?? ""}>
-                        {r.contact_name || r.contact_email || "—"}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatDuration(r.sla.firstAdminReplyS)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatDuration(r.sla.rawResolveS)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatDuration(r.sla.responseGapSumS)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums font-medium">{formatDuration(r.sla.businessHoursHandlingS)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{r.sla.partsCount}</td>
-                    </tr>
-                  ))}
-                  {!loading && !sorted.length && (
-                    <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">No tickets found.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+    <div className="space-y-6">
+      <div className="flex items-center justify-end">
+        <Button variant="outline" size="sm" onClick={() => setRefreshKey((k) => k + 1)} disabled={loading}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh
+        </Button>
       </div>
-    </AppLayout>
+
+      {error && (
+        <Card><CardContent className="p-4 text-sm text-destructive">{error}</CardContent></Card>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          title="Time to first admin reply"
+          desc="Intercom time_to_admin_reply"
+          agg={kpis.firstReply}
+        />
+        <KpiCard
+          title="Raw time to resolve"
+          desc="Intercom time_to_last_close (wall clock)"
+          agg={kpis.rawResolve}
+        />
+        <KpiCard
+          title="Response-gap sum"
+          desc="Σ user→admin reply gaps"
+          agg={kpis.responseGap}
+        />
+        <KpiCard
+          title="Business-hours handling"
+          desc="Response-gap sum, clipped to Mon–Fri 09–24 UTC"
+          agg={kpis.bhHandling}
+        />
+      </div>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">
+            Per-ticket breakdown
+            {loading && <Loader2 className="h-4 w-4 inline ml-2 animate-spin text-muted-foreground" />}
+          </CardTitle>
+          <CardDescription>{enriched.length} finalized tickets for Matt</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <SortableTh label="Closed" k="closed" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                  <th className="text-left px-3 py-2 font-medium">Subject</th>
+                  <th className="text-left px-3 py-2 font-medium">Contact</th>
+                  <SortableTh label="First reply" k="firstReply" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
+                  <SortableTh label="Raw resolve" k="rawResolve" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
+                  <SortableTh label="Response-gap" k="responseGap" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
+                  <SortableTh label="Business-hrs" k="bhHandling" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
+                  <SortableTh label="Parts" k="parts" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((r) => (
+                  <tr key={r.id} className="border-t border-border hover:bg-muted/20">
+                    <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
+                      {r.intercom_closed_at ? format(new Date(r.intercom_closed_at), "MMM d, yyyy") : "—"}
+                    </td>
+                    <td className="px-3 py-2 max-w-[320px] truncate">
+                      <a
+                        href={`https://app.intercom.com/a/inbox/_/inbox/conversation/${r.intercom_conversation_id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-foreground hover:underline"
+                        title={r.subject ?? ""}
+                      >
+                        {r.subject || `Intercom #${r.intercom_conversation_id}`}
+                      </a>
+                    </td>
+                    <td className="px-3 py-2 max-w-[200px] truncate text-muted-foreground" title={r.contact_email ?? ""}>
+                      {r.contact_name || r.contact_email || "—"}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatDuration(r.sla.firstAdminReplyS)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatDuration(r.sla.rawResolveS)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatDuration(r.sla.responseGapSumS)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums font-medium">{formatDuration(r.sla.businessHoursHandlingS)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{r.sla.partsCount}</td>
+                  </tr>
+                ))}
+                {!loading && !sorted.length && (
+                  <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">No tickets found.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
