@@ -893,7 +893,10 @@ Tag propagation: the BEFORE trigger `intercom_tickets_v3_apply_customer` passes 
 
 - **Surface problems loudly, never silently default** — unresolved tickets go to a visible queue and a coverage KPI, never a guessed bucket.
 - **Human signals are advisory; stored attribution is system-derived** — a bad manual entry can only fail to match (→ queue), never corrupt data.
-- **Prospect / not-yet-customer companies are still real accounts** — prospect status is carried by an `enterprise-prospect` Intercom tag (temporal, read-only), not an account field.
+- **Ticket-status taxonomy (three-way, all carried on the ticket via read-only Intercom tags — status is temporal, so it rides on the ticket rather than a mutable account field):**
+  - **not-enterprise** — never an Enterprise customer / out of scope (e.g. a Support Engineer assisting a non-Enterprise party) → `enterprise-not-enterprise` tag → excluded from the population (Resolver Rule 0).
+  - **prospect** — pre-sales inbound (pricing, security, exploring upgrade) → `enterprise-prospect` tag + a real registry account → counted (pre-sales load).
+  - **customer (incl. former)** — is or was a real Enterprise customer, even briefly (e.g. a churned/torn-down account) → plain registry account, no tag → attributed and counted.
 
 ### Auto-registration from Slack #closed-won
 
