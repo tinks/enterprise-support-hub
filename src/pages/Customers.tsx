@@ -36,6 +36,8 @@ type Coverage = {
   m_domain: number;
   m_workspace_id: number;
   m_unresolved: number;
+  excluded_not_enterprise?: number;
+  population?: number;
 };
 
 type Snapshot = {
