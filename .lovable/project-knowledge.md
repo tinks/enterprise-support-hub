@@ -850,9 +850,10 @@ Attributes each `intercom_tickets_v3` ticket to a known **customer account** so 
 
 ### Resolver — LOCKSTEP contract
 
-Resolution order (first match wins), over the `*_detected` columns + lookup tables only — no `raw_payload` parsing in SQL:
+Resolution order (first match wins), over the `*_detected` columns + `tags` + lookup tables only — no `raw_payload` parsing in SQL:
 
-1. **override** — `customer_override_key` set → `high` confidence, method `override`. Top authority; never overwritten.
+0. **population gate** — if the ticket's Intercom `tags` contain `enterprise-not-enterprise`, resolve to `customer_key/kind/method = 'not_enterprise'` (confidence `high`). Evaluated ABOVE override so an out-of-scope ticket is excluded even if an override was set. _Why:_ whether a ticket is Enterprise work is a *population* question, separate from *which customer* it is. It's driven by a ticket tag (not an account field) because enterprise-ness is temporal — a ticket reflects the customer's status at its moment. Because the gate reads the live tag, removing the label re-derives the ticket normally on the next write/sync (future-proof if the company later upgrades/returns to Enterprise).
+1. **override** — `customer_override_key` set → `high` confidence, method `override`. Top authority among *which customer* rules; never overwritten.
 2. **slack_channel** — `slack_channel_id_detected` present, NOT in `v3_internal_channels`, found in `v3_channel_account_map` → `high`, method `slack_channel`.
 3. **domain** — contact email domain matches `v3_customer_accounts.domains`, excluding `lovable.dev` and any `v3_personal_email_domains` entry → `high`, method `domain`.
 4. **workspace_id** — `workspace_id_detected` found in `v3_workspace_customer_map` → `medium`, method `workspace_id` (best guess, confirmable).
@@ -860,9 +861,11 @@ Resolution order (first match wins), over the `*_detected` columns + lookup tabl
 
 Three implementations MUST stay in lockstep — edit all of them when rules change:
 
-- SQL `public.v3_derive_customer` (authoritative; called by BEFORE INSERT/UPDATE trigger `intercom_tickets_v3_apply_customer`).
+- SQL `public.v3_derive_customer` (authoritative; called by BEFORE INSERT/UPDATE trigger `intercom_tickets_v3_apply_customer`). Signature is now `(_contact_email, _override_key, _contact_domain, _slack_channel_id_detected, _workspace_id_detected, _tags text[])` — 6 args. The old 5-arg and 2-arg overloads were dropped; a single canonical function remains.
 - Propagate triggers: `v3_customer_accounts_propagate`, `v3_channel_account_map_propagate`, `v3_internal_channels_propagate`, `v3_workspace_customer_map_propagate` — bump `updated_at` on affected tickets, which re-fires the derive trigger. Result: mapping a channel/domain/workspace once retroactively re-attributes all matching existing tickets AND all future ones.
 - Deno `supabase/functions/_shared/v3-customer.ts` (`resolveV3Customer()` — thin wrapper over the SQL function for sync-time convenience/logging; the DB trigger is still authoritative on every write).
+
+Tag propagation: the BEFORE trigger `intercom_tickets_v3_apply_customer` passes `NEW.tags`; `backfill_v3_customer_keys` passes each ticket's tags; the Deno wrapper passes `_tags`. All lockstep components updated together.
 
 `backfill_v3_customer_keys(_force boolean, _batch integer)` re-derives existing rows in 5k batches; pass `force=true` after any rule/allowlist change (else only NULLs are filled).
 
