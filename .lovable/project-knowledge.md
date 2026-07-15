@@ -877,7 +877,7 @@ Tag propagation: the BEFORE trigger `intercom_tickets_v3_apply_customer` passes 
 
 ### UI — `/customers` (`src/pages/Customers.tsx`), 4 tabs
 
-- **Coverage** — % verified-attributed KPI, method distribution (override / slack_channel / domain / workspace_id / unresolved), orphan count, trend chart from `v3_coverage_snapshots`.
+- **Coverage** — % verified-attributed KPI (denominator = in-scope `population`, shown as "N of {population} in-scope tickets"), a **"Non-Enterprise (excluded)"** KPI card (with tooltip) showing `excluded_not_enterprise`, method distribution (override / slack_channel / domain / workspace_id / unresolved), orphan count, trend chart from `v3_coverage_snapshots`.
 - **Unattributed** — queue of tickets not yet attributed, grouped by reclaim signal (domain / channel / workspace / no-signal) via `v3_unattributed_groups`; per-ticket + bulk assign.
 - **Channels** — channel list (`v3_channels_usage`) with human-readable names + mapped/internal/unmapped status; auto-suggested mappings from `v3_channel_account_proposals` (high = domain co-occurrence, medium = name-token match on the registrable domain label — token strip list excludes `ext/external/lovable/admin/customer/support/help/team/proj/project/account`). Actions: Map / Mark internal / Confirm / Edit / Reject.
 - **Registry** — CRUD on `v3_customer_accounts` (+ workspace cache and internal channels); orphan-override reconciliation with fuzzy-match suggestions from `v3_orphan_override_suggestions`.
