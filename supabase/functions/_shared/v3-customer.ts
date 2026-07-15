@@ -9,6 +9,10 @@
 // needs to display a derived customer without touching the DB can call it.
 //
 // Rule order (first match wins):
+//   0. tags contains 'enterprise-not-enterprise' -> customer_key/kind/
+//      resolution_method='not_enterprise' (population gate, evaluated ABOVE
+//      the override rule so out-of-scope tickets are excluded even if an
+//      override was set)
 //   1. customer_override_key -> use as-is (method=override, confidence=high)
 //   2. slack_channel_id_detected present AND not in v3_internal_channels AND
 //      in v3_channel_account_map -> mapped account (method=slack_channel, high)
@@ -17,6 +21,10 @@
 //   4. workspace_id_detected in v3_workspace_customer_map -> account
 //      (method=workspace_id, medium — best-guess pending confirmation)
 //   5. otherwise -> customer_key='unattributed' (method=unresolved)
+//
+// The SQL function `v3_derive_customer` takes 6 args:
+//   (_contact_email, _override_key, _contact_domain,
+//    _slack_channel_id_detected, _workspace_id_detected, _tags text[])
 //
 // If you change the rule order or add a rule here, you MUST update:
 //   1. public.v3_derive_customer (SQL) — authoritative
@@ -28,7 +36,7 @@
 
 export type DerivedCustomer = {
   customer_key: string;
-  customer_kind: "account" | "domain" | "personal" | "unknown";
+  customer_kind: "account" | "domain" | "personal" | "unknown" | "not_enterprise";
   customer_source: string;
   customer_confidence: "high" | "medium" | "low" | "unresolved";
   customer_resolution_method:
@@ -36,7 +44,8 @@ export type DerivedCustomer = {
     | "slack_channel"
     | "domain"
     | "workspace_id"
-    | "unresolved";
+    | "unresolved"
+    | "not_enterprise";
 };
 
 export async function resolveV3Customer(
@@ -47,6 +56,7 @@ export async function resolveV3Customer(
     contactDomain?: string | null;
     slackChannelIdDetected?: string | null;
     workspaceIdDetected?: string | null;
+    tags?: string[] | null;
   } = {},
 ): Promise<DerivedCustomer> {
   const { data } = await supabase.rpc("v3_derive_customer", {
@@ -55,6 +65,7 @@ export async function resolveV3Customer(
     _contact_domain: opts.contactDomain ?? null,
     _slack_channel_id_detected: opts.slackChannelIdDetected ?? null,
     _workspace_id_detected: opts.workspaceIdDetected ?? null,
+    _tags: opts.tags ?? null,
   });
   const r = Array.isArray(data) ? data[0] : data;
   if (!r) {
