@@ -87,3 +87,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.backfill-v3-signals]
 verify_jwt = false
+[functions.poll-slack-closed-won]
+verify_jwt = false
