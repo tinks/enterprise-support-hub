@@ -174,20 +174,22 @@ function LiveAnalyzeTab() {
         </CardContent>
       </Card>
 
-      {results.map((r) =>
-        r.ok ? (
-          <TicketCard key={r.id} id={r.id} conversation={r.conversation} />
-        ) : (
-          <Card key={r.id}>
+      {results.map((r) => {
+        if (r.ok === true) {
+          return <TicketCard key={r.id} id={r.id} conversation={r.conversation} />;
+        }
+        const failed = r as { id: string; ok: false; status?: number; error?: string };
+        return (
+          <Card key={failed.id}>
             <CardContent className="p-4 text-sm">
-              <div className="font-medium text-destructive">Failed · {r.id}</div>
+              <div className="font-medium text-destructive">Failed · {failed.id}</div>
               <div className="text-muted-foreground text-xs mt-1">
-                status={r.status ?? "—"} · {r.error ?? "unknown error"}
+                status={failed.status ?? "—"} · {failed.error ?? "unknown error"}
               </div>
             </CardContent>
           </Card>
-        )
-      )}
+        );
+      })}
     </div>
   );
 }
