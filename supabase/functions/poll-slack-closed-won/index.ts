@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY");
+  const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY_1");
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
   const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
