@@ -89,3 +89,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.poll-slack-closed-won]
 verify_jwt = false
+[functions.sla-ticket-analyze]
+verify_jwt = true
