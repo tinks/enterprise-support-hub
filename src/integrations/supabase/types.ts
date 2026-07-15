@@ -1400,48 +1400,23 @@ export type Database = {
           unattributed: number
         }[]
       }
-      v3_derive_customer:
-        | {
-            Args: { _contact_email: string; _override_key: string }
-            Returns: {
-              customer_key: string
-              customer_kind: string
-              customer_source: string
-            }[]
-          }
-        | {
-            Args: {
-              _contact_domain?: string
-              _contact_email: string
-              _override_key: string
-              _slack_channel_id_detected?: string
-              _workspace_id_detected?: string
-            }
-            Returns: {
-              customer_confidence: string
-              customer_key: string
-              customer_kind: string
-              customer_resolution_method: string
-              customer_source: string
-            }[]
-          }
-        | {
-            Args: {
-              _contact_domain?: string
-              _contact_email: string
-              _override_key: string
-              _slack_channel_id_detected?: string
-              _tags?: string[]
-              _workspace_id_detected?: string
-            }
-            Returns: {
-              customer_confidence: string
-              customer_key: string
-              customer_kind: string
-              customer_resolution_method: string
-              customer_source: string
-            }[]
-          }
+      v3_derive_customer: {
+        Args: {
+          _contact_domain?: string
+          _contact_email: string
+          _override_key: string
+          _slack_channel_id_detected?: string
+          _tags?: string[]
+          _workspace_id_detected?: string
+        }
+        Returns: {
+          customer_confidence: string
+          customer_key: string
+          customer_kind: string
+          customer_resolution_method: string
+          customer_source: string
+        }[]
+      }
       v3_generate_channel_proposals: { Args: never; Returns: number }
       v3_orphan_override_suggestions: {
         Args: never
