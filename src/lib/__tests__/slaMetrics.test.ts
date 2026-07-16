@@ -149,3 +149,59 @@ describe("computeSla — straight to human (no AI turn)", () => {
     expect(r.flags.samParticipated).toBe(false);
   });
 });
+
+// Fixture C: Slack-native — teammate mirrored into Intercom as author.type "user"
+// under a contact id, but with a @lovable.dev email. Must classify as human_admin.
+const slackTeammateMirrored = {
+  created_at: CREATED_AT,
+  source: {
+    author: { type: "lead", id: "cust-x", name: "Mariah", email: "mariah@checkr.com" },
+    body: "<p>question</p>",
+  },
+  conversation_parts: {
+    conversation_parts: [
+      {
+        created_at: CREATED_AT + 29415,
+        part_type: "comment",
+        author: { type: "user", id: "contact-tine", name: "Tine Saint-Ghislain", email: "tine@lovable.dev" },
+        body: "<p>here's the answer</p>",
+      },
+      {
+        created_at: CREATED_AT + 40000,
+        part_type: "comment",
+        author: { type: "user", id: "cust-x", name: "Mariah", email: "mariah@checkr.com" },
+        body: "<p>thanks</p>",
+      },
+    ],
+  },
+  statistics: { time_to_last_close: null, count_reopens: 0 },
+};
+
+describe("computeSla — Slack-mirrored teammate reply (author.type user, @lovable.dev)", () => {
+  const r = computeSla(slackTeammateMirrored);
+  // eslint-disable-next-line no-console
+  console.log("Fixture C result:", {
+    firstHumanReplyFromOpenS: r.firstHumanReplyFromOpenS,
+    noHumanReply: r.flags.noHumanReply,
+    samParticipated: r.flags.samParticipated,
+    actors: r.timeline.map((p) => ({ name: p.authorName, actor: p.actor })),
+  });
+
+  it("teammate mirrored via Slack classifies as human_admin", () => {
+    const tine = r.timeline.find((p) => p.authorName === "Tine Saint-Ghislain");
+    expect(tine).toBeTruthy();
+    expect(tine!.actor).toBe("human_admin");
+  });
+  it("customer parts still classify as customer", () => {
+    const customers = r.timeline.filter((p) => p.authorName === "Mariah");
+    expect(customers.length).toBeGreaterThan(0);
+    for (const c of customers) expect(c.actor).toBe("customer");
+  });
+  it("first human reply from open = 29415 (the mirrored teammate reply)", () => {
+    expect(r.firstHumanReplyFromOpenS).toBe(29415);
+  });
+  it("flags: human replied, sam did not participate", () => {
+    expect(r.flags.noHumanReply).toBe(false);
+    expect(r.flags.samParticipated).toBe(false);
+  });
+});
