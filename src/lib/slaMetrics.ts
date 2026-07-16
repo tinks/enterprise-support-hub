@@ -24,6 +24,13 @@ export const SAM_AUTHOR_EMAILS: ReadonlySet<string> = new Set([
   "lovable@parahelp.com",
 ]);
 
+// When a Lovable teammate replies in Slack, Intercom mirrors the message into
+// the conversation as a part with author.type = "user" (under a contact id),
+// but the email is still their internal @lovable.dev address. We must classify
+// these as human_admin, not customer. Safe because @lovable.dev is our
+// internal domain — a real customer can never have that email.
+export const TEAMMATE_EMAIL_DOMAIN = "lovable.dev";
+
 export type Actor =
   | "customer"
   | "human_admin"
@@ -36,6 +43,7 @@ function classifyActor(author: any): Actor {
   const id = author?.id != null ? String(author.id) : "";
   const email = String(author?.email || "").toLowerCase();
   if (SAM_AUTHOR_IDS.has(id) || (email && SAM_AUTHOR_EMAILS.has(email))) return "sam_ai";
+  if (email.endsWith("@" + TEAMMATE_EMAIL_DOMAIN)) return "human_admin";
   if (type === "bot") return "operator_bot";
   if (type === "admin") return "human_admin";
   if (type === "user" || type === "lead" || type === "contact") return "customer";
