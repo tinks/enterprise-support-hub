@@ -235,7 +235,7 @@ export function businessHoursBetween(startSec: number, endSec: number): number {
 // SLA computation
 // ============================================================================
 
-export type EscalationBasis = "team_assignment" | "marker" | "first_human";
+export type EscalationBasis = "team_assignment" | "marker" | "first_human" | "post_ai_handoff";
 
 export type SlaFlags = {
   isTicket: boolean;
