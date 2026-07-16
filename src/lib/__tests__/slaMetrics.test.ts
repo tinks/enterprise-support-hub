@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { computeSla } from "@/lib/slaMetrics";
 
-// Synthetic Intercom conversation per the spec.
 const CREATED_AT = 1_000_000_000;
 
+// Fixture A: AI-handled then handed off to human.
+// Includes an EARLY routing team-assignment at +1 (must be ignored) and a
+// post-Sam team-assignment at +203 (the real escalation).
 const conversation = {
   created_at: CREATED_AT,
   source: {
@@ -12,6 +14,14 @@ const conversation = {
   },
   conversation_parts: {
     conversation_parts: [
+      {
+        // Initial routing — Sam-authored team assignment BEFORE Sam replies. Must be ignored.
+        created_at: CREATED_AT + 1,
+        part_type: "assignment",
+        author: { type: "admin", id: "9520895", name: "Sam" },
+        body: "",
+        assigned_to: { type: "team", id: "team-42" },
+      },
       {
         created_at: CREATED_AT + 5,
         part_type: "comment",
@@ -25,6 +35,7 @@ const conversation = {
         body: "<p>Sam here, looking into it</p>",
       },
       {
+        // Post-Sam team assignment — the real escalation.
         created_at: CREATED_AT + 203,
         part_type: "assignment",
         author: { type: "admin", id: "9520895", name: "Sam" },
@@ -49,31 +60,29 @@ const conversation = {
   statistics: { time_to_last_close: null, count_reopens: 0 },
 };
 
-describe("computeSla synthetic fixture", () => {
+describe("computeSla — AI then human handoff", () => {
   const r = computeSla(conversation);
   // eslint-disable-next-line no-console
-  console.log("SLA fixture result:", {
+  console.log("Fixture A result:", {
     firstResponseAnyAgentS: r.firstResponseAnyAgentS,
     timeToEscalationS: r.timeToEscalationS,
     escalationBasis: r.escalationBasis,
     firstHumanReplyFromEscalationS: r.firstHumanReplyFromEscalationS,
     firstHumanReplyFromOpenS: r.firstHumanReplyFromOpenS,
     partsCount: r.partsCount,
-    samParticipated: r.flags.samParticipated,
-    noHumanReply: r.flags.noHumanReply,
   });
 
   it("first response counts Sam, not the operator bot", () => {
     expect(r.firstResponseAnyAgentS).toBe(202);
   });
-  it("escalation fires on team assignment at +203", () => {
+  it("escalation anchors on post-AI team assignment at +203 (ignores +1 routing)", () => {
     expect(r.timeToEscalationS).toBe(203);
-    expect(r.escalationBasis).toBe("team_assignment");
+    expect(r.escalationBasis).toBe("post_ai_handoff");
   });
   it("first human reply from escalation = 1533 - 203 = 1330", () => {
     expect(r.firstHumanReplyFromEscalationS).toBe(1330);
   });
-  it("first human reply from open = 1533 (assignment-with-body counts)", () => {
+  it("first human reply from open = 1533", () => {
     expect(r.firstHumanReplyFromOpenS).toBe(1533);
   });
   it("note is present in timeline but does NOT count as reply", () => {
@@ -89,5 +98,54 @@ describe("computeSla synthetic fixture", () => {
   it("flags: sam participated, human replied", () => {
     expect(r.flags.samParticipated).toBe(true);
     expect(r.flags.noHumanReply).toBe(false);
+  });
+});
+
+// Fixture B: straight to human, no AI turn.
+const straightToHuman = {
+  created_at: CREATED_AT,
+  source: {
+    author: { type: "user", id: "cust-2", name: "Customer" },
+    body: "<p>urgent</p>",
+  },
+  conversation_parts: {
+    conversation_parts: [
+      {
+        created_at: CREATED_AT + 1,
+        part_type: "assignment",
+        author: { type: "admin", id: "10765619", name: "Matt" },
+        body: "",
+        assigned_to: { type: "team", id: "team-42" },
+      },
+      {
+        created_at: CREATED_AT + 600,
+        part_type: "comment",
+        author: { type: "admin", id: "10765619", name: "Matt" },
+        body: "<p>Matt here.</p>",
+      },
+    ],
+  },
+  statistics: { time_to_last_close: null, count_reopens: 0 },
+};
+
+describe("computeSla — straight to human (no AI turn)", () => {
+  const r = computeSla(straightToHuman);
+  // eslint-disable-next-line no-console
+  console.log("Fixture B result:", {
+    timeToEscalationS: r.timeToEscalationS,
+    escalationBasis: r.escalationBasis,
+    firstHumanReplyFromEscalationS: r.firstHumanReplyFromEscalationS,
+    samParticipated: r.flags.samParticipated,
+  });
+
+  it("falls back to team_assignment at +1", () => {
+    expect(r.timeToEscalationS).toBe(1);
+    expect(r.escalationBasis).toBe("team_assignment");
+  });
+  it("first human reply from escalation = 600 - 1 = 599", () => {
+    expect(r.firstHumanReplyFromEscalationS).toBe(599);
+  });
+  it("sam did not participate", () => {
+    expect(r.flags.samParticipated).toBe(false);
   });
 });

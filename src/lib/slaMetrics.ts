@@ -235,7 +235,7 @@ export function businessHoursBetween(startSec: number, endSec: number): number {
 // SLA computation
 // ============================================================================
 
-export type EscalationBasis = "team_assignment" | "marker" | "first_human";
+export type EscalationBasis = "team_assignment" | "marker" | "first_human" | "post_ai_handoff";
 
 export type SlaFlags = {
   isTicket: boolean;
@@ -262,24 +262,44 @@ export type SlaResult = {
 };
 
 function detectEscalation(timeline: TimelinePart[]): { ts: number; basis: EscalationBasis } | null {
-  let teamAssignTs: number | null = null;
+  // Anchor on the post-AI human handoff. The initial routing team-assignment
+  // (typically at +1s, before Sam even replies) MUST be ignored.
+  const firstSamReplyTs =
+    timeline.find((p) => p.isPublicReply && p.actor === "sam_ai")?.ts ?? null;
+
   let markerTs: number | null = null;
-  let firstHumanTs: number | null = null;
   for (const p of timeline) {
-    if (teamAssignTs == null && p.assignedToType === "team") teamAssignTs = p.ts;
-    if (markerTs == null) {
-      const b = p.body.toLowerCase();
-      if (b.includes("escalated") && b.includes("awaiting human")) markerTs = p.ts;
+    const b = p.body.toLowerCase();
+    if (b.includes("escalated") && b.includes("awaiting human")) {
+      markerTs = p.ts;
+      break;
     }
-    if (firstHumanTs == null && p.isPublicReply && p.actor === "human_admin") firstHumanTs = p.ts;
   }
-  const candidates: Array<{ ts: number; basis: EscalationBasis }> = [];
-  if (teamAssignTs != null) candidates.push({ ts: teamAssignTs, basis: "team_assignment" });
-  if (markerTs != null) candidates.push({ ts: markerTs, basis: "marker" });
-  if (firstHumanTs != null) candidates.push({ ts: firstHumanTs, basis: "first_human" });
-  if (!candidates.length) return null;
-  candidates.sort((a, b) => a.ts - b.ts);
-  return candidates[0];
+
+  let postAiHandoffTs: number | null = null;
+  if (firstSamReplyTs != null) {
+    for (const p of timeline) {
+      if (p.assignedToType === "team" && p.ts >= firstSamReplyTs) {
+        postAiHandoffTs = p.ts;
+        break;
+      }
+    }
+  }
+
+  const handoff: Array<{ ts: number; basis: EscalationBasis }> = [];
+  if (markerTs != null) handoff.push({ ts: markerTs, basis: "marker" });
+  if (postAiHandoffTs != null) handoff.push({ ts: postAiHandoffTs, basis: "post_ai_handoff" });
+  if (handoff.length) {
+    handoff.sort((a, b) => a.ts - b.ts);
+    return handoff[0];
+  }
+
+  // Fallbacks — only when there was no AI turn / no handoff signal.
+  const teamAssign = timeline.find((p) => p.assignedToType === "team");
+  if (teamAssign) return { ts: teamAssign.ts, basis: "team_assignment" };
+  const firstHuman = timeline.find((p) => p.isPublicReply && p.actor === "human_admin");
+  if (firstHuman) return { ts: firstHuman.ts, basis: "first_human" };
+  return null;
 }
 
 // Sum of customer-wait gaps. A gap OPENS on the first unanswered customer
