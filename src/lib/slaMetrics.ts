@@ -250,6 +250,7 @@ export type SlaFlags = {
   samParticipated: boolean;
   noHumanReply: boolean;
   hasParts: boolean;
+  noCustomerParticipant: boolean;
 };
 
 export type SlaResult = {
@@ -394,6 +395,7 @@ export function computeSla(conversation: any): SlaResult {
 
   const samParticipated = timeline.some((p) => p.isPublicReply && p.actor === "sam_ai");
   const noHumanReply = !firstHumanReply;
+  const noCustomerParticipant = !timeline.some((p) => p.actor === "customer");
 
   return {
     createdAtS: createdAt,
@@ -418,6 +420,7 @@ export function computeSla(conversation: any): SlaResult {
       samParticipated,
       noHumanReply,
       hasParts: timeline.length > 0,
+      noCustomerParticipant,
     },
     timeline,
   };
