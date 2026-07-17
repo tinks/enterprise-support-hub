@@ -250,6 +250,7 @@ export type SlaFlags = {
   samParticipated: boolean;
   noHumanReply: boolean;
   hasParts: boolean;
+  noCustomerParticipant: boolean;
 };
 
 export type SlaResult = {
