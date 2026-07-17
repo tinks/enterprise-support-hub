@@ -234,6 +234,9 @@ describe("computeSla — straight to human (no AI turn)", () => {
   it("sam did not participate", () => {
     expect(r.flags.samParticipated).toBe(false);
   });
+  it("business-hours variants ≤ calendar counterparts and ≥ 0", () => {
+    assertBhInvariants(r);
+  });
 });
 
 // Fixture C: Slack-native — teammate mirrored into Intercom as author.type "user"
