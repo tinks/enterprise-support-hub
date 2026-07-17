@@ -991,7 +991,7 @@ Pure, source-agnostic TypeScript. No network, DB, or Intercom client access. Sam
 - Prominent amber "no customer / internal" warning when the flag is set.
 - Framing is **deliberately neutral** — we display Intercom's SLA status verbatim but make no "met/missed" claims of our own until targets are drafted.
 
-**Tab 2 — "Batch (stored)":** works over Matt's finalized ticket store (`manual_conversations`), fetching `raw_payload` + `tags` + `rsa_override` + `customer_resolution_method`. Toggle between two modes:
+**Tab 2 — "Batch (stored)":** works over Matt's finalized ticket store — queries `intercom_tickets_v3` filtered by `owner = "Matt"` and `lifecycle_status IN ('finalized', 'reopened_after_finalize')` (ordered by `intercom_closed_at desc`, paged 500 at a time), fetching `raw_payload` + `tags` + `rsa_override` + `customer_resolution_method`. Toggle between two modes:
 
 - **Corrected engine** (`CorrectedBatch`) — runs `computeSla` per row. Classifies each row via `classifyRow` into:
   - **excluded** — `rsa_override === false` OR (`rsa_override == null` AND (`enterprise-fyi` OR `enterprise-duplicate` tag)) OR `merged_ticket` tag OR `customer_resolution_method === "not_enterprise"` (Rule 0). An explicit `rsa_override === true` overrides tag-based exclusions.
