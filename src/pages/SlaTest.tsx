@@ -247,6 +247,16 @@ function TicketCard({ id, conversation }: { id: string; conversation: any }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
+        {sla.flags.noCustomerParticipant && (
+          <div className="rounded-md border border-amber-500/60 bg-amber-500/10 px-4 py-3 text-sm">
+            <div className="font-semibold text-amber-700 dark:text-amber-300">
+              ⚠ No customer in this thread — internal / CSM-in-the-middle
+            </div>
+            <div className="text-amber-700/80 dark:text-amber-300/80 mt-0.5">
+              First-response times below are NOT customer-facing. This thread will be pooled separately.
+            </div>
+          </div>
+        )}
         <HeadlineCompare sla={sla} stats={stats} slaApplied={conversation?.sla_applied} />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <TimelineView timeline={sla.timeline} />
