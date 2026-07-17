@@ -36,10 +36,20 @@ type Row = {
   time_to_resolve_s: number | null;
   time_to_first_admin_reply_s: number | null;
   raw_payload: any;
+  tags: string[] | null;
+  rsa_override: boolean | null;
+  customer_resolution_method: string | null;
 };
 
 type Enriched = Row & { sla: TicketSla };
 type SortKey = "closed" | "firstReply" | "rawResolve" | "responseGap" | "bhHandling" | "parts";
+
+type CorrectedEnriched = Row & {
+  sla: SlaResult;
+  origin: Origin;
+  bucket: "inScope" | "excluded" | "noCustomer";
+};
+type CorrectedSortKey = "closed" | "humanBH" | "humanCal" | "anyCal" | "ttrBH";
 
 // ============================================================================
 // Tab 1 (live analyze) — types
