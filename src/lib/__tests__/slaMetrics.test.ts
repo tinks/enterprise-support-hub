@@ -290,11 +290,54 @@ describe("computeSla — Slack-mirrored teammate reply (author.type user, @lovab
   it("first human reply from open = 29415 (the mirrored teammate reply)", () => {
     expect(r.firstHumanReplyFromOpenS).toBe(29415);
   });
-  it("flags: human replied, sam did not participate", () => {
+  it("flags: human replied, sam did not participate, customer present", () => {
     expect(r.flags.noHumanReply).toBe(false);
     expect(r.flags.samParticipated).toBe(false);
+    expect(r.flags.noCustomerParticipant).toBe(false);
   });
   it("business-hours variants ≤ calendar counterparts and ≥ 0", () => {
     assertBhInvariants(r);
+  });
+});
+
+// Fixture D: internal-only thread — CSM + admin + bot, no external customer.
+const internalOnly = {
+  created_at: CREATED_AT,
+  source: {
+    author: { type: "user", id: "csm-1", name: "CSM", email: "csm@lovable.dev" },
+    body: "<p>filing on behalf of customer</p>",
+  },
+  conversation_parts: {
+    conversation_parts: [
+      {
+        created_at: CREATED_AT + 60,
+        part_type: "comment",
+        author: { type: "bot", id: "bot-1", name: "Lovable Support" },
+        body: "<p>auto reply</p>",
+      },
+      {
+        created_at: CREATED_AT + 300,
+        part_type: "comment",
+        author: { type: "admin", id: "10765619", name: "Matt", email: "matt@lovable.dev" },
+        body: "<p>on it</p>",
+      },
+      {
+        created_at: CREATED_AT + 900,
+        part_type: "comment",
+        author: { type: "admin", id: "10765619", name: "Matt", email: "matt@lovable.dev" },
+        body: "<p>done, relaying externally</p>",
+      },
+    ],
+  },
+  statistics: { time_to_last_close: null, count_reopens: 0 },
+};
+
+describe("computeSla — internal-only thread (no customer participant)", () => {
+  const r = computeSla(internalOnly);
+  it("flags.noCustomerParticipant is true", () => {
+    expect(r.flags.noCustomerParticipant).toBe(true);
+  });
+  it("no timeline part classifies as customer", () => {
+    expect(r.timeline.some((p) => p.actor === "customer")).toBe(false);
   });
 });
