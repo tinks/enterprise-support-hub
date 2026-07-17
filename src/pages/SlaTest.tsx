@@ -587,15 +587,16 @@ function DualMetricRow({
 }
 
 // ============================================================================
-// TAB 2 · Batch (stored) — unchanged behavior, moved into a component
+// TAB 2 · Batch (stored)
 // ============================================================================
+type BatchMode = "corrected" | "legacy";
+
 function BatchStoredTab() {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [sortKey, setSortKey] = useState<SortKey>("closed");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [mode, setMode] = useState<BatchMode>("corrected");
 
   useEffect(() => {
     let cancelled = false;
@@ -609,7 +610,7 @@ function BatchStoredTab() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_conversation_id,subject,contact_name,contact_email,intercom_created_at,intercom_closed_at,time_to_resolve_s,time_to_first_admin_reply_s,raw_payload")
+            .select("id,intercom_conversation_id,subject,contact_name,contact_email,intercom_created_at,intercom_closed_at,time_to_resolve_s,time_to_first_admin_reply_s,raw_payload,tags,rsa_override,customer_resolution_method")
             .eq("owner", "Matt")
             .in("lifecycle_status", ["finalized", "reopened_after_finalize"])
             .order("intercom_closed_at", { ascending: false })
@@ -629,6 +630,239 @@ function BatchStoredTab() {
     })();
     return () => { cancelled = true; };
   }, [refreshKey]);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="inline-flex rounded-md border border-border p-0.5 bg-muted/30">
+          <button
+            className={`px-3 py-1.5 text-xs font-medium rounded ${mode === "corrected" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            onClick={() => setMode("corrected")}
+          >
+            Corrected engine
+          </button>
+          <button
+            className={`px-3 py-1.5 text-xs font-medium rounded ${mode === "legacy" ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            onClick={() => setMode("legacy")}
+          >
+            Legacy (compare)
+          </button>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setRefreshKey((k) => k + 1)} disabled={loading}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh
+        </Button>
+      </div>
+
+      {error && (
+        <Card><CardContent className="p-4 text-sm text-destructive">{error}</CardContent></Card>
+      )}
+
+      {mode === "corrected"
+        ? <CorrectedBatch rows={rows} loading={loading} />
+        : <LegacyBatch rows={rows} loading={loading} />}
+    </div>
+  );
+}
+
+// ----- Corrected engine view -----
+function classifyRow(row: Row, sla: SlaResult): "inScope" | "excluded" | "noCustomer" {
+  const tags = Array.isArray(row.tags) ? row.tags : [];
+  const hasTag = (t: string) => tags.includes(t);
+  const excluded =
+    row.rsa_override === false ||
+    (row.rsa_override == null && (hasTag("enterprise-fyi") || hasTag("enterprise-duplicate"))) ||
+    hasTag("merged_ticket") ||
+    row.customer_resolution_method === "not_enterprise";
+  if (excluded) return "excluded";
+  if (sla.flags.noCustomerParticipant) return "noCustomer";
+  return "inScope";
+}
+
+function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
+  const [sortKey, setSortKey] = useState<CorrectedSortKey>("closed");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const enriched: CorrectedEnriched[] = useMemo(
+    () => rows.map((r) => {
+      const sla = computeSla(r.raw_payload);
+      const origin = detectOrigin(r.raw_payload);
+      const bucket = classifyRow(r, sla);
+      return { ...r, sla, origin, bucket };
+    }),
+    [rows],
+  );
+
+  const inScope = useMemo(() => enriched.filter((r) => r.bucket === "inScope"), [enriched]);
+  const excluded = useMemo(() => enriched.filter((r) => r.bucket === "excluded"), [enriched]);
+  const noCustomer = useMemo(() => enriched.filter((r) => r.bucket === "noCustomer"), [enriched]);
+
+  const kpis = useMemo(() => ({
+    humanBH: aggregate(inScope.map((r) => r.sla.firstHumanReplyFromOpenBusinessHoursS)),
+    humanCal: aggregate(inScope.map((r) => r.sla.firstHumanReplyFromOpenS)),
+    anyCal: aggregate(inScope.map((r) => r.sla.firstResponseAnyAgentS)),
+    ttrBH: aggregate(inScope.map((r) => r.sla.ttrBusinessHoursS)),
+  }), [inScope]);
+
+  const reopenRate = useMemo(() => {
+    if (!inScope.length) return null;
+    const n = inScope.filter((r) => r.sla.reopenCount > 0).length;
+    return { n, total: inScope.length, pct: (n / inScope.length) * 100 };
+  }, [inScope]);
+
+  const sorted = useMemo(() => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    const val = (r: CorrectedEnriched): number => {
+      switch (sortKey) {
+        case "closed": return r.intercom_closed_at ? new Date(r.intercom_closed_at).getTime() : 0;
+        case "humanBH": return r.sla.firstHumanReplyFromOpenBusinessHoursS ?? -1;
+        case "humanCal": return r.sla.firstHumanReplyFromOpenS ?? -1;
+        case "anyCal": return r.sla.firstResponseAnyAgentS ?? -1;
+        case "ttrBH": return r.sla.ttrBusinessHoursS ?? -1;
+      }
+    };
+    return [...inScope].sort((a, b) => (val(a) - val(b)) * dir);
+  }, [inScope, sortKey, sortDir]);
+
+  const toggleSort = (k: CorrectedSortKey) => {
+    if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(k); setSortDir("desc"); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="text-sm text-muted-foreground">
+        <span className="font-semibold text-foreground">In-scope: {inScope.length}</span>
+        {" · "}
+        Excluded (not-enterprise/dup/merged/RSA): <span className="font-medium">{excluded.length}</span>
+        {" · "}
+        Internal / no-customer: <span className="font-medium">{noCustomer.length}</span>
+        {" · "}
+        Total loaded: {enriched.length}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard
+          title="Human first reply · bus.hrs"
+          desc="firstHumanReplyFromOpen (Europe/Berlin business hours)"
+          agg={kpis.humanBH}
+          emphasize
+        />
+        <KpiCard
+          title="Human first reply · calendar"
+          desc="firstHumanReplyFromOpen (wall clock)"
+          agg={kpis.humanCal}
+        />
+        <KpiCard
+          title="First response any-agent · calendar"
+          desc="firstResponseAnyAgent (includes Sam AI)"
+          agg={kpis.anyCal}
+        />
+        <KpiCard
+          title="Time to resolve · bus.hrs"
+          desc="ttr (Europe/Berlin business hours)"
+          agg={kpis.ttrBH}
+        />
+      </div>
+
+      {reopenRate && (
+        <div className="text-xs text-muted-foreground">
+          Reopen rate (in-scope): <span className="font-semibold text-foreground tabular-nums">{reopenRate.pct.toFixed(1)}%</span>
+          {" "}({reopenRate.n}/{reopenRate.total})
+        </div>
+      )}
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">
+            Per-ticket (in-scope)
+            {loading && <Loader2 className="h-4 w-4 inline ml-2 animate-spin text-muted-foreground" />}
+          </CardTitle>
+          <CardDescription>{inScope.length} in-scope tickets · computed with corrected engine over stored raw_payload</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <CorrectedSortableTh label="Closed" k="closed" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                  <th className="text-left px-3 py-2 font-medium">Subject</th>
+                  <th className="text-left px-3 py-2 font-medium">Origin</th>
+                  <CorrectedSortableTh label="Human FRT · BH" k="humanBH" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
+                  <CorrectedSortableTh label="Human FRT · cal" k="humanCal" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
+                  <CorrectedSortableTh label="TTR · BH" k="ttrBH" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map((r) => (
+                  <tr key={r.id} className="border-t border-border hover:bg-muted/20">
+                    <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
+                      {r.intercom_closed_at ? format(new Date(r.intercom_closed_at), "MMM d, yyyy") : "—"}
+                    </td>
+                    <td className="px-3 py-2 max-w-[320px] truncate">
+                      <a
+                        href={`https://app.intercom.com/a/inbox/_/inbox/conversation/${r.intercom_conversation_id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-foreground hover:underline"
+                        title={r.subject ?? ""}
+                      >
+                        {r.subject || `Intercom #${r.intercom_conversation_id}`}
+                      </a>
+                    </td>
+                    <td className="px-3 py-2"><OriginBadge origin={r.origin} /></td>
+                    <td className="px-3 py-2 text-right tabular-nums font-medium">{formatDuration(r.sla.firstHumanReplyFromOpenBusinessHoursS)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatDuration(r.sla.firstHumanReplyFromOpenS)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{formatDuration(r.sla.ttrBusinessHoursS)}</td>
+                  </tr>
+                ))}
+                {!loading && !sorted.length && (
+                  <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">No in-scope tickets found.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {(excluded.length > 0 || noCustomer.length > 0) && (
+            <div className="px-4 py-3 text-xs text-muted-foreground border-t border-border bg-muted/20">
+              {excluded.length} excluded (not-enterprise / duplicate / merged / RSA off), {noCustomer.length} internal / no-customer — not shown in aggregates above.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        Corrected engine over stored payloads (finalized tickets). Business hours = Europe/Berlin, Mon–Fri 09:00–24:00.
+        Escalation-based metrics omitted (still being tuned). The live "Analyze by ID" tab is authoritative per-ticket;
+        stored Slack payload completeness is not yet verified.
+      </p>
+    </div>
+  );
+}
+
+function CorrectedSortableTh({
+  label, k, sortKey, sortDir, onSort, align,
+}: {
+  label: string; k: CorrectedSortKey; sortKey: CorrectedSortKey; sortDir: "asc" | "desc";
+  onSort: (k: CorrectedSortKey) => void; align?: "right";
+}) {
+  const active = sortKey === k;
+  return (
+    <th className={`px-3 py-2 font-medium ${align === "right" ? "text-right" : "text-left"}`}>
+      <button
+        className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${active ? "text-foreground" : ""}`}
+        onClick={() => onSort(k)}
+      >
+        {label}
+        <ArrowUpDown className={`h-3 w-3 ${active ? "opacity-100" : "opacity-40"}`} />
+        {active && <span className="text-[10px]">{sortDir === "asc" ? "↑" : "↓"}</span>}
+      </button>
+    </th>
+  );
+}
+
+// ----- Legacy view (unchanged behavior) -----
+function LegacyBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
+  const [sortKey, setSortKey] = useState<SortKey>("closed");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const enriched: Enriched[] = useMemo(
     () => rows.map((r) => ({ ...r, sla: computeTicketSla(r) })),
@@ -663,38 +897,15 @@ function BatchStoredTab() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-end">
-        <Button variant="outline" size="sm" onClick={() => setRefreshKey((k) => k + 1)} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh
-        </Button>
+    <div className="space-y-4">
+      <div className="text-xs text-muted-foreground italic">
+        Legacy metric (Intercom time_to_admin_reply — Sam-inclusive, misses mirrored Slack replies, calendar). Shown for comparison.
       </div>
-
-      {error && (
-        <Card><CardContent className="p-4 text-sm text-destructive">{error}</CardContent></Card>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard
-          title="Time to first admin reply"
-          desc="Intercom time_to_admin_reply"
-          agg={kpis.firstReply}
-        />
-        <KpiCard
-          title="Raw time to resolve"
-          desc="Intercom time_to_last_close (wall clock)"
-          agg={kpis.rawResolve}
-        />
-        <KpiCard
-          title="Response-gap sum"
-          desc="Σ user→admin reply gaps"
-          agg={kpis.responseGap}
-        />
-        <KpiCard
-          title="Business-hours handling"
-          desc="Response-gap sum, clipped to Mon–Fri 09:00–24:00 Europe/Berlin"
-          agg={kpis.bhHandling}
-        />
+        <KpiCard title="Time to first admin reply" desc="Intercom time_to_admin_reply" agg={kpis.firstReply} />
+        <KpiCard title="Raw time to resolve" desc="Intercom time_to_last_close (wall clock)" agg={kpis.rawResolve} />
+        <KpiCard title="Response-gap sum" desc="Σ user→admin reply gaps" agg={kpis.responseGap} />
+        <KpiCard title="Business-hours handling" desc="Response-gap sum, clipped to Mon–Fri 09:00–24:00 Europe/Berlin" agg={kpis.bhHandling} />
       </div>
 
       <Card>
@@ -759,28 +970,34 @@ function BatchStoredTab() {
   );
 }
 
-function KpiCard({ title, desc, agg }: { title: string; desc: string; agg: { avg: number | null; median: number | null; p90: number | null; n: number } }) {
+function KpiCard({ title, desc, agg, emphasize }: {
+  title: string;
+  desc: string;
+  agg: { avg: number | null; median: number | null; p90: number | null; p95?: number | null; n: number };
+  emphasize?: boolean;
+}) {
   return (
-    <Card>
+    <Card className={emphasize ? "ring-1 ring-primary/40" : ""}>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
         <CardDescription className="text-xs">{desc}</CardDescription>
       </CardHeader>
       <CardContent className="pt-0 space-y-1.5">
-        <Stat label="Avg" value={formatDuration(agg.avg)} />
-        <Stat label="Median" value={formatDuration(agg.median)} />
+        <Stat label="Median" value={formatDuration(agg.median)} emphasize={emphasize} />
         <Stat label="P90" value={formatDuration(agg.p90)} />
+        {agg.p95 !== undefined && <Stat label="P95" value={formatDuration(agg.p95)} />}
+        <Stat label="Avg" value={formatDuration(agg.avg)} />
         <div className="text-[10px] text-muted-foreground pt-1">n={agg.n}</div>
       </CardContent>
     </Card>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, emphasize }: { label: string; value: string; emphasize?: boolean }) {
   return (
     <div className="flex items-baseline justify-between gap-2">
       <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="text-sm font-semibold tabular-nums">{value}</span>
+      <span className={`tabular-nums ${emphasize ? "text-base font-bold" : "text-sm font-semibold"}`}>{value}</span>
     </div>
   );
 }
