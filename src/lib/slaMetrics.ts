@@ -255,12 +255,17 @@ export type SlaFlags = {
 export type SlaResult = {
   createdAtS: number | null;
   firstResponseAnyAgentS: number | null;
+  firstResponseAnyAgentBusinessHoursS: number | null;
   timeToEscalationS: number | null;
+  timeToEscalationBusinessHoursS: number | null;
   escalationTs: number | null;
   escalationBasis: EscalationBasis | null;
   firstHumanReplyFromEscalationS: number | null;
+  firstHumanReplyFromEscalationBusinessHoursS: number | null;
   firstHumanReplyFromOpenS: number | null;
+  firstHumanReplyFromOpenBusinessHoursS: number | null;
   ttrS: number | null;
+  ttrBusinessHoursS: number | null;
   reopenCount: number;
   handlingTimeS: number;
   handlingTimeBusinessHoursS: number;
