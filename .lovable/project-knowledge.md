@@ -911,3 +911,101 @@ New customer accounts are seeded automatically from the Slack "closed-won" chann
 - **Dedup:** skips candidates whose `domain` is already present in any `v3_customer_accounts.domains` array (via `.overlaps`) OR whose `account_key` already exists. Also dedupes within the batch.
 - **Insert shape:** `{ account_key, label: <company name>, domains: [<domain>], notes: 'Auto-created from Slack #closed-won' }`. All other columns default.
 - **Idempotent:** re-running the same day is a no-op because dedup fires on both keys.
+
+---
+
+## Track B — SLA measurement & validation tool (v3)
+
+### Purpose
+
+Measure the current shape of enterprise support SLAs (first response, time-to-resolve, reopen, handling time) in order to **draft** SLA targets — we don't have compliance targets yet, so the tool is deliberately neutral (no "met/missed" claims). A per-ticket **validation** tool was built first so every metric definition can be spot-checked against a live Intercom conversation before any aggregate reporting is trusted.
+
+**Why we can't just use Intercom's stats:** Intercom's `time_to_admin_reply` / SLA status materially miscount tickets where a Lovable teammate replied in Slack — Intercom mirrors that reply into the conversation as `author.type === "user"` under a contact id, so its FRT clock never stops. We've seen this inflate first-response to hours/days and mis-mark SLAs "missed" on real tickets (e.g. a Checkr ticket where Intercom showed ~35h + "missed" vs true ~8h; a Frontlineed ticket where a CSM's reply Intercom dropped entirely). The engine below recovers the true first human/agent response by classifying actors ourselves.
+
+### Engine — `src/lib/slaMetrics.ts`
+
+Pure, source-agnostic TypeScript. No network, DB, or Intercom client access. Same shape input for live-fetched conversations and stored `raw_payload` — `computeSla(conversation)` is the single source of truth for every metric.
+
+**Actor model** (`Actor = customer | human_admin | sam_ai | operator_bot | system`, `classifyActor`):
+
+- **Sam (AI agent)** is identified by `author.id === "9520895"` (`SAM_AUTHOR_IDS`) or `author.email === "lovable@parahelp.com"` (`SAM_AUTHOR_EMAILS`) — **NOT** by Intercom's `from_ai_agent` / `is_ai_answer` / `ai_agent_participated` flags. Sam runs via Parahelp and posts through Intercom as a regular admin, so those flags are all FALSE for Sam's parts.
+- **Lovable teammates** are identified by the `@lovable.dev` email domain (`TEAMMATE_EMAIL_DOMAIN`). Critical: a teammate's Slack reply mirrors into Intercom as `author.type === "user"` under a contact id — the email domain check overrides the type and classifies them as `human_admin`. Safe because `@lovable.dev` is internal-only.
+- Fallbacks: `type==="bot"` → `operator_bot`; `type==="admin"` → `human_admin`; `type ∈ {user, lead, contact}` → `customer`; else `system`.
+
+**Public reply** (`isPublicReplyPart`): `part_type === "comment"` OR (`part_type === "assignment"` with non-empty body). Mirrors the forwardable-part logic in `intercom-webhook` (an admin sometimes picks up + responds in one action, emitting assignment-with-body). Notes (`note`, `note_and_reopen`) and pure state/assignment events are NOT public replies.
+
+**Timeline** (`extractTimeline`): the opening `source` message (from `raw.source` / `raw.created_at`) plus every entry in `raw.conversation_parts.conversation_parts`, sorted by `ts`, each with classified `actor`, stripped body, assignment target, `isPublicReply`, `isNote`.
+
+**Business hours** — **Europe/Berlin, DST-aware, Mon–Fri 09:00–24:00** (i.e. 09:00 through end-of-day, a 15-hour window; constants `BUSINESS_HOURS_TIMEZONE`, `BUSINESS_HOURS_START_HOUR=9`, `BUSINESS_HOURS_END_HOUR=24`). Implemented via `Intl.DateTimeFormat` (no external tz library); `businessHoursBetween(startSec, endSec)` walks day-by-day in Berlin local time and DST-corrects each window boundary iteratively. Kept configurable at module scope so a holiday calendar can slot in later.
+
+**Multi-clock metrics** — every clock has a **calendar** and **business-hours** variant in `SlaResult`:
+
+| Clock | Field (calendar) | Field (BH) |
+|---|---|---|
+| First response, any agent (incl. Sam) from open | `firstResponseAnyAgentS` | `firstResponseAnyAgentBusinessHoursS` |
+| Time-to-escalation (from open) | `timeToEscalationS` | `timeToEscalationBusinessHoursS` |
+| First human reply from escalation | `firstHumanReplyFromEscalationS` | `firstHumanReplyFromEscalationBusinessHoursS` |
+| First human reply from open | `firstHumanReplyFromOpenS` | `firstHumanReplyFromOpenBusinessHoursS` |
+| TTR | `ttrS` (from Intercom `statistics.time_to_last_close`) | `ttrBusinessHoursS` (recomputed via `businessHoursBetween(created_at, last_close_at ?? first_close_at)` — a calendar-second stat cannot be re-clipped to BH after the fact) |
+| Handling time (customer-wait sum) | `handlingTimeS` | `handlingTimeBusinessHoursS` |
+| Reopen count | `reopenCount` (from `statistics.count_reopens`) | — |
+
+`escalationTs` + `escalationBasis` (`EscalationBasis = "team_assignment" | "marker" | "first_human" | "post_ai_handoff"`) accompany the escalation clock. Handling time = sum of customer-wait gaps: each gap opens on an unanswered customer message and closes on the next public reply by `human_admin` OR `sam_ai` (operator_bot / system don't clear the gap).
+
+**Escalation detection** (`detectEscalation`) — anchors on the **post-AI human handoff**, not the initial routing team-assignment (which typically fires at +1s, before Sam even replies):
+
+1. Find Sam's first public reply timestamp.
+2. Candidate A: earliest `"escalated" ... "awaiting human"` marker in any part body → basis `marker`.
+3. Candidate B: earliest team-assignment at or after Sam's first public reply → basis `post_ai_handoff`.
+4. Take the earlier of A/B if either exists.
+5. Fallbacks (only when there was no AI turn / no handoff signal): earliest team-assignment (basis `team_assignment`) → else first human public reply (basis `first_human`).
+
+**Flags** (`SlaFlags`): `isTicket`, `samParticipated`, `noHumanReply`, `hasParts`, `noCustomerParticipant` (true when no `customer` actor exists anywhere in the timeline → internal / CSM-on-behalf thread → excluded from customer-FRT semantics and rendered with an "internal" warning).
+
+**Origin** (`detectOrigin`, pure helper): best-effort classification into `slack` / `email` / `other` from `source.type` / `source.delivered_as` / `source.url`. Advisory only — not used by any metric clock.
+
+**Aggregate** (`aggregate`): `{ avg, median, p90, p95, n, nNull }` over an array of nullable numbers; drops non-positive/non-finite values into `nNull`.
+
+**Tests** — `src/lib/__tests__/slaMetrics.test.ts` (23 tests, all passing). Covers: actor classification (including Fixture C `@lovable.dev` under `type="user"`), escalation ignoring early routing, `noCustomerParticipant` (Fixture D), `businessHoursBetween` cases (weekday, DST-crossing overnight, weekend = 0), and BH ≤ calendar invariants across every clock.
+
+**Legacy exports** (`extractParts`, `computeTicketSla`, `TicketSla`, `sumUserToAdminGaps`, `sumUserToAdminGapsBusinessHours`) are preserved so the legacy Batch view keeps rendering unchanged. New code uses `computeSla` + `SlaResult`.
+
+### Read-only fetch — `supabase/functions/sla-ticket-analyze`
+
+- `verify_jwt = true`, `POST` only (OPTIONS for CORS), method rejects anything else with 405.
+- Accepts `{ ids: string[] }`; `normalizeId` handles URL forms (last path segment) and `conversation_[_-]?` prefixes, then extracts the first `\d{5,}` run.
+- Deduplicates + caps at `MAX_IDS = 10`; returns `{ results, truncated }`.
+- Each id → `GET https://api.intercom.io/conversations/{id}` with `Authorization: Bearer ${INTERCOM_API_TOKEN}`, `Intercom-Version: 2.11`. Reuses the existing `INTERCOM_API_TOKEN` secret.
+- Per-id result: `{ id, ok: true, conversation }` or `{ id, ok: false, status, error }` (up to 500 chars of body).
+- **STRICT read-only**: HTTP GET to Intercom only, no POST/PUT/DELETE, no DB writes. All metric logic runs client-side in `computeSla` — the function is a thin proxy so Intercom stays strictly read-only and there is zero metric duplication on the server.
+
+### UI — `/sla-test` (`src/pages/SlaTest.tsx`), two tabs
+
+**Tab 1 — "Analyze by ID (live)":** textarea for ≤10 ids/URLs → calls `sla-ticket-analyze` → runs `computeSla` on each returned conversation. Per-ticket card shows:
+
+- **Headline comparison strip**: our first human reply (calendar AND business-hours) vs Intercom `statistics.time_to_admin_reply` vs Δ (ours − Intercom, calendar).
+- **Hero human stat** dimmed with an amber "(internal)" tag when `noCustomerParticipant` is set.
+- Origin badge (slack / email / other), Sam-participated / no-human-reply / no-customer badges.
+- Color-coded timeline of parts (actor colour + isPublicReply / isNote markers).
+- Full calendar | business-hours metric table for every clock.
+- Prominent amber "no customer / internal" warning when the flag is set.
+- Framing is **deliberately neutral** — we display Intercom's SLA status verbatim but make no "met/missed" claims of our own until targets are drafted.
+
+**Tab 2 — "Batch (stored)":** works over Matt's finalized ticket store (`manual_conversations`), fetching `raw_payload` + `tags` + `rsa_override` + `customer_resolution_method`. Toggle between two modes:
+
+- **Corrected engine** (`CorrectedBatch`) — runs `computeSla` per row. Classifies each row via `classifyRow` into:
+  - **excluded** — `rsa_override === false` OR (`rsa_override == null` AND (`enterprise-fyi` OR `enterprise-duplicate` tag)) OR `merged_ticket` tag OR `customer_resolution_method === "not_enterprise"` (Rule 0). An explicit `rsa_override === true` overrides tag-based exclusions.
+  - **noCustomer** — `flags.noCustomerParticipant` (internal / CSM-only).
+  - **inScope** — everything else.
+  
+  Aggregates run **only over `inScope`**. KPI cards: **Human FRT business-hours (hero)**, Human FRT calendar, Any-agent FRT calendar, TTR business-hours — each showing median / p90 / p95 / avg / n / nNull. Per-ticket table with sortable columns; muted footer with the excluded/no-customer counts (never silently dropped).
+- **Legacy (compare)** (`LegacyBatch`) — the prior view backed by stored Intercom fields (`time_to_first_admin_reply_s`, `time_to_resolve_s`) with contaminated FRT. Preserved verbatim as a before/after comparison with a muted disclaimer.
+
+### Known open items (still tuning — carry as open questions)
+
+- **Slack-native-then-ticketized threads**: escalation semantics when the conversation began in Slack and only later became an Intercom ticket — the ticket's `created_at` doesn't reflect the true SLA start.
+- **No-customer / CSM-in-the-middle tickets**: whether these belong in their own pool with a count-KPI (currently just excluded from FRT aggregates); handling time semantics unclear when no customer is in the thread at all.
+- **Stored-payload completeness for Slack**: for Slack-originated tickets the stored `raw_payload` may be less complete than a live Intercom fetch — the live tab is authoritative per-ticket; the Batch tab is directionally correct but may under-count some Slack conversations.
+- **"Bulk-entered" Slack tickets**: import-time batching can compress real customer-wait gaps.
+- **Aggregate dashboard + SLA compliance slider**: future — depends on the target-setting work this tool is intended to inform.
+
