@@ -273,12 +273,14 @@ function OriginBadge({ origin }: { origin: Origin }) {
 
 // Headline "ours vs Intercom" strip — the demo money-shot. Presents ours and
 // theirs side-by-side with a Δ. Deliberately neutral — no "SLA met" claims,
-// since we have no target of our own yet.
+// since we have no target of our own yet. The hero is the human first reply
+// shown as BOTH calendar and business-hours (BH is the SLA-anchor number).
 function HeadlineCompare({
   sla, stats, slaApplied,
 }: { sla: SlaResult; stats: any; slaApplied: any }) {
   const num = (v: any): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
   const ourHuman = sla.firstHumanReplyFromOpenS;
+  const ourHumanBH = sla.firstHumanReplyFromOpenBusinessHoursS;
   const ourAny = sla.firstResponseAnyAgentS;
   const theirs = num(stats?.time_to_admin_reply);
   const slaStatus: string | null =
@@ -315,10 +317,10 @@ function HeadlineCompare({
         </span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <HeadlineStat label="Our first HUMAN reply" hint="from open" value={formatDuration(ourHuman)} emphasize />
+        <HeroHumanStat calendar={ourHuman} businessHours={ourHumanBH} />
         <HeadlineStat label="Our first reply" hint="any agent, incl. Sam" value={formatDuration(ourAny)} />
         <HeadlineStat label="Intercom time_to_admin_reply" hint="their single stat" value={formatDuration(theirs)} />
-        <HeadlineStat label="Δ (ours − Intercom)" hint="human vs admin_reply" value={deltaLabel} />
+        <HeadlineStat label="Δ (ours − Intercom)" hint="human vs admin_reply, calendar" value={deltaLabel} />
       </div>
     </div>
   );
@@ -333,6 +335,29 @@ function HeadlineStat({ label, hint, value, emphasize }: { label: string; hint?:
     </div>
   );
 }
+
+// Hero stat: Our first HUMAN reply shown as BOTH calendar and business-hours.
+// Business-hours is the SLA-anchor number so it's emphasized.
+function HeroHumanStat({ calendar, businessHours }: { calendar: number | null; businessHours: number | null }) {
+  return (
+    <div className="rounded-md border border-border/60 bg-background px-3 py-2 ring-1 ring-primary/30">
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Our first HUMAN reply</div>
+      <div className="text-[10px] text-muted-foreground/70">from open</div>
+      <div className="mt-1 flex items-baseline gap-2 flex-wrap">
+        <div className="tabular-nums text-lg font-bold" title="business hours (Europe/Berlin, Mon–Fri 09:00–24:00)">
+          {formatDuration(businessHours)}
+        </div>
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">bus.hrs</div>
+        <span className="text-muted-foreground/40">·</span>
+        <div className="tabular-nums text-sm font-semibold text-muted-foreground">
+          {formatDuration(calendar)}
+        </div>
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">cal.</div>
+      </div>
+    </div>
+  );
+}
+
 
 
 // ----- Actor color chip -----
