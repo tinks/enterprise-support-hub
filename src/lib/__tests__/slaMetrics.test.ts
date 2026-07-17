@@ -182,6 +182,9 @@ describe("computeSla — AI then human handoff", () => {
     expect(r.flags.samParticipated).toBe(true);
     expect(r.flags.noHumanReply).toBe(false);
   });
+  it("business-hours variants ≤ calendar counterparts and ≥ 0", () => {
+    assertBhInvariants(r);
+  });
 });
 
 // Fixture B: straight to human, no AI turn.
