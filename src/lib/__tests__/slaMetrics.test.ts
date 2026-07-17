@@ -293,4 +293,7 @@ describe("computeSla — Slack-mirrored teammate reply (author.type user, @lovab
     expect(r.flags.noHumanReply).toBe(false);
     expect(r.flags.samParticipated).toBe(false);
   });
+  it("business-hours variants ≤ calendar counterparts and ≥ 0", () => {
+    assertBhInvariants(r);
+  });
 });
