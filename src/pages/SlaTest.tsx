@@ -232,6 +232,7 @@ function TicketCard({ id, conversation }: { id: string; conversation: any }) {
               {sla.flags.isTicket && <Badge variant="secondary">isTicket</Badge>}
               {sla.flags.samParticipated && <Badge variant="secondary">samParticipated</Badge>}
               {sla.flags.noHumanReply && <Badge variant="outline">noHumanReply</Badge>}
+              {sla.flags.noCustomerParticipant && <Badge variant="destructive">no customer</Badge>}
               {!sla.flags.hasParts && <Badge variant="outline">no parts</Badge>}
             </div>
           </div>
