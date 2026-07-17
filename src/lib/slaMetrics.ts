@@ -424,6 +424,42 @@ export function aggregate(values: Array<number | null | undefined>): AggregateRe
 }
 
 // ============================================================================
+// Origin detection — best-effort heuristic
+// ============================================================================
+// Classifies where a conversation was originated from. Best-effort:
+//  - "slack": custom_attributes["Slack channel"] set, OR any part has an
+//    external_id starting with "slack:".
+//  - "email": source looks email-delivered — source.type === "email", OR
+//    source.delivered_as === "customer_initiated" with an author email, OR
+//    a subject line is present on the source.
+//  - "other": everything else (in-app messenger, API, etc.).
+export type Origin = "slack" | "email" | "other";
+
+export function detectOrigin(conversation: any): Origin {
+  const attrs = conversation?.custom_attributes ?? {};
+  if (attrs && typeof attrs === "object" && attrs["Slack channel"]) return "slack";
+  const parts = conversation?.conversation_parts?.conversation_parts;
+  if (Array.isArray(parts)) {
+    for (const p of parts) {
+      const ext = p?.external_id;
+      if (typeof ext === "string" && ext.startsWith("slack:")) return "slack";
+    }
+  }
+  const src = conversation?.source ?? {};
+  const srcType = String(src?.type || "").toLowerCase();
+  if (srcType === "email") return "email";
+  const deliveredAs = String(src?.delivered_as || "").toLowerCase();
+  if (deliveredAs.includes("email")) return "email";
+  if (src?.subject && typeof src.subject === "string" && src.subject.trim().length > 0) {
+    // Intercom sets a subject on email-originated conversations; messenger
+    // convos generally lack one. Weak signal but useful as a tiebreak.
+    return "email";
+  }
+  return "other";
+}
+
+
+// ============================================================================
 // Formatting
 // ============================================================================
 
