@@ -255,12 +255,17 @@ export type SlaFlags = {
 export type SlaResult = {
   createdAtS: number | null;
   firstResponseAnyAgentS: number | null;
+  firstResponseAnyAgentBusinessHoursS: number | null;
   timeToEscalationS: number | null;
+  timeToEscalationBusinessHoursS: number | null;
   escalationTs: number | null;
   escalationBasis: EscalationBasis | null;
   firstHumanReplyFromEscalationS: number | null;
+  firstHumanReplyFromEscalationBusinessHoursS: number | null;
   firstHumanReplyFromOpenS: number | null;
+  firstHumanReplyFromOpenBusinessHoursS: number | null;
   ttrS: number | null;
+  ttrBusinessHoursS: number | null;
   reopenCount: number;
   handlingTimeS: number;
   handlingTimeBusinessHoursS: number;
@@ -356,9 +361,33 @@ export function computeSla(conversation: any): SlaResult {
     firstHumanReplyFromEscalationS = firstHumanReply.ts - escalation.ts;
   }
 
+  // Business-hours parallels — same guards as calendar counterparts.
+  const firstResponseAnyAgentBusinessHoursS =
+    firstAnyAgentReply && createdAt != null ? businessHoursBetween(createdAt, firstAnyAgentReply.ts) : null;
+  const firstHumanReplyFromOpenBusinessHoursS =
+    firstHumanReply && createdAt != null ? businessHoursBetween(createdAt, firstHumanReply.ts) : null;
+  const timeToEscalationBusinessHoursS =
+    escalation && createdAt != null ? businessHoursBetween(createdAt, escalation.ts) : null;
+  const firstHumanReplyFromEscalationBusinessHoursS =
+    escalation && firstHumanReply && firstHumanReply.ts >= escalation.ts
+      ? businessHoursBetween(escalation.ts, firstHumanReply.ts)
+      : null;
+
   const stats = conversation?.statistics ?? {};
   const ttrS = typeof stats.time_to_last_close === "number" ? stats.time_to_last_close : null;
   const reopenCount = typeof stats.count_reopens === "number" ? stats.count_reopens : 0;
+
+  // TTR business-hours — computed from close timestamp (last_close_at preferred,
+  // else first_close_at). `time_to_last_close` is a calendar-second duration
+  // and cannot be re-clipped to business hours after the fact.
+  const closeAt: number | null =
+    typeof stats.last_close_at === "number"
+      ? stats.last_close_at
+      : typeof stats.first_close_at === "number"
+        ? stats.first_close_at
+        : null;
+  const ttrBusinessHoursS =
+    closeAt != null && createdAt != null ? businessHoursBetween(createdAt, closeAt) : null;
 
   const handlingTimeS = sumCustomerWaitGaps(timeline, (a, b) => Math.max(0, b - a));
   const handlingTimeBusinessHoursS = sumCustomerWaitGaps(timeline, (a, b) => businessHoursBetween(a, b));
@@ -369,12 +398,17 @@ export function computeSla(conversation: any): SlaResult {
   return {
     createdAtS: createdAt,
     firstResponseAnyAgentS,
+    firstResponseAnyAgentBusinessHoursS,
     timeToEscalationS,
+    timeToEscalationBusinessHoursS,
     escalationTs: escalation?.ts ?? null,
     escalationBasis: escalation?.basis ?? null,
     firstHumanReplyFromEscalationS,
+    firstHumanReplyFromEscalationBusinessHoursS,
     firstHumanReplyFromOpenS,
+    firstHumanReplyFromOpenBusinessHoursS,
     ttrS,
+    ttrBusinessHoursS,
     reopenCount,
     handlingTimeS,
     handlingTimeBusinessHoursS,
