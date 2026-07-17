@@ -1,5 +1,88 @@
 import { describe, it, expect } from "vitest";
-import { computeSla } from "@/lib/slaMetrics";
+import { computeSla, businessHoursBetween, type SlaResult } from "@/lib/slaMetrics";
+
+// Business-hours vs calendar pair fields on SlaResult.
+const BH_PAIRS: Array<[keyof SlaResult, keyof SlaResult]> = [
+  ["firstResponseAnyAgentS", "firstResponseAnyAgentBusinessHoursS"],
+  ["timeToEscalationS", "timeToEscalationBusinessHoursS"],
+  ["firstHumanReplyFromEscalationS", "firstHumanReplyFromEscalationBusinessHoursS"],
+  ["firstHumanReplyFromOpenS", "firstHumanReplyFromOpenBusinessHoursS"],
+];
+
+function assertBhInvariants(r: SlaResult) {
+  for (const [cal, bh] of BH_PAIRS) {
+    const c = r[cal] as number | null;
+    const b = r[bh] as number | null;
+    // Null on calendar => null on BH; else BH is number >= 0 and <= calendar.
+    if (c == null) {
+      expect(b, `${String(bh)} should be null when ${String(cal)} is null`).toBeNull();
+    } else {
+      expect(typeof b === "number" && b >= 0, `${String(bh)} must be a non-negative number`).toBe(true);
+      expect((b as number) <= c, `${String(bh)} (${b}) must be <= ${String(cal)} (${c})`).toBe(true);
+    }
+  }
+}
+
+// ============================================================================
+// businessHoursBetween — focused unit tests (Europe/Berlin, DST-aware)
+// ============================================================================
+// Use fixed Berlin-local wall-clock times. June 2025 is CEST (UTC+2) so
+// Berlin 10:00 = UTC 08:00, Berlin 23:00 = UTC 21:00.
+describe("businessHoursBetween — Europe/Berlin business hours", () => {
+  // 2025-06-02 is a Monday.
+  const monday10Berlin = Date.UTC(2025, 5, 2, 8, 0, 0) / 1000;  // 10:00 Berlin
+  const monday12Berlin = Date.UTC(2025, 5, 2, 10, 0, 0) / 1000; // 12:00 Berlin
+  const monday23Berlin = Date.UTC(2025, 5, 2, 21, 0, 0) / 1000; // 23:00 Berlin
+  const tuesday10Berlin = Date.UTC(2025, 5, 3, 8, 0, 0) / 1000; // Tue 10:00 Berlin
+  // Saturday 2025-06-07 00:00 Berlin → Monday 2025-06-09 00:00 Berlin.
+  const sat00Berlin = Date.UTC(2025, 5, 6, 22, 0, 0) / 1000; // Fri 22:00 UTC = Sat 00:00 CEST
+  const mon00Berlin = Date.UTC(2025, 5, 8, 22, 0, 0) / 1000; // Sun 22:00 UTC = Mon 00:00 CEST
+
+  const case1 = businessHoursBetween(monday10Berlin, monday12Berlin);
+  const case2 = businessHoursBetween(monday23Berlin, tuesday10Berlin);
+  const case3 = businessHoursBetween(sat00Berlin, mon00Berlin);
+
+  // eslint-disable-next-line no-console
+  console.log("businessHoursBetween cases:", {
+    case1_mon_10_to_12: case1,
+    case2_mon23_to_tue10: case2,
+    case3_full_weekend: case3,
+    calendar1: monday12Berlin - monday10Berlin,
+    calendar2: tuesday10Berlin - monday23Berlin,
+    calendar3: mon00Berlin - sat00Berlin,
+  });
+
+  it("(i) fully inside a single weekday window 10:00→12:00 == 7200s (BH == calendar)", () => {
+    expect(case1).toBe(7200);
+    expect(case1).toBe(monday12Berlin - monday10Berlin);
+  });
+
+  it("(ii) overnight weekday 23:00→next-day 10:00 == 7200s BH (calendar is 11h)", () => {
+    expect(case2).toBe(7200);
+    expect(tuesday10Berlin - monday23Berlin).toBe(11 * 3600);
+    expect(case2).toBeLessThan(tuesday10Berlin - monday23Berlin);
+  });
+
+  it("(iii) full Sat+Sun == 0 BH", () => {
+    expect(case3).toBe(0);
+  });
+
+  it("(iv) invariant BH ≤ calendar for arbitrary spans", () => {
+    const spans: Array<[number, number]> = [
+      [monday10Berlin, tuesday10Berlin],
+      [monday10Berlin, mon00Berlin],
+      [sat00Berlin, tuesday10Berlin],
+      [monday23Berlin, mon00Berlin],
+    ];
+    for (const [a, b] of spans) {
+      const bh = businessHoursBetween(a, b);
+      const cal = b - a;
+      expect(bh).toBeGreaterThanOrEqual(0);
+      expect(bh).toBeLessThanOrEqual(cal);
+    }
+  });
+});
+
 
 const CREATED_AT = 1_000_000_000;
 
