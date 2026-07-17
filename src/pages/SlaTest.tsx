@@ -458,22 +458,44 @@ function MetricsCompare({ sla, stats }: { sla: SlaResult; stats: any }) {
       <div>
         <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Our metrics</div>
         <div className="border border-border rounded-md px-3 py-1">
-          <MetricRow label="First response (any agent)" value={formatDuration(sla.firstResponseAnyAgentS)} />
-          <MetricRow
+          <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 py-1 border-b border-border/60">
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground/80">Metric</div>
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground/80 text-right">Calendar</div>
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground/80 text-right">Business hrs</div>
+          </div>
+          <DualMetricRow
+            label="First response (any agent)"
+            calendar={sla.firstResponseAnyAgentS}
+            businessHours={sla.firstResponseAnyAgentBusinessHoursS}
+          />
+          <DualMetricRow
             label="Time to escalation"
             hint={sla.escalationBasis ? `basis: ${sla.escalationBasis}` : undefined}
-            value={formatDuration(sla.timeToEscalationS)}
+            calendar={sla.timeToEscalationS}
+            businessHours={sla.timeToEscalationBusinessHoursS}
           />
-          <MetricRow
+          <DualMetricRow
             label="Human first reply (from escalation)"
-            value={formatDuration(sla.firstHumanReplyFromEscalationS)}
+            calendar={sla.firstHumanReplyFromEscalationS}
+            businessHours={sla.firstHumanReplyFromEscalationBusinessHoursS}
             emphasize
           />
-          <MetricRow label="Human first reply (from open)" value={formatDuration(sla.firstHumanReplyFromOpenS)} />
-          <MetricRow label="TTR" value={formatDuration(sla.ttrS)} />
+          <DualMetricRow
+            label="Human first reply (from open)"
+            calendar={sla.firstHumanReplyFromOpenS}
+            businessHours={sla.firstHumanReplyFromOpenBusinessHoursS}
+          />
+          <DualMetricRow
+            label="TTR"
+            calendar={sla.ttrS}
+            businessHours={sla.ttrBusinessHoursS}
+          />
+          <DualMetricRow
+            label="Handling time"
+            calendar={sla.handlingTimeS}
+            businessHours={sla.handlingTimeBusinessHoursS}
+          />
           <MetricRow label="Reopens" value={String(sla.reopenCount)} />
-          <MetricRow label="Handling time" value={formatDuration(sla.handlingTimeS)} />
-          <MetricRow label="Handling (business hrs)" value={formatDuration(sla.handlingTimeBusinessHoursS)} />
         </div>
       </div>
 
@@ -508,6 +530,31 @@ function MetricsCompare({ sla, stats }: { sla: SlaResult; stats: any }) {
             ))
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function DualMetricRow({
+  label, hint, calendar, businessHours, emphasize,
+}: {
+  label: string;
+  hint?: string;
+  calendar: number | null;
+  businessHours: number | null;
+  emphasize?: boolean;
+}) {
+  return (
+    <div className={`grid grid-cols-[1fr_auto_auto] gap-x-4 items-baseline py-1.5 border-b border-border/60 last:border-0 ${emphasize ? "bg-primary/5 -mx-2 px-2 rounded" : ""}`}>
+      <div className="min-w-0">
+        <div className={`text-xs ${emphasize ? "font-semibold text-foreground" : "text-muted-foreground"}`}>{label}</div>
+        {hint && <div className="text-[10px] text-muted-foreground/80">{hint}</div>}
+      </div>
+      <div className={`text-sm tabular-nums text-right ${emphasize ? "font-bold" : "font-semibold"} text-muted-foreground`}>
+        {formatDuration(calendar)}
+      </div>
+      <div className={`text-sm tabular-nums text-right ${emphasize ? "font-bold" : "font-semibold"}`}>
+        {formatDuration(businessHours)}
       </div>
     </div>
   );
