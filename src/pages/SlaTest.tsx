@@ -350,11 +350,15 @@ function HeadlineStat({ label, hint, value, emphasize }: { label: string; hint?:
 
 // Hero stat: Our first HUMAN reply shown as BOTH calendar and business-hours.
 // Business-hours is the SLA-anchor number so it's emphasized.
-function HeroHumanStat({ calendar, businessHours }: { calendar: number | null; businessHours: number | null }) {
+function HeroHumanStat({ calendar, businessHours, noCustomer }: { calendar: number | null; businessHours: number | null; noCustomer?: boolean }) {
   return (
-    <div className="rounded-md border border-border/60 bg-background px-3 py-2 ring-1 ring-primary/30">
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Our first HUMAN reply</div>
-      <div className="text-[10px] text-muted-foreground/70">from open</div>
+    <div className={`rounded-md border border-border/60 bg-background px-3 py-2 ring-1 ${noCustomer ? "ring-amber-500/40 opacity-60" : "ring-primary/30"}`}>
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+        Our first HUMAN reply {noCustomer && <span className="text-amber-600 dark:text-amber-400">(internal)</span>}
+      </div>
+      <div className="text-[10px] text-muted-foreground/70">
+        {noCustomer ? "n/a — no customer in thread" : "from open"}
+      </div>
       <div className="mt-1 flex items-baseline gap-2 flex-wrap">
         <div className="tabular-nums text-lg font-bold" title="business hours (Europe/Berlin, Mon–Fri 09:00–24:00)">
           {formatDuration(businessHours)}
