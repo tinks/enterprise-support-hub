@@ -804,8 +804,32 @@ function buildNodes(
         accent: "default",
       },
     },
+    {
+      id: "sla-measurement",
+      type: "flowNode",
+      position: { x: COL_W * 0.6, y: ROW_H * 3.6 },
+      data: {
+        label: "SLA measurement & validation (Track B)",
+        desc: "Measures the current shape of enterprise SLAs (FRT, TTR, reopen, handling time) to draft SLA targets. Per-ticket validation tool built first so metric definitions can be spot-checked against live Intercom before any aggregate is trusted. Read-only.",
+        icon: Beaker,
+        details: [
+          "Flow: Intercom conversation → sla-ticket-analyze (read-only GET proxy, verify_jwt=true, ≤10 ids, Intercom-Version 2.11, reuses INTERCOM_API_TOKEN) → computeSla engine → /sla-test UI. All metric logic runs client-side; the edge function is a thin proxy so Intercom stays strictly read-only and there is zero server-side duplication.",
+          "Engine src/lib/slaMetrics.ts is pure, source-agnostic — same computeSla(conversation) runs on live fetches AND stored raw_payload. Actor model classifies each part as customer | human_admin | sam_ai | operator_bot | system. Sam (AI agent) is identified by author.id === '9520895' or email 'lovable@parahelp.com' — NOT by Intercom's from_ai_agent / is_ai_answer / ai_agent_participated flags (all FALSE for Sam, since it runs via Parahelp as a regular admin). Teammates are identified by the @lovable.dev email domain — critical because a teammate's Slack reply mirrors into Intercom as author.type='user' under a contact id, which would otherwise misclassify them as a customer.",
+          "Public reply = part_type='comment' OR (part_type='assignment' with non-empty body) — mirrors the forwardable-part logic in intercom-webhook. Notes and pure state events are excluded.",
+          "Multi-clock metrics, each with a Europe/Berlin DST-aware business-hours variant (Mon–Fri 09:00–24:00, 15h/day, computed via Intl): first response any-agent (from open, incl. Sam), time-to-escalation + basis, first human reply from escalation, first human reply from open, TTR, reopen count, handling time (sum of customer-wait gaps, closed by human_admin or sam_ai). TTR business-hours is recomputed from last_close_at ?? first_close_at (a calendar-second stat can't be re-clipped after the fact).",
+          "Escalation detection anchors on the post-AI human handoff, not the initial routing team-assignment (which typically fires at +1s). Earliest of: 'escalated ... awaiting human' marker OR first team-assignment at/after Sam's first public reply (basis post_ai_handoff). Fallbacks (no AI turn): earliest team-assignment (basis team_assignment), else first human public reply (basis first_human).",
+          "Flags: isTicket, samParticipated, noHumanReply, hasParts, noCustomerParticipant (no customer anywhere in the timeline → internal / CSM-on-behalf → excluded from customer-FRT). aggregate() returns avg/median/p90/p95/n/nNull. detectOrigin() is a pure helper for slack/email/other badges — advisory, not used by any clock.",
+          "UI /sla-test — Tab 1 'Analyze by ID (live)': paste ≤10 ids → sla-ticket-analyze → per-ticket card with a headline strip (our human FRT calendar+BH vs Intercom time_to_admin_reply + Δ + Intercom SLA status), color-coded timeline, calendar|BH metric table, origin + flag badges, prominent 'no customer / internal' warning. Framing is neutral — no 'SLA met' claims (no target yet).",
+          "UI /sla-test — Tab 2 'Batch (stored)': runs computeSla over manual_conversations.raw_payload with a toggle. 'Corrected engine' cleans population — excludes not_enterprise / enterprise-fyi / enterprise-duplicate / merged_ticket / rsa_override=false (explicit rsa_override=true overrides tag-based exclusions), and separates no-customer threads; KPIs = human FRT business-hours (hero) / human FRT calendar / any-agent FRT calendar / TTR business-hours, aggregated over in-scope only. 'Legacy (compare)' keeps the old contaminated Intercom-stat view for before/after.",
+          "Why it beats Intercom (mechanism): Intercom's time_to_admin_reply / SLA status miscount tickets where a teammate replied in Slack (mirrored as type='user'), inflating first-response to hours/days and mis-marking SLAs 'missed'. Our @lovable.dev + Sam-by-id classification recovers the true first human/agent response. Confirmed on real tickets (e.g. Checkr ticket showing Intercom ~35h+'missed' vs true ~8h; Frontlineed ticket where a CSM's reply Intercom dropped entirely).",
+          "Known open items (still tuning): escalation semantics for Slack-native-then-ticketized convos; own-pool treatment + count-KPI for no-customer / CSM-in-the-middle tickets; stored-payload completeness for Slack (the live tab is authoritative per-ticket); 'bulk-entered' Slack tickets; aggregate dashboard + SLA compliance slider (future, depends on target-setting this tool informs).",
+        ],
+        accent: "default",
+      },
+    },
   ];
 }
+
 
 /* ------------------------------------------------------------------ */
 /*  Edges                                                              */
