@@ -12,12 +12,15 @@ import {
   aggregate,
   computeTicketSla,
   computeSla,
+  detectOrigin,
   formatDuration,
   type TicketSla,
   type SlaResult,
   type TimelinePart,
   type Actor,
+  type Origin,
 } from "@/lib/slaMetrics";
+
 
 // ============================================================================
 // Tab 2 (legacy stored batch) — types
