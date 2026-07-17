@@ -354,10 +354,12 @@ function ActorChip({ actor }: { actor: Actor }) {
 }
 
 function eventTag(p: TimelinePart): string {
+  if (p.partType === "source") return "opening msg";
   if (p.isNote) return "note";
   if (p.isPublicReply) return "reply";
   return p.partType || "event";
 }
+
 
 function TimelineView({ timeline }: { timeline: TimelinePart[] }) {
   return (
