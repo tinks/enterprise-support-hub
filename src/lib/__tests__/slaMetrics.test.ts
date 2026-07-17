@@ -71,7 +71,7 @@ describe("businessHoursBetween — Europe/Berlin business hours", () => {
     const spans: Array<[number, number]> = [
       [monday10Berlin, tuesday10Berlin],
       [monday10Berlin, mon00Berlin],
-      [sat00Berlin, tuesday10Berlin],
+      [monday10Berlin, sat00Berlin],
       [monday23Berlin, mon00Berlin],
     ];
     for (const [a, b] of spans) {
