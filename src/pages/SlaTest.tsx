@@ -294,6 +294,7 @@ function HeadlineCompare({
   const ourHumanBH = sla.firstHumanReplyFromOpenBusinessHoursS;
   const ourAny = sla.firstResponseAnyAgentS;
   const theirs = num(stats?.time_to_admin_reply);
+  const noCustomer = sla.flags.noCustomerParticipant;
   const slaStatus: string | null =
     slaApplied && typeof slaApplied === "object" && typeof slaApplied.sla_status === "string"
       ? slaApplied.sla_status
@@ -328,7 +329,7 @@ function HeadlineCompare({
         </span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <HeroHumanStat calendar={ourHuman} businessHours={ourHumanBH} />
+        <HeroHumanStat calendar={ourHuman} businessHours={ourHumanBH} noCustomer={noCustomer} />
         <HeadlineStat label="Our first reply" hint="any agent, incl. Sam" value={formatDuration(ourAny)} />
         <HeadlineStat label="Intercom time_to_admin_reply" hint="their single stat" value={formatDuration(theirs)} />
         <HeadlineStat label="Δ (ours − Intercom)" hint="human vs admin_reply, calendar" value={deltaLabel} />
