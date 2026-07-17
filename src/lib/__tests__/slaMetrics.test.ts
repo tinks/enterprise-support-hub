@@ -178,9 +178,10 @@ describe("computeSla — AI then human handoff", () => {
     expect(asg).toBeTruthy();
     expect(asg!.isPublicReply).toBe(true);
   });
-  it("flags: sam participated, human replied", () => {
+  it("flags: sam participated, human replied, customer present", () => {
     expect(r.flags.samParticipated).toBe(true);
     expect(r.flags.noHumanReply).toBe(false);
+    expect(r.flags.noCustomerParticipant).toBe(false);
   });
   it("business-hours variants ≤ calendar counterparts and ≥ 0", () => {
     assertBhInvariants(r);
