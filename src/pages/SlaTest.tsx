@@ -594,7 +594,7 @@ function BatchStoredTab() {
         />
         <KpiCard
           title="Business-hours handling"
-          desc="Response-gap sum, clipped to Mon–Fri 09–24 UTC"
+          desc="Response-gap sum, clipped to Mon–Fri 09:00–24:00 Europe/Berlin"
           agg={kpis.bhHandling}
         />
       </div>
