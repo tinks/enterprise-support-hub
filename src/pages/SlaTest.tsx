@@ -199,6 +199,7 @@ function LiveAnalyzeTab() {
 
 function TicketCard({ id, conversation }: { id: string; conversation: any }) {
   const sla: SlaResult = useMemo(() => computeSla(conversation), [conversation]);
+  const origin: Origin = useMemo(() => detectOrigin(conversation), [conversation]);
   const src = conversation?.source ?? {};
   const subject: string = src.subject || conversation?.title || `Intercom #${id}`;
   const contactName: string | null = src?.author?.name ?? null;
@@ -227,6 +228,7 @@ function TicketCard({ id, conversation }: { id: string; conversation: any }) {
               <span className="text-xs text-muted-foreground">#{id}</span>
             </CardDescription>
             <div className="flex flex-wrap gap-1.5 mt-2">
+              <OriginBadge origin={origin} />
               {sla.flags.isTicket && <Badge variant="secondary">isTicket</Badge>}
               {sla.flags.samParticipated && <Badge variant="secondary">samParticipated</Badge>}
               {sla.flags.noHumanReply && <Badge variant="outline">noHumanReply</Badge>}
@@ -243,13 +245,95 @@ function TicketCard({ id, conversation }: { id: string; conversation: any }) {
           </a>
         </div>
       </CardHeader>
-      <CardContent className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <TimelineView timeline={sla.timeline} />
-        <MetricsCompare sla={sla} stats={stats} />
+      <CardContent className="space-y-6">
+        <HeadlineCompare sla={sla} stats={stats} slaApplied={conversation?.sla_applied} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <TimelineView timeline={sla.timeline} />
+          <MetricsCompare sla={sla} stats={stats} />
+        </div>
       </CardContent>
     </Card>
   );
 }
+
+const ORIGIN_STYLES: Record<Origin, { label: string; className: string }> = {
+  slack: { label: "Slack",  className: "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30" },
+  email: { label: "Email",  className: "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/30" },
+  other: { label: "Other",  className: "bg-muted text-muted-foreground border-border" },
+};
+
+function OriginBadge({ origin }: { origin: Origin }) {
+  const s = ORIGIN_STYLES[origin];
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded border text-[10px] font-semibold uppercase tracking-wide ${s.className}`}>
+      {s.label}
+    </span>
+  );
+}
+
+// Headline "ours vs Intercom" strip — the demo money-shot. Presents ours and
+// theirs side-by-side with a Δ. Deliberately neutral — no "SLA met" claims,
+// since we have no target of our own yet.
+function HeadlineCompare({
+  sla, stats, slaApplied,
+}: { sla: SlaResult; stats: any; slaApplied: any }) {
+  const num = (v: any): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const ourHuman = sla.firstHumanReplyFromOpenS;
+  const ourAny = sla.firstResponseAnyAgentS;
+  const theirs = num(stats?.time_to_admin_reply);
+  const slaStatus: string | null =
+    slaApplied && typeof slaApplied === "object" && typeof slaApplied.sla_status === "string"
+      ? slaApplied.sla_status
+      : null;
+
+  // Divergence flag: ≥1h apart, or exactly one side is null.
+  const oneSideNull = (ourHuman == null) !== (theirs == null);
+  const bothPresent = ourHuman != null && theirs != null;
+  const diverges = oneSideNull || (bothPresent && Math.abs((ourHuman as number) - (theirs as number)) >= 3600);
+
+  const delta = bothPresent ? (ourHuman as number) - (theirs as number) : null;
+  const deltaLabel =
+    delta == null
+      ? "—"
+      : `${delta >= 0 ? "+" : "−"}${formatDuration(Math.abs(delta))}`;
+
+  const slaBadgeClass =
+    slaStatus === "missed"
+      ? "bg-destructive/15 text-destructive border-destructive/40"
+      : slaStatus === "hit"
+      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
+      : "bg-muted text-muted-foreground border-border";
+
+  return (
+    <div className={`rounded-md border ${diverges ? "border-amber-500/50 bg-amber-500/5" : "border-border bg-muted/20"} p-3`}>
+      <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          First response · ours vs Intercom
+        </div>
+        <span className={`inline-flex items-center px-2 py-0.5 rounded border text-[10px] font-semibold uppercase tracking-wide ${slaBadgeClass}`}>
+          Intercom SLA: {slaStatus ?? "no SLA"}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <HeadlineStat label="Our first HUMAN reply" hint="from open" value={formatDuration(ourHuman)} emphasize />
+        <HeadlineStat label="Our first reply" hint="any agent, incl. Sam" value={formatDuration(ourAny)} />
+        <HeadlineStat label="Intercom time_to_admin_reply" hint="their single stat" value={formatDuration(theirs)} />
+        <HeadlineStat label="Δ (ours − Intercom)" hint="human vs admin_reply" value={deltaLabel} />
+      </div>
+    </div>
+  );
+}
+
+function HeadlineStat({ label, hint, value, emphasize }: { label: string; hint?: string; value: string; emphasize?: boolean }) {
+  return (
+    <div className={`rounded-md border border-border/60 bg-background px-3 py-2 ${emphasize ? "ring-1 ring-primary/30" : ""}`}>
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      {hint && <div className="text-[10px] text-muted-foreground/70">{hint}</div>}
+      <div className={`mt-1 tabular-nums ${emphasize ? "text-lg font-bold" : "text-base font-semibold"}`}>{value}</div>
+    </div>
+  );
+}
+
 
 // ----- Actor color chip -----
 const ACTOR_STYLES: Record<Actor, { label: string; className: string }> = {
