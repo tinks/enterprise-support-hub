@@ -277,6 +277,15 @@ export type SlaResult = {
   handlingTimeBusinessHoursS: number;
   partsCount: number;
   flags: SlaFlags;
+  // Who opened the conversation. "agent" means WE opened it (teammate outreach,
+  // CSM relay, forwarded email, or Sam). "customer" means an external party
+  // opened it. Anti-masking: customer/operator_bot/system/unknown all default
+  // to "customer" so we never silently drop a ticket out of First Response;
+  // we only pull OUT tickets whose opener is clearly our side. Known
+  // limitation: a forwarded customer email whose source author is our shared
+  // inbox (@lovable.dev) will classify as "agent" — accepted for now, to be
+  // correctable via a future manual override.
+  initiatedBy: "customer" | "agent";
   timeline: TimelinePart[];
 };
 
