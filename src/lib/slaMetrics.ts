@@ -398,6 +398,32 @@ export function computeSla(conversation: any): SlaResult {
   const handlingTimeS = sumCustomerWaitGaps(timeline, (a, b) => Math.max(0, b - a));
   const handlingTimeBusinessHoursS = sumCustomerWaitGaps(timeline, (a, b) => businessHoursBetween(a, b));
 
+  // Stop-the-clock resolution — active in-our-court time from open to last close.
+  function computeResolutionActive(clip: (a: number, b: number) => number): number | null {
+    if (createdAt == null || closeAt == null) return null;
+    let total = 0;
+    let ballWithUs = true;
+    let segStart = createdAt;
+    for (const p of timeline) {
+      if (p.ts < createdAt || p.ts > closeAt) continue;
+      if (p.actor === "customer") {
+        if (!ballWithUs) {
+          ballWithUs = true;
+          segStart = p.ts;
+        }
+      } else if (p.isPublicReply && (p.actor === "human_admin" || p.actor === "sam_ai")) {
+        if (ballWithUs) {
+          total += clip(segStart, p.ts);
+          ballWithUs = false;
+        }
+      }
+    }
+    if (ballWithUs) total += clip(segStart, closeAt);
+    return total;
+  }
+  const resolutionActiveS = computeResolutionActive((a, b) => Math.max(0, b - a));
+  const resolutionActiveBusinessHoursS = computeResolutionActive((a, b) => businessHoursBetween(a, b));
+
   const samParticipated = timeline.some((p) => p.isPublicReply && p.actor === "sam_ai");
   const noHumanReply = !firstHumanReply;
   const noCustomerParticipant = !timeline.some((p) => p.actor === "customer");
