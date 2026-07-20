@@ -1107,10 +1107,14 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
   const rowSummary = (b: SeverityBucket) => {
     let frMet = 0, frBreach = 0, frNotEval = 0;
     let resMet = 0, resBreach = 0, resNotEval = 0;
-    for (const { compliance } of b.rows) {
-      if (compliance.firstResponse.met === true) frMet++;
-      else if (compliance.firstResponse.met === false) frBreach++;
-      else frNotEval++;
+    for (const { row, compliance } of b.rows) {
+      const includeFr = frBasis === "all" || row.sla.initiatedBy === "customer";
+      if (includeFr) {
+        if (compliance.firstResponse.met === true) frMet++;
+        else if (compliance.firstResponse.met === false) frBreach++;
+        else frNotEval++;
+      }
+      // Resolution always covers ALL in-scope tickets regardless of basis.
       if (compliance.resolution.met === true) resMet++;
       else if (compliance.resolution.met === false) resBreach++;
       else resNotEval++;
