@@ -433,7 +433,7 @@ describe("evaluateCompliance", () => {
     }
   });
   it("Sev1 uses calendar clocks for both first response and resolution", () => {
-    const sla = mkSla({ firstHumanReplyFromOpenS: 20 * 60, ttrS: 4 * 3600 });
+    const sla = mkSla({ firstHumanReplyFromOpenS: 20 * 60, ttrS: 4 * 3600, resolutionActiveS: 4 * 3600 });
     const c = evaluateCompliance(sla, 1);
     expect(c.firstResponse.clock).toBe("calendar");
     expect(c.resolution.clock).toBe("calendar");
@@ -443,4 +443,96 @@ describe("evaluateCompliance", () => {
   it("BUSINESS_DAY_SECONDS = 15h (54000)", () => {
     expect(BUSINESS_DAY_SECONDS).toBe(15 * 3600);
   });
+
+  // FIX 1: First Response clock-start for AI-handed-off tickets.
+  it("post_ai_handoff → firstResponse measured from escalation (business)", () => {
+    const sla = mkSla({
+      escalationBasis: "post_ai_handoff",
+      firstHumanReplyFromEscalationBusinessHoursS: 30 * 60,          // under 4h
+      firstHumanReplyFromEscalationS: 30 * 60,
+      firstHumanReplyFromOpenBusinessHoursS: 15 * 3600,              // over 4h — must NOT be used
+      firstHumanReplyFromOpenS: 15 * 3600,
+    });
+    const c = evaluateCompliance(sla, 2);
+    expect(c.firstResponse.value).toBe(30 * 60);
+    expect(c.firstResponse.met).toBe(true);
+  });
+  it("first_human basis → firstResponse still measured from open (fallback)", () => {
+    const sla = mkSla({
+      escalationBasis: "first_human",
+      firstHumanReplyFromEscalationBusinessHoursS: 30 * 60,
+      firstHumanReplyFromEscalationS: 30 * 60,
+      firstHumanReplyFromOpenBusinessHoursS: 15 * 3600,
+      firstHumanReplyFromOpenS: 15 * 3600,
+    });
+    const c = evaluateCompliance(sla, 2);
+    expect(c.firstResponse.value).toBe(15 * 3600);
+    expect(c.firstResponse.met).toBe(false);
+  });
+  it("marker basis → firstResponse measured from escalation", () => {
+    const sla = mkSla({
+      escalationBasis: "marker",
+      firstHumanReplyFromEscalationBusinessHoursS: 30 * 60,
+      firstHumanReplyFromOpenBusinessHoursS: 15 * 3600,
+    });
+    const c = evaluateCompliance(sla, 2);
+    expect(c.firstResponse.met).toBe(true);
+  });
 });
+
+// FIX 2: Stop-the-clock resolution.
+import { computeSla as computeSlaSTC } from "@/lib/slaMetrics";
+
+describe("computeSla — stop-the-clock resolutionActiveS", () => {
+  const CREATED = 2_000_000_000;
+  const stopClockConv = {
+    created_at: CREATED,
+    source: {
+      author: { type: "user", id: "cust-9", name: "Customer" },
+      body: "<p>help</p>",
+    },
+    conversation_parts: {
+      conversation_parts: [
+        // We reply ~1h in.
+        {
+          created_at: CREATED + 3600,
+          part_type: "comment",
+          author: { type: "admin", id: "10765619", name: "Matt", email: "matt@lovable.dev" },
+          body: "<p>looking</p>",
+        },
+        // Customer replies ~10h later (we were waiting on them — NOT counted).
+        {
+          created_at: CREATED + 3600 + 10 * 3600,
+          part_type: "comment",
+          author: { type: "user", id: "cust-9", name: "Customer" },
+          body: "<p>more info</p>",
+        },
+        // We reply + close ~1h later.
+        {
+          created_at: CREATED + 3600 + 10 * 3600 + 3600,
+          part_type: "comment",
+          author: { type: "admin", id: "10765619", name: "Matt", email: "matt@lovable.dev" },
+          body: "<p>fixed</p>",
+        },
+      ],
+    },
+    statistics: {
+      time_to_last_close: 12 * 3600,
+      last_close_at: CREATED + 3600 + 10 * 3600 + 3600,
+      count_reopens: 0,
+    },
+  };
+
+  const r = computeSlaSTC(stopClockConv);
+  it("resolutionActiveS ≈ 2h (the two in-our-court intervals)", () => {
+    expect(r.resolutionActiveS).toBe(2 * 3600);
+  });
+  it("resolutionActiveS < calendar close-open (~12h)", () => {
+    const calendar = 12 * 3600;
+    expect(r.resolutionActiveS!).toBeLessThan(calendar);
+  });
+  it("ttrS remains present (back-compat)", () => {
+    expect(r.ttrS).toBe(12 * 3600);
+  });
+});
+
