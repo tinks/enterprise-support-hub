@@ -267,6 +267,11 @@ export type SlaResult = {
   firstHumanReplyFromOpenBusinessHoursS: number | null;
   ttrS: number | null;
   ttrBusinessHoursS: number | null;
+  // Stop-the-clock resolution: active in-our-court time from open to last
+  // close, EXCLUDING intervals awaiting the customer (and thus naturally
+  // excluding closed-then-reopened gaps). Null when open/close not known.
+  resolutionActiveS: number | null;
+  resolutionActiveBusinessHoursS: number | null;
   reopenCount: number;
   handlingTimeS: number;
   handlingTimeBusinessHoursS: number;
