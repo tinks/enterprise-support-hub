@@ -14,12 +14,18 @@ import {
   computeSla,
   detectOrigin,
   formatDuration,
+  parseSeverity,
+  evaluateCompliance,
+  SLA_TARGETS,
   type TicketSla,
   type SlaResult,
   type TimelinePart,
   type Actor,
   type Origin,
+  type Severity,
+  type SlaCompliance,
 } from "@/lib/slaMetrics";
+
 
 
 // ============================================================================
