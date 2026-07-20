@@ -400,6 +400,7 @@ function mkSla(over: Partial<SlaResult2>): SlaResult2 {
     handlingTimeBusinessHoursS: 0,
     partsCount: 0,
     flags: { isTicket: false, samParticipated: false, noHumanReply: false, hasParts: false, noCustomerParticipant: false },
+    initiatedBy: "customer",
     timeline: [],
     ...over,
   };
@@ -535,4 +536,43 @@ describe("computeSla — stop-the-clock resolutionActiveS", () => {
     expect(r.ttrS).toBe(12 * 3600);
   });
 });
+
+// ============================================================================
+// Initiation classification
+// ============================================================================
+describe("computeSla — initiatedBy", () => {
+  const T0 = 3_000_000_000;
+  it("source authored by a @lovable.dev admin → 'agent'", () => {
+    const conv = {
+      created_at: T0,
+      source: { author: { type: "admin", id: "10765619", name: "Matt", email: "matt@lovable.dev" }, body: "<p>reaching out</p>" },
+      conversation_parts: { conversation_parts: [] },
+      statistics: {},
+    };
+    expect(computeSla(conv).initiatedBy).toBe("agent");
+  });
+  it("source authored by an external customer → 'customer'", () => {
+    const conv = {
+      created_at: T0,
+      source: { author: { type: "user", id: "cust-9", name: "Alice", email: "alice@acme.com" }, body: "<p>help</p>" },
+      conversation_parts: { conversation_parts: [] },
+      statistics: {},
+    };
+    expect(computeSla(conv).initiatedBy).toBe("customer");
+  });
+  it("missing source → defaults to 'customer' (anti-masking)", () => {
+    const conv = { created_at: T0, conversation_parts: { conversation_parts: [] }, statistics: {} };
+    expect(computeSla(conv).initiatedBy).toBe("customer");
+  });
+  it("Sam-opened conversation → 'agent'", () => {
+    const conv = {
+      created_at: T0,
+      source: { author: { type: "admin", id: "9520895", name: "Sam", email: "lovable@parahelp.com" }, body: "<p>proactive</p>" },
+      conversation_parts: { conversation_parts: [] },
+      statistics: {},
+    };
+    expect(computeSla(conv).initiatedBy).toBe("agent");
+  });
+});
+
 

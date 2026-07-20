@@ -1043,6 +1043,7 @@ type SeverityBucket = {
 function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
   const [breachesOpen, setBreachesOpen] = useState(false);
   const [resBreachesOpen, setResBreachesOpen] = useState(false);
+  const [frBasis, setFrBasis] = useState<"customer" | "all">("customer");
 
   const { buckets, unclassified, classifiedCount } = useMemo(() => {
     const buckets: Record<Severity, SeverityBucket> = {
@@ -1069,16 +1070,27 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
   const total = inScope.length;
   const coveragePct = total ? (classifiedCount / total) * 100 : 0;
 
-  // First-response breaches list (across all severities), for the collapsible.
+  // First-response breaches list — respects basis (customer-initiated only when "customer").
   const frBreaches = useMemo(() => {
     const out: Array<{ row: CorrectedEnriched; compliance: SlaCompliance }> = [];
     for (const sev of [1, 2, 3, 4] as const) {
       for (const r of buckets[sev].rows) {
+        if (frBasis === "customer" && r.row.sla.initiatedBy !== "customer") continue;
         if (r.compliance.firstResponse.met === false) out.push(r);
       }
     }
     return out;
-  }, [buckets]);
+  }, [buckets, frBasis]);
+
+  // Initiation counts across the in-scope population.
+  const initiationCounts = useMemo(() => {
+    let c = 0, a = 0;
+    for (const r of inScope) {
+      if (r.sla.initiatedBy === "agent") a++;
+      else c++;
+    }
+    return { customer: c, agent: a };
+  }, [inScope]);
 
   // Resolution breaches list (across all severities). Sev 4 has resolution.met === null so it's naturally excluded.
   const resBreaches = useMemo(() => {
@@ -1095,10 +1107,14 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
   const rowSummary = (b: SeverityBucket) => {
     let frMet = 0, frBreach = 0, frNotEval = 0;
     let resMet = 0, resBreach = 0, resNotEval = 0;
-    for (const { compliance } of b.rows) {
-      if (compliance.firstResponse.met === true) frMet++;
-      else if (compliance.firstResponse.met === false) frBreach++;
-      else frNotEval++;
+    for (const { row, compliance } of b.rows) {
+      const includeFr = frBasis === "all" || row.sla.initiatedBy === "customer";
+      if (includeFr) {
+        if (compliance.firstResponse.met === true) frMet++;
+        else if (compliance.firstResponse.met === false) frBreach++;
+        else frNotEval++;
+      }
+      // Resolution always covers ALL in-scope tickets regardless of basis.
       if (compliance.resolution.met === true) resMet++;
       else if (compliance.resolution.met === false) resBreach++;
       else resNotEval++;
@@ -1130,6 +1146,36 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
           </span>{" "}
           classified ({classifiedCount} of {total} tickets)
         </div>
+
+        <div className="text-xs text-muted-foreground">
+          Initiation:{" "}
+          <span className="font-semibold text-foreground tabular-nums">{initiationCounts.customer}</span> customer-initiated ·{" "}
+          <span className="font-semibold text-foreground tabular-nums">{initiationCounts.agent}</span> agent-initiated
+          {frBasis === "customer" && (
+            <span className="italic"> — agent-initiated excluded from First Response %</span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-muted-foreground">First Response basis:</span>
+          <div className="inline-flex rounded-md border border-border overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setFrBasis("customer")}
+              className={`px-3 py-1 ${frBasis === "customer" ? "bg-foreground text-background" : "bg-background text-foreground hover:bg-muted"}`}
+            >
+              Customer-initiated
+            </button>
+            <button
+              type="button"
+              onClick={() => setFrBasis("all")}
+              className={`px-3 py-1 border-l border-border ${frBasis === "all" ? "bg-foreground text-background" : "bg-background text-foreground hover:bg-muted"}`}
+            >
+              All tickets
+            </button>
+          </div>
+        </div>
+
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -1303,7 +1349,7 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
 
 
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          First Response = first human reply, measured from the AI→human handoff for AI-handled tickets (else from open). Resolution = active in-our-court time (stop-the-clock: customer-wait and reopened gaps excluded). Clocks: Sev 1 wall-clock 24/7; Sev 2–4 Europe/Berlin business hours (1 business day = 15h). Company holidays not yet modeled. Targets are provisional. Sev 1 sample is tiny (n≈1).
+          First Response = first human reply, measured from the AI→human handoff for AI-handled tickets (else from open). Resolution = active in-our-court time (stop-the-clock: customer-wait and reopened gaps excluded). Clocks: Sev 1 wall-clock 24/7; Sev 2–4 Europe/Berlin business hours (1 business day = 15h). Company holidays not yet modeled. Targets are provisional. Sev 1 sample is tiny (n≈1). First Response basis: Customer-initiated by default (agent-initiated tickets — outbound/relayed/forwarded, ~half the volume — are shown separately and excluded from the FR %, since no customer was awaiting a first reply); switch to All tickets for the source-independent total. Resolution always covers all tickets.
         </p>
       </CardContent>
     </Card>
