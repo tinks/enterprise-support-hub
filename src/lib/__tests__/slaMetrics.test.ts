@@ -400,6 +400,7 @@ function mkSla(over: Partial<SlaResult2>): SlaResult2 {
     handlingTimeBusinessHoursS: 0,
     partsCount: 0,
     flags: { isTicket: false, samParticipated: false, noHumanReply: false, hasParts: false, noCustomerParticipant: false },
+    initiatedBy: "customer",
     timeline: [],
     ...over,
   };
