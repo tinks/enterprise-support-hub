@@ -477,6 +477,7 @@ export function computeSla(conversation: any): SlaResult {
       hasParts: timeline.length > 0,
       noCustomerParticipant,
     },
+    initiatedBy,
     timeline,
   };
 }
