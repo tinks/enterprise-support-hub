@@ -1080,6 +1080,18 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
     return out;
   }, [buckets]);
 
+  // Resolution breaches list (across all severities). Sev 4 has resolution.met === null so it's naturally excluded.
+  const resBreaches = useMemo(() => {
+    const out: Array<{ row: CorrectedEnriched; compliance: SlaCompliance }> = [];
+    for (const sev of [1, 2, 3, 4] as const) {
+      for (const r of buckets[sev].rows) {
+        if (r.compliance.resolution.met === false) out.push(r);
+      }
+    }
+    out.sort((a, b) => (b.compliance.resolution.value ?? 0) - (a.compliance.resolution.value ?? 0));
+    return out;
+  }, [buckets]);
+
   const rowSummary = (b: SeverityBucket) => {
     let frMet = 0, frBreach = 0, frNotEval = 0;
     let resMet = 0, resBreach = 0, resNotEval = 0;
