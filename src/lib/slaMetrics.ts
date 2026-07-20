@@ -616,3 +616,103 @@ export function computeTicketSla(row: {
     partsCount: parts.length,
   };
 }
+
+// ============================================================================
+// SLA compliance targets
+// ============================================================================
+//
+// PROPOSED, provisional per-severity SLA targets. This is the single source of
+// truth for target numbers — edit HERE if the numbers change.
+//
+// Business day = the size of the existing business-hours window (Mon–Fri
+// 09:00–24:00 Europe/Berlin) = 15h = 54000s. Derived, not hardcoded, so tests
+// stay honest if we tighten the window later.
+
+export const BUSINESS_DAY_SECONDS =
+  (BUSINESS_HOURS_END_HOUR - BUSINESS_HOURS_START_HOUR) * 3600;
+
+export type SlaClock = "calendar" | "business";
+export type Severity = 1 | 2 | 3 | 4;
+
+export type SlaTarget = {
+  firstResponseS: number;
+  firstResponseClock: SlaClock;
+  resolutionS: number | null; // null = no committed resolution (Sev 4)
+  resolutionClock: SlaClock;
+};
+
+// Single source of truth for proposed SLA targets — edit HERE if the numbers change.
+export const SLA_TARGETS: Record<Severity, SlaTarget> = {
+  // Sev 1 runs on wall-clock 24/7 (pending Development off-hours-coverage buy-in).
+  1: { firstResponseS: 30 * 60,             firstResponseClock: "calendar", resolutionS: 8 * 3600,                 resolutionClock: "calendar" },
+  2: { firstResponseS: 4 * 3600,            firstResponseClock: "business", resolutionS: 2 * BUSINESS_DAY_SECONDS, resolutionClock: "business" },
+  3: { firstResponseS: 1 * BUSINESS_DAY_SECONDS, firstResponseClock: "business", resolutionS: 5 * BUSINESS_DAY_SECONDS, resolutionClock: "business" },
+  // Sev 4: best-effort, no committed resolution time.
+  4: { firstResponseS: 3 * BUSINESS_DAY_SECONDS, firstResponseClock: "business", resolutionS: null,                    resolutionClock: "business" },
+};
+
+// Parse the Intercom "Severity" custom-attribute value. CRITICAL: never default
+// an unknown/missing value to a severity — return null so callers can surface
+// it as "unclassified".
+export function parseSeverity(raw: unknown): Severity | null {
+  if (raw == null) return null;
+  if (typeof raw === "number") {
+    if (raw === 1 || raw === 2 || raw === 3 || raw === 4) return raw;
+    return null;
+  }
+  if (typeof raw === "string") {
+    const s = raw.trim();
+    if (!s) return null;
+    const n = Number(s);
+    if (n === 1 || n === 2 || n === 3 || n === 4) return n as Severity;
+    return null;
+  }
+  return null;
+}
+
+export type ComplianceVerdict = {
+  value: number | null;
+  target: number | null;
+  clock: SlaClock;
+  met: boolean | null; // null = NOT EVALUABLE (no measurement, or no committed target)
+};
+
+export type SlaCompliance = {
+  severity: Severity;
+  firstResponse: ComplianceVerdict;
+  resolution: ComplianceVerdict;
+};
+
+export function evaluateCompliance(sla: SlaResult, severity: Severity): SlaCompliance {
+  const target = SLA_TARGETS[severity];
+
+  // First Response = first HUMAN engineer reply (bots/Sam excluded).
+  const frValue =
+    target.firstResponseClock === "business"
+      ? sla.firstHumanReplyFromOpenBusinessHoursS
+      : sla.firstHumanReplyFromOpenS;
+  const firstResponse: ComplianceVerdict = {
+    value: frValue,
+    target: target.firstResponseS,
+    clock: target.firstResponseClock,
+    met: frValue == null ? null : frValue <= target.firstResponseS,
+  };
+
+  // Resolution → TTR. Sev4 has no committed resolution → met stays null.
+  const resValue =
+    target.resolutionClock === "business" ? sla.ttrBusinessHoursS : sla.ttrS;
+  const resolution: ComplianceVerdict = {
+    value: resValue,
+    target: target.resolutionS,
+    clock: target.resolutionClock,
+    met:
+      target.resolutionS == null
+        ? null
+        : resValue == null
+          ? null
+          : resValue <= target.resolutionS,
+  };
+
+  return { severity, firstResponse, resolution };
+}
+
