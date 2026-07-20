@@ -14,12 +14,18 @@ import {
   computeSla,
   detectOrigin,
   formatDuration,
+  parseSeverity,
+  evaluateCompliance,
+  SLA_TARGETS,
   type TicketSla,
   type SlaResult,
   type TimelinePart,
   type Actor,
   type Origin,
+  type Severity,
+  type SlaCompliance,
 } from "@/lib/slaMetrics";
+
 
 
 // ============================================================================
@@ -829,11 +835,14 @@ function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
         </CardContent>
       </Card>
 
+      <ComplianceSection inScope={inScope} />
+
       <p className="text-xs text-muted-foreground leading-relaxed">
         Corrected engine over stored payloads (finalized tickets). Business hours = Europe/Berlin, Mon–Fri 09:00–24:00.
         Escalation-based metrics omitted (still being tuned). The live "Analyze by ID" tab is authoritative per-ticket;
         stored Slack payload completeness is not yet verified.
       </p>
+
     </div>
   );
 }
@@ -1020,5 +1029,211 @@ function SortableTh({
         {active && <span className="text-[10px]">{sortDir === "asc" ? "↑" : "↓"}</span>}
       </button>
     </th>
+  );
+}
+
+// ============================================================================
+// Compliance vs proposed SLA targets — batch, corrected-engine only
+// ============================================================================
+type SeverityBucket = {
+  severity: Severity;
+  rows: Array<{ row: CorrectedEnriched; compliance: SlaCompliance }>;
+};
+
+function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
+  const [breachesOpen, setBreachesOpen] = useState(false);
+
+  const { buckets, unclassified, classifiedCount } = useMemo(() => {
+    const buckets: Record<Severity, SeverityBucket> = {
+      1: { severity: 1, rows: [] },
+      2: { severity: 2, rows: [] },
+      3: { severity: 3, rows: [] },
+      4: { severity: 4, rows: [] },
+    };
+    const unclassified: CorrectedEnriched[] = [];
+    let classifiedCount = 0;
+    for (const r of inScope) {
+      const rawSev = r.raw_payload?.custom_attributes?.Severity;
+      const sev = parseSeverity(rawSev);
+      if (sev == null) {
+        unclassified.push(r);
+        continue;
+      }
+      classifiedCount++;
+      buckets[sev].rows.push({ row: r, compliance: evaluateCompliance(r.sla, sev) });
+    }
+    return { buckets, unclassified, classifiedCount };
+  }, [inScope]);
+
+  const total = inScope.length;
+  const coveragePct = total ? (classifiedCount / total) * 100 : 0;
+
+  // First-response breaches list (across all severities), for the collapsible.
+  const frBreaches = useMemo(() => {
+    const out: Array<{ row: CorrectedEnriched; compliance: SlaCompliance }> = [];
+    for (const sev of [1, 2, 3, 4] as const) {
+      for (const r of buckets[sev].rows) {
+        if (r.compliance.firstResponse.met === false) out.push(r);
+      }
+    }
+    return out;
+  }, [buckets]);
+
+  const rowSummary = (b: SeverityBucket) => {
+    let frMet = 0, frBreach = 0, frNotEval = 0;
+    let resMet = 0, resBreach = 0, resNotEval = 0;
+    for (const { compliance } of b.rows) {
+      if (compliance.firstResponse.met === true) frMet++;
+      else if (compliance.firstResponse.met === false) frBreach++;
+      else frNotEval++;
+      if (compliance.resolution.met === true) resMet++;
+      else if (compliance.resolution.met === false) resBreach++;
+      else resNotEval++;
+    }
+    const frDenom = frMet + frBreach;
+    const resDenom = resMet + resBreach;
+    return {
+      n: b.rows.length,
+      frMet, frBreach, frNotEval,
+      frPct: frDenom ? (frMet / frDenom) * 100 : null,
+      resMet, resBreach, resNotEval,
+      resPct: resDenom ? (resMet / resDenom) * 100 : null,
+    };
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Compliance vs proposed SLA targets</CardTitle>
+        <CardDescription>
+          Provisional per-severity targets applied to the in-scope corrected population.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="text-xs text-muted-foreground">
+          Severity coverage:{" "}
+          <span className="font-semibold text-foreground tabular-nums">
+            {coveragePct.toFixed(1)}%
+          </span>{" "}
+          classified ({classifiedCount} of {total} tickets)
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium">Severity</th>
+                <th className="text-right px-3 py-2 font-medium">n</th>
+                <th className="text-left px-3 py-2 font-medium">FR target</th>
+                <th className="text-right px-3 py-2 font-medium">FR %met</th>
+                <th className="text-right px-3 py-2 font-medium">FR breaches</th>
+                <th className="text-right px-3 py-2 font-medium">FR n/a</th>
+                <th className="text-left px-3 py-2 font-medium">Res target</th>
+                <th className="text-right px-3 py-2 font-medium">Res %met</th>
+              </tr>
+            </thead>
+            <tbody>
+              {([1, 2, 3, 4] as const).map((sev) => {
+                const s = rowSummary(buckets[sev]);
+                const t = SLA_TARGETS[sev];
+                return (
+                  <tr key={sev} className="border-t border-border">
+                    <td className="px-3 py-2 font-medium">Sev {sev}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{s.n}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">
+                      {formatDuration(t.firstResponseS)} <span className="text-muted-foreground/70">({t.firstResponseClock === "business" ? "bh" : "cal"})</span>
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums font-medium">
+                      {s.frPct == null ? "—" : `${s.frPct.toFixed(0)}%`}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-destructive">{s.frBreach || "—"}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{s.frNotEval || "—"}</td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">
+                      {t.resolutionS == null
+                        ? <span className="italic">best-effort — n/a</span>
+                        : <>{formatDuration(t.resolutionS)} <span className="text-muted-foreground/70">({t.resolutionClock === "business" ? "bh" : "cal"})</span></>}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums font-medium">
+                      {sev === 4
+                        ? <span className="text-muted-foreground italic">best-effort — n/a</span>
+                        : s.resPct == null ? "—" : `${s.resPct.toFixed(0)}%`}
+                    </td>
+                  </tr>
+                );
+              })}
+              <tr className="border-t border-border bg-muted/20">
+                <td className="px-3 py-2 font-medium text-muted-foreground">Unclassified (no severity)</td>
+                <td className="px-3 py-2 text-right tabular-nums">{unclassified.length}</td>
+                <td className="px-3 py-2 text-muted-foreground">—</td>
+                <td className="px-3 py-2 text-right text-muted-foreground">—</td>
+                <td className="px-3 py-2 text-right text-muted-foreground">—</td>
+                <td className="px-3 py-2 text-right text-muted-foreground">—</td>
+                <td className="px-3 py-2 text-muted-foreground">—</td>
+                <td className="px-3 py-2 text-right text-muted-foreground">—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="border-t border-border pt-3">
+          <button
+            className="text-xs font-medium text-foreground hover:underline"
+            onClick={() => setBreachesOpen((v) => !v)}
+          >
+            {breachesOpen ? "▾" : "▸"} First-Response breaches ({frBreaches.length})
+          </button>
+          {breachesOpen && (
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium">Ticket</th>
+                    <th className="text-left px-3 py-2 font-medium">Severity</th>
+                    <th className="text-right px-3 py-2 font-medium">Measured FR</th>
+                    <th className="text-right px-3 py-2 font-medium">Target</th>
+                    <th className="text-left px-3 py-2 font-medium">Clock</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {frBreaches.map(({ row, compliance }) => (
+                    <tr key={row.id} className="border-t border-border">
+                      <td className="px-3 py-2 max-w-[320px] truncate">
+                        <a
+                          href={`https://app.intercom.com/a/inbox/_/inbox/conversation/${row.intercom_conversation_id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-foreground hover:underline"
+                          title={row.subject ?? ""}
+                        >
+                          {row.subject || `Intercom #${row.intercom_conversation_id}`}
+                        </a>
+                      </td>
+                      <td className="px-3 py-2">Sev {compliance.severity}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium text-destructive">
+                        {formatDuration(compliance.firstResponse.value)}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                        {formatDuration(compliance.firstResponse.target)}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">
+                        {compliance.firstResponse.clock === "business" ? "business hrs" : "calendar"}
+                      </td>
+                    </tr>
+                  ))}
+                  {!frBreaches.length && (
+                    <tr><td colSpan={5} className="px-3 py-4 text-center text-muted-foreground text-xs">No first-response breaches.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          First Response = first human reply (bots/Sam excluded). Clocks: Sev 1 wall-clock 24/7; Sev 2–4 Europe/Berlin business hours (1 business day = 15h).
+          Targets are provisional. Sev 1 sample is tiny (n≈1).
+        </p>
+      </CardContent>
+    </Card>
   );
 }
