@@ -1070,16 +1070,27 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
   const total = inScope.length;
   const coveragePct = total ? (classifiedCount / total) * 100 : 0;
 
-  // First-response breaches list (across all severities), for the collapsible.
+  // First-response breaches list — respects basis (customer-initiated only when "customer").
   const frBreaches = useMemo(() => {
     const out: Array<{ row: CorrectedEnriched; compliance: SlaCompliance }> = [];
     for (const sev of [1, 2, 3, 4] as const) {
       for (const r of buckets[sev].rows) {
+        if (frBasis === "customer" && r.row.sla.initiatedBy !== "customer") continue;
         if (r.compliance.firstResponse.met === false) out.push(r);
       }
     }
     return out;
-  }, [buckets]);
+  }, [buckets, frBasis]);
+
+  // Initiation counts across the in-scope population.
+  const initiationCounts = useMemo(() => {
+    let c = 0, a = 0;
+    for (const r of inScope) {
+      if (r.sla.initiatedBy === "agent") a++;
+      else c++;
+    }
+    return { customer: c, agent: a };
+  }, [inScope]);
 
   // Resolution breaches list (across all severities). Sev 4 has resolution.met === null so it's naturally excluded.
   const resBreaches = useMemo(() => {
