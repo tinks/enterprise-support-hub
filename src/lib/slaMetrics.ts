@@ -720,8 +720,21 @@ export function evaluateCompliance(sla: SlaResult, severity: Severity): SlaCompl
   const target = SLA_TARGETS[severity];
 
   // First Response = first HUMAN engineer reply (bots/Sam excluded).
-  const frValue =
-    target.firstResponseClock === "business"
+  // For AI-handled tickets (Sam replied, then handed off to a human), the
+  // human's clock starts at the AI→human handoff — not at ticket open. For
+  // direct-to-human or non-handoff bases (team_assignment / first_human) we
+  // keep measuring from open.
+  const useFromEscalation =
+    (sla.escalationBasis === "post_ai_handoff" || sla.escalationBasis === "marker") &&
+    (target.firstResponseClock === "business"
+      ? sla.firstHumanReplyFromEscalationBusinessHoursS != null
+      : sla.firstHumanReplyFromEscalationS != null);
+
+  const frValue = useFromEscalation
+    ? target.firstResponseClock === "business"
+      ? sla.firstHumanReplyFromEscalationBusinessHoursS
+      : sla.firstHumanReplyFromEscalationS
+    : target.firstResponseClock === "business"
       ? sla.firstHumanReplyFromOpenBusinessHoursS
       : sla.firstHumanReplyFromOpenS;
   const firstResponse: ComplianceVerdict = {
@@ -731,9 +744,12 @@ export function evaluateCompliance(sla: SlaResult, severity: Severity): SlaCompl
     met: frValue == null ? null : frValue <= target.firstResponseS,
   };
 
-  // Resolution → TTR. Sev4 has no committed resolution → met stays null.
+  // Resolution → stop-the-clock active in-our-court time (not raw TTR). Sev4
+  // has no committed resolution → met stays null.
   const resValue =
-    target.resolutionClock === "business" ? sla.ttrBusinessHoursS : sla.ttrS;
+    target.resolutionClock === "business"
+      ? sla.resolutionActiveBusinessHoursS
+      : sla.resolutionActiveS;
   const resolution: ComplianceVerdict = {
     value: resValue,
     target: target.resolutionS,
