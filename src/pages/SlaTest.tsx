@@ -1147,6 +1147,36 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
           classified ({classifiedCount} of {total} tickets)
         </div>
 
+        <div className="text-xs text-muted-foreground">
+          Initiation:{" "}
+          <span className="font-semibold text-foreground tabular-nums">{initiationCounts.customer}</span> customer-initiated ·{" "}
+          <span className="font-semibold text-foreground tabular-nums">{initiationCounts.agent}</span> agent-initiated
+          {frBasis === "customer" && (
+            <span className="italic"> — agent-initiated excluded from First Response %</span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-muted-foreground">First Response basis:</span>
+          <div className="inline-flex rounded-md border border-border overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setFrBasis("customer")}
+              className={`px-3 py-1 ${frBasis === "customer" ? "bg-foreground text-background" : "bg-background text-foreground hover:bg-muted"}`}
+            >
+              Customer-initiated
+            </button>
+            <button
+              type="button"
+              onClick={() => setFrBasis("all")}
+              className={`px-3 py-1 border-l border-border ${frBasis === "all" ? "bg-foreground text-background" : "bg-background text-foreground hover:bg-muted"}`}
+            >
+              All tickets
+            </button>
+          </div>
+        </div>
+
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
