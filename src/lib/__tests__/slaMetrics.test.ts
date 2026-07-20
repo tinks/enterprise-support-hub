@@ -341,3 +341,104 @@ describe("computeSla — internal-only thread (no customer participant)", () => 
     expect(r.timeline.some((p) => p.actor === "customer")).toBe(false);
   });
 });
+
+// ============================================================================
+// SLA compliance targets — parseSeverity + evaluateCompliance
+// ============================================================================
+import {
+  parseSeverity,
+  evaluateCompliance,
+  SLA_TARGETS,
+  BUSINESS_DAY_SECONDS,
+  type SlaResult as SlaResult2,
+} from "@/lib/slaMetrics";
+
+describe("parseSeverity", () => {
+  it("accepts string digits 1..4", () => {
+    expect(parseSeverity("1")).toBe(1);
+    expect(parseSeverity("2")).toBe(2);
+    expect(parseSeverity("3")).toBe(3);
+    expect(parseSeverity("4")).toBe(4);
+  });
+  it("accepts numeric 1..4", () => {
+    expect(parseSeverity(2)).toBe(2);
+  });
+  it("returns null for 0, blank, non-numeric, null, undefined", () => {
+    expect(parseSeverity("0")).toBeNull();
+    expect(parseSeverity("")).toBeNull();
+    expect(parseSeverity("foo")).toBeNull();
+    expect(parseSeverity(null)).toBeNull();
+    expect(parseSeverity(undefined)).toBeNull();
+    expect(parseSeverity(5)).toBeNull();
+  });
+  it("does NOT default unknown to any severity (surface-errors-loudly)", () => {
+    expect(parseSeverity({})).toBeNull();
+    expect(parseSeverity([])).toBeNull();
+  });
+});
+
+// Minimal SlaResult factory — only the fields evaluateCompliance reads.
+function mkSla(over: Partial<SlaResult2>): SlaResult2 {
+  return {
+    createdAtS: 0,
+    firstResponseAnyAgentS: null,
+    firstResponseAnyAgentBusinessHoursS: null,
+    timeToEscalationS: null,
+    timeToEscalationBusinessHoursS: null,
+    escalationTs: null,
+    escalationBasis: null,
+    firstHumanReplyFromEscalationS: null,
+    firstHumanReplyFromEscalationBusinessHoursS: null,
+    firstHumanReplyFromOpenS: null,
+    firstHumanReplyFromOpenBusinessHoursS: null,
+    ttrS: null,
+    ttrBusinessHoursS: null,
+    reopenCount: 0,
+    handlingTimeS: 0,
+    handlingTimeBusinessHoursS: 0,
+    partsCount: 0,
+    flags: { isTicket: false, samParticipated: false, noHumanReply: false, hasParts: false, noCustomerParticipant: false },
+    timeline: [],
+    ...over,
+  };
+}
+
+describe("evaluateCompliance", () => {
+  it("Sev2 human reply just under 4h business → firstResponse.met = true", () => {
+    const sla = mkSla({ firstHumanReplyFromOpenBusinessHoursS: 4 * 3600 - 1, firstHumanReplyFromOpenS: 4 * 3600 - 1 });
+    const c = evaluateCompliance(sla, 2);
+    expect(c.firstResponse.clock).toBe("business");
+    expect(c.firstResponse.target).toBe(SLA_TARGETS[2].firstResponseS);
+    expect(c.firstResponse.met).toBe(true);
+  });
+  it("Sev2 human reply just over 4h business → firstResponse.met = false", () => {
+    const sla = mkSla({ firstHumanReplyFromOpenBusinessHoursS: 4 * 3600 + 1 });
+    const c = evaluateCompliance(sla, 2);
+    expect(c.firstResponse.met).toBe(false);
+  });
+  it("Sev4 resolution.met stays null regardless of ttr", () => {
+    const sla = mkSla({ ttrBusinessHoursS: 999999, ttrS: 999999 });
+    const c = evaluateCompliance(sla, 4);
+    expect(c.resolution.target).toBeNull();
+    expect(c.resolution.met).toBeNull();
+  });
+  it("both firstHumanReply values null → firstResponse.met = null (not-evaluable)", () => {
+    const sla = mkSla({ firstHumanReplyFromOpenS: null, firstHumanReplyFromOpenBusinessHoursS: null });
+    for (const sev of [1, 2, 3, 4] as const) {
+      const c = evaluateCompliance(sla, sev);
+      expect(c.firstResponse.value).toBeNull();
+      expect(c.firstResponse.met).toBeNull();
+    }
+  });
+  it("Sev1 uses calendar clocks for both first response and resolution", () => {
+    const sla = mkSla({ firstHumanReplyFromOpenS: 20 * 60, ttrS: 4 * 3600 });
+    const c = evaluateCompliance(sla, 1);
+    expect(c.firstResponse.clock).toBe("calendar");
+    expect(c.resolution.clock).toBe("calendar");
+    expect(c.firstResponse.met).toBe(true);
+    expect(c.resolution.met).toBe(true);
+  });
+  it("BUSINESS_DAY_SECONDS = 15h (54000)", () => {
+    expect(BUSINESS_DAY_SECONDS).toBe(15 * 3600);
+  });
+});
