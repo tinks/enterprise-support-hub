@@ -1349,7 +1349,7 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
 
 
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          First Response = first human reply, measured from the AI→human handoff for AI-handled tickets (else from open). Resolution = active in-our-court time (stop-the-clock: customer-wait and reopened gaps excluded). Clocks: Sev 1 wall-clock 24/7; Sev 2–4 Europe/Berlin business hours (1 business day = 15h). Company holidays not yet modeled. Targets are provisional. Sev 1 sample is tiny (n≈1).
+          First Response = first human reply, measured from the AI→human handoff for AI-handled tickets (else from open). Resolution = active in-our-court time (stop-the-clock: customer-wait and reopened gaps excluded). Clocks: Sev 1 wall-clock 24/7; Sev 2–4 Europe/Berlin business hours (1 business day = 15h). Company holidays not yet modeled. Targets are provisional. Sev 1 sample is tiny (n≈1). First Response basis: Customer-initiated by default (agent-initiated tickets — outbound/relayed/forwarded, ~half the volume — are shown separately and excluded from the FR %, since no customer was awaiting a first reply); switch to All tickets for the source-independent total. Resolution always covers all tickets.
         </p>
       </CardContent>
     </Card>
