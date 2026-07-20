@@ -437,6 +437,19 @@ export function computeSla(conversation: any): SlaResult {
   const noHumanReply = !firstHumanReply;
   const noCustomerParticipant = !timeline.some((p) => p.actor === "customer");
 
+  // Initiation classification — see SlaResult.initiatedBy for rationale.
+  const sourceAuthor = conversation?.source?.author;
+  let sourceActor: Actor;
+  if (sourceAuthor) {
+    sourceActor = classifyActor(sourceAuthor);
+  } else if (timeline.length > 0) {
+    sourceActor = timeline[0].actor;
+  } else {
+    sourceActor = "customer";
+  }
+  const initiatedBy: "customer" | "agent" =
+    sourceActor === "human_admin" || sourceActor === "sam_ai" ? "agent" : "customer";
+
   return {
     createdAtS: createdAt,
     firstResponseAnyAgentS,
