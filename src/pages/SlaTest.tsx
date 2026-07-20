@@ -1043,6 +1043,7 @@ type SeverityBucket = {
 function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
   const [breachesOpen, setBreachesOpen] = useState(false);
   const [resBreachesOpen, setResBreachesOpen] = useState(false);
+  const [frBasis, setFrBasis] = useState<"customer" | "all">("customer");
 
   const { buckets, unclassified, classifiedCount } = useMemo(() => {
     const buckets: Record<Severity, SeverityBucket> = {
