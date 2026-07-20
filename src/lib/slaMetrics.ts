@@ -442,6 +442,8 @@ export function computeSla(conversation: any): SlaResult {
     firstHumanReplyFromOpenBusinessHoursS,
     ttrS,
     ttrBusinessHoursS,
+    resolutionActiveS,
+    resolutionActiveBusinessHoursS,
     reopenCount,
     handlingTimeS,
     handlingTimeBusinessHoursS,
