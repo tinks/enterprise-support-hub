@@ -918,7 +918,7 @@ New customer accounts are seeded automatically from the Slack "closed-won" chann
 
 ### Purpose
 
-Measure the current shape of enterprise support SLAs (first response, time-to-resolve, reopen, handling time) in order to **draft** SLA targets — we don't have compliance targets yet, so the tool is deliberately neutral (no "met/missed" claims). A per-ticket **validation** tool was built first so every metric definition can be spot-checked against a live Intercom conversation before any aggregate reporting is trusted.
+Measure the current shape of enterprise support SLAs (first response, time-to-resolve, reopen, handling time) AND evaluate them against **provisional** per-severity compliance targets. A per-ticket **validation** tool was built first so every metric definition can be spot-checked against a live Intercom conversation before any aggregate reporting is trusted. Targets are unratified — the compliance stack is reusable plumbing that feeds a future dashboard/slider; `SLA_TARGETS` is the single source of truth and can be edited in one place.
 
 **Why we can't just use Intercom's stats:** Intercom's `time_to_admin_reply` / SLA status materially miscount tickets where a Lovable teammate replied in Slack — Intercom mirrors that reply into the conversation as `author.type === "user"` under a contact id, so its FRT clock never stops. We've seen this inflate first-response to hours/days and mis-mark SLAs "missed" on real tickets (e.g. a Checkr ticket where Intercom showed ~35h + "missed" vs true ~8h; a Frontlineed ticket where a CSM's reply Intercom dropped entirely). The engine below recovers the true first human/agent response by classifying actors ourselves.
 
@@ -932,11 +932,11 @@ Pure, source-agnostic TypeScript. No network, DB, or Intercom client access. Sam
 - **Lovable teammates** are identified by the `@lovable.dev` email domain (`TEAMMATE_EMAIL_DOMAIN`). Critical: a teammate's Slack reply mirrors into Intercom as `author.type === "user"` under a contact id — the email domain check overrides the type and classifies them as `human_admin`. Safe because `@lovable.dev` is internal-only.
 - Fallbacks: `type==="bot"` → `operator_bot`; `type==="admin"` → `human_admin`; `type ∈ {user, lead, contact}` → `customer`; else `system`.
 
-**Public reply** (`isPublicReplyPart`): `part_type === "comment"` OR (`part_type === "assignment"` with non-empty body). Mirrors the forwardable-part logic in `intercom-webhook` (an admin sometimes picks up + responds in one action, emitting assignment-with-body). Notes (`note`, `note_and_reopen`) and pure state/assignment events are NOT public replies.
+**Public reply** (`isPublicReplyPart`): `part_type === "comment"` OR (`part_type === "assignment"` with non-empty body). Mirrors the forwardable-part logic in `intercom-webhook`. Notes and pure state/assignment events are NOT public replies.
 
 **Timeline** (`extractTimeline`): the opening `source` message (from `raw.source` / `raw.created_at`) plus every entry in `raw.conversation_parts.conversation_parts`, sorted by `ts`, each with classified `actor`, stripped body, assignment target, `isPublicReply`, `isNote`.
 
-**Business hours** — **Europe/Berlin, DST-aware, Mon–Fri 09:00–24:00** (i.e. 09:00 through end-of-day, a 15-hour window; constants `BUSINESS_HOURS_TIMEZONE`, `BUSINESS_HOURS_START_HOUR=9`, `BUSINESS_HOURS_END_HOUR=24`). Implemented via `Intl.DateTimeFormat` (no external tz library); `businessHoursBetween(startSec, endSec)` walks day-by-day in Berlin local time and DST-corrects each window boundary iteratively. Kept configurable at module scope so a holiday calendar can slot in later.
+**Business hours** — **Europe/Berlin, DST-aware, Mon–Fri 09:00–24:00** (a 15-hour window; constants `BUSINESS_HOURS_TIMEZONE`, `BUSINESS_HOURS_START_HOUR=9`, `BUSINESS_HOURS_END_HOUR=24`; `BUSINESS_DAY_SECONDS = 15 * 3600`, derived — edit the window constants and the day auto-adjusts). Implemented via `Intl.DateTimeFormat` (no external tz library); `businessHoursBetween(startSec, endSec)` walks day-by-day in Berlin local time and DST-corrects each window boundary iteratively. Company holidays are **not yet modeled** — accepted limitation.
 
 **Multi-clock metrics** — every clock has a **calendar** and **business-hours** variant in `SlaResult`:
 
@@ -946,66 +946,85 @@ Pure, source-agnostic TypeScript. No network, DB, or Intercom client access. Sam
 | Time-to-escalation (from open) | `timeToEscalationS` | `timeToEscalationBusinessHoursS` |
 | First human reply from escalation | `firstHumanReplyFromEscalationS` | `firstHumanReplyFromEscalationBusinessHoursS` |
 | First human reply from open | `firstHumanReplyFromOpenS` | `firstHumanReplyFromOpenBusinessHoursS` |
-| TTR | `ttrS` (from Intercom `statistics.time_to_last_close`) | `ttrBusinessHoursS` (recomputed via `businessHoursBetween(created_at, last_close_at ?? first_close_at)` — a calendar-second stat cannot be re-clipped to BH after the fact) |
+| **Resolution — active in-our-court** (stop-the-clock) | `resolutionActiveS` | `resolutionActiveBusinessHoursS` |
+| Raw TTR (reference only) | `ttrS` (from Intercom `statistics.time_to_last_close`) | `ttrBusinessHoursS` (recomputed via `businessHoursBetween(created_at, last_close_at ?? first_close_at)`) |
 | Handling time (customer-wait sum) | `handlingTimeS` | `handlingTimeBusinessHoursS` |
 | Reopen count | `reopenCount` (from `statistics.count_reopens`) | — |
 
-`escalationTs` + `escalationBasis` (`EscalationBasis = "team_assignment" | "marker" | "first_human" | "post_ai_handoff"`) accompany the escalation clock. Handling time = sum of customer-wait gaps: each gap opens on an unanswered customer message and closes on the next public reply by `human_admin` OR `sam_ai` (operator_bot / system don't clear the gap).
+`escalationTs` + `escalationBasis` (`EscalationBasis = "team_assignment" | "marker" | "first_human" | "post_ai_handoff"`) accompany the escalation clock. Handling time = sum of customer-wait gaps, each opened by an unanswered customer message and closed by the next public reply from `human_admin` OR `sam_ai`.
 
-**Escalation detection** (`detectEscalation`) — anchors on the **post-AI human handoff**, not the initial routing team-assignment (which typically fires at +1s, before Sam even replies):
+**Escalation detection** (`detectEscalation`) — anchors on the **post-AI human handoff**, not the initial routing team-assignment (which typically fires at +1s, before Sam even replies): earliest of (a) `"escalated ... awaiting human"` marker (basis `marker`) or (b) first team-assignment at/after Sam's first public reply (basis `post_ai_handoff`). Fallbacks (no AI turn): earliest team-assignment → else first human public reply.
 
-1. Find Sam's first public reply timestamp.
-2. Candidate A: earliest `"escalated" ... "awaiting human"` marker in any part body → basis `marker`.
-3. Candidate B: earliest team-assignment at or after Sam's first public reply → basis `post_ai_handoff`.
-4. Take the earlier of A/B if either exists.
-5. Fallbacks (only when there was no AI turn / no handoff signal): earliest team-assignment (basis `team_assignment`) → else first human public reply (basis `first_human`).
+**Stop-the-clock resolution** (`resolutionActiveS` / `resolutionActiveBusinessHoursS`, populated in `computeSla`): active in-our-court time walked from `created_at` to `last_close_at ?? first_close_at`. Excludes intervals where we replied and are awaiting the customer (customer public parts open a segment; a public reply by `human_admin` or `sam_ai` closes it) AND excludes closed-then-reopened gaps. **WHY**: industry-standard "ball-in-our-court" — we must not breach because a customer is slow. On one real ticket, 68 of 76 business-hours were the customer working with their own IT department; raw TTR punished us for that wait. Raw `ttrS` / `ttrBusinessHoursS` are preserved for reference / back-compat but `evaluateCompliance` reads from `resolutionActive*` only.
 
-**Flags** (`SlaFlags`): `isTicket`, `samParticipated`, `noHumanReply`, `hasParts`, `noCustomerParticipant` (true when no `customer` actor exists anywhere in the timeline → internal / CSM-on-behalf thread → excluded from customer-FRT semantics and rendered with an "internal" warning).
+**Initiation classification** (`initiatedBy: "customer" | "agent"` on `SlaResult`): derived from the conversation's **source author** actor via `classifyActor(conversation.source.author)`. `initiatedBy === "agent"` only if the source actor is `human_admin` or `sam_ai`; **customer / operator_bot / system / unknown all default to `customer`** — anti-masking, so a missing or ambiguous source never silently drops a ticket out of First Response. Known limitation: a forwarded customer email whose source author is our shared inbox (`@lovable.dev`) misclassifies as `agent` — accepted for now, to be corrected via a future manual override.
 
-**Origin** (`detectOrigin`, pure helper): best-effort classification into `slack` / `email` / `other` from `source.type` / `source.delivered_as` / `source.url`. Advisory only — not used by any metric clock.
+**Flags** (`SlaFlags`): `isTicket`, `samParticipated`, `noHumanReply`, `hasParts`, `noCustomerParticipant`.
 
-**Aggregate** (`aggregate`): `{ avg, median, p90, p95, n, nNull }` over an array of nullable numbers; drops non-positive/non-finite values into `nNull`.
+**Origin** (`detectOrigin`): advisory `slack | email | other` badge — not used by any metric clock.
 
-**Tests** — `src/lib/__tests__/slaMetrics.test.ts` (23 tests, all passing). Covers: actor classification (including Fixture C `@lovable.dev` under `type="user"`), escalation ignoring early routing, `noCustomerParticipant` (Fixture D), `businessHoursBetween` cases (weekday, DST-crossing overnight, weekend = 0), and BH ≤ calendar invariants across every clock.
+**Aggregate** (`aggregate`): `{ avg, median, p90, p95, n, nNull }` over nullable numbers.
 
-**Legacy exports** (`extractParts`, `computeTicketSla`, `TicketSla`, `sumUserToAdminGaps`, `sumUserToAdminGapsBusinessHours`) are preserved so the legacy Batch view keeps rendering unchanged. New code uses `computeSla` + `SlaResult`.
+### Compliance evaluation — `SLA_TARGETS`, `parseSeverity`, `evaluateCompliance`
+
+Provisional per-severity targets (single source of truth in `SLA_TARGETS`, editable in one place):
+
+| Severity | First Response | FR clock | Resolution | Res clock |
+|---|---|---|---|---|
+| Sev 1 | 30 min | **wall-clock 24/7** (pending Development off-hours-coverage buy-in) | 8 h | wall-clock 24/7 |
+| Sev 2 | 4 h | business hours | 2 business days | business hours |
+| Sev 3 | 1 business day | business hours | 5 business days | business hours |
+| Sev 4 | 3 business days | business hours | none (best-effort) | — |
+
+`parseSeverity(raw)` reads `raw_payload.custom_attributes.Severity`. It returns `null` for missing / unknown values and is **never** defaulted to a severity — a missing mapping surfaces loudly in a visible "Unclassified" bucket rather than hiding in Sev 3 (surface-errors-loudly). `evaluateCompliance(sla, severity)` returns `{ severity, firstResponse, resolution }` each with `{ value, target, clock, met }` where `met` is `null` when unmeasurable (no reply, no committed target).
+
+- **First Response** picks the clock (`business` vs `calendar`) matching the severity target, and — if `escalationBasis` is `"post_ai_handoff"` or `"marker"` and the corresponding `firstHumanReplyFromEscalation*` value is non-null — measures FROM THE AI→HUMAN HANDOFF, not from open. **WHY**: "first response" means when a human engineer engages; Sam handles first and hands off. Charging Sam's entire handling window to the human clock was wrong (one real ticket showed ~15 h-from-open vs true ~48 min-from-handoff). For direct-to-human or non-handoff bases (`team_assignment` / `first_human`) it still measures from open.
+- **Resolution** reads `resolutionActiveBusinessHoursS` / `resolutionActiveS` (never raw `ttr*`). Sev 4 returns `met: null` (no committed target).
 
 ### Read-only fetch — `supabase/functions/sla-ticket-analyze`
 
-- `verify_jwt = true`, `POST` only (OPTIONS for CORS), method rejects anything else with 405.
-- Accepts `{ ids: string[] }`; `normalizeId` handles URL forms (last path segment) and `conversation_[_-]?` prefixes, then extracts the first `\d{5,}` run.
-- Deduplicates + caps at `MAX_IDS = 10`; returns `{ results, truncated }`.
-- Each id → `GET https://api.intercom.io/conversations/{id}` with `Authorization: Bearer ${INTERCOM_API_TOKEN}`, `Intercom-Version: 2.11`. Reuses the existing `INTERCOM_API_TOKEN` secret.
-- Per-id result: `{ id, ok: true, conversation }` or `{ id, ok: false, status, error }` (up to 500 chars of body).
-- **STRICT read-only**: HTTP GET to Intercom only, no POST/PUT/DELETE, no DB writes. All metric logic runs client-side in `computeSla` — the function is a thin proxy so Intercom stays strictly read-only and there is zero metric duplication on the server.
+- `verify_jwt = true`, `POST` only. Accepts `{ ids: string[] }`; `normalizeId` handles URL forms and prefixes. Deduplicates + caps at `MAX_IDS = 10`.
+- Each id → `GET https://api.intercom.io/conversations/{id}` (`Intercom-Version: 2.11`, reuses `INTERCOM_API_TOKEN`).
+- **STRICT read-only** thin proxy: all metric logic runs client-side in `computeSla`, zero server-side duplication, Intercom stays read-only.
 
 ### UI — `/sla-test` (`src/pages/SlaTest.tsx`), two tabs
 
-**Tab 1 — "Analyze by ID (live)":** textarea for ≤10 ids/URLs → calls `sla-ticket-analyze` → runs `computeSla` on each returned conversation. Per-ticket card shows:
+**Tab 1 — "Analyze by ID (live)":** ≤10 ids/URLs → `sla-ticket-analyze` → runs `computeSla` on each returned conversation. Per-ticket card shows headline strip (our human FRT calendar+BH vs Intercom `time_to_admin_reply` + Δ + Intercom SLA status), origin + flag badges, color-coded timeline, calendar | BH metric table, prominent amber "no customer / internal" warning. Validation / spot-check tool only.
 
-- **Headline comparison strip**: our first human reply (calendar AND business-hours) vs Intercom `statistics.time_to_admin_reply` vs Δ (ours − Intercom, calendar).
-- **Hero human stat** dimmed with an amber "(internal)" tag when `noCustomerParticipant` is set.
-- Origin badge (slack / email / other), Sam-participated / no-human-reply / no-customer badges.
-- Color-coded timeline of parts (actor colour + isPublicReply / isNote markers).
-- Full calendar | business-hours metric table for every clock.
-- Prominent amber "no customer / internal" warning when the flag is set.
-- Framing is **deliberately neutral** — we display Intercom's SLA status verbatim but make no "met/missed" claims of our own until targets are drafted.
+**Tab 2 — "Batch (stored)":** **snapshot-based, not live.** Queries `intercom_tickets_v3` filtered by `lifecycle_status IN ('finalized', 'reopened_after_finalize')` — the **full finalized enterprise population, all owners** (owner filter removed, currently ~287 tickets), paged 500 at a time. `raw_payload`, `tags`, `rsa_override`, `customer_resolution_method`, `owner` selected per row. **WHY snapshot, not live:** live-fetching a whole population per page load would hammer the metered Intercom API (structural-runaway risk); snapshot reporting is fast, free, reproducible, and as-of-a-time. Live per-ticket Analyze is the validation escape hatch.
 
-**Tab 2 — "Batch (stored)":** works over Matt's finalized ticket store — queries `intercom_tickets_v3` filtered by `owner = "Matt"` and `lifecycle_status IN ('finalized', 'reopened_after_finalize')` (ordered by `intercom_closed_at desc`, paged 500 at a time), fetching `raw_payload` + `tags` + `rsa_override` + `customer_resolution_method`. Toggle between two modes:
+Population classification (`classifyRow`):
 
-- **Corrected engine** (`CorrectedBatch`) — runs `computeSla` per row. Classifies each row via `classifyRow` into:
-  - **excluded** — `rsa_override === false` OR (`rsa_override == null` AND (`enterprise-fyi` OR `enterprise-duplicate` tag)) OR `merged_ticket` tag OR `customer_resolution_method === "not_enterprise"` (Rule 0). An explicit `rsa_override === true` overrides tag-based exclusions.
-  - **noCustomer** — `flags.noCustomerParticipant` (internal / CSM-only).
-  - **inScope** — everything else.
-  
-  Aggregates run **only over `inScope`**. KPI cards: **Human FRT business-hours (hero)**, Human FRT calendar, Any-agent FRT calendar, TTR business-hours — each showing median / p90 / p95 / avg / n / nNull. Per-ticket table with sortable columns; muted footer with the excluded/no-customer counts (never silently dropped).
-- **Legacy (compare)** (`LegacyBatch`) — the prior view backed by stored Intercom fields (`time_to_first_admin_reply_s`, `time_to_resolve_s`) with contaminated FRT. Preserved verbatim as a before/after comparison with a muted disclaimer.
+- **excluded** — `rsa_override === false` OR (`rsa_override == null` AND (`enterprise-fyi` OR `enterprise-duplicate` tag)) OR `merged_ticket` tag OR `customer_resolution_method === "not_enterprise"` (Rule 0). Explicit `rsa_override === true` overrides tag-based exclusions.
+- **noCustomer** — `flags.noCustomerParticipant`.
+- **inScope** — everything else. Compliance runs only over `inScope`.
 
-### Known open items (still tuning — carry as open questions)
+**Compliance section** (`ComplianceSection`): groups in-scope rows by `parseSeverity(...)` into buckets Sev 1 / 2 / 3 / 4 / **Unclassified** (missing severity — never bucketed into a value). Per severity: N, FR % met, FR breaches, FR n/a, Res % met, Res breaches, Res n/a. Aggressive KPI cards for coverage.
+
+- **First-Response basis toggle** (`frBasis: "customer" | "all"`, default `"customer"`): the FR %/breaches/n-a counters — AND the "First-Response breaches" collapsible — are computed over `initiatedBy === "customer"` rows only by default; toggle to "All tickets" for the source-independent total. An always-visible line reads `Initiation: X customer-initiated · Y agent-initiated` (with `— agent-initiated excluded from First Response %` appended when in "customer" mode). **WHY**: ~half of enterprise tickets are opened by us (outbound / CSM relay / forwarded email), where "first response time" is meaningless because no customer was waiting; leaving them in actually PADDED FR upward (measured Sev 2 dropped 83 % → 77 % once segmented). Anti-masking guarantees: the total is always one click away, the agent-initiated count is always visible, no ticket is dropped (per-severity `n` is always the full in-scope count).
+- **RESOLUTION is unaffected by the toggle** — always computed over ALL in-scope tickets. Support genuinely works relayed / outbound tickets to resolution.
+- Two collapsible breach lists below the table: "First-Response breaches (N)" (respects basis) and "Resolution breaches (N)" (all in-scope, sorted worst-first by resolution value).
+
+Also preserved: a **Legacy (compare)** view backed by stored Intercom fields (`time_to_first_admin_reply_s`, `time_to_resolve_s`) with contaminated FRT, kept verbatim as before/after evidence.
+
+**Tests** — `src/lib/__tests__/slaMetrics.test.ts` (45 passing at last count). Cover actor classification, escalation post-AI-handoff, `noCustomerParticipant`, `businessHoursBetween` (weekday, DST, weekend), BH ≤ calendar invariants, FR-from-escalation switching, stop-the-clock resolution, and initiation classification (source author `@lovable.dev` → agent, external contact → customer, missing source → customer, Sam → agent).
+
+### Caveats to keep in mind when reading numbers
+
+- **OPEN tickets (~10 %) are excluded** from Batch — they don't store `conversation_parts` in the snapshot, so `computeSla` can't run. Resolution numbers are therefore **optimistically biased**: the still-open / worst / longest-tail cases are missing.
+- **Holidays not modeled** — the Berlin business-hours calendar treats every Mon–Fri as a full 15 h workday.
+- **Targets are provisional / unratified** — the compliance stack is plumbing, not a policy.
+- **Duration display renders business-hours as 24 h days** — the numeric values are correct, but the human labels can mislead (e.g. "1 d 4 h" of business time is not 28 wall-clock hours).
+- **Forwarded customer emails from our shared `@lovable.dev` inbox** misclassify as agent-initiated. Accepted; will be corrected by manual override.
+
+### Known open items
 
 - **Slack-native-then-ticketized threads**: escalation semantics when the conversation began in Slack and only later became an Intercom ticket — the ticket's `created_at` doesn't reflect the true SLA start.
-- **No-customer / CSM-in-the-middle tickets**: whether these belong in their own pool with a count-KPI (currently just excluded from FRT aggregates); handling time semantics unclear when no customer is in the thread at all.
-- **Stored-payload completeness for Slack**: for Slack-originated tickets the stored `raw_payload` may be less complete than a live Intercom fetch — the live tab is authoritative per-ticket; the Batch tab is directionally correct but may under-count some Slack conversations.
+- **No-customer / CSM-in-the-middle tickets**: whether these belong in their own pool with a count-KPI (currently just excluded from FR aggregates and shown as "internal").
+- **Stored-payload completeness for Slack**: for Slack-originated tickets the stored `raw_payload` may be less complete than a live Intercom fetch — the live tab remains authoritative per-ticket.
 - **"Bulk-entered" Slack tickets**: import-time batching can compress real customer-wait gaps.
-- **Aggregate dashboard + SLA compliance slider**: future — depends on the target-setting work this tool is intended to inform.
+- **Manual initiation-override** to correct forwarded-email misclassification.
+- **Holiday-aware business-hours calendar**.
+- **Aggregate dashboard + SLA compliance slider** — plumbing is in place; UI wiring TBD after target ratification.
+
 
