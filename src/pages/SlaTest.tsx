@@ -1242,6 +1242,66 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
           )}
         </div>
 
+        <div className="border-t border-border pt-3">
+          <button
+            className="text-xs font-medium text-foreground hover:underline"
+            onClick={() => setResBreachesOpen((v) => !v)}
+          >
+            {resBreachesOpen ? "▾" : "▸"} Resolution breaches ({resBreaches.length})
+          </button>
+          {resBreachesOpen && (
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium">Ticket</th>
+                    <th className="text-left px-3 py-2 font-medium">Severity</th>
+                    <th className="text-right px-3 py-2 font-medium">Measured</th>
+                    <th className="text-right px-3 py-2 font-medium">Target</th>
+                    <th className="text-left px-3 py-2 font-medium">Clock</th>
+                    <th className="text-right px-3 py-2 font-medium">Reopens</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resBreaches.map(({ row, compliance }) => (
+                    <tr key={row.id} className="border-t border-border">
+                      <td className="px-3 py-2 max-w-[320px] truncate">
+                        <a
+                          href={`https://app.intercom.com/a/inbox/_/inbox/conversation/${row.intercom_conversation_id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-foreground hover:underline"
+                          title={row.subject ?? ""}
+                        >
+                          {row.subject || `Intercom #${row.intercom_conversation_id}`}
+                        </a>
+                      </td>
+                      <td className="px-3 py-2">Sev {compliance.severity}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium text-destructive">
+                        {formatDuration(compliance.resolution.value)}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                        {formatDuration(compliance.resolution.target)}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-muted-foreground">
+                        {compliance.resolution.clock === "business" ? "business hrs" : "calendar"}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                        {row.sla.reopenCount > 0 ? row.sla.reopenCount : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                  {!resBreaches.length && (
+                    <tr><td colSpan={6} className="px-3 py-4 text-center text-muted-foreground text-xs">No resolution breaches.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+
+
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           First Response = first human reply (bots/Sam excluded). Clocks: Sev 1 wall-clock 24/7; Sev 2–4 Europe/Berlin business hours (1 business day = 15h).
           Targets are provisional. Sev 1 sample is tiny (n≈1).
