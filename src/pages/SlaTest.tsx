@@ -1303,8 +1303,7 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
 
 
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          First Response = first human reply (bots/Sam excluded). Clocks: Sev 1 wall-clock 24/7; Sev 2–4 Europe/Berlin business hours (1 business day = 15h).
-          Targets are provisional. Sev 1 sample is tiny (n≈1).
+          First Response = first human reply, measured from the AI→human handoff for AI-handled tickets (else from open). Resolution = active in-our-court time (stop-the-clock: customer-wait and reopened gaps excluded). Clocks: Sev 1 wall-clock 24/7; Sev 2–4 Europe/Berlin business hours (1 business day = 15h). Company holidays not yet modeled. Targets are provisional. Sev 1 sample is tiny (n≈1).
         </p>
       </CardContent>
     </Card>

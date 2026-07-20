@@ -267,6 +267,11 @@ export type SlaResult = {
   firstHumanReplyFromOpenBusinessHoursS: number | null;
   ttrS: number | null;
   ttrBusinessHoursS: number | null;
+  // Stop-the-clock resolution: active in-our-court time from open to last
+  // close, EXCLUDING intervals awaiting the customer (and thus naturally
+  // excluding closed-then-reopened gaps). Null when open/close not known.
+  resolutionActiveS: number | null;
+  resolutionActiveBusinessHoursS: number | null;
   reopenCount: number;
   handlingTimeS: number;
   handlingTimeBusinessHoursS: number;
@@ -393,6 +398,32 @@ export function computeSla(conversation: any): SlaResult {
   const handlingTimeS = sumCustomerWaitGaps(timeline, (a, b) => Math.max(0, b - a));
   const handlingTimeBusinessHoursS = sumCustomerWaitGaps(timeline, (a, b) => businessHoursBetween(a, b));
 
+  // Stop-the-clock resolution — active in-our-court time from open to last close.
+  function computeResolutionActive(clip: (a: number, b: number) => number): number | null {
+    if (createdAt == null || closeAt == null) return null;
+    let total = 0;
+    let ballWithUs = true;
+    let segStart = createdAt;
+    for (const p of timeline) {
+      if (p.ts < createdAt || p.ts > closeAt) continue;
+      if (p.actor === "customer") {
+        if (!ballWithUs) {
+          ballWithUs = true;
+          segStart = p.ts;
+        }
+      } else if (p.isPublicReply && (p.actor === "human_admin" || p.actor === "sam_ai")) {
+        if (ballWithUs) {
+          total += clip(segStart, p.ts);
+          ballWithUs = false;
+        }
+      }
+    }
+    if (ballWithUs) total += clip(segStart, closeAt);
+    return total;
+  }
+  const resolutionActiveS = computeResolutionActive((a, b) => Math.max(0, b - a));
+  const resolutionActiveBusinessHoursS = computeResolutionActive((a, b) => businessHoursBetween(a, b));
+
   const samParticipated = timeline.some((p) => p.isPublicReply && p.actor === "sam_ai");
   const noHumanReply = !firstHumanReply;
   const noCustomerParticipant = !timeline.some((p) => p.actor === "customer");
@@ -411,6 +442,8 @@ export function computeSla(conversation: any): SlaResult {
     firstHumanReplyFromOpenBusinessHoursS,
     ttrS,
     ttrBusinessHoursS,
+    resolutionActiveS,
+    resolutionActiveBusinessHoursS,
     reopenCount,
     handlingTimeS,
     handlingTimeBusinessHoursS,
@@ -687,8 +720,21 @@ export function evaluateCompliance(sla: SlaResult, severity: Severity): SlaCompl
   const target = SLA_TARGETS[severity];
 
   // First Response = first HUMAN engineer reply (bots/Sam excluded).
-  const frValue =
-    target.firstResponseClock === "business"
+  // For AI-handled tickets (Sam replied, then handed off to a human), the
+  // human's clock starts at the AI→human handoff — not at ticket open. For
+  // direct-to-human or non-handoff bases (team_assignment / first_human) we
+  // keep measuring from open.
+  const useFromEscalation =
+    (sla.escalationBasis === "post_ai_handoff" || sla.escalationBasis === "marker") &&
+    (target.firstResponseClock === "business"
+      ? sla.firstHumanReplyFromEscalationBusinessHoursS != null
+      : sla.firstHumanReplyFromEscalationS != null);
+
+  const frValue = useFromEscalation
+    ? target.firstResponseClock === "business"
+      ? sla.firstHumanReplyFromEscalationBusinessHoursS
+      : sla.firstHumanReplyFromEscalationS
+    : target.firstResponseClock === "business"
       ? sla.firstHumanReplyFromOpenBusinessHoursS
       : sla.firstHumanReplyFromOpenS;
   const firstResponse: ComplianceVerdict = {
@@ -698,9 +744,12 @@ export function evaluateCompliance(sla: SlaResult, severity: Severity): SlaCompl
     met: frValue == null ? null : frValue <= target.firstResponseS,
   };
 
-  // Resolution → TTR. Sev4 has no committed resolution → met stays null.
+  // Resolution → stop-the-clock active in-our-court time (not raw TTR). Sev4
+  // has no committed resolution → met stays null.
   const resValue =
-    target.resolutionClock === "business" ? sla.ttrBusinessHoursS : sla.ttrS;
+    target.resolutionClock === "business"
+      ? sla.resolutionActiveBusinessHoursS
+      : sla.resolutionActiveS;
   const resolution: ComplianceVerdict = {
     value: resValue,
     target: target.resolutionS,
