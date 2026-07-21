@@ -31,6 +31,13 @@ export const SAM_AUTHOR_EMAILS: ReadonlySet<string> = new Set([
 // internal domain — a real customer can never have that email.
 export const TEAMMATE_EMAIL_DOMAIN = "lovable.dev";
 
+// Intercom team id for the Enterprise Inbox — the moment a ticket becomes the
+// Enterprise team's responsibility; the SLA clock-start. Everything before
+// this (intake, Sam's AI handling, pre-ticket Slack/CSM chatter) is
+// PRE-ENTERPRISE and reported separately as `preInboxTimeS` — never counted
+// against SLA.
+export const ENTERPRISE_INBOX_TEAM_ID = "8484447";
+
 export type Actor =
   | "customer"
   | "human_admin"
@@ -251,10 +258,25 @@ export type SlaFlags = {
   noHumanReply: boolean;
   hasParts: boolean;
   noCustomerParticipant: boolean;
+  // Bulk-import/manually-logged Slack thread from the Enterprise Support Hub —
+  // no real reply timestamps; unmeasurable for SLA.
+  manuallyLogged: boolean;
 };
 
 export type SlaResult = {
   createdAtS: number | null;
+  // SLA clock-start: the ts of the first assignment to the Enterprise Inbox
+  // team (Intercom team id 8484447). null when the ticket never landed in the
+  // Enterprise Inbox.
+  enterpriseInboxAssignedAtS: number | null;
+  // Effective clock-start used by all Enterprise SLA timers: the inbox anchor
+  // when present, else falls back to createdAt.
+  slaClockStartS: number | null;
+  // Calendar seconds between ticket creation and Enterprise Inbox assignment
+  // = the pre-Enterprise / Sam / pre-ticket window. Reported as a process
+  // health signal, NEVER counted against the SLA. null when there is no
+  // inbox assignment.
+  preInboxTimeS: number | null;
   firstResponseAnyAgentS: number | null;
   firstResponseAnyAgentBusinessHoursS: number | null;
   timeToEscalationS: number | null;
@@ -265,11 +287,17 @@ export type SlaResult = {
   firstHumanReplyFromEscalationBusinessHoursS: number | null;
   firstHumanReplyFromOpenS: number | null;
   firstHumanReplyFromOpenBusinessHoursS: number | null;
+  // Anchored FRT: first HUMAN reply at/after the SLA clock-start (Enterprise
+  // Inbox assignment, or createdAt fallback). This is what evaluateCompliance
+  // now uses for First Response. Replies BEFORE the anchor are ignored.
+  firstHumanReplyFromInboxS: number | null;
+  firstHumanReplyFromInboxBusinessHoursS: number | null;
   ttrS: number | null;
   ttrBusinessHoursS: number | null;
-  // Stop-the-clock resolution: active in-our-court time from open to last
-  // close, EXCLUDING intervals awaiting the customer (and thus naturally
-  // excluding closed-then-reopened gaps). Null when open/close not known.
+  // Stop-the-clock resolution: active in-our-court time from the SLA
+  // clock-start (Enterprise Inbox anchor, else createdAt) to last close,
+  // EXCLUDING intervals awaiting the customer (and thus naturally excluding
+  // closed-then-reopened gaps). Null when open/close not known.
   resolutionActiveS: number | null;
   resolutionActiveBusinessHoursS: number | null;
   reopenCount: number;
@@ -355,12 +383,41 @@ export function computeSla(conversation: any): SlaResult {
   const createdAt: number | null =
     typeof conversation?.created_at === "number" ? conversation.created_at : null;
 
+  // SLA clock-start = first Enterprise Inbox team assignment; else createdAt.
+  const enterpriseInboxAssignment = timeline.find(
+    (p) => p.assignedToType === "team" && p.assignedToId === ENTERPRISE_INBOX_TEAM_ID,
+  );
+  const enterpriseInboxAssignedAtS: number | null = enterpriseInboxAssignment?.ts ?? null;
+  const slaClockStartS: number | null =
+    enterpriseInboxAssignedAtS != null ? enterpriseInboxAssignedAtS : createdAt;
+  const preInboxTimeS: number | null =
+    enterpriseInboxAssignedAtS != null && createdAt != null
+      ? Math.max(0, enterpriseInboxAssignedAtS - createdAt)
+      : null;
+
   const firstAnyAgentReply = timeline.find(
     (p) => p.isPublicReply && (p.actor === "human_admin" || p.actor === "sam_ai"),
   );
   const firstHumanReply = timeline.find(
     (p) => p.isPublicReply && p.actor === "human_admin",
   );
+  // Anchored: first human reply AT/AFTER the SLA clock-start. Replies before
+  // the Enterprise Inbox assignment (e.g., Sam or a teammate during intake)
+  // are ignored — the Enterprise SLA clock hasn't started yet.
+  const firstHumanReplyAfterInbox =
+    slaClockStartS != null
+      ? timeline.find(
+          (p) => p.isPublicReply && p.actor === "human_admin" && p.ts >= slaClockStartS,
+        )
+      : undefined;
+  const firstHumanReplyFromInboxS =
+    firstHumanReplyAfterInbox && slaClockStartS != null
+      ? Math.max(0, firstHumanReplyAfterInbox.ts - slaClockStartS)
+      : null;
+  const firstHumanReplyFromInboxBusinessHoursS =
+    firstHumanReplyAfterInbox && slaClockStartS != null
+      ? businessHoursBetween(slaClockStartS, firstHumanReplyAfterInbox.ts)
+      : null;
 
   const escalation = detectEscalation(timeline);
 
@@ -407,14 +464,18 @@ export function computeSla(conversation: any): SlaResult {
   const handlingTimeS = sumCustomerWaitGaps(timeline, (a, b) => Math.max(0, b - a));
   const handlingTimeBusinessHoursS = sumCustomerWaitGaps(timeline, (a, b) => businessHoursBetween(a, b));
 
-  // Stop-the-clock resolution — active in-our-court time from open to last close.
+  // Stop-the-clock resolution — active in-our-court time from the SLA
+  // clock-start (Enterprise Inbox anchor, else createdAt) to last close.
+  // Timeline parts BEFORE the anchor are ignored — pre-inbox / Sam handling
+  // must not count against Enterprise SLA.
   function computeResolutionActive(clip: (a: number, b: number) => number): number | null {
-    if (createdAt == null || closeAt == null) return null;
+    if (slaClockStartS == null || closeAt == null) return null;
+    if (closeAt < slaClockStartS) return 0;
     let total = 0;
     let ballWithUs = true;
-    let segStart = createdAt;
+    let segStart = slaClockStartS;
     for (const p of timeline) {
-      if (p.ts < createdAt || p.ts > closeAt) continue;
+      if (p.ts < slaClockStartS || p.ts > closeAt) continue;
       if (p.actor === "customer") {
         if (!ballWithUs) {
           ballWithUs = true;
@@ -437,6 +498,11 @@ export function computeSla(conversation: any): SlaResult {
   const noHumanReply = !firstHumanReply;
   const noCustomerParticipant = !timeline.some((p) => p.actor === "customer");
 
+  // Manually-logged bulk-import Slack thread — signature body from the
+  // Enterprise Support Hub import path. Unmeasurable for SLA.
+  const sourceBodyStripped = stripHtml(conversation?.source?.body);
+  const manuallyLogged = /manually logged slack_thread/i.test(sourceBodyStripped);
+
   // Initiation classification — see SlaResult.initiatedBy for rationale.
   const sourceAuthor = conversation?.source?.author;
   let sourceActor: Actor;
@@ -452,6 +518,9 @@ export function computeSla(conversation: any): SlaResult {
 
   return {
     createdAtS: createdAt,
+    enterpriseInboxAssignedAtS,
+    slaClockStartS,
+    preInboxTimeS,
     firstResponseAnyAgentS,
     firstResponseAnyAgentBusinessHoursS,
     timeToEscalationS,
@@ -462,6 +531,8 @@ export function computeSla(conversation: any): SlaResult {
     firstHumanReplyFromEscalationBusinessHoursS,
     firstHumanReplyFromOpenS,
     firstHumanReplyFromOpenBusinessHoursS,
+    firstHumanReplyFromInboxS,
+    firstHumanReplyFromInboxBusinessHoursS,
     ttrS,
     ttrBusinessHoursS,
     resolutionActiveS,
@@ -476,6 +547,7 @@ export function computeSla(conversation: any): SlaResult {
       noHumanReply,
       hasParts: timeline.length > 0,
       noCustomerParticipant,
+      manuallyLogged,
     },
     initiatedBy,
     timeline,
@@ -760,24 +832,15 @@ export type SlaCompliance = {
 export function evaluateCompliance(sla: SlaResult, severity: Severity): SlaCompliance {
   const target = SLA_TARGETS[severity];
 
-  // First Response = first HUMAN engineer reply (bots/Sam excluded).
-  // For AI-handled tickets (Sam replied, then handed off to a human), the
-  // human's clock starts at the AI→human handoff — not at ticket open. For
-  // direct-to-human or non-handoff bases (team_assignment / first_human) we
-  // keep measuring from open.
-  const useFromEscalation =
-    (sla.escalationBasis === "post_ai_handoff" || sla.escalationBasis === "marker") &&
-    (target.firstResponseClock === "business"
-      ? sla.firstHumanReplyFromEscalationBusinessHoursS != null
-      : sla.firstHumanReplyFromEscalationS != null);
-
-  const frValue = useFromEscalation
-    ? target.firstResponseClock === "business"
-      ? sla.firstHumanReplyFromEscalationBusinessHoursS
-      : sla.firstHumanReplyFromEscalationS
-    : target.firstResponseClock === "business"
-      ? sla.firstHumanReplyFromOpenBusinessHoursS
-      : sla.firstHumanReplyFromOpenS;
+  // First Response = first HUMAN engineer reply (bots/Sam excluded), measured
+  // from the SLA clock-start = Enterprise Inbox assignment (else createdAt).
+  // Anything before the anchor (intake, Sam's AI turn, pre-ticket chatter) is
+  // pre-Enterprise and NOT counted. This replaces the earlier
+  // escalationBasis-branched FRT.
+  const frValue =
+    target.firstResponseClock === "business"
+      ? sla.firstHumanReplyFromInboxBusinessHoursS
+      : sla.firstHumanReplyFromInboxS;
   const firstResponse: ComplianceVerdict = {
     value: frValue,
     target: target.firstResponseS,

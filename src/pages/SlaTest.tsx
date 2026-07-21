@@ -56,7 +56,7 @@ type SortKey = "closed" | "firstReply" | "rawResolve" | "responseGap" | "bhHandl
 type CorrectedEnriched = Row & {
   sla: SlaResult;
   origin: Origin;
-  bucket: "inScope" | "excluded" | "noCustomer";
+  bucket: "inScope" | "excluded" | "noCustomer" | "manuallyLogged";
 };
 type CorrectedSortKey = "closed" | "humanBH" | "humanCal" | "anyCal" | "ttrBH";
 
@@ -673,7 +673,10 @@ function BatchStoredTab() {
 }
 
 // ----- Corrected engine view -----
-function classifyRow(row: Row, sla: SlaResult): "inScope" | "excluded" | "noCustomer" {
+function classifyRow(row: Row, sla: SlaResult): "inScope" | "excluded" | "noCustomer" | "manuallyLogged" {
+  // Manually-logged bulk-import threads have no real reply timestamps —
+  // unmeasurable for SLA. Check BEFORE the other buckets.
+  if (sla.flags.manuallyLogged) return "manuallyLogged";
   const tags = Array.isArray(row.tags) ? row.tags : [];
   const hasTag = (t: string) => tags.includes(t);
   const excluded =
@@ -703,12 +706,14 @@ function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
   const inScope = useMemo(() => enriched.filter((r) => r.bucket === "inScope"), [enriched]);
   const excluded = useMemo(() => enriched.filter((r) => r.bucket === "excluded"), [enriched]);
   const noCustomer = useMemo(() => enriched.filter((r) => r.bucket === "noCustomer"), [enriched]);
+  const manuallyLogged = useMemo(() => enriched.filter((r) => r.bucket === "manuallyLogged"), [enriched]);
 
   const kpis = useMemo(() => ({
     humanBH: aggregate(inScope.map((r) => r.sla.firstHumanReplyFromOpenBusinessHoursS)),
     humanCal: aggregate(inScope.map((r) => r.sla.firstHumanReplyFromOpenS)),
     anyCal: aggregate(inScope.map((r) => r.sla.firstResponseAnyAgentS)),
     ttrBH: aggregate(inScope.map((r) => r.sla.ttrBusinessHoursS)),
+    preInbox: aggregate(inScope.map((r) => r.sla.preInboxTimeS)),
   }), [inScope]);
 
   const reopenRate = useMemo(() => {
@@ -745,6 +750,8 @@ function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
         {" · "}
         Internal / no-customer: <span className="font-medium">{noCustomer.length}</span>
         {" · "}
+        Manually-logged (excluded): <span className="font-medium">{manuallyLogged.length}</span>
+        {" · "}
         Total loaded: {enriched.length}
       </div>
 
@@ -772,6 +779,11 @@ function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
           title="Time to resolve · bus.hrs"
           desc="ttr (Europe/Berlin business hours)"
           agg={kpis.ttrBH}
+        />
+        <KpiCard
+          title="Pre-inbox time (pre-Enterprise / work-before-ticket)"
+          desc="time from ticket creation to Enterprise Inbox assignment — a process signal, not an SLA"
+          agg={kpis.preInbox}
         />
       </div>
 
@@ -832,9 +844,9 @@ function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
               </tbody>
             </table>
           </div>
-          {(excluded.length > 0 || noCustomer.length > 0) && (
+          {(excluded.length > 0 || noCustomer.length > 0 || manuallyLogged.length > 0) && (
             <div className="px-4 py-3 text-xs text-muted-foreground border-t border-border bg-muted/20">
-              {excluded.length} excluded (not-enterprise / duplicate / merged / RSA off), {noCustomer.length} internal / no-customer — not shown in aggregates above.
+              {excluded.length} excluded (not-enterprise / duplicate / merged / RSA off), {noCustomer.length} internal / no-customer, {manuallyLogged.length} manually-logged bulk-import — not shown in aggregates above.
             </div>
           )}
         </CardContent>
