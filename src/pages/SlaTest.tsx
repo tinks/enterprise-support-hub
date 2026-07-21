@@ -755,7 +755,7 @@ function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
         Total loaded: {enriched.length}
       </div>
 
-      <ComplianceSection inScope={inScope} />
+      <ComplianceSection inScope={inScope} manuallyLoggedCount={manuallyLogged.length} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
@@ -1057,9 +1057,10 @@ type SeverityBucket = {
   rows: Array<{ row: CorrectedEnriched; compliance: SlaCompliance }>;
 };
 
-function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
+function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: CorrectedEnriched[]; manuallyLoggedCount: number }) {
   const [breachesOpen, setBreachesOpen] = useState(false);
   const [resBreachesOpen, setResBreachesOpen] = useState(false);
+  const [bySourceOpen, setBySourceOpen] = useState(false);
   const [frBasis, setFrBasis] = useState<"customer" | "all">("customer");
 
   const { buckets, unclassified, classifiedCount } = useMemo(() => {
