@@ -56,7 +56,7 @@ type SortKey = "closed" | "firstReply" | "rawResolve" | "responseGap" | "bhHandl
 type CorrectedEnriched = Row & {
   sla: SlaResult;
   origin: Origin;
-  bucket: "inScope" | "excluded" | "noCustomer";
+  bucket: "inScope" | "excluded" | "noCustomer" | "manuallyLogged";
 };
 type CorrectedSortKey = "closed" | "humanBH" | "humanCal" | "anyCal" | "ttrBH";
 
