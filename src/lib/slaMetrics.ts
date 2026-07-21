@@ -265,6 +265,18 @@ export type SlaFlags = {
 
 export type SlaResult = {
   createdAtS: number | null;
+  // SLA clock-start: the ts of the first assignment to the Enterprise Inbox
+  // team (Intercom team id 8484447). null when the ticket never landed in the
+  // Enterprise Inbox.
+  enterpriseInboxAssignedAtS: number | null;
+  // Effective clock-start used by all Enterprise SLA timers: the inbox anchor
+  // when present, else falls back to createdAt.
+  slaClockStartS: number | null;
+  // Calendar seconds between ticket creation and Enterprise Inbox assignment
+  // = the pre-Enterprise / Sam / pre-ticket window. Reported as a process
+  // health signal, NEVER counted against the SLA. null when there is no
+  // inbox assignment.
+  preInboxTimeS: number | null;
   firstResponseAnyAgentS: number | null;
   firstResponseAnyAgentBusinessHoursS: number | null;
   timeToEscalationS: number | null;
@@ -275,11 +287,17 @@ export type SlaResult = {
   firstHumanReplyFromEscalationBusinessHoursS: number | null;
   firstHumanReplyFromOpenS: number | null;
   firstHumanReplyFromOpenBusinessHoursS: number | null;
+  // Anchored FRT: first HUMAN reply at/after the SLA clock-start (Enterprise
+  // Inbox assignment, or createdAt fallback). This is what evaluateCompliance
+  // now uses for First Response. Replies BEFORE the anchor are ignored.
+  firstHumanReplyFromInboxS: number | null;
+  firstHumanReplyFromInboxBusinessHoursS: number | null;
   ttrS: number | null;
   ttrBusinessHoursS: number | null;
-  // Stop-the-clock resolution: active in-our-court time from open to last
-  // close, EXCLUDING intervals awaiting the customer (and thus naturally
-  // excluding closed-then-reopened gaps). Null when open/close not known.
+  // Stop-the-clock resolution: active in-our-court time from the SLA
+  // clock-start (Enterprise Inbox anchor, else createdAt) to last close,
+  // EXCLUDING intervals awaiting the customer (and thus naturally excluding
+  // closed-then-reopened gaps). Null when open/close not known.
   resolutionActiveS: number | null;
   resolutionActiveBusinessHoursS: number | null;
   reopenCount: number;
