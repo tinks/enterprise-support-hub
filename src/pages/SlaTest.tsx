@@ -706,12 +706,14 @@ function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
   const inScope = useMemo(() => enriched.filter((r) => r.bucket === "inScope"), [enriched]);
   const excluded = useMemo(() => enriched.filter((r) => r.bucket === "excluded"), [enriched]);
   const noCustomer = useMemo(() => enriched.filter((r) => r.bucket === "noCustomer"), [enriched]);
+  const manuallyLogged = useMemo(() => enriched.filter((r) => r.bucket === "manuallyLogged"), [enriched]);
 
   const kpis = useMemo(() => ({
     humanBH: aggregate(inScope.map((r) => r.sla.firstHumanReplyFromOpenBusinessHoursS)),
     humanCal: aggregate(inScope.map((r) => r.sla.firstHumanReplyFromOpenS)),
     anyCal: aggregate(inScope.map((r) => r.sla.firstResponseAnyAgentS)),
     ttrBH: aggregate(inScope.map((r) => r.sla.ttrBusinessHoursS)),
+    preInbox: aggregate(inScope.map((r) => r.sla.preInboxTimeS)),
   }), [inScope]);
 
   const reopenRate = useMemo(() => {
