@@ -383,12 +383,41 @@ export function computeSla(conversation: any): SlaResult {
   const createdAt: number | null =
     typeof conversation?.created_at === "number" ? conversation.created_at : null;
 
+  // SLA clock-start = first Enterprise Inbox team assignment; else createdAt.
+  const enterpriseInboxAssignment = timeline.find(
+    (p) => p.assignedToType === "team" && p.assignedToId === ENTERPRISE_INBOX_TEAM_ID,
+  );
+  const enterpriseInboxAssignedAtS: number | null = enterpriseInboxAssignment?.ts ?? null;
+  const slaClockStartS: number | null =
+    enterpriseInboxAssignedAtS != null ? enterpriseInboxAssignedAtS : createdAt;
+  const preInboxTimeS: number | null =
+    enterpriseInboxAssignedAtS != null && createdAt != null
+      ? Math.max(0, enterpriseInboxAssignedAtS - createdAt)
+      : null;
+
   const firstAnyAgentReply = timeline.find(
     (p) => p.isPublicReply && (p.actor === "human_admin" || p.actor === "sam_ai"),
   );
   const firstHumanReply = timeline.find(
     (p) => p.isPublicReply && p.actor === "human_admin",
   );
+  // Anchored: first human reply AT/AFTER the SLA clock-start. Replies before
+  // the Enterprise Inbox assignment (e.g., Sam or a teammate during intake)
+  // are ignored — the Enterprise SLA clock hasn't started yet.
+  const firstHumanReplyAfterInbox =
+    slaClockStartS != null
+      ? timeline.find(
+          (p) => p.isPublicReply && p.actor === "human_admin" && p.ts >= slaClockStartS,
+        )
+      : undefined;
+  const firstHumanReplyFromInboxS =
+    firstHumanReplyAfterInbox && slaClockStartS != null
+      ? Math.max(0, firstHumanReplyAfterInbox.ts - slaClockStartS)
+      : null;
+  const firstHumanReplyFromInboxBusinessHoursS =
+    firstHumanReplyAfterInbox && slaClockStartS != null
+      ? businessHoursBetween(slaClockStartS, firstHumanReplyAfterInbox.ts)
+      : null;
 
   const escalation = detectEscalation(timeline);
 
