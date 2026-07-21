@@ -1148,6 +1148,52 @@ function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: Correcte
     };
   };
 
+  // "By source" breakout — reuses per-row compliance from `buckets` (classified rows only for %met).
+  const bySource = useMemo(() => {
+    const compliByRowId = new Map<string, SlaCompliance>();
+    for (const sev of [1, 2, 3, 4] as const) {
+      for (const { row, compliance } of buckets[sev].rows) {
+        compliByRowId.set(row.id, compliance);
+      }
+    }
+    type Key = "slack" | "sam" | "direct";
+    const groups: Record<Key, CorrectedEnriched[]> = { slack: [], sam: [], direct: [] };
+    for (const r of inScope) {
+      const key: Key = r.origin === "slack" ? "slack" : r.sla.flags.samParticipated ? "sam" : "direct";
+      groups[key].push(r);
+    }
+    const summarize = (rows: CorrectedEnriched[]) => {
+      let frMet = 0, frBreach = 0, resMet = 0, resBreach = 0;
+      for (const row of rows) {
+        const compliance = compliByRowId.get(row.id);
+        if (compliance) {
+          const includeFr = frBasis === "all" || row.sla.initiatedBy === "customer";
+          if (includeFr) {
+            if (compliance.firstResponse.met === true) frMet++;
+            else if (compliance.firstResponse.met === false) frBreach++;
+          }
+          if (compliance.resolution.met === true) resMet++;
+          else if (compliance.resolution.met === false) resBreach++;
+        }
+      }
+      const frDenom = frMet + frBreach;
+      const resDenom = resMet + resBreach;
+      return {
+        n: rows.length,
+        frPct: frDenom ? (frMet / frDenom) * 100 : null,
+        resPct: resDenom ? (resMet / resDenom) * 100 : null,
+        preInboxMedian: aggregate(rows.map((r) => r.sla.preInboxTimeS)).median,
+      };
+    };
+    return {
+      slack: summarize(groups.slack),
+      sam: summarize(groups.sam),
+      direct: summarize(groups.direct),
+    };
+  }, [inScope, buckets, frBasis]);
+
+
+
   return (
     <Card>
       <CardHeader className="pb-3">
