@@ -1215,7 +1215,7 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
                     <td className="px-3 py-2 text-xs text-muted-foreground">
                       {t.resolutionS == null
                         ? <span className="italic">best-effort — n/a</span>
-                        : <>{formatDuration(t.resolutionS)} <span className="text-muted-foreground/70">({t.resolutionClock === "business" ? "bh" : "cal"})</span></>}
+                        : <>{(t.resolutionClock === "business" ? formatBusinessDuration : formatDuration)(t.resolutionS)} <span className="text-muted-foreground/70">({t.resolutionClock === "business" ? "bh" : "cal"})</span></>}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums font-medium">
                       {sev === 4
