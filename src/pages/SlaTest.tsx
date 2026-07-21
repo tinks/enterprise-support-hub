@@ -755,7 +755,7 @@ function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
         Total loaded: {enriched.length}
       </div>
 
-      <ComplianceSection inScope={inScope} />
+      <ComplianceSection inScope={inScope} manuallyLoggedCount={manuallyLogged.length} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
@@ -1057,9 +1057,10 @@ type SeverityBucket = {
   rows: Array<{ row: CorrectedEnriched; compliance: SlaCompliance }>;
 };
 
-function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
+function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: CorrectedEnriched[]; manuallyLoggedCount: number }) {
   const [breachesOpen, setBreachesOpen] = useState(false);
   const [resBreachesOpen, setResBreachesOpen] = useState(false);
+  const [bySourceOpen, setBySourceOpen] = useState(false);
   const [frBasis, setFrBasis] = useState<"customer" | "all">("customer");
 
   const { buckets, unclassified, classifiedCount } = useMemo(() => {
@@ -1146,6 +1147,52 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
       resPct: resDenom ? (resMet / resDenom) * 100 : null,
     };
   };
+
+  // "By source" breakout — reuses per-row compliance from `buckets` (classified rows only for %met).
+  const bySource = useMemo(() => {
+    const compliByRowId = new Map<string, SlaCompliance>();
+    for (const sev of [1, 2, 3, 4] as const) {
+      for (const { row, compliance } of buckets[sev].rows) {
+        compliByRowId.set(row.id, compliance);
+      }
+    }
+    type Key = "slack" | "sam" | "direct";
+    const groups: Record<Key, CorrectedEnriched[]> = { slack: [], sam: [], direct: [] };
+    for (const r of inScope) {
+      const key: Key = r.origin === "slack" ? "slack" : r.sla.flags.samParticipated ? "sam" : "direct";
+      groups[key].push(r);
+    }
+    const summarize = (rows: CorrectedEnriched[]) => {
+      let frMet = 0, frBreach = 0, resMet = 0, resBreach = 0;
+      for (const row of rows) {
+        const compliance = compliByRowId.get(row.id);
+        if (compliance) {
+          const includeFr = frBasis === "all" || row.sla.initiatedBy === "customer";
+          if (includeFr) {
+            if (compliance.firstResponse.met === true) frMet++;
+            else if (compliance.firstResponse.met === false) frBreach++;
+          }
+          if (compliance.resolution.met === true) resMet++;
+          else if (compliance.resolution.met === false) resBreach++;
+        }
+      }
+      const frDenom = frMet + frBreach;
+      const resDenom = resMet + resBreach;
+      return {
+        n: rows.length,
+        frPct: frDenom ? (frMet / frDenom) * 100 : null,
+        resPct: resDenom ? (resMet / resDenom) * 100 : null,
+        preInboxMedian: aggregate(rows.map((r) => r.sla.preInboxTimeS)).median,
+      };
+    };
+    return {
+      slack: summarize(groups.slack),
+      sam: summarize(groups.sam),
+      direct: summarize(groups.direct),
+    };
+  }, [inScope, buckets, frBasis]);
+
+
 
   return (
     <Card>
@@ -1252,6 +1299,62 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
         </div>
 
         <div className="border-t border-border pt-3">
+          <button
+            className="text-xs font-medium text-foreground hover:underline"
+            onClick={() => setBySourceOpen((v) => !v)}
+          >
+            {bySourceOpen ? "▾" : "▸"} By source
+          </button>
+          {bySourceOpen && (
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium">Source</th>
+                    <th className="text-right px-3 py-2 font-medium">n</th>
+                    <th className="text-right px-3 py-2 font-medium">FR %met</th>
+                    <th className="text-right px-3 py-2 font-medium">Res %met</th>
+                    <th className="text-right px-3 py-2 font-medium">Pre-inbox median</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {([
+                    ["Slack", bySource.slack],
+                    ["Sam-first", bySource.sam],
+                    ["Direct (email/msgr, no Sam)", bySource.direct],
+                  ] as const).map(([label, s]) => (
+                    <tr key={label} className="border-t border-border">
+                      <td className="px-3 py-2 font-medium">{label}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{s.n}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium">
+                        {s.frPct == null ? "—" : `${s.frPct.toFixed(0)}%`}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium">
+                        {s.resPct == null ? "—" : `${s.resPct.toFixed(0)}%`}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                        {formatDuration(s.preInboxMedian)}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="border-t border-border bg-muted/20 text-muted-foreground">
+                    <td className="px-3 py-2 italic">Manually-logged (excluded)</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{manuallyLoggedCount}</td>
+                    <td className="px-3 py-2 text-right">—</td>
+                    <td className="px-3 py-2 text-right">—</td>
+                    <td className="px-3 py-2 text-right">—</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div className="mt-2 text-xs text-muted-foreground">
+                Slack = Slack-sourced · Sam-first = Sam replied then handed off (email/messenger) · Direct = email/messenger, no Sam. FR %met respects the basis toggle above; resolution covers all tickets in each bucket.
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-border pt-3">
+
           <button
             className="text-xs font-medium text-foreground hover:underline"
             onClick={() => setBreachesOpen((v) => !v)}
