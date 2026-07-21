@@ -709,8 +709,8 @@ function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
   const manuallyLogged = useMemo(() => enriched.filter((r) => r.bucket === "manuallyLogged"), [enriched]);
 
   const kpis = useMemo(() => ({
-    humanBH: aggregate(inScope.map((r) => r.sla.firstHumanReplyFromOpenBusinessHoursS)),
-    humanCal: aggregate(inScope.map((r) => r.sla.firstHumanReplyFromOpenS)),
+    humanBH: aggregate(inScope.map((r) => r.sla.firstHumanReplyFromInboxBusinessHoursS)),
+    humanCal: aggregate(inScope.map((r) => r.sla.firstHumanReplyFromInboxS)),
     anyCal: aggregate(inScope.map((r) => r.sla.firstResponseAnyAgentS)),
     ttrBH: aggregate(inScope.map((r) => r.sla.ttrBusinessHoursS)),
     preInbox: aggregate(inScope.map((r) => r.sla.preInboxTimeS)),
