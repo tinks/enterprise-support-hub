@@ -748,7 +748,10 @@ function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
         Total loaded: {enriched.length}
       </div>
 
+      <ComplianceSection inScope={inScope} />
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+
         <KpiCard
           title="Human first reply · bus.hrs"
           desc="firstHumanReplyFromOpen (Europe/Berlin business hours)"
