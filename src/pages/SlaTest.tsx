@@ -673,7 +673,10 @@ function BatchStoredTab() {
 }
 
 // ----- Corrected engine view -----
-function classifyRow(row: Row, sla: SlaResult): "inScope" | "excluded" | "noCustomer" {
+function classifyRow(row: Row, sla: SlaResult): "inScope" | "excluded" | "noCustomer" | "manuallyLogged" {
+  // Manually-logged bulk-import threads have no real reply timestamps —
+  // unmeasurable for SLA. Check BEFORE the other buckets.
+  if (sla.flags.manuallyLogged) return "manuallyLogged";
   const tags = Array.isArray(row.tags) ? row.tags : [];
   const hasTag = (t: string) => tags.includes(t);
   const excluded =
