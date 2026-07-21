@@ -591,3 +591,137 @@ describe("computeSla — initiatedBy", () => {
 });
 
 
+
+// ============================================================================
+// Enterprise Inbox anchor — clock-start = first assignment to team 8484447
+// ============================================================================
+import { ENTERPRISE_INBOX_TEAM_ID } from "@/lib/slaMetrics";
+
+describe("computeSla — Enterprise Inbox anchor", () => {
+  const T = 4_000_000_000;
+  it("anchor = ts of first team-8484447 assignment; slaClockStartS = anchor", () => {
+    const conv = {
+      created_at: T,
+      source: { author: { type: "user", id: "cust", name: "C" }, body: "<p>help</p>" },
+      conversation_parts: {
+        conversation_parts: [
+          // Sam replies before inbox assignment — must NOT anchor.
+          { created_at: T + 100, part_type: "comment", author: { type: "admin", id: "9520895", name: "Sam", email: "lovable@parahelp.com" }, body: "<p>auto</p>" },
+          // Routing to some other team — must be ignored for anchor.
+          { created_at: T + 150, part_type: "assignment", author: { type: "admin", id: "9520895" }, body: "", assigned_to: { type: "team", id: "team-other" } },
+          // Enterprise Inbox assignment — THE anchor.
+          { created_at: T + 500, part_type: "assignment", author: { type: "admin", id: "9520895" }, body: "", assigned_to: { type: "team", id: ENTERPRISE_INBOX_TEAM_ID } },
+          // Human reply after anchor.
+          { created_at: T + 800, part_type: "comment", author: { type: "admin", id: "10765619", name: "Matt", email: "matt@lovable.dev" }, body: "<p>hi</p>" },
+        ],
+      },
+      statistics: {},
+    };
+    const r = computeSla(conv);
+    expect(r.enterpriseInboxAssignedAtS).toBe(T + 500);
+    expect(r.slaClockStartS).toBe(T + 500);
+    expect(r.preInboxTimeS).toBe(500);
+  });
+
+  it("no inbox assignment → slaClockStartS falls back to createdAt; anchor + preInboxTime null", () => {
+    const conv = {
+      created_at: T,
+      source: { author: { type: "user", id: "cust", name: "C" }, body: "<p>help</p>" },
+      conversation_parts: { conversation_parts: [] },
+      statistics: {},
+    };
+    const r = computeSla(conv);
+    expect(r.enterpriseInboxAssignedAtS).toBeNull();
+    expect(r.slaClockStartS).toBe(T);
+    expect(r.preInboxTimeS).toBeNull();
+  });
+});
+
+describe("computeSla — firstHumanReplyFromInbox (anchored FRT)", () => {
+  const T = 5_000_000_000;
+  const withParts = (parts: any[]) => ({
+    created_at: T,
+    source: { author: { type: "user", id: "cust", name: "C" }, body: "<p>help</p>" },
+    conversation_parts: { conversation_parts: parts },
+    statistics: {},
+  });
+
+  it("human reply BEFORE inbox anchor is ignored; first reply AT/AFTER is measured", () => {
+    const r = computeSla(withParts([
+      // Pre-anchor human reply (e.g., during intake) — must NOT count.
+      { created_at: T + 100, part_type: "comment", author: { type: "admin", id: "10765619", name: "Matt", email: "matt@lovable.dev" }, body: "<p>early</p>" },
+      // Anchor.
+      { created_at: T + 500, part_type: "assignment", author: { type: "admin", id: "9520895" }, body: "", assigned_to: { type: "team", id: ENTERPRISE_INBOX_TEAM_ID } },
+      // Human reply after anchor.
+      { created_at: T + 900, part_type: "comment", author: { type: "admin", id: "10765619", name: "Matt", email: "matt@lovable.dev" }, body: "<p>real</p>" },
+    ]));
+    expect(r.firstHumanReplyFromInboxS).toBe(400); // 900 - 500
+  });
+
+  it("no human reply after the anchor → firstHumanReplyFromInboxS null", () => {
+    const r = computeSla(withParts([
+      { created_at: T + 100, part_type: "comment", author: { type: "admin", id: "10765619", name: "Matt", email: "matt@lovable.dev" }, body: "<p>early only</p>" },
+      { created_at: T + 500, part_type: "assignment", author: { type: "admin", id: "9520895" }, body: "", assigned_to: { type: "team", id: ENTERPRISE_INBOX_TEAM_ID } },
+    ]));
+    expect(r.firstHumanReplyFromInboxS).toBeNull();
+    expect(r.firstHumanReplyFromInboxBusinessHoursS).toBeNull();
+  });
+
+  it("no anchor (fallback to createdAt) → measures from open", () => {
+    const r = computeSla(withParts([
+      { created_at: T + 300, part_type: "comment", author: { type: "admin", id: "10765619", name: "Matt", email: "matt@lovable.dev" }, body: "<p>hi</p>" },
+    ]));
+    expect(r.firstHumanReplyFromInboxS).toBe(300);
+  });
+});
+
+describe("computeSla — resolutionActiveS anchored to inbox", () => {
+  const T = 6_000_000_000;
+  it("only counts in-our-court time from anchor forward; pre-anchor Sam handling excluded", () => {
+    const conv = {
+      created_at: T,
+      source: { author: { type: "user", id: "cust", name: "C" }, body: "<p>help</p>" },
+      conversation_parts: {
+        conversation_parts: [
+          // Sam handles a big chunk pre-anchor — MUST be excluded.
+          { created_at: T + 3600, part_type: "comment", author: { type: "admin", id: "9520895", name: "Sam", email: "lovable@parahelp.com" }, body: "<p>auto</p>" },
+          // Anchor at +10000.
+          { created_at: T + 10000, part_type: "assignment", author: { type: "admin", id: "9520895" }, body: "", assigned_to: { type: "team", id: ENTERPRISE_INBOX_TEAM_ID } },
+          // Human reply at +11000 (ball leaves our court).
+          { created_at: T + 11000, part_type: "comment", author: { type: "admin", id: "10765619", name: "Matt", email: "matt@lovable.dev" }, body: "<p>looking</p>" },
+          // Customer replies at +20000 (ball back — segStart = 20000).
+          { created_at: T + 20000, part_type: "comment", author: { type: "user", id: "cust", name: "C" }, body: "<p>more</p>" },
+          // We reply + close at +21000 (segment +20000→+21000 = 1000s).
+          { created_at: T + 21000, part_type: "comment", author: { type: "admin", id: "10765619", name: "Matt", email: "matt@lovable.dev" }, body: "<p>done</p>" },
+        ],
+      },
+      statistics: { last_close_at: T + 21000, time_to_last_close: 21000, count_reopens: 0 },
+    };
+    const r = computeSla(conv);
+    // From anchor (10000) → first human reply (11000) = 1000s; customer 20000 → close 21000 = 1000s. Total 2000s.
+    expect(r.resolutionActiveS).toBe(2000);
+    // Old-style total ttrS still reflects createdAt→close.
+    expect(r.ttrS).toBe(21000);
+  });
+});
+
+describe("computeSla — manuallyLogged flag", () => {
+  it("true when source body contains 'manually logged slack_thread' (case-insensitive)", () => {
+    const r = computeSla({
+      created_at: 7_000_000_000,
+      source: { author: { type: "user", id: "u", name: "n" }, body: "<p>Manually Logged Slack_Thread from channel foo</p>" },
+      conversation_parts: { conversation_parts: [] },
+      statistics: {},
+    });
+    expect(r.flags.manuallyLogged).toBe(true);
+  });
+  it("false for a normal customer message", () => {
+    const r = computeSla({
+      created_at: 7_000_000_000,
+      source: { author: { type: "user", id: "u", name: "n" }, body: "<p>help me please</p>" },
+      conversation_parts: { conversation_parts: [] },
+      statistics: {},
+    });
+    expect(r.flags.manuallyLogged).toBe(false);
+  });
+});
