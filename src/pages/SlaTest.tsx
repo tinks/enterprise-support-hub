@@ -1205,7 +1205,7 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
                     <td className="px-3 py-2 font-medium">Sev {sev}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{s.n}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {formatDuration(t.firstResponseS)} <span className="text-muted-foreground/70">({t.firstResponseClock === "business" ? "bh" : "cal"})</span>
+                      {(t.firstResponseClock === "business" ? formatBusinessDuration : formatDuration)(t.firstResponseS)} <span className="text-muted-foreground/70">({t.firstResponseClock === "business" ? "bh" : "cal"})</span>
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums font-medium">
                       {s.frPct == null ? "—" : `${s.frPct.toFixed(0)}%`}
