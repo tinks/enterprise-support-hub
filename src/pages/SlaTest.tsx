@@ -1329,10 +1329,10 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
                       </td>
                       <td className="px-3 py-2">Sev {compliance.severity}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium text-destructive">
-                        {formatDuration(compliance.resolution.value)}
+                        {(compliance.resolution.clock === "business" ? formatBusinessDuration : formatDuration)(compliance.resolution.value)}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                        {formatDuration(compliance.resolution.target)}
+                        {(compliance.resolution.clock === "business" ? formatBusinessDuration : formatDuration)(compliance.resolution.target)}
                       </td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">
                         {compliance.resolution.clock === "business" ? "business hrs" : "calendar"}
