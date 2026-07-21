@@ -401,6 +401,9 @@ describe("parseSeverity", () => {
 function mkSla(over: Partial<SlaResult2>): SlaResult2 {
   return {
     createdAtS: 0,
+    enterpriseInboxAssignedAtS: null,
+    slaClockStartS: 0,
+    preInboxTimeS: null,
     firstResponseAnyAgentS: null,
     firstResponseAnyAgentBusinessHoursS: null,
     timeToEscalationS: null,
@@ -411,6 +414,8 @@ function mkSla(over: Partial<SlaResult2>): SlaResult2 {
     firstHumanReplyFromEscalationBusinessHoursS: null,
     firstHumanReplyFromOpenS: null,
     firstHumanReplyFromOpenBusinessHoursS: null,
+    firstHumanReplyFromInboxS: null,
+    firstHumanReplyFromInboxBusinessHoursS: null,
     ttrS: null,
     ttrBusinessHoursS: null,
     resolutionActiveS: null,
@@ -419,7 +424,7 @@ function mkSla(over: Partial<SlaResult2>): SlaResult2 {
     handlingTimeS: 0,
     handlingTimeBusinessHoursS: 0,
     partsCount: 0,
-    flags: { isTicket: false, samParticipated: false, noHumanReply: false, hasParts: false, noCustomerParticipant: false },
+    flags: { isTicket: false, samParticipated: false, noHumanReply: false, hasParts: false, noCustomerParticipant: false, manuallyLogged: false },
     initiatedBy: "customer",
     timeline: [],
     ...over,
@@ -428,14 +433,14 @@ function mkSla(over: Partial<SlaResult2>): SlaResult2 {
 
 describe("evaluateCompliance", () => {
   it("Sev2 human reply just under 4h business → firstResponse.met = true", () => {
-    const sla = mkSla({ firstHumanReplyFromOpenBusinessHoursS: 4 * 3600 - 1, firstHumanReplyFromOpenS: 4 * 3600 - 1 });
+    const sla = mkSla({ firstHumanReplyFromInboxBusinessHoursS: 4 * 3600 - 1, firstHumanReplyFromInboxS: 4 * 3600 - 1 });
     const c = evaluateCompliance(sla, 2);
     expect(c.firstResponse.clock).toBe("business");
     expect(c.firstResponse.target).toBe(SLA_TARGETS[2].firstResponseS);
     expect(c.firstResponse.met).toBe(true);
   });
   it("Sev2 human reply just over 4h business → firstResponse.met = false", () => {
-    const sla = mkSla({ firstHumanReplyFromOpenBusinessHoursS: 4 * 3600 + 1 });
+    const sla = mkSla({ firstHumanReplyFromInboxBusinessHoursS: 4 * 3600 + 1 });
     const c = evaluateCompliance(sla, 2);
     expect(c.firstResponse.met).toBe(false);
   });
@@ -445,8 +450,8 @@ describe("evaluateCompliance", () => {
     expect(c.resolution.target).toBeNull();
     expect(c.resolution.met).toBeNull();
   });
-  it("both firstHumanReply values null → firstResponse.met = null (not-evaluable)", () => {
-    const sla = mkSla({ firstHumanReplyFromOpenS: null, firstHumanReplyFromOpenBusinessHoursS: null });
+  it("both firstHumanReplyFromInbox values null → firstResponse.met = null (not-evaluable)", () => {
+    const sla = mkSla({ firstHumanReplyFromInboxS: null, firstHumanReplyFromInboxBusinessHoursS: null });
     for (const sev of [1, 2, 3, 4] as const) {
       const c = evaluateCompliance(sla, sev);
       expect(c.firstResponse.value).toBeNull();
@@ -454,7 +459,7 @@ describe("evaluateCompliance", () => {
     }
   });
   it("Sev1 uses calendar clocks for both first response and resolution", () => {
-    const sla = mkSla({ firstHumanReplyFromOpenS: 20 * 60, ttrS: 4 * 3600, resolutionActiveS: 4 * 3600 });
+    const sla = mkSla({ firstHumanReplyFromInboxS: 20 * 60, ttrS: 4 * 3600, resolutionActiveS: 4 * 3600 });
     const c = evaluateCompliance(sla, 1);
     expect(c.firstResponse.clock).toBe("calendar");
     expect(c.resolution.clock).toBe("calendar");
@@ -465,38 +470,28 @@ describe("evaluateCompliance", () => {
     expect(BUSINESS_DAY_SECONDS).toBe(15 * 3600);
   });
 
-  // FIX 1: First Response clock-start for AI-handed-off tickets.
-  it("post_ai_handoff → firstResponse measured from escalation (business)", () => {
+  // FRT source: anchored to Enterprise Inbox (firstHumanReplyFromInbox*), no
+  // longer branched by escalationBasis. FromOpen/FromEscalation are retained
+  // on SlaResult for back-compat but are NOT used for compliance.
+  it("FR reads firstHumanReplyFromInbox regardless of escalationBasis", () => {
     const sla = mkSla({
       escalationBasis: "post_ai_handoff",
-      firstHumanReplyFromEscalationBusinessHoursS: 30 * 60,          // under 4h
-      firstHumanReplyFromEscalationS: 30 * 60,
-      firstHumanReplyFromOpenBusinessHoursS: 15 * 3600,              // over 4h — must NOT be used
-      firstHumanReplyFromOpenS: 15 * 3600,
+      firstHumanReplyFromInboxBusinessHoursS: 30 * 60,          // anchored — the one used
+      firstHumanReplyFromEscalationBusinessHoursS: 15 * 3600,   // must be ignored
+      firstHumanReplyFromOpenBusinessHoursS: 15 * 3600,         // must be ignored
     });
     const c = evaluateCompliance(sla, 2);
     expect(c.firstResponse.value).toBe(30 * 60);
     expect(c.firstResponse.met).toBe(true);
   });
-  it("first_human basis → firstResponse still measured from open (fallback)", () => {
+  it("FromOpen ignored even when FromInbox is set differently", () => {
     const sla = mkSla({
       escalationBasis: "first_human",
-      firstHumanReplyFromEscalationBusinessHoursS: 30 * 60,
-      firstHumanReplyFromEscalationS: 30 * 60,
-      firstHumanReplyFromOpenBusinessHoursS: 15 * 3600,
-      firstHumanReplyFromOpenS: 15 * 3600,
-    });
-    const c = evaluateCompliance(sla, 2);
-    expect(c.firstResponse.value).toBe(15 * 3600);
-    expect(c.firstResponse.met).toBe(false);
-  });
-  it("marker basis → firstResponse measured from escalation", () => {
-    const sla = mkSla({
-      escalationBasis: "marker",
-      firstHumanReplyFromEscalationBusinessHoursS: 30 * 60,
+      firstHumanReplyFromInboxBusinessHoursS: 30 * 60,
       firstHumanReplyFromOpenBusinessHoursS: 15 * 3600,
     });
     const c = evaluateCompliance(sla, 2);
+    expect(c.firstResponse.value).toBe(30 * 60);
     expect(c.firstResponse.met).toBe(true);
   });
 });
