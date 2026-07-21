@@ -518,6 +518,9 @@ export function computeSla(conversation: any): SlaResult {
 
   return {
     createdAtS: createdAt,
+    enterpriseInboxAssignedAtS,
+    slaClockStartS,
+    preInboxTimeS,
     firstResponseAnyAgentS,
     firstResponseAnyAgentBusinessHoursS,
     timeToEscalationS,
@@ -528,6 +531,8 @@ export function computeSla(conversation: any): SlaResult {
     firstHumanReplyFromEscalationBusinessHoursS,
     firstHumanReplyFromOpenS,
     firstHumanReplyFromOpenBusinessHoursS,
+    firstHumanReplyFromInboxS,
+    firstHumanReplyFromInboxBusinessHoursS,
     ttrS,
     ttrBusinessHoursS,
     resolutionActiveS,
@@ -542,6 +547,7 @@ export function computeSla(conversation: any): SlaResult {
       noHumanReply,
       hasParts: timeline.length > 0,
       noCustomerParticipant,
+      manuallyLogged,
     },
     initiatedBy,
     timeline,
