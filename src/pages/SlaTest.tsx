@@ -761,13 +761,13 @@ function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
 
         <KpiCard
           title="Human first reply · bus.hrs"
-          desc="firstHumanReplyFromOpen (Europe/Berlin business hours)"
+          desc="firstHumanReplyFromInbox (from Enterprise Inbox assignment, Europe/Berlin business hours)"
           agg={kpis.humanBH}
           emphasize
         />
         <KpiCard
           title="Human first reply · calendar"
-          desc="firstHumanReplyFromOpen (wall clock)"
+          desc="firstHumanReplyFromInbox (from Enterprise Inbox assignment, wall clock)"
           agg={kpis.humanCal}
         />
         <KpiCard
