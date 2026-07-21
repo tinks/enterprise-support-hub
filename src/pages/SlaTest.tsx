@@ -780,6 +780,11 @@ function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
           desc="ttr (Europe/Berlin business hours)"
           agg={kpis.ttrBH}
         />
+        <KpiCard
+          title="Pre-inbox time (pre-Enterprise / work-before-ticket)"
+          desc="time from ticket creation to Enterprise Inbox assignment — a process signal, not an SLA"
+          agg={kpis.preInbox}
+        />
       </div>
 
       {reopenRate && (
