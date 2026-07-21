@@ -1301,6 +1301,62 @@ function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: Correcte
         <div className="border-t border-border pt-3">
           <button
             className="text-xs font-medium text-foreground hover:underline"
+            onClick={() => setBySourceOpen((v) => !v)}
+          >
+            {bySourceOpen ? "▾" : "▸"} By source
+          </button>
+          {bySourceOpen && (
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="text-left px-3 py-2 font-medium">Source</th>
+                    <th className="text-right px-3 py-2 font-medium">n</th>
+                    <th className="text-right px-3 py-2 font-medium">FR %met</th>
+                    <th className="text-right px-3 py-2 font-medium">Res %met</th>
+                    <th className="text-right px-3 py-2 font-medium">Pre-inbox median</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {([
+                    ["Slack", bySource.slack],
+                    ["Sam-first", bySource.sam],
+                    ["Direct (email/msgr, no Sam)", bySource.direct],
+                  ] as const).map(([label, s]) => (
+                    <tr key={label} className="border-t border-border">
+                      <td className="px-3 py-2 font-medium">{label}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{s.n}</td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium">
+                        {s.frPct == null ? "—" : `${s.frPct.toFixed(0)}%`}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium">
+                        {s.resPct == null ? "—" : `${s.resPct.toFixed(0)}%`}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                        {formatDuration(s.preInboxMedian)}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="border-t border-border bg-muted/20 text-muted-foreground">
+                    <td className="px-3 py-2 italic">Manually-logged (excluded)</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{manuallyLoggedCount}</td>
+                    <td className="px-3 py-2 text-right">—</td>
+                    <td className="px-3 py-2 text-right">—</td>
+                    <td className="px-3 py-2 text-right">—</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div className="mt-2 text-xs text-muted-foreground">
+                Slack = Slack-sourced · Sam-first = Sam replied then handed off (email/messenger) · Direct = email/messenger, no Sam. FR %met respects the basis toggle above; resolution covers all tickets in each bucket.
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-border pt-3">
+
+          <button
+            className="text-xs font-medium text-foreground hover:underline"
             onClick={() => setBreachesOpen((v) => !v)}
           >
             {breachesOpen ? "▾" : "▸"} First-Response breaches ({frBreaches.length})
