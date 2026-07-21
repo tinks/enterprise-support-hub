@@ -568,6 +568,24 @@ export function formatDuration(seconds: number | null): string {
   return `${d}d ${h % 24}h`;
 }
 
+// Same as formatDuration for sub-day values, but renders the day unit as
+// BUSINESS DAYS (BUSINESS_DAY_SECONDS = 15h) so business-hours targets like
+// "2 business days" don't display as "1d 6h" via 24h days.
+export function formatBusinessDuration(seconds: number | null): string {
+  if (seconds == null) return "—";
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const m = Math.round(seconds / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  const businessDayHours = BUSINESS_DAY_SECONDS / 3600; // 15
+  if (h < businessDayHours) return `${h}h ${rem}m`;
+  const bd = Math.floor(h / businessDayHours);
+  const remH = h % businessDayHours;
+  return remH === 0 ? `${bd}bd` : `${bd}bd ${remH}h`;
+}
+
+
 // ============================================================================
 // Legacy exports — preserved so `/sla-test` keeps building.
 // New callers should use `computeSla` / `TimelinePart` / `SlaResult`.

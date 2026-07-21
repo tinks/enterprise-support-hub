@@ -14,6 +14,8 @@ import {
   computeSla,
   detectOrigin,
   formatDuration,
+  formatBusinessDuration,
+
   parseSeverity,
   evaluateCompliance,
   SLA_TARGETS,
@@ -746,7 +748,10 @@ function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
         Total loaded: {enriched.length}
       </div>
 
+      <ComplianceSection inScope={inScope} />
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+
         <KpiCard
           title="Human first reply · bus.hrs"
           desc="firstHumanReplyFromOpen (Europe/Berlin business hours)"
@@ -835,7 +840,7 @@ function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
         </CardContent>
       </Card>
 
-      <ComplianceSection inScope={inScope} />
+
 
       <p className="text-xs text-muted-foreground leading-relaxed">
         Corrected engine over stored payloads (finalized tickets). Business hours = Europe/Berlin, Mon–Fri 09:00–24:00.
@@ -1200,7 +1205,7 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
                     <td className="px-3 py-2 font-medium">Sev {sev}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{s.n}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {formatDuration(t.firstResponseS)} <span className="text-muted-foreground/70">({t.firstResponseClock === "business" ? "bh" : "cal"})</span>
+                      {(t.firstResponseClock === "business" ? formatBusinessDuration : formatDuration)(t.firstResponseS)} <span className="text-muted-foreground/70">({t.firstResponseClock === "business" ? "bh" : "cal"})</span>
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums font-medium">
                       {s.frPct == null ? "—" : `${s.frPct.toFixed(0)}%`}
@@ -1210,7 +1215,7 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
                     <td className="px-3 py-2 text-xs text-muted-foreground">
                       {t.resolutionS == null
                         ? <span className="italic">best-effort — n/a</span>
-                        : <>{formatDuration(t.resolutionS)} <span className="text-muted-foreground/70">({t.resolutionClock === "business" ? "bh" : "cal"})</span></>}
+                        : <>{(t.resolutionClock === "business" ? formatBusinessDuration : formatDuration)(t.resolutionS)} <span className="text-muted-foreground/70">({t.resolutionClock === "business" ? "bh" : "cal"})</span></>}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums font-medium">
                       {sev === 4
@@ -1269,10 +1274,10 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
                       </td>
                       <td className="px-3 py-2">Sev {compliance.severity}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium text-destructive">
-                        {formatDuration(compliance.firstResponse.value)}
+                        {(compliance.firstResponse.clock === "business" ? formatBusinessDuration : formatDuration)(compliance.firstResponse.value)}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                        {formatDuration(compliance.firstResponse.target)}
+                        {(compliance.firstResponse.clock === "business" ? formatBusinessDuration : formatDuration)(compliance.firstResponse.target)}
                       </td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">
                         {compliance.firstResponse.clock === "business" ? "business hrs" : "calendar"}
@@ -1324,10 +1329,10 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
                       </td>
                       <td className="px-3 py-2">Sev {compliance.severity}</td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium text-destructive">
-                        {formatDuration(compliance.resolution.value)}
+                        {(compliance.resolution.clock === "business" ? formatBusinessDuration : formatDuration)(compliance.resolution.value)}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                        {formatDuration(compliance.resolution.target)}
+                        {(compliance.resolution.clock === "business" ? formatBusinessDuration : formatDuration)(compliance.resolution.target)}
                       </td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">
                         {compliance.resolution.clock === "business" ? "business hrs" : "calendar"}
@@ -1349,7 +1354,7 @@ function ComplianceSection({ inScope }: { inScope: CorrectedEnriched[] }) {
 
 
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          First Response = first human reply, measured from the AI→human handoff for AI-handled tickets (else from open). Resolution = active in-our-court time (stop-the-clock: customer-wait and reopened gaps excluded). Clocks: Sev 1 wall-clock 24/7; Sev 2–4 Europe/Berlin business hours (1 business day = 15h). Company holidays not yet modeled. Targets are provisional. Sev 1 sample is tiny (n≈1). First Response basis: Customer-initiated by default (agent-initiated tickets — outbound/relayed/forwarded, ~half the volume — are shown separately and excluded from the FR %, since no customer was awaiting a first reply); switch to All tickets for the source-independent total. Resolution always covers all tickets.
+          First Response = first human reply, measured from the AI→human handoff for AI-handled tickets (else from open). Resolution = active in-our-court time (stop-the-clock: customer-wait and reopened gaps excluded). Clocks: Sev 1 wall-clock 24/7; Sev 2–4 Europe/Berlin business hours (1 business day = 15h). Business-hours durations are shown in business days ("bd", 1 bd = 15h) so they line up with the targets; calendar durations use 24h days. Targets are provisional. Sev 1 sample is tiny (n≈1). First Response basis: Customer-initiated by default (agent-initiated tickets — outbound/relayed/forwarded, ~half the volume — are shown separately and excluded from the FR %, since no customer was awaiting a first reply); switch to All tickets for the source-independent total. Resolution always covers all tickets.
         </p>
       </CardContent>
     </Card>

@@ -1,5 +1,25 @@
 import { describe, it, expect } from "vitest";
-import { computeSla, businessHoursBetween, type SlaResult } from "@/lib/slaMetrics";
+import { computeSla, businessHoursBetween, formatBusinessDuration, type SlaResult } from "@/lib/slaMetrics";
+
+describe("formatBusinessDuration", () => {
+  it("null → '—'", () => expect(formatBusinessDuration(null)).toBe("—"));
+  it("sub-day values use hours+minutes", () => {
+    expect(formatBusinessDuration(14400)).toBe("4h 0m");
+  });
+  it("exactly 1 business day (15h) → '1bd'", () => {
+    expect(formatBusinessDuration(54000)).toBe("1bd");
+  });
+  it("exactly 2 business days (30h) → '2bd'", () => {
+    expect(formatBusinessDuration(108000)).toBe("2bd");
+  });
+  it("exactly 5 business days (75h) → '5bd'", () => {
+    expect(formatBusinessDuration(270000)).toBe("5bd");
+  });
+  it("4 business days + 6h (66h) → '4bd 6h'", () => {
+    expect(formatBusinessDuration(237600)).toBe("4bd 6h");
+  });
+});
+
 
 // Business-hours vs calendar pair fields on SlaResult.
 const BH_PAIRS: Array<[keyof SlaResult, keyof SlaResult]> = [
