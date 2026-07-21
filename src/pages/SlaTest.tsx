@@ -840,7 +840,7 @@ function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
         </CardContent>
       </Card>
 
-      <ComplianceSection inScope={inScope} />
+
 
       <p className="text-xs text-muted-foreground leading-relaxed">
         Corrected engine over stored payloads (finalized tickets). Business hours = Europe/Berlin, Mon–Fri 09:00–24:00.
