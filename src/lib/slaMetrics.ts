@@ -31,6 +31,13 @@ export const SAM_AUTHOR_EMAILS: ReadonlySet<string> = new Set([
 // internal domain — a real customer can never have that email.
 export const TEAMMATE_EMAIL_DOMAIN = "lovable.dev";
 
+// Intercom team id for the Enterprise Inbox — the moment a ticket becomes the
+// Enterprise team's responsibility; the SLA clock-start. Everything before
+// this (intake, Sam's AI handling, pre-ticket Slack/CSM chatter) is
+// PRE-ENTERPRISE and reported separately as `preInboxTimeS` — never counted
+// against SLA.
+export const ENTERPRISE_INBOX_TEAM_ID = "8484447";
+
 export type Actor =
   | "customer"
   | "human_admin"
