@@ -258,6 +258,9 @@ export type SlaFlags = {
   noHumanReply: boolean;
   hasParts: boolean;
   noCustomerParticipant: boolean;
+  // Bulk-import/manually-logged Slack thread from the Enterprise Support Hub —
+  // no real reply timestamps; unmeasurable for SLA.
+  manuallyLogged: boolean;
 };
 
 export type SlaResult = {
