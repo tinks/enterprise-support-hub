@@ -464,14 +464,18 @@ export function computeSla(conversation: any): SlaResult {
   const handlingTimeS = sumCustomerWaitGaps(timeline, (a, b) => Math.max(0, b - a));
   const handlingTimeBusinessHoursS = sumCustomerWaitGaps(timeline, (a, b) => businessHoursBetween(a, b));
 
-  // Stop-the-clock resolution — active in-our-court time from open to last close.
+  // Stop-the-clock resolution — active in-our-court time from the SLA
+  // clock-start (Enterprise Inbox anchor, else createdAt) to last close.
+  // Timeline parts BEFORE the anchor are ignored — pre-inbox / Sam handling
+  // must not count against Enterprise SLA.
   function computeResolutionActive(clip: (a: number, b: number) => number): number | null {
-    if (createdAt == null || closeAt == null) return null;
+    if (slaClockStartS == null || closeAt == null) return null;
+    if (closeAt < slaClockStartS) return 0;
     let total = 0;
     let ballWithUs = true;
-    let segStart = createdAt;
+    let segStart = slaClockStartS;
     for (const p of timeline) {
-      if (p.ts < createdAt || p.ts > closeAt) continue;
+      if (p.ts < slaClockStartS || p.ts > closeAt) continue;
       if (p.actor === "customer") {
         if (!ballWithUs) {
           ballWithUs = true;
@@ -493,6 +497,11 @@ export function computeSla(conversation: any): SlaResult {
   const samParticipated = timeline.some((p) => p.isPublicReply && p.actor === "sam_ai");
   const noHumanReply = !firstHumanReply;
   const noCustomerParticipant = !timeline.some((p) => p.actor === "customer");
+
+  // Manually-logged bulk-import Slack thread — signature body from the
+  // Enterprise Support Hub import path. Unmeasurable for SLA.
+  const sourceBodyStripped = stripHtml(conversation?.source?.body);
+  const manuallyLogged = /manually logged slack_thread/i.test(sourceBodyStripped);
 
   // Initiation classification — see SlaResult.initiatedBy for rationale.
   const sourceAuthor = conversation?.source?.author;
