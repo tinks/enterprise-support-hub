@@ -750,6 +750,8 @@ function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
         {" · "}
         Internal / no-customer: <span className="font-medium">{noCustomer.length}</span>
         {" · "}
+        Manually-logged (excluded): <span className="font-medium">{manuallyLogged.length}</span>
+        {" · "}
         Total loaded: {enriched.length}
       </div>
 
