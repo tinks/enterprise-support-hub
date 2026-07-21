@@ -832,24 +832,15 @@ export type SlaCompliance = {
 export function evaluateCompliance(sla: SlaResult, severity: Severity): SlaCompliance {
   const target = SLA_TARGETS[severity];
 
-  // First Response = first HUMAN engineer reply (bots/Sam excluded).
-  // For AI-handled tickets (Sam replied, then handed off to a human), the
-  // human's clock starts at the AI→human handoff — not at ticket open. For
-  // direct-to-human or non-handoff bases (team_assignment / first_human) we
-  // keep measuring from open.
-  const useFromEscalation =
-    (sla.escalationBasis === "post_ai_handoff" || sla.escalationBasis === "marker") &&
-    (target.firstResponseClock === "business"
-      ? sla.firstHumanReplyFromEscalationBusinessHoursS != null
-      : sla.firstHumanReplyFromEscalationS != null);
-
-  const frValue = useFromEscalation
-    ? target.firstResponseClock === "business"
-      ? sla.firstHumanReplyFromEscalationBusinessHoursS
-      : sla.firstHumanReplyFromEscalationS
-    : target.firstResponseClock === "business"
-      ? sla.firstHumanReplyFromOpenBusinessHoursS
-      : sla.firstHumanReplyFromOpenS;
+  // First Response = first HUMAN engineer reply (bots/Sam excluded), measured
+  // from the SLA clock-start = Enterprise Inbox assignment (else createdAt).
+  // Anything before the anchor (intake, Sam's AI turn, pre-ticket chatter) is
+  // pre-Enterprise and NOT counted. This replaces the earlier
+  // escalationBasis-branched FRT.
+  const frValue =
+    target.firstResponseClock === "business"
+      ? sla.firstHumanReplyFromInboxBusinessHoursS
+      : sla.firstHumanReplyFromInboxS;
   const firstResponse: ComplianceVerdict = {
     value: frValue,
     target: target.firstResponseS,
