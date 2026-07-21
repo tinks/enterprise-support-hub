@@ -844,9 +844,9 @@ function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
               </tbody>
             </table>
           </div>
-          {(excluded.length > 0 || noCustomer.length > 0) && (
+          {(excluded.length > 0 || noCustomer.length > 0 || manuallyLogged.length > 0) && (
             <div className="px-4 py-3 text-xs text-muted-foreground border-t border-border bg-muted/20">
-              {excluded.length} excluded (not-enterprise / duplicate / merged / RSA off), {noCustomer.length} internal / no-customer — not shown in aggregates above.
+              {excluded.length} excluded (not-enterprise / duplicate / merged / RSA off), {noCustomer.length} internal / no-customer, {manuallyLogged.length} manually-logged bulk-import — not shown in aggregates above.
             </div>
           )}
         </CardContent>
