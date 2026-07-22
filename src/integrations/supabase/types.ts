@@ -1105,6 +1105,8 @@ export type Database = {
           attributed: number
           created_at: string
           excluded_not_enterprise: number
+          excluded_prospect_personal: number
+          excluded_prospect_unmapped: number
           m_domain: number
           m_orphan_override: number
           m_override: number
@@ -1121,6 +1123,8 @@ export type Database = {
           attributed?: number
           created_at?: string
           excluded_not_enterprise?: number
+          excluded_prospect_personal?: number
+          excluded_prospect_unmapped?: number
           m_domain?: number
           m_orphan_override?: number
           m_override?: number
@@ -1137,6 +1141,8 @@ export type Database = {
           attributed?: number
           created_at?: string
           excluded_not_enterprise?: number
+          excluded_prospect_personal?: number
+          excluded_prospect_unmapped?: number
           m_domain?: number
           m_orphan_override?: number
           m_override?: number
@@ -1370,6 +1376,8 @@ export type Database = {
           attributed: number
           created_at: string
           excluded_not_enterprise: number
+          excluded_prospect_personal: number
+          excluded_prospect_unmapped: number
           m_domain: number
           m_orphan_override: number
           m_override: number
@@ -1417,6 +1425,8 @@ export type Database = {
         Returns: {
           attributed: number
           excluded_not_enterprise: number
+          excluded_prospect_personal: number
+          excluded_prospect_unmapped: number
           m_domain: number
           m_orphan_override: number
           m_override: number

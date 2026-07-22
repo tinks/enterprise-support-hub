@@ -44,7 +44,11 @@ export function classifySlaBatchRow(row: SlaBatchRow, sla: SlaResult): SlaBatchB
     row.rsa_override === false ||
     (row.rsa_override == null && (hasTag("enterprise-fyi") || hasTag("enterprise-duplicate"))) ||
     hasTag("merged_ticket") ||
-    row.customer_resolution_method === "not_enterprise";
+    row.customer_resolution_method === "not_enterprise" ||
+    // Prospect gates (Rules 0b/4b): personal-email inquiries and unmapped enterprise-prospect
+    // tickets are OUT of the Enterprise SLA population — counted separately in Customers.
+    row.customer_resolution_method === "prospect_personal" ||
+    row.customer_resolution_method === "enterprise_prospect";
   if (excluded) return "excluded";
   if (sla.flags.noCustomerParticipant) return "noCustomer";
   return "inScope";

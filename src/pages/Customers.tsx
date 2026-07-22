@@ -37,6 +37,8 @@ type Coverage = {
   m_workspace_id: number;
   m_unresolved: number;
   excluded_not_enterprise?: number;
+  excluded_prospect_personal?: number;
+  excluded_prospect_unmapped?: number;
   population?: number;
 };
 
@@ -306,11 +308,21 @@ function CoverageTab({ isAdmin }: { isAdmin: boolean }) {
   const chartData = snaps.map(s => ({ date: s.snapshot_date, pct: Number(s.pct_attributed) }));
 
   const excludedNotEnterprise = cov.excluded_not_enterprise ?? 0;
-  const population = cov.population ?? Math.max(0, cov.total_tickets - excludedNotEnterprise);
+  const excludedProspectPersonal = cov.excluded_prospect_personal ?? 0;
+  const excludedProspectUnmapped = cov.excluded_prospect_unmapped ?? 0;
+  const population =
+    cov.population ??
+    Math.max(
+      0,
+      cov.total_tickets -
+        excludedNotEnterprise -
+        excludedProspectPersonal -
+        excludedProspectUnmapped,
+    );
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Verified attributed</CardDescription>
@@ -345,6 +357,28 @@ function CoverageTab({ isAdmin }: { isAdmin: boolean }) {
           <CardHeader className="pb-2">
             <CardDescription>Non-Enterprise (excluded)</CardDescription>
             <CardTitle className="text-3xl">{excludedNotEnterprise}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Excluded from attribution denominator
+          </CardContent>
+        </Card>
+        <Card
+          title="Tickets tagged `enterprise-prospect-personal-acct` — an individual (personal email) asking about Enterprise. Can never become an Enterprise account. Hard population gate above override + account rules; excluded from the SLA population and never in the Unattributed queue."
+        >
+          <CardHeader className="pb-2">
+            <CardDescription>Individual inquiries (personal)</CardDescription>
+            <CardTitle className="text-3xl">{excludedProspectPersonal}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Excluded from attribution denominator
+          </CardContent>
+        </Card>
+        <Card
+          title="Tickets tagged `enterprise-prospect` with no account match — unmapped prospect fallback (Rule 4b, below account rules, so a converted prospect resolves to its account first). Counted as prospect load; excluded from the SLA population; no registry record created."
+        >
+          <CardHeader className="pb-2">
+            <CardDescription>Prospects (unmapped)</CardDescription>
+            <CardTitle className="text-3xl">{excludedProspectUnmapped}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
             Excluded from attribution denominator
