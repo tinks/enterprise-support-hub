@@ -1164,6 +1164,7 @@ export type Database = {
           created_at: string
           csm_owner: string | null
           domains: string[]
+          is_test: boolean
           label: string
           notes: string | null
           status: string | null
@@ -1176,6 +1177,7 @@ export type Database = {
           created_at?: string
           csm_owner?: string | null
           domains?: string[]
+          is_test?: boolean
           label: string
           notes?: string | null
           status?: string | null
@@ -1188,6 +1190,7 @@ export type Database = {
           created_at?: string
           csm_owner?: string | null
           domains?: string[]
+          is_test?: boolean
           label?: string
           notes?: string | null
           status?: string | null

@@ -1,0 +1,2 @@
+ALTER TABLE public.v3_customer_accounts ADD COLUMN IF NOT EXISTS is_test boolean NOT NULL DEFAULT false;
+UPDATE public.v3_customer_accounts SET is_test = true WHERE account_key = 'let_it_fly_test_account';
