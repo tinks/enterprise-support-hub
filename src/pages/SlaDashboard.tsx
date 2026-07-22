@@ -175,12 +175,15 @@ export default function SlaDashboard() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <TestDataToggle showTestData={showTestData} onChange={setShowTestData} />
             <MeasurementInfoPopover />
             <Button variant="outline" size="sm" onClick={refresh} disabled={loading}>
               <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh
             </Button>
           </div>
         </div>
+
+        {showTestData && <TestDataBanner />}
 
         {error && (
           <Card><CardContent className="p-4 text-sm text-destructive">{error}</CardContent></Card>
