@@ -491,6 +491,12 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
       setExpandedTickets(prev => ({ ...prev, [gid]: (data ?? []) as UnTicket[] }));
       return;
     }
+    if (g.group_kind === "personal_unlabeled") {
+      const { data, error } = await sb.rpc("v3_personal_unlabeled_tickets");
+      if (error) { console.error(error); toast.error("Failed to load tickets"); return; }
+      setExpandedTickets(prev => ({ ...prev, [gid]: (data ?? []) as UnTicket[] }));
+      return;
+    }
     let q = sb.from("intercom_tickets_v3")
       .select("id,intercom_conversation_id,subject,contact_email,contact_domain,slack_channel_id_detected,workspace_id_detected,intercom_created_at")
       .eq("customer_key", "unattributed")
