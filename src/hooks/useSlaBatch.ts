@@ -74,6 +74,7 @@ export type UseSlaBatch = {
   overrides: Map<string, SlaOverride>;
   isExcused: (conversationId: string, metric: SlaOverrideMetric) => boolean;
   getOverride: (conversationId: string, metric: SlaOverrideMetric) => SlaOverride | undefined;
+  customerLabels: Map<string, string>;
   refresh: () => void;
   refreshOverrides: () => void;
 };
