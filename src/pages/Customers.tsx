@@ -565,10 +565,17 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
   if (loading) return <Loader2 className="h-5 w-5 animate-spin" />;
 
   const total = groups.reduce((a, g) => a + g.ticket_count, 0);
+  const personalUnlabeled = groups
+    .filter(g => g.group_kind === "personal_unlabeled")
+    .reduce((a, g) => a + g.ticket_count, 0);
+  const personalTotal = prospectPersonalCount + personalUnlabeled;
+  const personalCoveragePct = personalTotal > 0
+    ? Math.round((prospectPersonalCount / personalTotal) * 100)
+    : 100;
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           {total} unattributed ticket{total === 1 ? "" : "s"} in {groups.length} group{groups.length === 1 ? "" : "s"}.
         </p>
@@ -576,6 +583,21 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
           <RefreshCw className="h-4 w-4 mr-2" />Refresh
         </Button>
       </div>
+
+      {personalTotal > 0 && (
+        <div
+          className="rounded-md border p-3 text-sm flex items-center gap-2"
+          title="Coverage over personal-email tickets: how many have been dispositioned (labeled `enterprise-prospect-personal-acct` in Intercom → resolve to `prospect_personal`). Unlabeled ones show up in the `personal_unlabeled` group below and should be labeled at the source."
+        >
+          <AlertTriangle className={`h-4 w-4 ${personalCoveragePct === 100 ? "text-muted-foreground" : "text-yellow-600"}`} />
+          <span>
+            Personal inquiries labeled: <span className="font-semibold">{prospectPersonalCount}</span> of{" "}
+            <span className="font-semibold">{personalTotal}</span>{" "}
+            (<span className="font-semibold">{personalCoveragePct}%</span>)
+          </span>
+        </div>
+      )}
+
 
       <Card>
         <CardContent className="p-0">
