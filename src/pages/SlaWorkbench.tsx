@@ -633,9 +633,9 @@ function DualMetricRow({
 // ============================================================================
 type BatchMode = "corrected" | "legacy";
 
-function BatchStoredTab() {
+function BatchStoredTab({ showTestData }: { showTestData: boolean }) {
   const [mode, setMode] = useState<BatchMode>("corrected");
-  const { rows, loading, error, refresh, isExcused, getOverride, refreshOverrides, customerLabels } = useSlaBatch();
+  const { rows, loading, error, refresh, isExcused, getOverride, refreshOverrides, customerLabels, testAccountKeys } = useSlaBatch({ showTestData });
 
   return (
     <div className="space-y-6">
@@ -664,7 +664,7 @@ function BatchStoredTab() {
       )}
 
       {mode === "corrected"
-        ? <CorrectedBatch rows={rows} loading={loading} isExcused={isExcused} getOverride={getOverride} refreshOverrides={refreshOverrides} customerLabels={customerLabels} />
+        ? <CorrectedBatch rows={rows} loading={loading} isExcused={isExcused} getOverride={getOverride} refreshOverrides={refreshOverrides} customerLabels={customerLabels} testAccountKeys={testAccountKeys} showTestData={showTestData} />
         : <LegacyBatch rows={rows} loading={loading} />}
     </div>
   );
