@@ -1232,6 +1232,7 @@ function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: Correcte
                 <td className="px-3 py-2 text-right text-muted-foreground">—</td>
                 <td className="px-3 py-2 text-muted-foreground">—</td>
                 <td className="px-3 py-2 text-right text-muted-foreground">—</td>
+                <td className="px-3 py-2 text-right text-muted-foreground">—</td>
               </tr>
             </tbody>
           </table>
