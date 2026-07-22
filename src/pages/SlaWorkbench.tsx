@@ -1499,6 +1499,126 @@ function ComplianceSection({
           First Response = first human reply, measured from the AI→human handoff for AI-handled tickets (else from open). Resolution = active in-our-court time (stop-the-clock: customer-wait and reopened gaps excluded). Clocks: Sev 1 wall-clock 24/7; Sev 2–4 Europe/Berlin business hours (1 business day = 15h). Business-hours durations are shown in business days ("bd", 1 bd = 15h) so they line up with the targets; calendar durations use 24h days. Company holidays not yet modeled. Targets are provisional. Sev 1 sample is tiny (n≈1). First Response basis: Customer-initiated by default (agent-initiated tickets — outbound/relayed/forwarded, ~half the volume — are shown separately and excluded from the FR %, since no customer was awaiting a first reply); switch to All tickets for the source-independent total. Resolution always covers all tickets.
         </p>
       </CardContent>
+      <ExcuseDialog
+        target={excuseTarget}
+        onClose={() => setExcuseTarget(null)}
+        isAdmin={isAdmin}
+        onSaved={() => { refreshOverrides(); setExcuseTarget(null); }}
+      />
     </Card>
   );
 }
+
+// --- Excuse action cell ---
+function ExcuseCell({
+  excused, override, isAdmin, onExcuse, onRemove,
+}: {
+  excused: boolean;
+  override: SlaOverride | undefined;
+  isAdmin: boolean;
+  onExcuse: () => void;
+  onRemove: () => void;
+}) {
+  if (excused && override) {
+    return (
+      <div className="inline-flex items-center gap-2">
+        <span
+          className="text-xs text-muted-foreground"
+          title={override.note ?? ""}
+        >
+          Excused · {override.reason.replace("_", " ")}
+        </span>
+        <button
+          onClick={onRemove}
+          disabled={!isAdmin}
+          className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
+          title={isAdmin ? "Remove override" : "Admin only"}
+        >
+          Remove
+        </button>
+      </div>
+    );
+  }
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={onExcuse}
+      disabled={!isAdmin}
+      title={isAdmin ? "Excuse this breach" : "Admin only"}
+      className="h-7 text-xs"
+    >
+      Excuse
+    </Button>
+  );
+}
+
+// --- Excuse dialog ---
+function ExcuseDialog({
+  target, onClose, isAdmin, onSaved,
+}: {
+  target: { cid: string; metric: SlaOverrideMetric; subject: string | null } | null;
+  onClose: () => void;
+  isAdmin: boolean;
+  onSaved: () => void;
+}) {
+  const [reason, setReason] = useState<SlaOverrideReason>("holiday");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (target) { setReason("holiday"); setNote(""); }
+  }, [target?.cid, target?.metric]);
+
+  const open = !!target;
+  const save = async () => {
+    if (!target) return;
+    if (!isAdmin) { toast({ title: "Admin only", description: "You need the admin role to excuse breaches." }); return; }
+    setSaving(true);
+    const { error } = await supabase
+      .from("sla_breach_overrides" as any)
+      .upsert(
+        { intercom_conversation_id: target.cid, metric: target.metric, reason, note: note.trim() || null },
+        { onConflict: "intercom_conversation_id,metric" },
+      );
+    setSaving(false);
+    if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
+    else { toast({ title: "Breach excused" }); onSaved(); }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Excuse breach</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="text-xs text-muted-foreground truncate">
+            {target?.metric === "first_response" ? "First response" : "Resolution"} · {target?.subject ?? target?.cid}
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Reason</label>
+            <Select value={reason} onValueChange={(v) => setReason(v as SlaOverrideReason)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="holiday">Holiday</SelectItem>
+                <SelectItem value="customer_hold">Customer-side hold</SelectItem>
+                <SelectItem value="data_artifact">Data artifact</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Note (optional)</label>
+            <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={save} disabled={saving || !isAdmin}>{saving ? "Saving…" : "Save"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
