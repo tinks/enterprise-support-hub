@@ -23,6 +23,7 @@ export type SlaBatchRow = {
   rsa_override: boolean | null;
   customer_resolution_method: string | null;
   owner: string | null;
+  customer_key: string | null;
 };
 
 export type SlaBatchBucket = "inScope" | "excluded" | "noCustomer" | "manuallyLogged";
@@ -73,6 +74,7 @@ export type UseSlaBatch = {
   overrides: Map<string, SlaOverride>;
   isExcused: (conversationId: string, metric: SlaOverrideMetric) => boolean;
   getOverride: (conversationId: string, metric: SlaOverrideMetric) => SlaOverride | undefined;
+  customerLabels: Map<string, string>;
   refresh: () => void;
   refreshOverrides: () => void;
 };
@@ -101,7 +103,7 @@ export function useSlaBatch(): UseSlaBatch {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_conversation_id,subject,contact_name,contact_email,intercom_created_at,intercom_closed_at,time_to_resolve_s,time_to_first_admin_reply_s,raw_payload,tags,rsa_override,customer_resolution_method,owner")
+            .select("id,intercom_conversation_id,subject,contact_name,contact_email,intercom_created_at,intercom_closed_at,time_to_resolve_s,time_to_first_admin_reply_s,raw_payload,tags,rsa_override,customer_resolution_method,owner,customer_key")
             .in("lifecycle_status", ["finalized", "reopened_after_finalize"])
             .order("intercom_closed_at", { ascending: false })
             .range(offset, offset + PAGE - 1);
@@ -169,8 +171,27 @@ export function useSlaBatch(): UseSlaBatch {
     [overrides],
   );
 
+  // Customer registry labels — small table, load once.
+  const [customerLabels, setCustomerLabels] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("v3_customer_accounts")
+        .select("account_key,label");
+      if (cancelled) return;
+      if (error) { setCustomerLabels(new Map()); return; }
+      const m = new Map<string, string>();
+      for (const row of (data ?? []) as Array<{ account_key: string; label: string }>) {
+        m.set(row.account_key, row.label);
+      }
+      setCustomerLabels(m);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   return {
     loading, error, rows, enriched, inScope, excluded, noCustomer, manuallyLogged,
-    overrides, isExcused, getOverride, refresh, refreshOverrides,
+    overrides, isExcused, getOverride, customerLabels, refresh, refreshOverrides,
   };
 }
