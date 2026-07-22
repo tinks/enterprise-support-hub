@@ -280,6 +280,9 @@ export default function SlaDashboard() {
                                     {r.resBreach} breach{r.resBreach === 1 ? "" : "es"}
                                   </Badge>
                                 )}
+                                {r.resExcused > 0 && (
+                                  <span className="text-[10px] text-muted-foreground">· {r.resExcused} excused</span>
+                                )}
                               </>
                             )}
                           </div>
