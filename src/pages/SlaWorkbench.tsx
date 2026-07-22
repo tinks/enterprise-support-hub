@@ -32,7 +32,14 @@ import {
   classifySlaBatchRow as classifyRow,
   type SlaBatchRow as Row,
   type SlaBatchEnriched as CorrectedEnriched,
+  type SlaOverride,
+  type SlaOverrideMetric,
+  type SlaOverrideReason,
 } from "@/hooks/useSlaBatch";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { toast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
 
@@ -588,7 +595,7 @@ type BatchMode = "corrected" | "legacy";
 
 function BatchStoredTab() {
   const [mode, setMode] = useState<BatchMode>("corrected");
-  const { rows, loading, error, refresh } = useSlaBatch();
+  const { rows, loading, error, refresh, isExcused, getOverride, refreshOverrides } = useSlaBatch();
 
   return (
     <div className="space-y-6">
@@ -617,7 +624,7 @@ function BatchStoredTab() {
       )}
 
       {mode === "corrected"
-        ? <CorrectedBatch rows={rows} loading={loading} />
+        ? <CorrectedBatch rows={rows} loading={loading} isExcused={isExcused} getOverride={getOverride} refreshOverrides={refreshOverrides} />
         : <LegacyBatch rows={rows} loading={loading} />}
     </div>
   );
@@ -626,7 +633,7 @@ function BatchStoredTab() {
 // ----- Corrected engine view -----
 
 
-function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
+function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverrides }: { rows: Row[]; loading: boolean; isExcused: (cid: string, metric: SlaOverrideMetric) => boolean; getOverride: (cid: string, metric: SlaOverrideMetric) => SlaOverride | undefined; refreshOverrides: () => void }) {
   const [sortKey, setSortKey] = useState<CorrectedSortKey>("closed");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
@@ -692,7 +699,7 @@ function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
         Total loaded: {enriched.length}
       </div>
 
-      <ComplianceSection inScope={inScope} manuallyLoggedCount={manuallyLogged.length} />
+      <ComplianceSection inScope={inScope} manuallyLoggedCount={manuallyLogged.length} isExcused={isExcused} getOverride={getOverride} refreshOverrides={refreshOverrides} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
@@ -994,7 +1001,21 @@ type SeverityBucket = {
   rows: Array<{ row: CorrectedEnriched; compliance: SlaCompliance }>;
 };
 
-function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: CorrectedEnriched[]; manuallyLoggedCount: number }) {
+function ComplianceSection({
+  inScope,
+  manuallyLoggedCount,
+  isExcused,
+  getOverride,
+  refreshOverrides,
+}: {
+  inScope: CorrectedEnriched[];
+  manuallyLoggedCount: number;
+  isExcused: (cid: string, metric: SlaOverrideMetric) => boolean;
+  getOverride: (cid: string, metric: SlaOverrideMetric) => SlaOverride | undefined;
+  refreshOverrides: () => void;
+}) {
+  const { isAdmin } = useIsAdmin();
+  const [excuseTarget, setExcuseTarget] = useState<{ cid: string; metric: SlaOverrideMetric; subject: string | null } | null>(null);
   const [breachesOpen, setBreachesOpen] = useState(false);
   const [resBreachesOpen, setResBreachesOpen] = useState(false);
   const [bySourceOpen, setBySourceOpen] = useState(false);
@@ -1060,27 +1081,33 @@ function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: Correcte
   }, [buckets]);
 
   const rowSummary = (b: SeverityBucket) => {
-    let frMet = 0, frBreach = 0, frNotEval = 0;
-    let resMet = 0, resBreach = 0, resNotEval = 0;
+    let frMet = 0, frBreach = 0, frExcused = 0, frNotEval = 0;
+    let resMet = 0, resBreach = 0, resExcused = 0, resNotEval = 0;
     for (const { row, compliance } of b.rows) {
       const includeFr = frBasis === "all" || row.sla.initiatedBy === "customer";
       if (includeFr) {
         if (compliance.firstResponse.met === true) frMet++;
-        else if (compliance.firstResponse.met === false) frBreach++;
+        else if (compliance.firstResponse.met === false) {
+          if (isExcused(row.intercom_conversation_id, "first_response")) frExcused++;
+          else frBreach++;
+        }
         else frNotEval++;
       }
       // Resolution always covers ALL in-scope tickets regardless of basis.
       if (compliance.resolution.met === true) resMet++;
-      else if (compliance.resolution.met === false) resBreach++;
+      else if (compliance.resolution.met === false) {
+        if (isExcused(row.intercom_conversation_id, "resolution")) resExcused++;
+        else resBreach++;
+      }
       else resNotEval++;
     }
     const frDenom = frMet + frBreach;
     const resDenom = resMet + resBreach;
     return {
       n: b.rows.length,
-      frMet, frBreach, frNotEval,
+      frMet, frBreach, frExcused, frNotEval,
       frPct: frDenom ? (frMet / frDenom) * 100 : null,
-      resMet, resBreach, resNotEval,
+      resMet, resBreach, resExcused, resNotEval,
       resPct: resDenom ? (resMet / resDenom) * 100 : null,
     };
   };
@@ -1177,6 +1204,22 @@ function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: Correcte
           </div>
         </div>
 
+        {(() => {
+          const totals = ([1,2,3,4] as const).reduce((acc, sev) => {
+            const s = rowSummary(buckets[sev]);
+            acc.excused += s.frExcused + s.resExcused;
+            acc.breach += s.frBreach + s.resBreach;
+            return acc;
+          }, { excused: 0, breach: 0 });
+          const denom = totals.excused + totals.breach;
+          const pct = denom ? Math.round((totals.excused / denom) * 100) : 0;
+          return (
+            <div className="text-xs text-muted-foreground">
+              Overrides: {totals.excused} of {denom} breaches excused ({pct}%)
+            </div>
+          );
+        })()}
+
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -1207,7 +1250,10 @@ function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: Correcte
                     <td className="px-3 py-2 text-right tabular-nums font-medium">
                       {s.frPct == null ? "—" : `${s.frPct.toFixed(0)}%`}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-destructive">{s.frBreach || "—"}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-destructive">
+                      {s.frBreach || "—"}
+                      {s.frExcused > 0 && <span className="ml-1 text-muted-foreground text-[11px]">· {s.frExcused} excused</span>}
+                    </td>
                     <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{s.frNotEval || "—"}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
                       {t.resolutionS == null
@@ -1219,7 +1265,10 @@ function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: Correcte
                         ? <span className="text-muted-foreground italic">best-effort — n/a</span>
                         : s.resPct == null ? "—" : `${s.resPct.toFixed(0)}%`}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-destructive">{s.resBreach || "—"}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-destructive">
+                      {s.resBreach || "—"}
+                      {s.resExcused > 0 && <span className="ml-1 text-muted-foreground text-[11px]">· {s.resExcused} excused</span>}
+                    </td>
                   </tr>
                 );
               })}
@@ -1311,12 +1360,16 @@ function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: Correcte
                     <th className="text-right px-3 py-2 font-medium">Measured FR</th>
                     <th className="text-right px-3 py-2 font-medium">Target</th>
                     <th className="text-left px-3 py-2 font-medium">Clock</th>
+                    <th className="text-right px-3 py-2 font-medium">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {frBreaches.map(({ row, compliance }) => (
-                    <tr key={row.id} className="border-t border-border">
-                      <td className="px-3 py-2 max-w-[320px] truncate">
+                  {frBreaches.map(({ row, compliance }) => {
+                    const excused = isExcused(row.intercom_conversation_id, "first_response");
+                    const ov = getOverride(row.intercom_conversation_id, "first_response");
+                    return (
+                    <tr key={row.id} className={`border-t border-border ${excused ? "opacity-60 line-through" : ""}`}>
+                      <td className="px-3 py-2 max-w-[320px] truncate no-underline">
                         <a
                           href={`https://app.intercom.com/a/inbox/_/inbox/conversation/${row.intercom_conversation_id}`}
                           target="_blank"
@@ -1337,10 +1390,25 @@ function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: Correcte
                       <td className="px-3 py-2 text-xs text-muted-foreground">
                         {compliance.firstResponse.clock === "business" ? "business hrs" : "calendar"}
                       </td>
+                      <td className="px-3 py-2 text-right no-underline">
+                        <ExcuseCell
+                          excused={excused}
+                          override={ov}
+                          isAdmin={isAdmin}
+                          onExcuse={() => setExcuseTarget({ cid: row.intercom_conversation_id, metric: "first_response", subject: row.subject })}
+                          onRemove={async () => {
+                            if (!isAdmin) { toast({ title: "Admin only", description: "You need the admin role to remove overrides." }); return; }
+                            const { error } = await supabase.from("sla_breach_overrides" as any).delete().eq("intercom_conversation_id", row.intercom_conversation_id).eq("metric", "first_response");
+                            if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
+                            else { refreshOverrides(); toast({ title: "Override removed" }); }
+                          }}
+                        />
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                   {!frBreaches.length && (
-                    <tr><td colSpan={5} className="px-3 py-4 text-center text-muted-foreground text-xs">No first-response breaches.</td></tr>
+                    <tr><td colSpan={6} className="px-3 py-4 text-center text-muted-foreground text-xs">No first-response breaches.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -1366,12 +1434,16 @@ function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: Correcte
                     <th className="text-right px-3 py-2 font-medium">Target</th>
                     <th className="text-left px-3 py-2 font-medium">Clock</th>
                     <th className="text-right px-3 py-2 font-medium">Reopens</th>
+                    <th className="text-right px-3 py-2 font-medium">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {resBreaches.map(({ row, compliance }) => (
-                    <tr key={row.id} className="border-t border-border">
-                      <td className="px-3 py-2 max-w-[320px] truncate">
+                  {resBreaches.map(({ row, compliance }) => {
+                    const excused = isExcused(row.intercom_conversation_id, "resolution");
+                    const ov = getOverride(row.intercom_conversation_id, "resolution");
+                    return (
+                    <tr key={row.id} className={`border-t border-border ${excused ? "opacity-60 line-through" : ""}`}>
+                      <td className="px-3 py-2 max-w-[320px] truncate no-underline">
                         <a
                           href={`https://app.intercom.com/a/inbox/_/inbox/conversation/${row.intercom_conversation_id}`}
                           target="_blank"
@@ -1395,10 +1467,25 @@ function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: Correcte
                       <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                         {row.sla.reopenCount > 0 ? row.sla.reopenCount : "—"}
                       </td>
+                      <td className="px-3 py-2 text-right no-underline">
+                        <ExcuseCell
+                          excused={excused}
+                          override={ov}
+                          isAdmin={isAdmin}
+                          onExcuse={() => setExcuseTarget({ cid: row.intercom_conversation_id, metric: "resolution", subject: row.subject })}
+                          onRemove={async () => {
+                            if (!isAdmin) { toast({ title: "Admin only", description: "You need the admin role to remove overrides." }); return; }
+                            const { error } = await supabase.from("sla_breach_overrides" as any).delete().eq("intercom_conversation_id", row.intercom_conversation_id).eq("metric", "resolution");
+                            if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
+                            else { refreshOverrides(); toast({ title: "Override removed" }); }
+                          }}
+                        />
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                   {!resBreaches.length && (
-                    <tr><td colSpan={6} className="px-3 py-4 text-center text-muted-foreground text-xs">No resolution breaches.</td></tr>
+                    <tr><td colSpan={7} className="px-3 py-4 text-center text-muted-foreground text-xs">No resolution breaches.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -1412,6 +1499,126 @@ function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: Correcte
           First Response = first human reply, measured from the AI→human handoff for AI-handled tickets (else from open). Resolution = active in-our-court time (stop-the-clock: customer-wait and reopened gaps excluded). Clocks: Sev 1 wall-clock 24/7; Sev 2–4 Europe/Berlin business hours (1 business day = 15h). Business-hours durations are shown in business days ("bd", 1 bd = 15h) so they line up with the targets; calendar durations use 24h days. Company holidays not yet modeled. Targets are provisional. Sev 1 sample is tiny (n≈1). First Response basis: Customer-initiated by default (agent-initiated tickets — outbound/relayed/forwarded, ~half the volume — are shown separately and excluded from the FR %, since no customer was awaiting a first reply); switch to All tickets for the source-independent total. Resolution always covers all tickets.
         </p>
       </CardContent>
+      <ExcuseDialog
+        target={excuseTarget}
+        onClose={() => setExcuseTarget(null)}
+        isAdmin={isAdmin}
+        onSaved={() => { refreshOverrides(); setExcuseTarget(null); }}
+      />
     </Card>
   );
 }
+
+// --- Excuse action cell ---
+function ExcuseCell({
+  excused, override, isAdmin, onExcuse, onRemove,
+}: {
+  excused: boolean;
+  override: SlaOverride | undefined;
+  isAdmin: boolean;
+  onExcuse: () => void;
+  onRemove: () => void;
+}) {
+  if (excused && override) {
+    return (
+      <div className="inline-flex items-center gap-2">
+        <span
+          className="text-xs text-muted-foreground"
+          title={override.note ?? ""}
+        >
+          Excused · {override.reason.replace("_", " ")}
+        </span>
+        <button
+          onClick={onRemove}
+          disabled={!isAdmin}
+          className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
+          title={isAdmin ? "Remove override" : "Admin only"}
+        >
+          Remove
+        </button>
+      </div>
+    );
+  }
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={onExcuse}
+      disabled={!isAdmin}
+      title={isAdmin ? "Excuse this breach" : "Admin only"}
+      className="h-7 text-xs"
+    >
+      Excuse
+    </Button>
+  );
+}
+
+// --- Excuse dialog ---
+function ExcuseDialog({
+  target, onClose, isAdmin, onSaved,
+}: {
+  target: { cid: string; metric: SlaOverrideMetric; subject: string | null } | null;
+  onClose: () => void;
+  isAdmin: boolean;
+  onSaved: () => void;
+}) {
+  const [reason, setReason] = useState<SlaOverrideReason>("holiday");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (target) { setReason("holiday"); setNote(""); }
+  }, [target?.cid, target?.metric]);
+
+  const open = !!target;
+  const save = async () => {
+    if (!target) return;
+    if (!isAdmin) { toast({ title: "Admin only", description: "You need the admin role to excuse breaches." }); return; }
+    setSaving(true);
+    const { error } = await supabase
+      .from("sla_breach_overrides" as any)
+      .upsert(
+        { intercom_conversation_id: target.cid, metric: target.metric, reason, note: note.trim() || null },
+        { onConflict: "intercom_conversation_id,metric" },
+      );
+    setSaving(false);
+    if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
+    else { toast({ title: "Breach excused" }); onSaved(); }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Excuse breach</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="text-xs text-muted-foreground truncate">
+            {target?.metric === "first_response" ? "First response" : "Resolution"} · {target?.subject ?? target?.cid}
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Reason</label>
+            <Select value={reason} onValueChange={(v) => setReason(v as SlaOverrideReason)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="holiday">Holiday</SelectItem>
+                <SelectItem value="customer_hold">Customer-side hold</SelectItem>
+                <SelectItem value="data_artifact">Data artifact</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium">Note (optional)</label>
+            <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={save} disabled={saving || !isAdmin}>{saving ? "Saving…" : "Save"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
