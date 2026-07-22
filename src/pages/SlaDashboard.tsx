@@ -331,9 +331,11 @@ export default function SlaDashboard() {
                                   · target {formatTarget(r.target.resolutionS, r.target.resolutionClock)}
                                 </span>
                                 {r.resBreach > 0 && (
-                                  <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                                    {r.resBreach} breach{r.resBreach === 1 ? "" : "es"}
-                                  </Badge>
+                                  <Link to="/sla-workbench" title="View breach detail in the Workbench">
+                                    <Badge variant="destructive" className="text-[10px] px-1.5 py-0 cursor-pointer hover:opacity-80">
+                                      {r.resBreach} breach{r.resBreach === 1 ? "" : "es"}
+                                    </Badge>
+                                  </Link>
                                 )}
                                 {r.resExcused > 0 && (
                                   <span className="text-[10px] text-muted-foreground">· {r.resExcused} excused</span>
