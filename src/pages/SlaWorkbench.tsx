@@ -27,38 +27,23 @@ import {
   type Severity,
   type SlaCompliance,
 } from "@/lib/slaMetrics";
+import {
+  useSlaBatch,
+  classifySlaBatchRow as classifyRow,
+  type SlaBatchRow as Row,
+  type SlaBatchEnriched as CorrectedEnriched,
+} from "@/hooks/useSlaBatch";
+
 
 
 
 // ============================================================================
 // Tab 2 (legacy stored batch) — types
 // ============================================================================
-type Row = {
-  id: string;
-  intercom_conversation_id: string;
-  subject: string | null;
-  contact_name: string | null;
-  contact_email: string | null;
-  intercom_created_at: string | null;
-  intercom_closed_at: string | null;
-  time_to_resolve_s: number | null;
-  time_to_first_admin_reply_s: number | null;
-  raw_payload: any;
-  tags: string[] | null;
-  rsa_override: boolean | null;
-  customer_resolution_method: string | null;
-  owner: string | null;
-};
-
 type Enriched = Row & { sla: TicketSla };
 type SortKey = "closed" | "firstReply" | "rawResolve" | "responseGap" | "bhHandling" | "parts";
-
-type CorrectedEnriched = Row & {
-  sla: SlaResult;
-  origin: Origin;
-  bucket: "inScope" | "excluded" | "noCustomer" | "manuallyLogged";
-};
 type CorrectedSortKey = "closed" | "humanBH" | "humanCal" | "anyCal" | "ttrBH";
+
 
 // ============================================================================
 // Tab 1 (live analyze) — types
@@ -91,21 +76,22 @@ function parseIds(input: string): string[] {
 // ============================================================================
 // Page
 // ============================================================================
-export default function SlaTest() {
+export default function SlaWorkbench() {
   return (
     <AppLayout>
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
         <div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide">
-            <Gauge className="h-3.5 w-3.5" /> Prototype · SLA validation
+            <Gauge className="h-3.5 w-3.5" /> Practitioner tool · SLA validation
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight mt-1">SLA test</h1>
+          <h1 className="text-2xl font-semibold tracking-tight mt-1">SLA Workbench</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Live SLA validation tool. Paste Intercom conversation IDs to fetch & spot-check our computed metrics
-            against Intercom's own statistics, or browse the stored batch of finalized tickets.
+            Detailed "data behind it" view. Analyze individual tickets by ID or browse the full stored batch with
+            per-ticket metrics, compliance breakdown, and legacy comparison.
             Business hours = Europe/Berlin, Mon–Fri 09:00–24:00.
           </p>
         </div>
+
 
         <Tabs defaultValue="live" className="w-full">
           <TabsList>
@@ -601,43 +587,8 @@ function DualMetricRow({
 type BatchMode = "corrected" | "legacy";
 
 function BatchStoredTab() {
-  const [rows, setRows] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
   const [mode, setMode] = useState<BatchMode>("corrected");
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const PAGE = 500;
-        const all: Row[] = [];
-        let offset = 0;
-        while (true) {
-          const { data, error } = await supabase
-            .from("intercom_tickets_v3")
-            .select("id,intercom_conversation_id,subject,contact_name,contact_email,intercom_created_at,intercom_closed_at,time_to_resolve_s,time_to_first_admin_reply_s,raw_payload,tags,rsa_override,customer_resolution_method,owner")
-            .in("lifecycle_status", ["finalized", "reopened_after_finalize"])
-            .order("intercom_closed_at", { ascending: false })
-            .range(offset, offset + PAGE - 1);
-          if (error) throw error;
-          const batch = (data ?? []) as Row[];
-          all.push(...batch);
-          if (batch.length < PAGE) break;
-          offset += PAGE;
-        }
-        if (!cancelled) setRows(all);
-      } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? String(e));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [refreshKey]);
+  const { rows, loading, error, refresh } = useSlaBatch();
 
   return (
     <div className="space-y-6">
@@ -656,7 +607,7 @@ function BatchStoredTab() {
             Legacy (compare)
           </button>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setRefreshKey((k) => k + 1)} disabled={loading}>
+        <Button variant="outline" size="sm" onClick={refresh} disabled={loading}>
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh
         </Button>
       </div>
@@ -673,21 +624,7 @@ function BatchStoredTab() {
 }
 
 // ----- Corrected engine view -----
-function classifyRow(row: Row, sla: SlaResult): "inScope" | "excluded" | "noCustomer" | "manuallyLogged" {
-  // Manually-logged bulk-import threads have no real reply timestamps —
-  // unmeasurable for SLA. Check BEFORE the other buckets.
-  if (sla.flags.manuallyLogged) return "manuallyLogged";
-  const tags = Array.isArray(row.tags) ? row.tags : [];
-  const hasTag = (t: string) => tags.includes(t);
-  const excluded =
-    row.rsa_override === false ||
-    (row.rsa_override == null && (hasTag("enterprise-fyi") || hasTag("enterprise-duplicate"))) ||
-    hasTag("merged_ticket") ||
-    row.customer_resolution_method === "not_enterprise";
-  if (excluded) return "excluded";
-  if (sla.flags.noCustomerParticipant) return "noCustomer";
-  return "inScope";
-}
+
 
 function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
   const [sortKey, setSortKey] = useState<CorrectedSortKey>("closed");
