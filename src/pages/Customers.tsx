@@ -57,7 +57,7 @@ type Snapshot = {
 };
 
 type GroupRow = {
-  group_kind: "domain" | "channel" | "workspace" | "no_signal";
+  group_kind: "domain" | "channel" | "workspace" | "no_signal" | "personal_unlabeled";
   group_key: string;
   display_name: string | null;
   ticket_count: number;
@@ -459,6 +459,7 @@ function Bucket({ label, value, tone }: { label: string; value: number; tone?: "
 function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [accounts, setAccounts] = useState<AccountOpt[]>([]);
+  const [prospectPersonalCount, setProspectPersonalCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [expandedTickets, setExpandedTickets] = useState<Record<string, UnTicket[]>>({});
@@ -467,14 +468,18 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
 
   const load = async () => {
     setLoading(true);
-    const [{ data: g, error: e1 }, { data: a, error: e2 }] = await Promise.all([
+    const [{ data: g, error: e1 }, { data: a, error: e2 }, { data: cov, error: e3 }] = await Promise.all([
       sb.rpc("v3_unattributed_groups"),
       sb.from("v3_customer_accounts").select("account_key,label,domains").order("label"),
+      sb.rpc("v3_coverage_current"),
     ]);
     if (e1) { console.error(e1); toast.error("Failed to load groups"); }
     if (e2) { console.error(e2); }
+    if (e3) { console.error(e3); }
     setGroups((g ?? []) as GroupRow[]);
     setAccounts((a ?? []) as AccountOpt[]);
+    const covRow = Array.isArray(cov) ? cov[0] : cov;
+    setProspectPersonalCount(Number((covRow as { excluded_prospect_personal?: number } | null)?.excluded_prospect_personal ?? 0));
     setLoading(false);
   };
 
@@ -487,6 +492,12 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
     if (expandedTickets[gid]) return;
     if (g.group_kind === "no_signal") {
       const { data, error } = await sb.rpc("v3_no_signal_tickets");
+      if (error) { console.error(error); toast.error("Failed to load tickets"); return; }
+      setExpandedTickets(prev => ({ ...prev, [gid]: (data ?? []) as UnTicket[] }));
+      return;
+    }
+    if (g.group_kind === "personal_unlabeled") {
+      const { data, error } = await sb.rpc("v3_personal_unlabeled_tickets");
       if (error) { console.error(error); toast.error("Failed to load tickets"); return; }
       setExpandedTickets(prev => ({ ...prev, [gid]: (data ?? []) as UnTicket[] }));
       return;
@@ -523,6 +534,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
     if (kind === "domain") return <Building2 className="h-4 w-4" />;
     if (kind === "channel") return <Hash className="h-4 w-4" />;
     if (kind === "workspace") return <Shield className="h-4 w-4" />;
+    if (kind === "personal_unlabeled") return <AlertTriangle className="h-4 w-4 text-yellow-600" />;
     return <Ban className="h-4 w-4" />;
   };
 
@@ -553,10 +565,17 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
   if (loading) return <Loader2 className="h-5 w-5 animate-spin" />;
 
   const total = groups.reduce((a, g) => a + g.ticket_count, 0);
+  const personalUnlabeled = groups
+    .filter(g => g.group_kind === "personal_unlabeled")
+    .reduce((a, g) => a + g.ticket_count, 0);
+  const personalTotal = prospectPersonalCount + personalUnlabeled;
+  const personalCoveragePct = personalTotal > 0
+    ? Math.round((prospectPersonalCount / personalTotal) * 100)
+    : 100;
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           {total} unattributed ticket{total === 1 ? "" : "s"} in {groups.length} group{groups.length === 1 ? "" : "s"}.
         </p>
@@ -564,6 +583,21 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
           <RefreshCw className="h-4 w-4 mr-2" />Refresh
         </Button>
       </div>
+
+      {personalTotal > 0 && (
+        <div
+          className="rounded-md border p-3 text-sm flex items-center gap-2"
+          title="Coverage over personal-email tickets: how many have been dispositioned (labeled `enterprise-prospect-personal-acct` in Intercom → resolve to `prospect_personal`). Unlabeled ones show up in the `personal_unlabeled` group below and should be labeled at the source."
+        >
+          <AlertTriangle className={`h-4 w-4 ${personalCoveragePct === 100 ? "text-muted-foreground" : "text-yellow-600"}`} />
+          <span>
+            Personal inquiries labeled: <span className="font-semibold">{prospectPersonalCount}</span> of{" "}
+            <span className="font-semibold">{personalTotal}</span>{" "}
+            (<span className="font-semibold">{personalCoveragePct}%</span>)
+          </span>
+        </div>
+      )}
+
 
       <Card>
         <CardContent className="p-0">
@@ -585,7 +619,9 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
                 const sel = selected[gid] ?? new Set<string>();
                 const signalLabel = g.group_kind === "channel"
                   ? channelLabel(g.group_key, g.display_name)
-                  : (g.group_key || "");
+                  : g.group_kind === "personal_unlabeled"
+                    ? (g.display_name || "Likely personal — needs label")
+                    : (g.group_key || "");
                 return (
                   <>
                     <TableRow key={gid} className="cursor-pointer" onClick={() => toggle(g)}>

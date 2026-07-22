@@ -1488,6 +1488,19 @@ export type Database = {
           ticket_count: number
         }[]
       }
+      v3_personal_unlabeled_tickets: {
+        Args: never
+        Returns: {
+          contact_domain: string
+          contact_email: string
+          id: string
+          intercom_conversation_id: string
+          intercom_created_at: string
+          slack_channel_id_detected: string
+          subject: string
+          workspace_id_detected: string
+        }[]
+      }
       v3_tickets_for_channel: {
         Args: { _channel_id: string }
         Returns: {
