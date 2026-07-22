@@ -226,11 +226,26 @@ export default function SlaDashboard() {
               </SelectContent>
             </Select>
             <span className="text-xs text-muted-foreground italic">{WINDOW_CAPTIONS[dateWindow]}</span>
+            <span className="text-xs uppercase tracking-wide text-muted-foreground ml-2">Customer</span>
+            <Select value={customerFilter} onValueChange={setCustomerFilter}>
+              <SelectTrigger className="h-8 w-[220px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_CUSTOMERS}>All customers</SelectItem>
+                {customerOptions.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-xs">
             <span className="text-foreground">
               <span className="font-semibold tabular-nums">{total}</span> in-scope
               <span className="text-muted-foreground"> · {WINDOW_CAPTIONS[dateWindow]}</span>
+              {selectedCustomerLabel && (
+                <span className="text-muted-foreground"> · customer: <span className="text-foreground font-medium">{selectedCustomerLabel}</span></span>
+              )}
             </span>
             <span className="text-foreground">
               Severity coverage: <span className="font-semibold tabular-nums">{coveragePct.toFixed(0)}%</span>
