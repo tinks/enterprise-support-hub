@@ -53,7 +53,8 @@ const UNATTRIBUTED = "__unattributed__";
 const ALL_CUSTOMERS = "__all__";
 
 export default function SlaDashboard() {
-  const { loading, error, inScope, excluded, noCustomer, manuallyLogged, refresh, isExcused, customerLabels } = useSlaBatch();
+  const [showTestData, setShowTestData] = useState(false);
+  const { loading, error, inScope, excluded, noCustomer, manuallyLogged, refresh, isExcused, customerLabels } = useSlaBatch({ showTestData });
   const [dateWindow, setDateWindow] = useState<DateWindow>("month");
   const [customerFilter, setCustomerFilter] = useState<string>(ALL_CUSTOMERS);
 
