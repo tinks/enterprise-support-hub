@@ -1031,6 +1031,25 @@ Population classification (`classifyRow`, checked in this order, unchanged):
 3. **noCustomer** — `sla.flags.noCustomerParticipant`.
 4. **inScope** — everything else. Compliance runs only over `inScope`.
 
+#### Test/sandbox accounts — `is_test` + "Show test data" toggle
+
+`v3_customer_accounts.is_test boolean NOT NULL DEFAULT false` marks an account as a demo sandbox. `useSlaBatch` loads the set of test account keys (`testAccountKeys: Set<string>`, exposes `isTestAccount(key)`) alongside `customerLabels`, and accepts a `{ showTestData: boolean }` option threaded from the page. `classifySlaBatchRow` takes `ClassifyOpts` and short-circuits any row whose `customer_key ∈ testAccountKeys` into the `excluded` bucket (reason `test_account`) UNLESS `showTestData === true`, in which case the test-account rows fall through the normal classification and land in `inScope`/`noCustomer`/etc. exactly like real tickets.
+
+Both **SLA Dashboard** and **SLA Workbench** render a default-OFF `TestDataToggle` (shared component, exported from `SlaWorkbench.tsx` and re-used on Dashboard) plus a loud amber/destructive `TestDataBanner`: **"⚠ Test data included — these figures are NOT real compliance."** When the toggle is OFF, behavior is identical to before — the test account is invisible to the scorecard, breach lists, customer dropdown, and every KPI. When ON, the test account appears in the customer dropdown and its breach tickets flow into the scorecard and breach lists like any other customer.
+
+Currently one account is flagged: `let_it_fly_test_account` (Let it Fly).
+
+**Why (design intent — the anti-drift anchor):**
+
+- Matt wanted populated breach reports to demo without either waiting weeks for a real customer to breach or fabricating fake data that pollutes real numbers. `is_test` on the ACCOUNT gives a durable, safe sandbox with the toggle as a single ON/OFF switch — never bolted onto individual tickets.
+- **Intercom-as-truth is preserved.** Sandbox breaches are REAL throwaway Intercom tickets that we deliberately leave to breach (unresponded → FRT breach, unresolved → resolution breach). Nothing is mocked in the engine.
+- The throwaway tickets are left **UNTAGGED** on purpose — no `enterprise-fyi`, no `enterprise-duplicate`. That way `is_test` at the account level is the SOLE thing excluding them, and lifting `is_test` (via `showTestData=true`) fully surfaces them. If we exclude-by-tag instead, the toggle can't reveal them.
+- For Let-it-Fly specifically, `is_test` **replaces** `enterprise-fyi` as the exclusion mechanism. Per-ticket `fyi` would keep sandbox rows hidden even with `showTestData=true`, defeating the purpose. This is why the migration also implicitly retires tag-based exclusion for that account in favor of the account flag.
+- **Real compliance can never silently drift.** Toggle default OFF + banner whenever ON + zero contribution to real aggregates in OFF-mode = surface-loudly + no-silent-contamination, matching the wider knowledge doc's design principles.
+- **No new engine surface.** `slaMetrics/computeSla` semantics are untouched — sandbox tickets get the exact same timing computed as production tickets. The change is purely one additional population filter next to the existing tag/rsa/disposition exclusions.
+
+
+
 #### SLA Dashboard — `/sla` (`src/pages/SlaDashboard.tsx`) — DEFAULT LANDING
 
 Leadership-facing, lean/at-a-glance. Top → bottom:
