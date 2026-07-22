@@ -102,7 +102,7 @@ export function useSlaBatch(): UseSlaBatch {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_conversation_id,subject,contact_name,contact_email,intercom_created_at,intercom_closed_at,time_to_resolve_s,time_to_first_admin_reply_s,raw_payload,tags,rsa_override,customer_resolution_method,owner")
+            .select("id,intercom_conversation_id,subject,contact_name,contact_email,intercom_created_at,intercom_closed_at,time_to_resolve_s,time_to_first_admin_reply_s,raw_payload,tags,rsa_override,customer_resolution_method,owner,customer_key")
             .in("lifecycle_status", ["finalized", "reopened_after_finalize"])
             .order("intercom_closed_at", { ascending: false })
             .range(offset, offset + PAGE - 1);
