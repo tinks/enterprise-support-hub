@@ -83,6 +83,7 @@ type UnTicket = {
   slack_channel_id_detected: string | null;
   workspace_id_detected: string | null;
   intercom_created_at: string | null;
+  last_full_fetch_at?: string | null;
 };
 
 type ChannelRow = {
@@ -460,6 +461,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [accounts, setAccounts] = useState<AccountOpt[]>([]);
   const [prospectPersonalCount, setProspectPersonalCount] = useState<number>(0);
+  const [syncStatus, setSyncStatus] = useState<{ pending_count: number; next_full_fetch_at: string | null; schedule_desc: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [expandedTickets, setExpandedTickets] = useState<Record<string, UnTicket[]>>({});
@@ -468,18 +470,22 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
 
   const load = async () => {
     setLoading(true);
-    const [{ data: g, error: e1 }, { data: a, error: e2 }, { data: cov, error: e3 }] = await Promise.all([
+    const [{ data: g, error: e1 }, { data: a, error: e2 }, { data: cov, error: e3 }, { data: ss, error: e4 }] = await Promise.all([
       sb.rpc("v3_unattributed_groups"),
       sb.from("v3_customer_accounts").select("account_key,label,domains").order("label"),
       sb.rpc("v3_coverage_current"),
+      sb.rpc("v3_unattributed_sync_status"),
     ]);
     if (e1) { console.error(e1); toast.error("Failed to load groups"); }
     if (e2) { console.error(e2); }
     if (e3) { console.error(e3); }
+    if (e4) { console.error(e4); }
     setGroups((g ?? []) as GroupRow[]);
     setAccounts((a ?? []) as AccountOpt[]);
     const covRow = Array.isArray(cov) ? cov[0] : cov;
     setProspectPersonalCount(Number((covRow as { excluded_prospect_personal?: number } | null)?.excluded_prospect_personal ?? 0));
+    const ssRow = Array.isArray(ss) ? ss[0] : ss;
+    setSyncStatus((ssRow as { pending_count: number; next_full_fetch_at: string | null; schedule_desc: string | null } | null) ?? null);
     setLoading(false);
   };
 
@@ -503,7 +509,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
       return;
     }
     let q = sb.from("intercom_tickets_v3")
-      .select("id,intercom_conversation_id,subject,contact_email,contact_domain,slack_channel_id_detected,workspace_id_detected,intercom_created_at")
+      .select("id,intercom_conversation_id,subject,contact_email,contact_domain,slack_channel_id_detected,workspace_id_detected,intercom_created_at,last_full_fetch_at")
       .eq("customer_key", "unattributed")
       .order("intercom_created_at", { ascending: false })
       .limit(500);
@@ -598,6 +604,27 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
 
+      {syncStatus && syncStatus.pending_count > 0 && (
+        <div
+          className="rounded-md border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm flex items-center gap-2"
+          title="These tickets arrived via the light list-sync but haven't had their tags/labels pulled yet. Tags only populate on the full fetch (sync-v3-closed), so the resolver can't yet see labels like enterprise-not-enterprise or enterprise-prospect-personal-acct on them. Their disposition is unknown-until-sync — not a settled 'unattributed'."
+        >
+          <AlertTriangle className="h-4 w-4 text-yellow-600" />
+          <span>
+            <span className="font-semibold">{syncStatus.pending_count}</span> ticket{syncStatus.pending_count === 1 ? "" : "s"} pending tag sync — disposition unconfirmed until the next full fetch
+            {syncStatus.next_full_fetch_at
+              ? <> at <span className="font-semibold">{format(new Date(syncStatus.next_full_fetch_at), "HH:mm 'UTC'")}</span></>
+              : null}
+            {syncStatus.schedule_desc
+              ? <> (<span className="font-mono text-xs">{syncStatus.schedule_desc}</span>)</>
+              : null}
+            .
+          </span>
+        </div>
+      )}
+
+
+
 
       <Card>
         <CardContent className="p-0">
@@ -670,7 +697,18 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
                                       <TableCell>
                                         <Checkbox checked={sel.has(t.id)} onCheckedChange={() => toggleSelect(gid, t.id)} />
                                       </TableCell>
-                                      <TableCell className="max-w-md truncate">{t.subject || "—"}</TableCell>
+                                      <TableCell className="max-w-md truncate">
+                                        <span className="align-middle">{t.subject || "—"}</span>
+                                        {t.last_full_fetch_at == null && (
+                                          <Badge
+                                            variant="outline"
+                                            className="ml-2 border-yellow-500/50 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 text-[10px]"
+                                            title="Tags not yet pulled from Intercom — waiting for the next full fetch (sync-v3-closed). Disposition may change once its labels sync."
+                                          >
+                                            tags pending sync
+                                          </Badge>
+                                        )}
+                                      </TableCell>
                                       <TableCell className="text-xs">{t.contact_email || "—"}</TableCell>
                                       <TableCell className="text-xs">{t.intercom_created_at ? format(new Date(t.intercom_created_at), "yyyy-MM-dd") : "—"}</TableCell>
                                       <TableCell className="flex gap-2">
