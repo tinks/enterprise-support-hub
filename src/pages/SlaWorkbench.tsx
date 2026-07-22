@@ -1190,6 +1190,7 @@ function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: Correcte
                 <th className="text-right px-3 py-2 font-medium">FR n/a</th>
                 <th className="text-left px-3 py-2 font-medium">Res target</th>
                 <th className="text-right px-3 py-2 font-medium">Res %met</th>
+                <th className="text-right px-3 py-2 font-medium">Res breaches</th>
               </tr>
             </thead>
             <tbody>
