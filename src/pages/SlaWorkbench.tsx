@@ -1204,6 +1204,22 @@ function ComplianceSection({
           </div>
         </div>
 
+        {(() => {
+          const totals = ([1,2,3,4] as const).reduce((acc, sev) => {
+            const s = rowSummary(buckets[sev]);
+            acc.excused += s.frExcused + s.resExcused;
+            acc.breach += s.frBreach + s.resBreach;
+            return acc;
+          }, { excused: 0, breach: 0 });
+          const denom = totals.excused + totals.breach;
+          const pct = denom ? Math.round((totals.excused / denom) * 100) : 0;
+          return (
+            <div className="text-xs text-muted-foreground">
+              Overrides: {totals.excused} of {denom} breaches excused ({pct}%)
+            </div>
+          );
+        })()}
+
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
