@@ -23,6 +23,7 @@ export type SlaBatchRow = {
   rsa_override: boolean | null;
   customer_resolution_method: string | null;
   owner: string | null;
+  customer_key: string | null;
 };
 
 export type SlaBatchBucket = "inScope" | "excluded" | "noCustomer" | "manuallyLogged";
