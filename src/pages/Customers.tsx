@@ -529,6 +529,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
     if (kind === "domain") return <Building2 className="h-4 w-4" />;
     if (kind === "channel") return <Hash className="h-4 w-4" />;
     if (kind === "workspace") return <Shield className="h-4 w-4" />;
+    if (kind === "personal_unlabeled") return <AlertTriangle className="h-4 w-4 text-yellow-600" />;
     return <Ban className="h-4 w-4" />;
   };
 
