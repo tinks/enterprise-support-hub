@@ -34,12 +34,30 @@ export type SlaBatchEnriched = SlaBatchRow & {
   bucket: SlaBatchBucket;
 };
 
-export function classifySlaBatchRow(row: SlaBatchRow, sla: SlaResult): SlaBatchBucket {
+export type ClassifyOpts = {
+  /** Set of customer_key values marked as test/sandbox accounts (v3_customer_accounts.is_test). */
+  testAccountKeys?: Set<string>;
+  /**
+   * When false (default), tickets on test accounts are excluded from the SLA
+   * population with reason `test_account`. When true, they are classified
+   * normally (typically in-scope) so they surface in the demo view.
+   * Real compliance numbers MUST stay unchanged with this off.
+   */
+  showTestData?: boolean;
+};
+
+export function classifySlaBatchRow(row: SlaBatchRow, sla: SlaResult, opts?: ClassifyOpts): SlaBatchBucket {
   // Manually-logged bulk-import threads have no real reply timestamps —
   // unmeasurable for SLA. Check BEFORE the other buckets.
   if (sla.flags.manuallyLogged) return "manuallyLogged";
   const tags = Array.isArray(row.tags) ? row.tags : [];
   const hasTag = (t: string) => tags.includes(t);
+  // Account-level test/sandbox exclusion (`test_account`). Sits alongside the
+  // tag-based fyi/duplicate/not_enterprise/merged/rsa exclusions. Gated by the
+  // page's "Show test data" toggle: default OFF → excluded so real compliance
+  // numbers are untouched; ON → falls through to normal classification.
+  const isTest = !!(row.customer_key && opts?.testAccountKeys?.has(row.customer_key));
+  if (isTest && !opts?.showTestData) return "excluded";
   const excluded =
     row.rsa_override === false ||
     (row.rsa_override == null && (hasTag("enterprise-fyi") || hasTag("enterprise-duplicate"))) ||
@@ -79,8 +97,21 @@ export type UseSlaBatch = {
   isExcused: (conversationId: string, metric: SlaOverrideMetric) => boolean;
   getOverride: (conversationId: string, metric: SlaOverrideMetric) => SlaOverride | undefined;
   customerLabels: Map<string, string>;
+  /** customer_key set for accounts flagged is_test. */
+  testAccountKeys: Set<string>;
+  /** Convenience predicate over `testAccountKeys`. */
+  isTestAccount: (key: string | null | undefined) => boolean;
   refresh: () => void;
   refreshOverrides: () => void;
+};
+
+export type UseSlaBatchOptions = {
+  /**
+   * When true, tickets on `is_test` customer accounts are classified normally
+   * (typically in-scope). Default false — test-account tickets are excluded
+   * so real compliance figures are unaffected.
+   */
+  showTestData?: boolean;
 };
 
 /**
@@ -89,11 +120,13 @@ export type UseSlaBatch = {
  * runs computeSla per row, and pre-buckets them via classifySlaBatchRow.
  * Consumers derive their own severity buckets / display / basis on top.
  */
-export function useSlaBatch(): UseSlaBatch {
+export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
+  const showTestData = !!options?.showTestData;
   const [rows, setRows] = useState<SlaBatchRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [testAccountKeys, setTestAccountKeys] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -131,10 +164,10 @@ export function useSlaBatch(): UseSlaBatch {
     () => rows.map((r) => {
       const sla = computeSla(r.raw_payload);
       const origin = detectOrigin(r.raw_payload);
-      const bucket = classifySlaBatchRow(r, sla);
+      const bucket = classifySlaBatchRow(r, sla, { testAccountKeys, showTestData });
       return { ...r, sla, origin, bucket };
     }),
-    [rows],
+    [rows, testAccountKeys, showTestData],
   );
 
   const inScope = useMemo(() => enriched.filter((r) => r.bucket === "inScope"), [enriched]);
@@ -175,27 +208,36 @@ export function useSlaBatch(): UseSlaBatch {
     [overrides],
   );
 
-  // Customer registry labels — small table, load once.
+  // Customer registry labels + test-account keys — small table, load once.
   const [customerLabels, setCustomerLabels] = useState<Map<string, string>>(new Map());
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const { data, error } = await supabase
         .from("v3_customer_accounts")
-        .select("account_key,label");
+        .select("account_key,label,is_test");
       if (cancelled) return;
-      if (error) { setCustomerLabels(new Map()); return; }
+      if (error) { setCustomerLabels(new Map()); setTestAccountKeys(new Set()); return; }
       const m = new Map<string, string>();
-      for (const row of (data ?? []) as Array<{ account_key: string; label: string }>) {
+      const t = new Set<string>();
+      for (const row of (data ?? []) as Array<{ account_key: string; label: string; is_test: boolean | null }>) {
         m.set(row.account_key, row.label);
+        if (row.is_test) t.add(row.account_key);
       }
       setCustomerLabels(m);
+      setTestAccountKeys(t);
     })();
     return () => { cancelled = true; };
   }, []);
 
+  const isTestAccount = useCallback(
+    (key: string | null | undefined) => !!(key && testAccountKeys.has(key)),
+    [testAccountKeys],
+  );
+
   return {
     loading, error, rows, enriched, inScope, excluded, noCustomer, manuallyLogged,
-    overrides, isExcused, getOverride, customerLabels, refresh, refreshOverrides,
+    overrides, isExcused, getOverride, customerLabels,
+    testAccountKeys, isTestAccount, refresh, refreshOverrides,
   };
 }

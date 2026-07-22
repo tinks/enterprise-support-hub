@@ -34,6 +34,7 @@ import {
   windowStartMs,
   rowClosedAtMs,
 } from "@/lib/slaWindow";
+import { TestDataToggle, TestDataBanner } from "@/pages/SlaWorkbench";
 
 
 // Compliance color tone from a percentage — always paired with the visible number.
@@ -53,7 +54,8 @@ const UNATTRIBUTED = "__unattributed__";
 const ALL_CUSTOMERS = "__all__";
 
 export default function SlaDashboard() {
-  const { loading, error, inScope, excluded, noCustomer, manuallyLogged, refresh, isExcused, customerLabels } = useSlaBatch();
+  const [showTestData, setShowTestData] = useState(false);
+  const { loading, error, inScope, excluded, noCustomer, manuallyLogged, refresh, isExcused, customerLabels } = useSlaBatch({ showTestData });
   const [dateWindow, setDateWindow] = useState<DateWindow>("month");
   const [customerFilter, setCustomerFilter] = useState<string>(ALL_CUSTOMERS);
 
@@ -173,12 +175,15 @@ export default function SlaDashboard() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <TestDataToggle showTestData={showTestData} onChange={setShowTestData} />
             <MeasurementInfoPopover />
             <Button variant="outline" size="sm" onClick={refresh} disabled={loading}>
               <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh
             </Button>
           </div>
         </div>
+
+        {showTestData && <TestDataBanner />}
 
         {error && (
           <Card><CardContent className="p-4 text-sm text-destructive">{error}</CardContent></Card>

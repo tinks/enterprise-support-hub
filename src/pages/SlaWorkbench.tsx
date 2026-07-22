@@ -40,6 +40,7 @@ import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   type DateWindow,
   WINDOW_LABELS,
@@ -91,21 +92,26 @@ function parseIds(input: string): string[] {
 // Page
 // ============================================================================
 export default function SlaWorkbench() {
+  const [showTestData, setShowTestData] = useState(false);
   return (
     <AppLayout>
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
-        <div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide">
-            <Gauge className="h-3.5 w-3.5" /> Practitioner tool · SLA validation
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide">
+              <Gauge className="h-3.5 w-3.5" /> Practitioner tool · SLA validation
+            </div>
+            <h1 className="text-2xl font-semibold tracking-tight mt-1">SLA Workbench</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Detailed "data behind it" view. Analyze individual tickets by ID or browse the full stored batch with
+              per-ticket metrics, compliance breakdown, and legacy comparison.
+              Business hours = Europe/Berlin, Mon–Fri 09:00–24:00.
+            </p>
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight mt-1">SLA Workbench</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Detailed "data behind it" view. Analyze individual tickets by ID or browse the full stored batch with
-            per-ticket metrics, compliance breakdown, and legacy comparison.
-            Business hours = Europe/Berlin, Mon–Fri 09:00–24:00.
-          </p>
+          <TestDataToggle showTestData={showTestData} onChange={setShowTestData} />
         </div>
 
+        {showTestData && <TestDataBanner />}
 
         <Tabs defaultValue="live" className="w-full">
           <TabsList>
@@ -118,13 +124,40 @@ export default function SlaWorkbench() {
           </TabsContent>
 
           <TabsContent value="batch" className="mt-4">
-            <BatchStoredTab />
+            <BatchStoredTab showTestData={showTestData} />
           </TabsContent>
         </Tabs>
       </div>
     </AppLayout>
   );
 }
+
+// Shared test-data affordances (also used in SlaDashboard via import).
+export function TestDataToggle({ showTestData, onChange }: { showTestData: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="inline-flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-1.5 cursor-pointer select-none">
+      <Switch checked={showTestData} onCheckedChange={onChange} />
+      <span className="text-xs font-medium">Show test data</span>
+    </label>
+  );
+}
+
+export function TestDataBanner() {
+  return (
+    <div className="rounded-md border-2 border-destructive bg-destructive/10 px-4 py-3 text-sm">
+      <div className="font-semibold text-destructive uppercase tracking-wide">
+        ⚠ Test data included — these figures are NOT real compliance
+      </div>
+      <div className="text-destructive/80 mt-0.5 text-xs">
+        Sandbox/test customer accounts are being counted in the SLA population. Toggle "Show test data" off to restore the real reporting view.
+      </div>
+    </div>
+  );
+}
+
+// Local switch import (kept next to the component that owns it) so SlaDashboard
+// can reuse the toggle/banner without a shared file.
+
 
 // ============================================================================
 // TAB 1 · Live analyze
@@ -600,9 +633,9 @@ function DualMetricRow({
 // ============================================================================
 type BatchMode = "corrected" | "legacy";
 
-function BatchStoredTab() {
+function BatchStoredTab({ showTestData }: { showTestData: boolean }) {
   const [mode, setMode] = useState<BatchMode>("corrected");
-  const { rows, loading, error, refresh, isExcused, getOverride, refreshOverrides, customerLabels } = useSlaBatch();
+  const { rows, loading, error, refresh, isExcused, getOverride, refreshOverrides, customerLabels, testAccountKeys } = useSlaBatch({ showTestData });
 
   return (
     <div className="space-y-6">
@@ -631,7 +664,7 @@ function BatchStoredTab() {
       )}
 
       {mode === "corrected"
-        ? <CorrectedBatch rows={rows} loading={loading} isExcused={isExcused} getOverride={getOverride} refreshOverrides={refreshOverrides} customerLabels={customerLabels} />
+        ? <CorrectedBatch rows={rows} loading={loading} isExcused={isExcused} getOverride={getOverride} refreshOverrides={refreshOverrides} customerLabels={customerLabels} testAccountKeys={testAccountKeys} showTestData={showTestData} />
         : <LegacyBatch rows={rows} loading={loading} />}
     </div>
   );
@@ -643,7 +676,7 @@ function BatchStoredTab() {
 const UNATTRIBUTED = "__unattributed__";
 const ALL_CUSTOMERS = "__all__";
 
-function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverrides, customerLabels }: { rows: Row[]; loading: boolean; isExcused: (cid: string, metric: SlaOverrideMetric) => boolean; getOverride: (cid: string, metric: SlaOverrideMetric) => SlaOverride | undefined; refreshOverrides: () => void; customerLabels: Map<string, string> }) {
+function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverrides, customerLabels, testAccountKeys, showTestData }: { rows: Row[]; loading: boolean; isExcused: (cid: string, metric: SlaOverrideMetric) => boolean; getOverride: (cid: string, metric: SlaOverrideMetric) => SlaOverride | undefined; refreshOverrides: () => void; customerLabels: Map<string, string>; testAccountKeys: Set<string>; showTestData: boolean }) {
   const [sortKey, setSortKey] = useState<CorrectedSortKey>("closed");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [dateWindow, setDateWindow] = useState<DateWindow>("month");
@@ -653,10 +686,10 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
     () => rows.map((r) => {
       const sla = computeSla(r.raw_payload);
       const origin = detectOrigin(r.raw_payload);
-      const bucket = classifyRow(r, sla);
+      const bucket = classifyRow(r, sla, { testAccountKeys, showTestData });
       return { ...r, sla, origin, bucket };
     }),
-    [rows],
+    [rows, testAccountKeys, showTestData],
   );
 
   const inScope = useMemo(() => enriched.filter((r) => r.bucket === "inScope"), [enriched]);
