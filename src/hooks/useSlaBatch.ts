@@ -152,7 +152,7 @@ export function useSlaBatch(): UseSlaBatch {
       if (cancelled) return;
       if (error) { setOverrides(new Map()); return; }
       const m = new Map<string, SlaOverride>();
-      for (const row of (data ?? []) as SlaOverride[]) {
+      for (const row of ((data ?? []) as unknown as SlaOverride[])) {
         m.set(`${row.intercom_conversation_id}:${row.metric}`, row);
       }
       setOverrides(m);
