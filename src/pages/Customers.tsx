@@ -592,7 +592,9 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
                 const sel = selected[gid] ?? new Set<string>();
                 const signalLabel = g.group_kind === "channel"
                   ? channelLabel(g.group_key, g.display_name)
-                  : (g.group_key || "");
+                  : g.group_kind === "personal_unlabeled"
+                    ? (g.display_name || "Likely personal — needs label")
+                    : (g.group_key || "");
                 return (
                   <>
                     <TableRow key={gid} className="cursor-pointer" onClick={() => toggle(g)}>
