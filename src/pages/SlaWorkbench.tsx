@@ -829,7 +829,7 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
             Per-ticket (in-scope)
             {loading && <Loader2 className="h-4 w-4 inline ml-2 animate-spin text-muted-foreground" />}
           </CardTitle>
-          <CardDescription>{inScope.length} in-scope tickets · computed with corrected engine over stored raw_payload</CardDescription>
+          <CardDescription>{filteredInScope.length} in-scope tickets · computed with corrected engine over stored raw_payload</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
