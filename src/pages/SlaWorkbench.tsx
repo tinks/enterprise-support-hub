@@ -588,7 +588,7 @@ type BatchMode = "corrected" | "legacy";
 
 function BatchStoredTab() {
   const [mode, setMode] = useState<BatchMode>("corrected");
-  const { rows, loading, error, refresh } = useSlaBatch();
+  const { rows, loading, error, refresh, isExcused, getOverride, refreshOverrides } = useSlaBatch();
 
   return (
     <div className="space-y-6">
@@ -617,7 +617,7 @@ function BatchStoredTab() {
       )}
 
       {mode === "corrected"
-        ? <CorrectedBatch rows={rows} loading={loading} />
+        ? <CorrectedBatch rows={rows} loading={loading} isExcused={isExcused} getOverride={getOverride} refreshOverrides={refreshOverrides} />
         : <LegacyBatch rows={rows} loading={loading} />}
     </div>
   );
