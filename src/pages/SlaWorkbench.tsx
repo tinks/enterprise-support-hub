@@ -1219,6 +1219,7 @@ function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: Correcte
                         ? <span className="text-muted-foreground italic">best-effort — n/a</span>
                         : s.resPct == null ? "—" : `${s.resPct.toFixed(0)}%`}
                     </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-destructive">{s.resBreach || "—"}</td>
                   </tr>
                 );
               })}
