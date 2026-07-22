@@ -97,8 +97,21 @@ export type UseSlaBatch = {
   isExcused: (conversationId: string, metric: SlaOverrideMetric) => boolean;
   getOverride: (conversationId: string, metric: SlaOverrideMetric) => SlaOverride | undefined;
   customerLabels: Map<string, string>;
+  /** customer_key set for accounts flagged is_test. */
+  testAccountKeys: Set<string>;
+  /** Convenience predicate over `testAccountKeys`. */
+  isTestAccount: (key: string | null | undefined) => boolean;
   refresh: () => void;
   refreshOverrides: () => void;
+};
+
+export type UseSlaBatchOptions = {
+  /**
+   * When true, tickets on `is_test` customer accounts are classified normally
+   * (typically in-scope). Default false — test-account tickets are excluded
+   * so real compliance figures are unaffected.
+   */
+  showTestData?: boolean;
 };
 
 /**
