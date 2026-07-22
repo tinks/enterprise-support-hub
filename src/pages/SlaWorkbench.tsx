@@ -699,7 +699,7 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
         Total loaded: {enriched.length}
       </div>
 
-      <ComplianceSection inScope={inScope} manuallyLoggedCount={manuallyLogged.length} />
+      <ComplianceSection inScope={inScope} manuallyLoggedCount={manuallyLogged.length} isExcused={isExcused} getOverride={getOverride} refreshOverrides={refreshOverrides} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
