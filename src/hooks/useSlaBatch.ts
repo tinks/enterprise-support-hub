@@ -210,7 +210,6 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
 
   // Customer registry labels + test-account keys — small table, load once.
   const [customerLabels, setCustomerLabels] = useState<Map<string, string>>(new Map());
-  const [testAccountKeys, setTestAccountKeys] = useState<Set<string>>(new Set());
   useEffect(() => {
     let cancelled = false;
     (async () => {
