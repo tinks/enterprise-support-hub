@@ -640,9 +640,14 @@ function BatchStoredTab() {
 // ----- Corrected engine view -----
 
 
-function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverrides }: { rows: Row[]; loading: boolean; isExcused: (cid: string, metric: SlaOverrideMetric) => boolean; getOverride: (cid: string, metric: SlaOverrideMetric) => SlaOverride | undefined; refreshOverrides: () => void }) {
+const UNATTRIBUTED = "__unattributed__";
+const ALL_CUSTOMERS = "__all__";
+
+function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverrides, customerLabels }: { rows: Row[]; loading: boolean; isExcused: (cid: string, metric: SlaOverrideMetric) => boolean; getOverride: (cid: string, metric: SlaOverrideMetric) => SlaOverride | undefined; refreshOverrides: () => void; customerLabels: Map<string, string> }) {
   const [sortKey, setSortKey] = useState<CorrectedSortKey>("closed");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [dateWindow, setDateWindow] = useState<DateWindow>("month");
+  const [customerFilter, setCustomerFilter] = useState<string>(ALL_CUSTOMERS);
 
   const enriched: CorrectedEnriched[] = useMemo(
     () => rows.map((r) => {
@@ -659,19 +664,59 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
   const noCustomer = useMemo(() => enriched.filter((r) => r.bucket === "noCustomer"), [enriched]);
   const manuallyLogged = useMemo(() => enriched.filter((r) => r.bucket === "manuallyLogged"), [enriched]);
 
+  // Date-window filter over in-scope rows.
+  const inScopeDate = useMemo(() => {
+    const startMs = windowStartMs(dateWindow, new Date());
+    if (startMs == null) return inScope;
+    return inScope.filter((r) => {
+      const t = rowClosedAtMs(r);
+      return t != null && t >= startMs;
+    });
+  }, [inScope, dateWindow]);
+
+  // Customer options derived from date-filtered in-scope.
+  const customerOptions = useMemo(() => {
+    const keys = new Set<string>();
+    let hasUnattributed = false;
+    for (const r of inScopeDate) {
+      const k = r.customer_key?.trim();
+      if (k) keys.add(k); else hasUnattributed = true;
+    }
+    const opts = Array.from(keys).map((k) => ({ value: k, label: customerLabels.get(k) ?? k }));
+    opts.sort((a, b) => a.label.localeCompare(b.label));
+    if (hasUnattributed) opts.push({ value: UNATTRIBUTED, label: "Unattributed" });
+    return opts;
+  }, [inScopeDate, customerLabels]);
+
+  // Compose customer filter on top of date filter.
+  const filteredInScope = useMemo(() => {
+    if (customerFilter === ALL_CUSTOMERS) return inScopeDate;
+    if (customerFilter === UNATTRIBUTED) {
+      return inScopeDate.filter((r) => !r.customer_key || !r.customer_key.trim());
+    }
+    return inScopeDate.filter((r) => r.customer_key === customerFilter);
+  }, [inScopeDate, customerFilter]);
+
+  const selectedCustomerLabel =
+    customerFilter === ALL_CUSTOMERS
+      ? null
+      : customerFilter === UNATTRIBUTED
+        ? "Unattributed"
+        : customerLabels.get(customerFilter) ?? customerFilter;
+
   const kpis = useMemo(() => ({
-    humanBH: aggregate(inScope.map((r) => r.sla.firstHumanReplyFromInboxBusinessHoursS)),
-    humanCal: aggregate(inScope.map((r) => r.sla.firstHumanReplyFromInboxS)),
-    anyCal: aggregate(inScope.map((r) => r.sla.firstResponseAnyAgentS)),
-    ttrBH: aggregate(inScope.map((r) => r.sla.ttrBusinessHoursS)),
-    preInbox: aggregate(inScope.map((r) => r.sla.preInboxTimeS)),
-  }), [inScope]);
+    humanBH: aggregate(filteredInScope.map((r) => r.sla.firstHumanReplyFromInboxBusinessHoursS)),
+    humanCal: aggregate(filteredInScope.map((r) => r.sla.firstHumanReplyFromInboxS)),
+    anyCal: aggregate(filteredInScope.map((r) => r.sla.firstResponseAnyAgentS)),
+    ttrBH: aggregate(filteredInScope.map((r) => r.sla.ttrBusinessHoursS)),
+    preInbox: aggregate(filteredInScope.map((r) => r.sla.preInboxTimeS)),
+  }), [filteredInScope]);
 
   const reopenRate = useMemo(() => {
-    if (!inScope.length) return null;
-    const n = inScope.filter((r) => r.sla.reopenCount > 0).length;
-    return { n, total: inScope.length, pct: (n / inScope.length) * 100 };
-  }, [inScope]);
+    if (!filteredInScope.length) return null;
+    const n = filteredInScope.filter((r) => r.sla.reopenCount > 0).length;
+    return { n, total: filteredInScope.length, pct: (n / filteredInScope.length) * 100 };
+  }, [filteredInScope]);
 
   const sorted = useMemo(() => {
     const dir = sortDir === "asc" ? 1 : -1;
@@ -684,8 +729,8 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
         case "ttrBH": return r.sla.ttrBusinessHoursS ?? -1;
       }
     };
-    return [...inScope].sort((a, b) => (val(a) - val(b)) * dir);
-  }, [inScope, sortKey, sortDir]);
+    return [...filteredInScope].sort((a, b) => (val(a) - val(b)) * dir);
+  }, [filteredInScope, sortKey, sortDir]);
 
   const toggleSort = (k: CorrectedSortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -694,8 +739,39 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs uppercase tracking-wide text-muted-foreground">Window</span>
+        <Select value={dateWindow} onValueChange={(v) => setDateWindow(v as DateWindow)}>
+          <SelectTrigger className="h-8 w-[180px] text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(WINDOW_LABELS) as DateWindow[]).map((w) => (
+              <SelectItem key={w} value={w}>{WINDOW_LABELS[w]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <span className="text-xs text-muted-foreground italic">{WINDOW_CAPTIONS[dateWindow]}</span>
+        <span className="text-xs uppercase tracking-wide text-muted-foreground ml-2">Customer</span>
+        <Select value={customerFilter} onValueChange={setCustomerFilter}>
+          <SelectTrigger className="h-8 w-[220px] text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL_CUSTOMERS}>All customers</SelectItem>
+            {customerOptions.map((o) => (
+              <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="text-sm text-muted-foreground">
-        <span className="font-semibold text-foreground">In-scope: {inScope.length}</span>
+        <span className="font-semibold text-foreground">In-scope: {filteredInScope.length}</span>
+        <span className="text-muted-foreground"> · {WINDOW_CAPTIONS[dateWindow]}</span>
+        {selectedCustomerLabel && (
+          <span className="text-muted-foreground"> · customer: <span className="text-foreground font-medium">{selectedCustomerLabel}</span></span>
+        )}
         {" · "}
         Excluded (not-enterprise/dup/merged/RSA): <span className="font-medium">{excluded.length}</span>
         {" · "}
@@ -706,7 +782,9 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
         Total loaded: {enriched.length}
       </div>
 
-      <ComplianceSection inScope={inScope} manuallyLoggedCount={manuallyLogged.length} isExcused={isExcused} getOverride={getOverride} refreshOverrides={refreshOverrides} />
+      <ComplianceSection inScope={filteredInScope} manuallyLoggedCount={manuallyLogged.length} isExcused={isExcused} getOverride={getOverride} refreshOverrides={refreshOverrides} />
+
+
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
