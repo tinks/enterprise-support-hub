@@ -166,24 +166,41 @@ export default function SlaDashboard() {
           <Card><CardContent className="p-4 text-sm text-destructive">{error}</CardContent></Card>
         )}
 
-        {/* Population chips */}
-        <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-xs">
-          <span className="text-foreground">
-            <span className="font-semibold tabular-nums">{total}</span> in-scope
-          </span>
-          <span className="text-foreground">
-            Severity coverage: <span className="font-semibold tabular-nums">{coveragePct.toFixed(0)}%</span>
-          </span>
-          <span className="text-muted-foreground">
-            Excluded: <span className="tabular-nums">{excluded.length}</span>
-          </span>
-          <span className="text-muted-foreground">
-            Internal / no-customer: <span className="tabular-nums">{noCustomer.length}</span>
-          </span>
-          <span className="text-muted-foreground">
-            Manually-logged: <span className="tabular-nums">{manuallyLogged.length}</span>
-          </span>
-          {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+        {/* Date window selector + population chips */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs uppercase tracking-wide text-muted-foreground">Window</span>
+            <Select value={dateWindow} onValueChange={(v) => setDateWindow(v as DateWindow)}>
+              <SelectTrigger className="h-8 w-[180px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(WINDOW_LABELS) as DateWindow[]).map((w) => (
+                  <SelectItem key={w} value={w}>{WINDOW_LABELS[w]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-xs text-muted-foreground italic">{WINDOW_CAPTIONS[dateWindow]}</span>
+          </div>
+          <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-xs">
+            <span className="text-foreground">
+              <span className="font-semibold tabular-nums">{total}</span> in-scope
+              <span className="text-muted-foreground"> · {WINDOW_CAPTIONS[dateWindow]}</span>
+            </span>
+            <span className="text-foreground">
+              Severity coverage: <span className="font-semibold tabular-nums">{coveragePct.toFixed(0)}%</span>
+            </span>
+            <span className="text-muted-foreground">
+              Excluded: <span className="tabular-nums">{excluded.length}</span>
+            </span>
+            <span className="text-muted-foreground">
+              Internal / no-customer: <span className="tabular-nums">{noCustomer.length}</span>
+            </span>
+            <span className="text-muted-foreground">
+              Manually-logged: <span className="tabular-nums">{manuallyLogged.length}</span>
+            </span>
+            {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+          </div>
         </div>
 
         {/* Compliance scorecard */}
@@ -195,6 +212,11 @@ export default function SlaDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
+            {total === 0 ? (
+              <div className="p-8 text-center text-sm text-muted-foreground">
+                No tickets resolved in this window.
+              </div>
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
