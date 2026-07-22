@@ -686,10 +686,10 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
     () => rows.map((r) => {
       const sla = computeSla(r.raw_payload);
       const origin = detectOrigin(r.raw_payload);
-      const bucket = classifyRow(r, sla);
+      const bucket = classifyRow(r, sla, { testAccountKeys, showTestData });
       return { ...r, sla, origin, bucket };
     }),
-    [rows],
+    [rows, testAccountKeys, showTestData],
   );
 
   const inScope = useMemo(() => enriched.filter((r) => r.bucket === "inScope"), [enriched]);
