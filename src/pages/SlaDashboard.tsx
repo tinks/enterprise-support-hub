@@ -78,6 +78,17 @@ function formatTarget(sec: number | null, clock: "business" | "calendar"): strin
 
 export default function SlaDashboard() {
   const { loading, error, inScope, excluded, noCustomer, manuallyLogged, refresh } = useSlaBatch();
+  const [dateWindow, setDateWindow] = useState<DateWindow>("30d");
+
+  // Filter in-scope rows to selected window by finalized/close date.
+  const windowedInScope = useMemo(() => {
+    const startMs = windowStartMs(dateWindow, new Date());
+    if (startMs == null) return inScope;
+    return inScope.filter((r) => {
+      const t = rowClosedAtMs(r);
+      return t != null && t >= startMs;
+    });
+  }, [inScope, dateWindow]);
 
   // Bucket by severity, evaluate compliance per row (single computation reused below).
   const { buckets, unclassified, classifiedCount } = useMemo(() => {
@@ -86,16 +97,16 @@ export default function SlaDashboard() {
     };
     const unclassified: SlaBatchEnriched[] = [];
     let classifiedCount = 0;
-    for (const r of inScope) {
+    for (const r of windowedInScope) {
       const sev = parseSeverity(r.raw_payload?.custom_attributes?.Severity);
       if (sev == null) { unclassified.push(r); continue; }
       classifiedCount++;
       buckets[sev].push({ row: r, compliance: evaluateCompliance(r.sla, sev) });
     }
     return { buckets, unclassified, classifiedCount };
-  }, [inScope]);
+  }, [windowedInScope]);
 
-  const total = inScope.length;
+  const total = windowedInScope.length;
   const coveragePct = total ? (classifiedCount / total) * 100 : 0;
 
   // Per-severity summary at customer-initiated basis (the honest default).
