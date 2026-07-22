@@ -1081,27 +1081,33 @@ function ComplianceSection({
   }, [buckets]);
 
   const rowSummary = (b: SeverityBucket) => {
-    let frMet = 0, frBreach = 0, frNotEval = 0;
-    let resMet = 0, resBreach = 0, resNotEval = 0;
+    let frMet = 0, frBreach = 0, frExcused = 0, frNotEval = 0;
+    let resMet = 0, resBreach = 0, resExcused = 0, resNotEval = 0;
     for (const { row, compliance } of b.rows) {
       const includeFr = frBasis === "all" || row.sla.initiatedBy === "customer";
       if (includeFr) {
         if (compliance.firstResponse.met === true) frMet++;
-        else if (compliance.firstResponse.met === false) frBreach++;
+        else if (compliance.firstResponse.met === false) {
+          if (isExcused(row.intercom_conversation_id, "first_response")) frExcused++;
+          else frBreach++;
+        }
         else frNotEval++;
       }
       // Resolution always covers ALL in-scope tickets regardless of basis.
       if (compliance.resolution.met === true) resMet++;
-      else if (compliance.resolution.met === false) resBreach++;
+      else if (compliance.resolution.met === false) {
+        if (isExcused(row.intercom_conversation_id, "resolution")) resExcused++;
+        else resBreach++;
+      }
       else resNotEval++;
     }
     const frDenom = frMet + frBreach;
     const resDenom = resMet + resBreach;
     return {
       n: b.rows.length,
-      frMet, frBreach, frNotEval,
+      frMet, frBreach, frExcused, frNotEval,
       frPct: frDenom ? (frMet / frDenom) * 100 : null,
-      resMet, resBreach, resNotEval,
+      resMet, resBreach, resExcused, resNotEval,
       resPct: resDenom ? (resMet / resDenom) * 100 : null,
     };
   };
