@@ -76,12 +76,16 @@ function formatTarget(sec: number | null, clock: "business" | "calendar"): strin
   return `${(clock === "business" ? formatBusinessDuration : formatDuration)(sec)} (${clock === "business" ? "bh" : "cal"})`;
 }
 
+const UNATTRIBUTED = "__unattributed__";
+const ALL_CUSTOMERS = "__all__";
+
 export default function SlaDashboard() {
-  const { loading, error, inScope, excluded, noCustomer, manuallyLogged, refresh, isExcused } = useSlaBatch();
+  const { loading, error, inScope, excluded, noCustomer, manuallyLogged, refresh, isExcused, customerLabels } = useSlaBatch();
   const [dateWindow, setDateWindow] = useState<DateWindow>("30d");
+  const [customerFilter, setCustomerFilter] = useState<string>(ALL_CUSTOMERS);
 
   // Filter in-scope rows to selected window by finalized/close date.
-  const windowedInScope = useMemo(() => {
+  const windowedInScopeDate = useMemo(() => {
     const startMs = windowStartMs(dateWindow, new Date());
     if (startMs == null) return inScope;
     return inScope.filter((r) => {
@@ -89,6 +93,39 @@ export default function SlaDashboard() {
       return t != null && t >= startMs;
     });
   }, [inScope, dateWindow]);
+
+  // Distinct customers present in the date-filtered in-scope set (for the selector).
+  const customerOptions = useMemo(() => {
+    const keys = new Set<string>();
+    let hasUnattributed = false;
+    for (const r of windowedInScopeDate) {
+      const k = r.customer_key?.trim();
+      if (k) keys.add(k); else hasUnattributed = true;
+    }
+    const opts = Array.from(keys).map((k) => ({
+      value: k,
+      label: customerLabels.get(k) ?? k,
+    }));
+    opts.sort((a, b) => a.label.localeCompare(b.label));
+    if (hasUnattributed) opts.push({ value: UNATTRIBUTED, label: "Unattributed" });
+    return opts;
+  }, [windowedInScopeDate, customerLabels]);
+
+  // Compose customer filter on top of the date filter.
+  const windowedInScope = useMemo(() => {
+    if (customerFilter === ALL_CUSTOMERS) return windowedInScopeDate;
+    if (customerFilter === UNATTRIBUTED) {
+      return windowedInScopeDate.filter((r) => !r.customer_key || !r.customer_key.trim());
+    }
+    return windowedInScopeDate.filter((r) => r.customer_key === customerFilter);
+  }, [windowedInScopeDate, customerFilter]);
+
+  const selectedCustomerLabel =
+    customerFilter === ALL_CUSTOMERS
+      ? null
+      : customerFilter === UNATTRIBUTED
+        ? "Unattributed"
+        : customerLabels.get(customerFilter) ?? customerFilter;
 
   // Bucket by severity, evaluate compliance per row (single computation reused below).
   const { buckets, unclassified, classifiedCount } = useMemo(() => {
