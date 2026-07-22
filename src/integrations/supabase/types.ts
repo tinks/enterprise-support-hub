@@ -1448,6 +1448,19 @@ export type Database = {
         }[]
       }
       v3_generate_channel_proposals: { Args: never; Returns: number }
+      v3_no_signal_tickets: {
+        Args: never
+        Returns: {
+          contact_domain: string
+          contact_email: string
+          id: string
+          intercom_conversation_id: string
+          intercom_created_at: string
+          slack_channel_id_detected: string
+          subject: string
+          workspace_id_detected: string
+        }[]
+      }
       v3_orphan_override_suggestions: {
         Args: never
         Returns: {

@@ -451,6 +451,12 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
   const loadTickets = async (g: GroupRow) => {
     const gid = groupId(g);
     if (expandedTickets[gid]) return;
+    if (g.group_kind === "no_signal") {
+      const { data, error } = await sb.rpc("v3_no_signal_tickets");
+      if (error) { console.error(error); toast.error("Failed to load tickets"); return; }
+      setExpandedTickets(prev => ({ ...prev, [gid]: (data ?? []) as UnTicket[] }));
+      return;
+    }
     let q = sb.from("intercom_tickets_v3")
       .select("id,intercom_conversation_id,subject,contact_email,contact_domain,slack_channel_id_detected,workspace_id_detected,intercom_created_at")
       .eq("customer_key", "unattributed")
@@ -461,17 +467,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
     else if (g.group_kind === "workspace") q = q.eq("workspace_id_detected", g.group_key);
     const { data, error } = await q;
     if (error) { console.error(error); toast.error("Failed to load tickets"); return; }
-    let rows = (data ?? []) as UnTicket[];
-    if (g.group_kind === "no_signal") {
-      const domSet = new Set(accounts.flatMap(a => a.domains));
-      rows = rows.filter(r => {
-        const hasDomain = r.contact_domain && r.contact_domain !== "" && r.contact_domain !== "lovable.dev" && !domSet.has(r.contact_domain);
-        const hasChan = !!r.slack_channel_id_detected;
-        const hasWs = !!r.workspace_id_detected;
-        return !hasDomain && !hasChan && !hasWs;
-      });
-    }
-    setExpandedTickets(prev => ({ ...prev, [gid]: rows }));
+    setExpandedTickets(prev => ({ ...prev, [gid]: (data ?? []) as UnTicket[] }));
   };
 
   const toggle = async (g: GroupRow) => {
