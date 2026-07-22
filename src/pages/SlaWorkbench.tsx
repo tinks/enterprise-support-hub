@@ -136,7 +136,7 @@ export default function SlaWorkbench() {
 export function TestDataToggle({ showTestData, onChange }: { showTestData: boolean; onChange: (v: boolean) => void }) {
   return (
     <label className="inline-flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-1.5 cursor-pointer select-none">
-      <TestDataSwitch checked={showTestData} onCheckedChange={onChange} />
+      <Switch checked={showTestData} onCheckedChange={onChange} />
       <span className="text-xs font-medium">Show test data</span>
     </label>
   );
