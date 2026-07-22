@@ -34,12 +34,30 @@ export type SlaBatchEnriched = SlaBatchRow & {
   bucket: SlaBatchBucket;
 };
 
-export function classifySlaBatchRow(row: SlaBatchRow, sla: SlaResult): SlaBatchBucket {
+export type ClassifyOpts = {
+  /** Set of customer_key values marked as test/sandbox accounts (v3_customer_accounts.is_test). */
+  testAccountKeys?: Set<string>;
+  /**
+   * When false (default), tickets on test accounts are excluded from the SLA
+   * population with reason `test_account`. When true, they are classified
+   * normally (typically in-scope) so they surface in the demo view.
+   * Real compliance numbers MUST stay unchanged with this off.
+   */
+  showTestData?: boolean;
+};
+
+export function classifySlaBatchRow(row: SlaBatchRow, sla: SlaResult, opts?: ClassifyOpts): SlaBatchBucket {
   // Manually-logged bulk-import threads have no real reply timestamps —
   // unmeasurable for SLA. Check BEFORE the other buckets.
   if (sla.flags.manuallyLogged) return "manuallyLogged";
   const tags = Array.isArray(row.tags) ? row.tags : [];
   const hasTag = (t: string) => tags.includes(t);
+  // Account-level test/sandbox exclusion (`test_account`). Sits alongside the
+  // tag-based fyi/duplicate/not_enterprise/merged/rsa exclusions. Gated by the
+  // page's "Show test data" toggle: default OFF → excluded so real compliance
+  // numbers are untouched; ON → falls through to normal classification.
+  const isTest = !!(row.customer_key && opts?.testAccountKeys?.has(row.customer_key));
+  if (isTest && !opts?.showTestData) return "excluded";
   const excluded =
     row.rsa_override === false ||
     (row.rsa_override == null && (hasTag("enterprise-fyi") || hasTag("enterprise-duplicate"))) ||
