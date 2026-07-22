@@ -1190,6 +1190,7 @@ function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: Correcte
                 <th className="text-right px-3 py-2 font-medium">FR n/a</th>
                 <th className="text-left px-3 py-2 font-medium">Res target</th>
                 <th className="text-right px-3 py-2 font-medium">Res %met</th>
+                <th className="text-right px-3 py-2 font-medium">Res breaches</th>
               </tr>
             </thead>
             <tbody>
@@ -1218,6 +1219,7 @@ function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: Correcte
                         ? <span className="text-muted-foreground italic">best-effort — n/a</span>
                         : s.resPct == null ? "—" : `${s.resPct.toFixed(0)}%`}
                     </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-destructive">{s.resBreach || "—"}</td>
                   </tr>
                 );
               })}
@@ -1229,6 +1231,7 @@ function ComplianceSection({ inScope, manuallyLoggedCount }: { inScope: Correcte
                 <td className="px-3 py-2 text-right text-muted-foreground">—</td>
                 <td className="px-3 py-2 text-right text-muted-foreground">—</td>
                 <td className="px-3 py-2 text-muted-foreground">—</td>
+                <td className="px-3 py-2 text-right text-muted-foreground">—</td>
                 <td className="px-3 py-2 text-right text-muted-foreground">—</td>
               </tr>
             </tbody>
