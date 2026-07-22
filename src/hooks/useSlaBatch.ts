@@ -207,27 +207,37 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
     [overrides],
   );
 
-  // Customer registry labels — small table, load once.
+  // Customer registry labels + test-account keys — small table, load once.
   const [customerLabels, setCustomerLabels] = useState<Map<string, string>>(new Map());
+  const [testAccountKeys, setTestAccountKeys] = useState<Set<string>>(new Set());
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const { data, error } = await supabase
         .from("v3_customer_accounts")
-        .select("account_key,label");
+        .select("account_key,label,is_test");
       if (cancelled) return;
-      if (error) { setCustomerLabels(new Map()); return; }
+      if (error) { setCustomerLabels(new Map()); setTestAccountKeys(new Set()); return; }
       const m = new Map<string, string>();
-      for (const row of (data ?? []) as Array<{ account_key: string; label: string }>) {
+      const t = new Set<string>();
+      for (const row of (data ?? []) as Array<{ account_key: string; label: string; is_test: boolean | null }>) {
         m.set(row.account_key, row.label);
+        if (row.is_test) t.add(row.account_key);
       }
       setCustomerLabels(m);
+      setTestAccountKeys(t);
     })();
     return () => { cancelled = true; };
   }, []);
 
+  const isTestAccount = useCallback(
+    (key: string | null | undefined) => !!(key && testAccountKeys.has(key)),
+    [testAccountKeys],
+  );
+
   return {
     loading, error, rows, enriched, inScope, excluded, noCustomer, manuallyLogged,
-    overrides, isExcused, getOverride, customerLabels, refresh, refreshOverrides,
+    overrides, isExcused, getOverride, customerLabels,
+    testAccountKeys, isTestAccount, refresh, refreshOverrides,
   };
 }
