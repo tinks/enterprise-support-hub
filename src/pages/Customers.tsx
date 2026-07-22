@@ -697,7 +697,18 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
                                       <TableCell>
                                         <Checkbox checked={sel.has(t.id)} onCheckedChange={() => toggleSelect(gid, t.id)} />
                                       </TableCell>
-                                      <TableCell className="max-w-md truncate">{t.subject || "—"}</TableCell>
+                                      <TableCell className="max-w-md truncate">
+                                        <span className="align-middle">{t.subject || "—"}</span>
+                                        {t.last_full_fetch_at == null && (
+                                          <Badge
+                                            variant="outline"
+                                            className="ml-2 border-yellow-500/50 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 text-[10px]"
+                                            title="Tags not yet pulled from Intercom — waiting for the next full fetch (sync-v3-closed). Disposition may change once its labels sync."
+                                          >
+                                            tags pending sync
+                                          </Badge>
+                                        )}
+                                      </TableCell>
                                       <TableCell className="text-xs">{t.contact_email || "—"}</TableCell>
                                       <TableCell className="text-xs">{t.intercom_created_at ? format(new Date(t.intercom_created_at), "yyyy-MM-dd") : "—"}</TableCell>
                                       <TableCell className="flex gap-2">
