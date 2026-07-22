@@ -956,11 +956,6 @@ function RegistryTab({ isAdmin }: { isAdmin: boolean }) {
           </div>
           {isAdmin && <Button size="sm" onClick={() => setCreating(true)}><Plus className="h-4 w-4 mr-1" />New account</Button>}
         </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Label</TableHead>
         <CardContent className="space-y-3">
           <div className="flex items-center gap-3 px-6 pt-2">
             <Input
