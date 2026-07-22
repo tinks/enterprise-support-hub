@@ -879,6 +879,19 @@ function RegistryTab({ isAdmin }: { isAdmin: boolean }) {
   const [creating, setCreating] = useState(false);
   const [wsDialog, setWsDialog] = useState(false);
   const [icDialog, setIcDialog] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filteredAccounts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return accounts;
+    return accounts.filter(a => {
+      if (a.label?.toLowerCase().includes(q)) return true;
+      if (a.account_key?.toLowerCase().includes(q)) return true;
+      if ((a.domains ?? []).some(d => d?.toLowerCase().includes(q))) return true;
+      if ((a.aliases ?? []).some(x => x?.toLowerCase().includes(q))) return true;
+      return false;
+    });
+  }, [accounts, search]);
 
   const load = async () => {
     setLoading(true);
