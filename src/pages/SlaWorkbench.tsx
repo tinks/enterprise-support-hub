@@ -76,21 +76,22 @@ function parseIds(input: string): string[] {
 // ============================================================================
 // Page
 // ============================================================================
-export default function SlaTest() {
+export default function SlaWorkbench() {
   return (
     <AppLayout>
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
         <div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide">
-            <Gauge className="h-3.5 w-3.5" /> Prototype · SLA validation
+            <Gauge className="h-3.5 w-3.5" /> Practitioner tool · SLA validation
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight mt-1">SLA test</h1>
+          <h1 className="text-2xl font-semibold tracking-tight mt-1">SLA Workbench</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Live SLA validation tool. Paste Intercom conversation IDs to fetch & spot-check our computed metrics
-            against Intercom's own statistics, or browse the stored batch of finalized tickets.
+            Detailed "data behind it" view. Analyze individual tickets by ID or browse the full stored batch with
+            per-ticket metrics, compliance breakdown, and legacy comparison.
             Business hours = Europe/Berlin, Mon–Fri 09:00–24:00.
           </p>
         </div>
+
 
         <Tabs defaultValue="live" className="w-full">
           <TabsList>
