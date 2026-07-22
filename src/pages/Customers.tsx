@@ -879,6 +879,19 @@ function RegistryTab({ isAdmin }: { isAdmin: boolean }) {
   const [creating, setCreating] = useState(false);
   const [wsDialog, setWsDialog] = useState(false);
   const [icDialog, setIcDialog] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filteredAccounts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return accounts;
+    return accounts.filter(a => {
+      if (a.label?.toLowerCase().includes(q)) return true;
+      if (a.account_key?.toLowerCase().includes(q)) return true;
+      if ((a.domains ?? []).some(d => d?.toLowerCase().includes(q))) return true;
+      if ((a.aliases ?? []).some(x => x?.toLowerCase().includes(q))) return true;
+      return false;
+    });
+  }, [accounts, search]);
 
   const load = async () => {
     setLoading(true);
@@ -943,7 +956,18 @@ function RegistryTab({ isAdmin }: { isAdmin: boolean }) {
           </div>
           {isAdmin && <Button size="sm" onClick={() => setCreating(true)}><Plus className="h-4 w-4 mr-1" />New account</Button>}
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-3 px-6 pt-2">
+            <Input
+              placeholder="Search by label, domain, alias, or key…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="max-w-sm"
+            />
+            <span className="text-xs text-muted-foreground">
+              {filteredAccounts.length} of {accounts.length}
+            </span>
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
@@ -958,7 +982,10 @@ function RegistryTab({ isAdmin }: { isAdmin: boolean }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {accounts.map(a => (
+              {filteredAccounts.length === 0 && (
+                <TableRow><TableCell colSpan={8} className="text-muted-foreground text-center py-4">No accounts match</TableCell></TableRow>
+              )}
+              {filteredAccounts.map(a => (
                 <TableRow key={a.account_key}>
                   <TableCell className="font-medium">{a.label}</TableCell>
                   <TableCell className="font-mono text-xs">{a.account_key}</TableCell>
