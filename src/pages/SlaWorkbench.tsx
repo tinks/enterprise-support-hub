@@ -40,6 +40,13 @@ import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  type DateWindow,
+  WINDOW_LABELS,
+  WINDOW_CAPTIONS,
+  windowStartMs,
+  rowClosedAtMs,
+} from "@/lib/slaWindow";
 
 
 
@@ -595,7 +602,7 @@ type BatchMode = "corrected" | "legacy";
 
 function BatchStoredTab() {
   const [mode, setMode] = useState<BatchMode>("corrected");
-  const { rows, loading, error, refresh, isExcused, getOverride, refreshOverrides } = useSlaBatch();
+  const { rows, loading, error, refresh, isExcused, getOverride, refreshOverrides, customerLabels } = useSlaBatch();
 
   return (
     <div className="space-y-6">
@@ -624,7 +631,7 @@ function BatchStoredTab() {
       )}
 
       {mode === "corrected"
-        ? <CorrectedBatch rows={rows} loading={loading} isExcused={isExcused} getOverride={getOverride} refreshOverrides={refreshOverrides} />
+        ? <CorrectedBatch rows={rows} loading={loading} isExcused={isExcused} getOverride={getOverride} refreshOverrides={refreshOverrides} customerLabels={customerLabels} />
         : <LegacyBatch rows={rows} loading={loading} />}
     </div>
   );
