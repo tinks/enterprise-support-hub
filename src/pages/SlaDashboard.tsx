@@ -8,10 +8,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Loader2, Gauge, Info, ExternalLink, RefreshCw } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Loader2, Gauge, Info, RefreshCw } from "lucide-react";
 import {
-  aggregate,
   evaluateCompliance,
   formatBusinessDuration,
   formatDuration,
@@ -21,7 +19,7 @@ import {
   type SlaCompliance,
 } from "@/lib/slaMetrics";
 import { useSlaBatch, type SlaBatchEnriched } from "@/hooks/useSlaBatch";
-import { KpiCard } from "@/components/sla/KpiCard";
+
 
 // Compliance color tone from a percentage — always paired with the visible number.
 function toneFor(pct: number | null): { text: string; bg: string; label: string } {
