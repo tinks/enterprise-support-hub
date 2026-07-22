@@ -461,6 +461,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [accounts, setAccounts] = useState<AccountOpt[]>([]);
   const [prospectPersonalCount, setProspectPersonalCount] = useState<number>(0);
+  const [syncStatus, setSyncStatus] = useState<{ pending_count: number; next_full_fetch_at: string | null; schedule_desc: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [expandedTickets, setExpandedTickets] = useState<Record<string, UnTicket[]>>({});
@@ -469,18 +470,22 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
 
   const load = async () => {
     setLoading(true);
-    const [{ data: g, error: e1 }, { data: a, error: e2 }, { data: cov, error: e3 }] = await Promise.all([
+    const [{ data: g, error: e1 }, { data: a, error: e2 }, { data: cov, error: e3 }, { data: ss, error: e4 }] = await Promise.all([
       sb.rpc("v3_unattributed_groups"),
       sb.from("v3_customer_accounts").select("account_key,label,domains").order("label"),
       sb.rpc("v3_coverage_current"),
+      sb.rpc("v3_unattributed_sync_status"),
     ]);
     if (e1) { console.error(e1); toast.error("Failed to load groups"); }
     if (e2) { console.error(e2); }
     if (e3) { console.error(e3); }
+    if (e4) { console.error(e4); }
     setGroups((g ?? []) as GroupRow[]);
     setAccounts((a ?? []) as AccountOpt[]);
     const covRow = Array.isArray(cov) ? cov[0] : cov;
     setProspectPersonalCount(Number((covRow as { excluded_prospect_personal?: number } | null)?.excluded_prospect_personal ?? 0));
+    const ssRow = Array.isArray(ss) ? ss[0] : ss;
+    setSyncStatus((ssRow as { pending_count: number; next_full_fetch_at: string | null; schedule_desc: string | null } | null) ?? null);
     setLoading(false);
   };
 
@@ -504,7 +509,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
       return;
     }
     let q = sb.from("intercom_tickets_v3")
-      .select("id,intercom_conversation_id,subject,contact_email,contact_domain,slack_channel_id_detected,workspace_id_detected,intercom_created_at")
+      .select("id,intercom_conversation_id,subject,contact_email,contact_domain,slack_channel_id_detected,workspace_id_detected,intercom_created_at,last_full_fetch_at")
       .eq("customer_key", "unattributed")
       .order("intercom_created_at", { ascending: false })
       .limit(500);
