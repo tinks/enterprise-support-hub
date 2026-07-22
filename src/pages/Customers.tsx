@@ -961,6 +961,22 @@ function RegistryTab({ isAdmin }: { isAdmin: boolean }) {
             <TableHeader>
               <TableRow>
                 <TableHead>Label</TableHead>
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-3 px-6 pt-2">
+            <Input
+              placeholder="Search by label, domain, alias, or key…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="max-w-sm"
+            />
+            <span className="text-xs text-muted-foreground">
+              {filteredAccounts.length} of {accounts.length}
+            </span>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Label</TableHead>
                 <TableHead>Key</TableHead>
                 <TableHead>Domains</TableHead>
                 <TableHead>Tier</TableHead>
@@ -971,7 +987,10 @@ function RegistryTab({ isAdmin }: { isAdmin: boolean }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {accounts.map(a => (
+              {filteredAccounts.length === 0 && (
+                <TableRow><TableCell colSpan={8} className="text-muted-foreground text-center py-4">No accounts match</TableCell></TableRow>
+              )}
+              {filteredAccounts.map(a => (
                 <TableRow key={a.account_key}>
                   <TableCell className="font-medium">{a.label}</TableCell>
                   <TableCell className="font-mono text-xs">{a.account_key}</TableCell>
