@@ -1006,36 +1006,57 @@ Provisional per-severity targets (single source of truth in `SLA_TARGETS`, edita
 - Each id → `GET https://api.intercom.io/conversations/{id}` (`Intercom-Version: 2.11`, reuses `INTERCOM_API_TOKEN`).
 - **STRICT read-only** thin proxy: all metric logic runs client-side in `computeSla`, zero server-side duplication, Intercom stays read-only.
 
-### UI — `/sla-test` (`src/pages/SlaTest.tsx`), two tabs
+### UI — split into SLA Dashboard + SLA Workbench (shared hook)
 
-**Tab 1 — "Analyze by ID (live)":** ≤10 ids/URLs → `sla-ticket-analyze` → runs `computeSla` on each returned conversation. Per-ticket card shows headline strip (our human FRT calendar+BH vs Intercom `time_to_admin_reply` + Δ + Intercom SLA status), origin + flag badges, color-coded timeline, calendar | BH metric table, prominent amber "no customer / internal" warning. Validation / spot-check tool only.
+The old single `/sla-test` page is retired; `/sla-test` now **redirects to `/sla`**. Two pages share one data spine:
 
-**Tab 2 — "Batch (stored)":** **snapshot-based, not live.** Queries `intercom_tickets_v3` filtered by `lifecycle_status IN ('finalized', 'reopened_after_finalize')` — the **full finalized enterprise population, all owners** (currently ~287 tickets), paged 500 at a time. `raw_payload`, `tags`, `rsa_override`, `customer_resolution_method`, `owner` selected per row. **Why snapshot, not live:** live-fetching a whole population per page load would hammer the metered Intercom API (structural-runaway risk); snapshot reporting is fast, free, reproducible, and as-of-a-time. Live per-ticket Analyze is the validation escape hatch.
+- **`src/hooks/useSlaBatch.ts`** — loads `intercom_tickets_v3` filtered by `lifecycle_status IN ('finalized','reopened_after_finalize')` (all owners, paged 500, ~287 rows), runs `computeSla` + `classifyRow` per row, and returns `{ inScope, excluded, noCustomer, manuallyLogged, refresh }`. Both pages consume this hook — no duplicate fetch/enrichment.
+- **`src/components/sla/KpiCard.tsx`** — shared timing tile.
 
-Population classification (`classifyRow`, checked in this order):
+**Snapshot, not live** (unchanged rationale): live-fetching the whole population per page load would hammer the metered Intercom API; snapshot is fast, free, reproducible, as-of-a-time. Live per-ticket Analyze remains the validation escape hatch (on the Workbench).
 
-1. **manuallyLogged** — `sla.flags.manuallyLogged === true`. Checked FIRST, before other buckets. Shown with a visible count in the batch header ("Manually-logged (excluded): N"). Excluded from all compliance. **Why up-front:** these are our own bulk-import artefacts with zero real timestamps — running compliance on them would produce garbage; a visible count lets us watch volume.
+Population classification (`classifyRow`, checked in this order, unchanged):
+
+1. **manuallyLogged** — `sla.flags.manuallyLogged === true`. Checked FIRST. Shown with a visible count in both pages' scope chips ("Manually-logged (excluded): N"). Excluded from all compliance. **Why up-front:** our own bulk-import artefacts with zero real timestamps — running compliance on them would produce garbage; a visible count lets us watch volume.
 2. **excluded** — `rsa_override === false` OR (`rsa_override == null` AND (`enterprise-fyi` OR `enterprise-duplicate` tag)) OR `merged_ticket` tag OR `customer_resolution_method === "not_enterprise"` (Rule 0). Explicit `rsa_override === true` overrides tag-based exclusions.
 3. **noCustomer** — `sla.flags.noCustomerParticipant`.
 4. **inScope** — everything else. Compliance runs only over `inScope`.
 
-**Batch KPI cards** aggregate over in-scope rows and now read the **inbox-anchored** fields:
+#### SLA Dashboard — `/sla` (`src/pages/SlaDashboard.tsx`) — DEFAULT LANDING
+
+Leadership-facing, lean/at-a-glance. Top → bottom:
+
+1. **Population + coverage chips** — in-scope N, severity coverage %, excluded, internal/no-customer, manually-logged.
+2. **Compliance scorecard** (the centerpiece) — per-severity rows Sev 1–4 + Unclassified, **customer-initiated basis** (no toggle here — this is the honest default). FR %met and Res %met are tinted by band: **≥90 healthy · 75–89 warning · <75 breach**; **color ALWAYS accompanies the visible % number and its target** (never color alone). A per-row destructive breach-count badge appears when breaches > 0. Sev 4 resolution renders "best-effort".
+3. **"How these are measured" popover** — short notes on the inbox-anchored clock, stop-the-clock resolution, business-hours model, provisional targets.
+
+**Deliberately EXCLUDED from the Dashboard:** the engine/Legacy toggle, Analyze-by-ID, the raw per-ticket table, the timing KPI tiles, the by-source breakout, and the surfaced breach lists. **Why the timing tiles are NOT on the Dashboard:** the aggregate medians are **severity-blind** (blended across Sev 1–4) so they don't map to any single target and would mislead sitting next to the per-severity scorecard. They live on the Workbench, where the operator can see severity + source alongside. Breach *counts* appear on the Dashboard as small per-severity badges so "did any breaches happen?" is instantly visible; the full breach *lists* live on the Workbench.
+
+#### SLA Workbench — `/sla-workbench` (`src/pages/SlaWorkbench.tsx`) — practitioner detail
+
+Everything the old `/sla-test` did, restructured onto the shared hook and extended:
+
+- **Tab 1 — "Analyze by ID (live)":** ≤10 ids/URLs → `sla-ticket-analyze` → runs `computeSla` on each returned conversation. Per-ticket card shows headline strip (our human FRT calendar+BH vs Intercom `time_to_admin_reply` + Δ + Intercom SLA status), origin + flag badges, color-coded timeline, calendar | BH metric table, prominent amber "no customer / internal" warning. Validation / spot-check tool only.
+- **Tab 2 — "Batch (stored)":** the full data-behind-it view. Corrected/Legacy toggle preserved; full sortable per-ticket table preserved.
+
+**Batch KPI cards** aggregate over in-scope rows (all severities — severity-blind medians are useful HERE alongside the tables that show the severity/source segmentation):
 
 - **Human first reply · bus.hrs** ← `firstHumanReplyFromInboxBusinessHoursS`
 - **Human first reply · calendar** ← `firstHumanReplyFromInboxS`
 - **First response any-agent · calendar** ← `firstResponseAnyAgentS` (retained — includes Sam)
-- **Time to resolve · bus.hrs** ← `ttrBusinessHoursS` (retained as raw reference on the KPI strip; compliance uses `resolutionActive*`)
+- **Time to resolve · bus.hrs** ← `ttrBusinessHoursS` (retained as raw reference; compliance uses `resolutionActive*`)
 - **Pre-inbox time (pre-Enterprise / work-before-ticket)** ← `preInboxTimeS`, labelled "a process signal, not an SLA"
 
-**Compliance section** (`ComplianceSection`, rendered at the TOP of the batch view, directly below the scope-summary line): groups in-scope rows by `parseSeverity(...)` into buckets Sev 1 / 2 / 3 / 4 / **Unclassified**. Per severity: N, FR % met, FR breaches, FR n/a, Res % met, Res breaches, Res n/a.
+**Compliance section** (`ComplianceSection`, rendered at the TOP of the batch view): groups in-scope rows by `parseSeverity(...)` into Sev 1 / 2 / 3 / 4 / **Unclassified**. Per-severity columns: N, FR target, **FR %met, FR breaches, FR n/a, Res target, Res %met, Res breaches**. (The `Res breaches` column mirrors `FR breaches` — same right-aligned destructive style, "—" when 0. Sev 4 shows "—" in Res breaches since it has no resolution target.)
 
-- **First-Response basis toggle** (`frBasis: "customer" | "all"`, default `"customer"`): FR counters and the "First-Response breaches" collapsible are computed over `initiatedBy === "customer"` rows only by default; toggle to "All tickets" for the source-independent total. An always-visible line reads `Initiation: X customer-initiated · Y agent-initiated` (with `— agent-initiated excluded from First Response %` appended in "customer" mode). **Why:** ~half of enterprise tickets are opened by us; leaving agent-initiated in padded Sev 2 FR upward (measured 83 % → 77 % once segmented). Anti-masking: the total is always one click away, the agent-initiated count is always visible, no ticket is dropped (per-severity `n` is always the full in-scope count).
+- **First-Response basis toggle** (`frBasis: "customer" | "all"`, default `"customer"`): FR counters and the "First-Response breaches" collapsible are computed over `initiatedBy === "customer"` rows only by default; toggle to "All tickets" for the source-independent total. An always-visible line reads `Initiation: X customer-initiated · Y agent-initiated`. **Why:** ~half of enterprise tickets are opened by us; leaving agent-initiated in padded Sev 2 FR upward (measured 83 % → 77 % once segmented). Anti-masking: total is one click away, agent-initiated count always visible, per-severity `n` is always the full in-scope count.
 - **Resolution is unaffected by the toggle** — always over all in-scope rows. Support genuinely works relayed / outbound tickets to resolution.
+- **By-source breakout** (collapsible, directly below the per-severity table): rows **Slack · Sam-first · Direct (email/messenger, no Sam)** + a greyed **Manually-logged (excluded)** row for volume watch. Columns: n · FR %met · Res %met · Pre-inbox median. Source per row = `origin === "slack"` → **Slack**; else `sla.flags.samParticipated` → **Sam-first**; else **Direct**. FR %met respects the basis toggle above; Res %met covers all tickets in each bucket. **Why:** the aggregate hid three very different populations — Sam-first is the strongest performer, Slack the weakest with a large pre-inbox lag (real work happens before the ticket). **Data fact from the current snapshot:** Sam first-lines EMAIL / MESSENGER only — **0 public Sam replies on Slack-sourced tickets** — so the Slack bucket is humans-reply-directly, not Sam-handoff.
 - Two collapsible breach lists below the table: "First-Response breaches (N)" (respects basis) and "Resolution breaches (N)" (all in-scope, sorted worst-first).
 
 Also preserved: a **Legacy (compare)** view backed by stored Intercom fields, kept verbatim as before/after evidence.
 
-**Duration display** (`formatDuration` vs `formatBusinessDuration`): calendar durations render as 24 h days ("1 d 4 h"); business-hours durations render as **business days** ("bd", 1 bd = 15 h — e.g. 30 business hours displays as "2 bd", not "1 d 6 h"). The Compliance section picks the formatter per column by the target's clock. The old "durations render business-hours with 24 h days" caveat is obsolete and has been removed.
+**Duration display** (`formatDuration` vs `formatBusinessDuration`): calendar durations render as 24 h days ("1 d 4 h"); business-hours durations render as **business days** ("bd", 1 bd = 15 h — e.g. 30 business hours displays as "2 bd", not "1 d 6 h"). Compliance section picks the formatter per column by the target's clock.
 
 **Tests** — `src/lib/__tests__/slaMetrics.test.ts` (56 passing at last count). Cover actor classification, escalation post-AI-handoff (back-compat), `noCustomerParticipant`, `manuallyLogged` detection, `businessHoursBetween` (weekday, DST, weekend), BH ≤ calendar invariants, initiation classification, inbox-anchor detection with and without an Enterprise Inbox assignment, FR-from-inbox (pre-anchor human ignored; no post-anchor reply → null; anchor-null fallback to open), stop-the-clock resolution from the anchor (Sam's pre-anchor handling excluded), `preInboxTimeS`, `formatBusinessDuration`.
 
