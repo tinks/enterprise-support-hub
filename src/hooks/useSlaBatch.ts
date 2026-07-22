@@ -171,8 +171,27 @@ export function useSlaBatch(): UseSlaBatch {
     [overrides],
   );
 
+  // Customer registry labels — small table, load once.
+  const [customerLabels, setCustomerLabels] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("v3_customer_accounts")
+        .select("account_key,label");
+      if (cancelled) return;
+      if (error) { setCustomerLabels(new Map()); return; }
+      const m = new Map<string, string>();
+      for (const row of (data ?? []) as Array<{ account_key: string; label: string }>) {
+        m.set(row.account_key, row.label);
+      }
+      setCustomerLabels(m);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   return {
     loading, error, rows, enriched, inScope, excluded, noCustomer, manuallyLogged,
-    overrides, isExcused, getOverride, refresh, refreshOverrides,
+    overrides, isExcused, getOverride, customerLabels, refresh, refreshOverrides,
   };
 }
