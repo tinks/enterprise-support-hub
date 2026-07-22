@@ -256,6 +256,9 @@ export default function SlaDashboard() {
                                 {r.frBreach} breach{r.frBreach === 1 ? "" : "es"}
                               </Badge>
                             )}
+                            {r.frExcused > 0 && (
+                              <span className="text-[10px] text-muted-foreground">· {r.frExcused} excused</span>
+                            )}
                           </div>
                         </td>
                         <td className="px-4 py-3">
