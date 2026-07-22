@@ -1434,12 +1434,16 @@ function ComplianceSection({
                     <th className="text-right px-3 py-2 font-medium">Target</th>
                     <th className="text-left px-3 py-2 font-medium">Clock</th>
                     <th className="text-right px-3 py-2 font-medium">Reopens</th>
+                    <th className="text-right px-3 py-2 font-medium">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {resBreaches.map(({ row, compliance }) => (
-                    <tr key={row.id} className="border-t border-border">
-                      <td className="px-3 py-2 max-w-[320px] truncate">
+                  {resBreaches.map(({ row, compliance }) => {
+                    const excused = isExcused(row.intercom_conversation_id, "resolution");
+                    const ov = getOverride(row.intercom_conversation_id, "resolution");
+                    return (
+                    <tr key={row.id} className={`border-t border-border ${excused ? "opacity-60 line-through" : ""}`}>
+                      <td className="px-3 py-2 max-w-[320px] truncate no-underline">
                         <a
                           href={`https://app.intercom.com/a/inbox/_/inbox/conversation/${row.intercom_conversation_id}`}
                           target="_blank"
@@ -1463,10 +1467,25 @@ function ComplianceSection({
                       <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                         {row.sla.reopenCount > 0 ? row.sla.reopenCount : "—"}
                       </td>
+                      <td className="px-3 py-2 text-right no-underline">
+                        <ExcuseCell
+                          excused={excused}
+                          override={ov}
+                          isAdmin={isAdmin}
+                          onExcuse={() => setExcuseTarget({ cid: row.intercom_conversation_id, metric: "resolution", subject: row.subject })}
+                          onRemove={async () => {
+                            if (!isAdmin) { toast({ title: "Admin only", description: "You need the admin role to remove overrides." }); return; }
+                            const { error } = await supabase.from("sla_breach_overrides" as any).delete().eq("intercom_conversation_id", row.intercom_conversation_id).eq("metric", "resolution");
+                            if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
+                            else { refreshOverrides(); toast({ title: "Override removed" }); }
+                          }}
+                        />
+                      </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                   {!resBreaches.length && (
-                    <tr><td colSpan={6} className="px-3 py-4 text-center text-muted-foreground text-xs">No resolution breaches.</td></tr>
+                    <tr><td colSpan={7} className="px-3 py-4 text-center text-muted-foreground text-xs">No resolution breaches.</td></tr>
                   )}
                 </tbody>
               </table>
