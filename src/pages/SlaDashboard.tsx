@@ -77,7 +77,7 @@ function formatTarget(sec: number | null, clock: "business" | "calendar"): strin
 }
 
 export default function SlaDashboard() {
-  const { loading, error, inScope, excluded, noCustomer, manuallyLogged, refresh } = useSlaBatch();
+  const { loading, error, inScope, excluded, noCustomer, manuallyLogged, refresh, isExcused } = useSlaBatch();
   const [dateWindow, setDateWindow] = useState<DateWindow>("30d");
 
   // Filter in-scope rows to selected window by finalized/close date.
@@ -113,14 +113,20 @@ export default function SlaDashboard() {
   const severityRows = useMemo(() => {
     return ([1, 2, 3, 4] as const).map((sev) => {
       const rows = buckets[sev];
-      let frMet = 0, frBreach = 0, resMet = 0, resBreach = 0;
+      let frMet = 0, frBreach = 0, frExcused = 0, resMet = 0, resBreach = 0, resExcused = 0;
       for (const { row, compliance } of rows) {
         if (row.sla.initiatedBy === "customer") {
           if (compliance.firstResponse.met === true) frMet++;
-          else if (compliance.firstResponse.met === false) frBreach++;
+          else if (compliance.firstResponse.met === false) {
+            if (isExcused(row.intercom_conversation_id, "first_response")) frExcused++;
+            else frBreach++;
+          }
         }
         if (compliance.resolution.met === true) resMet++;
-        else if (compliance.resolution.met === false) resBreach++;
+        else if (compliance.resolution.met === false) {
+          if (isExcused(row.intercom_conversation_id, "resolution")) resExcused++;
+          else resBreach++;
+        }
       }
       const frDenom = frMet + frBreach;
       const resDenom = resMet + resBreach;
@@ -130,11 +136,13 @@ export default function SlaDashboard() {
         target: SLA_TARGETS[sev],
         frPct: frDenom ? (frMet / frDenom) * 100 : null,
         frBreach,
+        frExcused,
         resPct: resDenom ? (resMet / resDenom) * 100 : null,
         resBreach,
+        resExcused,
       };
     });
-  }, [buckets]);
+  }, [buckets, isExcused]);
 
 
 
@@ -248,6 +256,9 @@ export default function SlaDashboard() {
                                 {r.frBreach} breach{r.frBreach === 1 ? "" : "es"}
                               </Badge>
                             )}
+                            {r.frExcused > 0 && (
+                              <span className="text-[10px] text-muted-foreground">· {r.frExcused} excused</span>
+                            )}
                           </div>
                         </td>
                         <td className="px-4 py-3">
@@ -268,6 +279,9 @@ export default function SlaDashboard() {
                                   <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
                                     {r.resBreach} breach{r.resBreach === 1 ? "" : "es"}
                                   </Badge>
+                                )}
+                                {r.resExcused > 0 && (
+                                  <span className="text-[10px] text-muted-foreground">· {r.resExcused} excused</span>
                                 )}
                               </>
                             )}
