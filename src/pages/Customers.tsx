@@ -461,7 +461,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [accounts, setAccounts] = useState<AccountOpt[]>([]);
   const [prospectPersonalCount, setProspectPersonalCount] = useState<number>(0);
-  const [syncStatus, setSyncStatus] = useState<{ pending_count: number; next_full_fetch_at: string | null; schedule_desc: string | null } | null>(null);
+  const [syncStatus, setSyncStatus] = useState<{ pending_open: number; pending_closed: number; next_full_fetch_at: string | null; schedule_desc: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [expandedTickets, setExpandedTickets] = useState<Record<string, UnTicket[]>>({});
