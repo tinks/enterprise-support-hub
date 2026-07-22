@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "@/components/AppLayout";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,6 +26,13 @@ import {
   type Severity,
   type SlaCompliance,
 } from "@/lib/slaMetrics";
+import {
+  useSlaBatch,
+  classifySlaBatchRow as classifyRow,
+  type SlaBatchRow as Row,
+  type SlaBatchEnriched as CorrectedEnriched,
+} from "@/hooks/useSlaBatch";
+
 
 
 
