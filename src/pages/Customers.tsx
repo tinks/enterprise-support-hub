@@ -604,6 +604,27 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
 
+      {syncStatus && syncStatus.pending_count > 0 && (
+        <div
+          className="rounded-md border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm flex items-center gap-2"
+          title="These tickets arrived via the light list-sync but haven't had their tags/labels pulled yet. Tags only populate on the full fetch (sync-v3-closed), so the resolver can't yet see labels like enterprise-not-enterprise or enterprise-prospect-personal-acct on them. Their disposition is unknown-until-sync — not a settled 'unattributed'."
+        >
+          <AlertTriangle className="h-4 w-4 text-yellow-600" />
+          <span>
+            <span className="font-semibold">{syncStatus.pending_count}</span> ticket{syncStatus.pending_count === 1 ? "" : "s"} pending tag sync — disposition unconfirmed until the next full fetch
+            {syncStatus.next_full_fetch_at
+              ? <> at <span className="font-semibold">{format(new Date(syncStatus.next_full_fetch_at), "HH:mm 'UTC'")}</span></>
+              : null}
+            {syncStatus.schedule_desc
+              ? <> (<span className="font-mono text-xs">{syncStatus.schedule_desc}</span>)</>
+              : null}
+            .
+          </span>
+        </div>
+      )}
+
+
+
 
       <Card>
         <CardContent className="p-0">
