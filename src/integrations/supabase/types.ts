@@ -1466,6 +1466,7 @@ export type Database = {
           id: string
           intercom_conversation_id: string
           intercom_created_at: string
+          last_full_fetch_at: string
           slack_channel_id_detected: string
           subject: string
           workspace_id_detected: string
@@ -1496,6 +1497,7 @@ export type Database = {
           id: string
           intercom_conversation_id: string
           intercom_created_at: string
+          last_full_fetch_at: string
           slack_channel_id_detected: string
           subject: string
           workspace_id_detected: string
@@ -1532,6 +1534,14 @@ export type Database = {
           group_key: string
           group_kind: string
           ticket_count: number
+        }[]
+      }
+      v3_unattributed_sync_status: {
+        Args: never
+        Returns: {
+          next_full_fetch_at: string
+          pending_count: number
+          schedule_desc: string
         }[]
       }
     }
