@@ -113,14 +113,20 @@ export default function SlaDashboard() {
   const severityRows = useMemo(() => {
     return ([1, 2, 3, 4] as const).map((sev) => {
       const rows = buckets[sev];
-      let frMet = 0, frBreach = 0, resMet = 0, resBreach = 0;
+      let frMet = 0, frBreach = 0, frExcused = 0, resMet = 0, resBreach = 0, resExcused = 0;
       for (const { row, compliance } of rows) {
         if (row.sla.initiatedBy === "customer") {
           if (compliance.firstResponse.met === true) frMet++;
-          else if (compliance.firstResponse.met === false) frBreach++;
+          else if (compliance.firstResponse.met === false) {
+            if (isExcused(row.intercom_conversation_id, "first_response")) frExcused++;
+            else frBreach++;
+          }
         }
         if (compliance.resolution.met === true) resMet++;
-        else if (compliance.resolution.met === false) resBreach++;
+        else if (compliance.resolution.met === false) {
+          if (isExcused(row.intercom_conversation_id, "resolution")) resExcused++;
+          else resBreach++;
+        }
       }
       const frDenom = frMet + frBreach;
       const resDenom = resMet + resBreach;
@@ -130,11 +136,13 @@ export default function SlaDashboard() {
         target: SLA_TARGETS[sev],
         frPct: frDenom ? (frMet / frDenom) * 100 : null,
         frBreach,
+        frExcused,
         resPct: resDenom ? (resMet / resDenom) * 100 : null,
         resBreach,
+        resExcused,
       };
     });
-  }, [buckets]);
+  }, [buckets, isExcused]);
 
 
 
