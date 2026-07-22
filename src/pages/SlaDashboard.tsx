@@ -77,7 +77,7 @@ function formatTarget(sec: number | null, clock: "business" | "calendar"): strin
 }
 
 export default function SlaDashboard() {
-  const { loading, error, inScope, excluded, noCustomer, manuallyLogged, refresh } = useSlaBatch();
+  const { loading, error, inScope, excluded, noCustomer, manuallyLogged, refresh, isExcused } = useSlaBatch();
   const [dateWindow, setDateWindow] = useState<DateWindow>("30d");
 
   // Filter in-scope rows to selected window by finalized/close date.
