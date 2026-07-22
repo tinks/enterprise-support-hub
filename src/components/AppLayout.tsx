@@ -20,7 +20,8 @@ const navItems = [
   { to: "/insights", icon: Sparkles, label: "Insights" },
   { to: "/knowledge", icon: BookOpen, label: "Knowledge" },
   { to: "/settings", icon: Settings, label: "Settings" },
-  { to: "/sla-test", icon: Gauge, label: "SLA test" },
+  { to: "/sla", icon: Gauge, label: "SLA Dashboard" },
+  { to: "/sla-workbench", icon: Gauge, label: "SLA Workbench" },
 ];
 
 
