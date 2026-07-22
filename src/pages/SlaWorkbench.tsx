@@ -676,7 +676,7 @@ function BatchStoredTab({ showTestData }: { showTestData: boolean }) {
 const UNATTRIBUTED = "__unattributed__";
 const ALL_CUSTOMERS = "__all__";
 
-function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverrides, customerLabels }: { rows: Row[]; loading: boolean; isExcused: (cid: string, metric: SlaOverrideMetric) => boolean; getOverride: (cid: string, metric: SlaOverrideMetric) => SlaOverride | undefined; refreshOverrides: () => void; customerLabels: Map<string, string> }) {
+function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverrides, customerLabels, testAccountKeys, showTestData }: { rows: Row[]; loading: boolean; isExcused: (cid: string, metric: SlaOverrideMetric) => boolean; getOverride: (cid: string, metric: SlaOverrideMetric) => SlaOverride | undefined; refreshOverrides: () => void; customerLabels: Map<string, string>; testAccountKeys: Set<string>; showTestData: boolean }) {
   const [sortKey, setSortKey] = useState<CorrectedSortKey>("closed");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [dateWindow, setDateWindow] = useState<DateWindow>("month");
