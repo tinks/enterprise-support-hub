@@ -461,7 +461,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [accounts, setAccounts] = useState<AccountOpt[]>([]);
   const [prospectPersonalCount, setProspectPersonalCount] = useState<number>(0);
-  const [syncStatus, setSyncStatus] = useState<{ pending_count: number; next_full_fetch_at: string | null; schedule_desc: string | null } | null>(null);
+  const [syncStatus, setSyncStatus] = useState<{ pending_open: number; pending_closed: number; next_full_fetch_at: string | null; schedule_desc: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [expandedTickets, setExpandedTickets] = useState<Record<string, UnTicket[]>>({});
@@ -485,7 +485,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
     const covRow = Array.isArray(cov) ? cov[0] : cov;
     setProspectPersonalCount(Number((covRow as { excluded_prospect_personal?: number } | null)?.excluded_prospect_personal ?? 0));
     const ssRow = Array.isArray(ss) ? ss[0] : ss;
-    setSyncStatus((ssRow as { pending_count: number; next_full_fetch_at: string | null; schedule_desc: string | null } | null) ?? null);
+    setSyncStatus((ssRow as { pending_open: number; pending_closed: number; next_full_fetch_at: string | null; schedule_desc: string | null } | null) ?? null);
     setLoading(false);
   };
 
@@ -604,22 +604,31 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
 
-      {syncStatus && syncStatus.pending_count > 0 && (
+      {syncStatus && (syncStatus.pending_open + syncStatus.pending_closed) > 0 && (
         <div
-          className="rounded-md border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm flex items-center gap-2"
-          title="These tickets arrived via the light list-sync but haven't had their tags/labels pulled yet. Tags only populate on the full fetch (sync-v3-closed), so the resolver can't yet see labels like enterprise-not-enterprise or enterprise-prospect-personal-acct on them. Their disposition is unknown-until-sync — not a settled 'unattributed'."
+          className="rounded-md border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm flex items-start gap-2"
+          title="Intercom tags/labels only populate when a full fetch runs (sync-v3-closed), which happens as tickets close. Until then the resolver can't see labels like enterprise-not-enterprise or enterprise-prospect-personal-acct — disposition is unknown-until-sync, not a settled 'unattributed'."
         >
-          <AlertTriangle className="h-4 w-4 text-yellow-600" />
-          <span>
-            <span className="font-semibold">{syncStatus.pending_count}</span> ticket{syncStatus.pending_count === 1 ? "" : "s"} pending tag sync — disposition unconfirmed until the next full fetch
-            {syncStatus.next_full_fetch_at
-              ? <> at <span className="font-semibold">{format(new Date(syncStatus.next_full_fetch_at), "HH:mm 'UTC'")}</span></>
-              : null}
-            {syncStatus.schedule_desc
-              ? <> (<span className="font-mono text-xs">{syncStatus.schedule_desc}</span>)</>
-              : null}
-            .
-          </span>
+          <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5 shrink-0" />
+          <div className="space-y-1">
+            {syncStatus.pending_open > 0 && (
+              <div>
+                <span className="font-semibold">{syncStatus.pending_open}</span> open ticket{syncStatus.pending_open === 1 ? "" : "s"} with tags not yet synced — Intercom labels pull when the ticket closes, so their disposition stays unconfirmed until then.
+              </div>
+            )}
+            {syncStatus.pending_closed > 0 && (
+              <div>
+                <span className="font-semibold">{syncStatus.pending_closed}</span> closed ticket{syncStatus.pending_closed === 1 ? "" : "s"} awaiting the next full fetch
+                {syncStatus.next_full_fetch_at
+                  ? <> (~<span className="font-semibold">{format(new Date(syncStatus.next_full_fetch_at), "HH:mm 'UTC'")}</span></>
+                  : <> (</>}
+                {syncStatus.schedule_desc
+                  ? <>, <span className="font-mono text-xs">{syncStatus.schedule_desc}</span>)</>
+                  : <>)</>}
+                .
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -703,7 +712,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
                                           <Badge
                                             variant="outline"
                                             className="ml-2 border-yellow-500/50 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 text-[10px]"
-                                            title="Tags not yet pulled from Intercom — waiting for the next full fetch (sync-v3-closed). Disposition may change once its labels sync."
+                                            title="Tags pull from Intercom when the ticket closes — disposition may change once its labels sync."
                                           >
                                             tags pending sync
                                           </Badge>
