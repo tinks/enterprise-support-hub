@@ -1250,7 +1250,10 @@ function ComplianceSection({
                     <td className="px-3 py-2 text-right tabular-nums font-medium">
                       {s.frPct == null ? "—" : `${s.frPct.toFixed(0)}%`}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-destructive">{s.frBreach || "—"}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-destructive">
+                      {s.frBreach || "—"}
+                      {s.frExcused > 0 && <span className="ml-1 text-muted-foreground text-[11px]">· {s.frExcused} excused</span>}
+                    </td>
                     <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{s.frNotEval || "—"}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
                       {t.resolutionS == null
