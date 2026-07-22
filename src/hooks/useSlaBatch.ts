@@ -120,7 +120,8 @@ export type UseSlaBatchOptions = {
  * runs computeSla per row, and pre-buckets them via classifySlaBatchRow.
  * Consumers derive their own severity buckets / display / basis on top.
  */
-export function useSlaBatch(): UseSlaBatch {
+export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
+  const showTestData = !!options?.showTestData;
   const [rows, setRows] = useState<SlaBatchRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
