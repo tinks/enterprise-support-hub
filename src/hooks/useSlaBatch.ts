@@ -138,5 +138,39 @@ export function useSlaBatch(): UseSlaBatch {
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
-  return { loading, error, rows, enriched, inScope, excluded, noCustomer, manuallyLogged, refresh };
+  // Overrides — small table, load in full.
+  const [overrides, setOverrides] = useState<Map<string, SlaOverride>>(new Map());
+  const [overridesKey, setOverridesKey] = useState(0);
+  const refreshOverrides = useCallback(() => setOverridesKey((k) => k + 1), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("sla_breach_overrides" as any)
+        .select("id,intercom_conversation_id,metric,reason,note,created_by,created_at");
+      if (cancelled) return;
+      if (error) { setOverrides(new Map()); return; }
+      const m = new Map<string, SlaOverride>();
+      for (const row of (data ?? []) as SlaOverride[]) {
+        m.set(`${row.intercom_conversation_id}:${row.metric}`, row);
+      }
+      setOverrides(m);
+    })();
+    return () => { cancelled = true; };
+  }, [overridesKey]);
+
+  const getOverride = useCallback(
+    (cid: string, metric: SlaOverrideMetric) => overrides.get(`${cid}:${metric}`),
+    [overrides],
+  );
+  const isExcused = useCallback(
+    (cid: string, metric: SlaOverrideMetric) => overrides.has(`${cid}:${metric}`),
+    [overrides],
+  );
+
+  return {
+    loading, error, rows, enriched, inScope, excluded, noCustomer, manuallyLogged,
+    overrides, isExcused, getOverride, refresh, refreshOverrides,
+  };
 }
