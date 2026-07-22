@@ -49,6 +49,18 @@ export function classifySlaBatchRow(row: SlaBatchRow, sla: SlaResult): SlaBatchB
   return "inScope";
 }
 
+export type SlaOverrideMetric = "first_response" | "resolution";
+export type SlaOverrideReason = "holiday" | "customer_hold" | "data_artifact" | "other";
+export type SlaOverride = {
+  id: string;
+  intercom_conversation_id: string;
+  metric: SlaOverrideMetric;
+  reason: SlaOverrideReason;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
 export type UseSlaBatch = {
   loading: boolean;
   error: string | null;
@@ -58,7 +70,11 @@ export type UseSlaBatch = {
   excluded: SlaBatchEnriched[];
   noCustomer: SlaBatchEnriched[];
   manuallyLogged: SlaBatchEnriched[];
+  overrides: Map<string, SlaOverride>;
+  isExcused: (conversationId: string, metric: SlaOverrideMetric) => boolean;
+  getOverride: (conversationId: string, metric: SlaOverrideMetric) => SlaOverride | undefined;
   refresh: () => void;
+  refreshOverrides: () => void;
 };
 
 /**
