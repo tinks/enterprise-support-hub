@@ -83,6 +83,7 @@ type UnTicket = {
   slack_channel_id_detected: string | null;
   workspace_id_detected: string | null;
   intercom_created_at: string | null;
+  last_full_fetch_at?: string | null;
 };
 
 type ChannelRow = {
