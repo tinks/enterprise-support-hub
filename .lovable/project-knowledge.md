@@ -1026,7 +1026,7 @@ The old single `/sla-test` page is retired; `/sla-test` now **redirects to `/sla
 Population classification (`classifyRow`, checked in this order, unchanged):
 
 1. **manuallyLogged** — `sla.flags.manuallyLogged === true`. Checked FIRST. Shown with a visible count in both pages' scope chips ("Manually-logged (excluded): N"). Excluded from all compliance. **Why up-front:** our own bulk-import artefacts with zero real timestamps — running compliance on them would produce garbage; a visible count lets us watch volume.
-2. **excluded** — `rsa_override === false` OR (`rsa_override == null` AND (`enterprise-fyi` OR `enterprise-duplicate` tag)) OR `merged_ticket` tag OR `customer_resolution_method === "not_enterprise"` (Rule 0). Explicit `rsa_override === true` overrides tag-based exclusions.
+2. **excluded** — `rsa_override === false` OR (`rsa_override == null` AND (`enterprise-fyi` OR `enterprise-duplicate` tag)) OR `merged_ticket` tag OR `customer_resolution_method IN ('not_enterprise','prospect_personal','enterprise_prospect')` (Rules 0 / 0b / 4b — the disposition gates keep both out-of-scope and prospect tickets out of the SLA population). Explicit `rsa_override === true` overrides tag-based exclusions.
 3. **noCustomer** — `sla.flags.noCustomerParticipant`.
 4. **inScope** — everything else. Compliance runs only over `inScope`.
 
