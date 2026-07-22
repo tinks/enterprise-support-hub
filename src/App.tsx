@@ -22,7 +22,9 @@ import AnalyticsV2 from "./pages/AnalyticsV2";
 import InboxV3 from "./pages/InboxV3";
 import AnalyticsV3 from "./pages/AnalyticsV3";
 import Changelog from "./pages/Changelog";
-import SlaTest from "./pages/SlaTest";
+import SlaWorkbench from "./pages/SlaWorkbench";
+import SlaDashboard from "./pages/SlaDashboard";
+import { Navigate } from "react-router-dom";
 import Customers from "./pages/Customers";
 
 
