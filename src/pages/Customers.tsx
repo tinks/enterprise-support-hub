@@ -37,6 +37,8 @@ type Coverage = {
   m_workspace_id: number;
   m_unresolved: number;
   excluded_not_enterprise?: number;
+  excluded_prospect_personal?: number;
+  excluded_prospect_unmapped?: number;
   population?: number;
 };
 
