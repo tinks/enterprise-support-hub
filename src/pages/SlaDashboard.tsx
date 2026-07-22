@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -81,7 +82,7 @@ const ALL_CUSTOMERS = "__all__";
 
 export default function SlaDashboard() {
   const { loading, error, inScope, excluded, noCustomer, manuallyLogged, refresh, isExcused, customerLabels } = useSlaBatch();
-  const [dateWindow, setDateWindow] = useState<DateWindow>("30d");
+  const [dateWindow, setDateWindow] = useState<DateWindow>("month");
   const [customerFilter, setCustomerFilter] = useState<string>(ALL_CUSTOMERS);
 
   // Filter in-scope rows to selected window by finalized/close date.
@@ -304,9 +305,11 @@ export default function SlaDashboard() {
                               · target {formatTarget(r.target.firstResponseS, r.target.firstResponseClock)}
                             </span>
                             {r.frBreach > 0 && (
-                              <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                                {r.frBreach} breach{r.frBreach === 1 ? "" : "es"}
-                              </Badge>
+                              <Link to="/sla-workbench" title="View breach detail in the Workbench">
+                                <Badge variant="destructive" className="text-[10px] px-1.5 py-0 cursor-pointer hover:opacity-80">
+                                  {r.frBreach} breach{r.frBreach === 1 ? "" : "es"}
+                                </Badge>
+                              </Link>
                             )}
                             {r.frExcused > 0 && (
                               <span className="text-[10px] text-muted-foreground">· {r.frExcused} excused</span>
