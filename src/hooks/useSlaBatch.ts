@@ -126,6 +126,7 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [testAccountKeys, setTestAccountKeys] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let cancelled = false;
