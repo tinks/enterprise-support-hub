@@ -459,6 +459,7 @@ function Bucket({ label, value, tone }: { label: string; value: number; tone?: "
 function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
   const [groups, setGroups] = useState<GroupRow[]>([]);
   const [accounts, setAccounts] = useState<AccountOpt[]>([]);
+  const [prospectPersonalCount, setProspectPersonalCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [expandedTickets, setExpandedTickets] = useState<Record<string, UnTicket[]>>({});
@@ -467,14 +468,18 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
 
   const load = async () => {
     setLoading(true);
-    const [{ data: g, error: e1 }, { data: a, error: e2 }] = await Promise.all([
+    const [{ data: g, error: e1 }, { data: a, error: e2 }, { data: cov, error: e3 }] = await Promise.all([
       sb.rpc("v3_unattributed_groups"),
       sb.from("v3_customer_accounts").select("account_key,label,domains").order("label"),
+      sb.rpc("v3_coverage_current"),
     ]);
     if (e1) { console.error(e1); toast.error("Failed to load groups"); }
     if (e2) { console.error(e2); }
+    if (e3) { console.error(e3); }
     setGroups((g ?? []) as GroupRow[]);
     setAccounts((a ?? []) as AccountOpt[]);
+    const covRow = Array.isArray(cov) ? cov[0] : cov;
+    setProspectPersonalCount(Number((covRow as { excluded_prospect_personal?: number } | null)?.excluded_prospect_personal ?? 0));
     setLoading(false);
   };
 
