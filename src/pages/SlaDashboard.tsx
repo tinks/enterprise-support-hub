@@ -8,10 +8,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Loader2, Gauge, Info, ExternalLink, RefreshCw } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Loader2, Gauge, Info, RefreshCw } from "lucide-react";
 import {
-  aggregate,
   evaluateCompliance,
   formatBusinessDuration,
   formatDuration,
@@ -21,7 +19,7 @@ import {
   type SlaCompliance,
 } from "@/lib/slaMetrics";
 import { useSlaBatch, type SlaBatchEnriched } from "@/hooks/useSlaBatch";
-import { KpiCard } from "@/components/sla/KpiCard";
+
 
 // Compliance color tone from a percentage — always paired with the visible number.
 function toneFor(pct: number | null): { text: string; bg: string; label: string } {
@@ -85,35 +83,8 @@ export default function SlaDashboard() {
     });
   }, [buckets]);
 
-  // Breach lists — customer-initiated FR, all-resolution.
-  const frBreaches = useMemo(() => {
-    const out: Array<{ row: SlaBatchEnriched; compliance: SlaCompliance }> = [];
-    for (const sev of [1, 2, 3, 4] as const) {
-      for (const r of buckets[sev]) {
-        if (r.row.sla.initiatedBy !== "customer") continue;
-        if (r.compliance.firstResponse.met === false) out.push(r);
-      }
-    }
-    return out;
-  }, [buckets]);
 
-  const resBreaches = useMemo(() => {
-    const out: Array<{ row: SlaBatchEnriched; compliance: SlaCompliance }> = [];
-    for (const sev of [1, 2, 3, 4] as const) {
-      for (const r of buckets[sev]) {
-        if (r.compliance.resolution.met === false) out.push(r);
-      }
-    }
-    out.sort((a, b) => (b.compliance.resolution.value ?? 0) - (a.compliance.resolution.value ?? 0));
-    return out;
-  }, [buckets]);
 
-  const kpis = useMemo(() => ({
-    humanBH: aggregate(inScope.map((r) => r.sla.firstHumanReplyFromInboxBusinessHoursS)),
-    humanCal: aggregate(inScope.map((r) => r.sla.firstHumanReplyFromInboxS)),
-    ttrBH: aggregate(inScope.map((r) => r.sla.ttrBusinessHoursS)),
-    preInbox: aggregate(inScope.map((r) => r.sla.preInboxTimeS)),
-  }), [inScope]);
 
   return (
     <AppLayout>
@@ -244,116 +215,12 @@ export default function SlaDashboard() {
           </CardContent>
         </Card>
 
-        {/* Breaches surfaced */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <BreachPanel
-            title={`First-response breaches (${frBreaches.length})`}
-            subtitle="Customer-initiated tickets whose first human reply exceeded the target."
-            kind="fr"
-            items={frBreaches}
-          />
-          <BreachPanel
-            title={`Resolution breaches (${resBreaches.length})`}
-            subtitle="Stop-the-clock resolution (Sev 1–3). Sorted worst-first."
-            kind="res"
-            items={resBreaches}
-          />
-        </div>
-
-        {/* Timing tiles */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard
-            title="Human first reply · bus.hrs"
-            desc="firstHumanReplyFromInbox (Europe/Berlin business hours)"
-            agg={kpis.humanBH}
-            emphasize
-          />
-          <KpiCard
-            title="Human first reply · calendar"
-            desc="firstHumanReplyFromInbox (wall clock)"
-            agg={kpis.humanCal}
-          />
-          <KpiCard
-            title="Time to resolve · bus.hrs"
-            desc="ttr (Europe/Berlin business hours)"
-            agg={kpis.ttrBH}
-          />
-          <KpiCard
-            title="Pre-inbox time"
-            desc="from ticket creation to Enterprise Inbox assignment — process signal, not an SLA"
-            agg={kpis.preInbox}
-          />
-        </div>
       </div>
     </AppLayout>
   );
 }
 
-function BreachPanel({
-  title,
-  subtitle,
-  kind,
-  items,
-}: {
-  title: string;
-  subtitle: string;
-  kind: "fr" | "res";
-  items: Array<{ row: SlaBatchEnriched; compliance: SlaCompliance }>;
-}) {
-  const VISIBLE = 8;
-  const shown = items.slice(0, VISIBLE);
-  const remaining = Math.max(0, items.length - shown.length);
 
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">{title}</CardTitle>
-        <CardDescription>{subtitle}</CardDescription>
-      </CardHeader>
-      <CardContent className="p-0">
-        {items.length === 0 ? (
-          <div className="px-4 py-6 text-sm text-muted-foreground">No breaches. ✓</div>
-        ) : (
-          <ul className="divide-y divide-border">
-            {shown.map(({ row, compliance }) => {
-              const c = kind === "fr" ? compliance.firstResponse : compliance.resolution;
-              const fmt = c.clock === "business" ? formatBusinessDuration : formatDuration;
-              return (
-                <li key={row.id} className="px-4 py-3 flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <a
-                      href={`https://app.intercom.com/a/inbox/_/inbox/conversation/${row.intercom_conversation_id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-sm text-foreground hover:underline inline-flex items-center gap-1 truncate max-w-full"
-                      title={row.subject ?? ""}
-                    >
-                      <span className="truncate">{row.subject || `Intercom #${row.intercom_conversation_id}`}</span>
-                      <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
-                    </a>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      Sev {compliance.severity} · {c.clock === "business" ? "business hours" : "calendar"}
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-sm font-semibold text-destructive tabular-nums">{fmt(c.value)}</div>
-                    <div className="text-[11px] text-muted-foreground tabular-nums">target {fmt(c.target)}</div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {remaining > 0 && (
-          <div className="px-4 py-2 text-xs text-muted-foreground border-t border-border bg-muted/20">
-            +{remaining} more —{" "}
-            <Link to="/sla-workbench" className="text-foreground hover:underline">see Workbench</Link>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
 
 function MeasurementInfoPopover() {
   const [open, setOpen] = useState(false);
