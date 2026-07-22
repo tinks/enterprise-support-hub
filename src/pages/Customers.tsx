@@ -485,7 +485,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
     const covRow = Array.isArray(cov) ? cov[0] : cov;
     setProspectPersonalCount(Number((covRow as { excluded_prospect_personal?: number } | null)?.excluded_prospect_personal ?? 0));
     const ssRow = Array.isArray(ss) ? ss[0] : ss;
-    setSyncStatus((ssRow as { pending_count: number; next_full_fetch_at: string | null; schedule_desc: string | null } | null) ?? null);
+    setSyncStatus((ssRow as { pending_open: number; pending_closed: number; next_full_fetch_at: string | null; schedule_desc: string | null } | null) ?? null);
     setLoading(false);
   };
 
