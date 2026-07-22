@@ -83,35 +83,8 @@ export default function SlaDashboard() {
     });
   }, [buckets]);
 
-  // Breach lists — customer-initiated FR, all-resolution.
-  const frBreaches = useMemo(() => {
-    const out: Array<{ row: SlaBatchEnriched; compliance: SlaCompliance }> = [];
-    for (const sev of [1, 2, 3, 4] as const) {
-      for (const r of buckets[sev]) {
-        if (r.row.sla.initiatedBy !== "customer") continue;
-        if (r.compliance.firstResponse.met === false) out.push(r);
-      }
-    }
-    return out;
-  }, [buckets]);
 
-  const resBreaches = useMemo(() => {
-    const out: Array<{ row: SlaBatchEnriched; compliance: SlaCompliance }> = [];
-    for (const sev of [1, 2, 3, 4] as const) {
-      for (const r of buckets[sev]) {
-        if (r.compliance.resolution.met === false) out.push(r);
-      }
-    }
-    out.sort((a, b) => (b.compliance.resolution.value ?? 0) - (a.compliance.resolution.value ?? 0));
-    return out;
-  }, [buckets]);
 
-  const kpis = useMemo(() => ({
-    humanBH: aggregate(inScope.map((r) => r.sla.firstHumanReplyFromInboxBusinessHoursS)),
-    humanCal: aggregate(inScope.map((r) => r.sla.firstHumanReplyFromInboxS)),
-    ttrBH: aggregate(inScope.map((r) => r.sla.ttrBusinessHoursS)),
-    preInbox: aggregate(inScope.map((r) => r.sla.preInboxTimeS)),
-  }), [inScope]);
 
   return (
     <AppLayout>
