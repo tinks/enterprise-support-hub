@@ -626,7 +626,7 @@ function BatchStoredTab() {
 // ----- Corrected engine view -----
 
 
-function CorrectedBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
+function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverrides }: { rows: Row[]; loading: boolean; isExcused: (cid: string, metric: SlaOverrideMetric) => boolean; getOverride: (cid: string, metric: SlaOverrideMetric) => SlaOverride | undefined; refreshOverrides: () => void }) {
   const [sortKey, setSortKey] = useState<CorrectedSortKey>("closed");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
