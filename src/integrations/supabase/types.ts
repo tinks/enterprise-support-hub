@@ -1540,7 +1540,8 @@ export type Database = {
         Args: never
         Returns: {
           next_full_fetch_at: string
-          pending_count: number
+          pending_closed: number
+          pending_open: number
           schedule_desc: string
         }[]
       }
