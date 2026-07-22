@@ -712,7 +712,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
                                           <Badge
                                             variant="outline"
                                             className="ml-2 border-yellow-500/50 bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 text-[10px]"
-                                            title="Tags not yet pulled from Intercom — waiting for the next full fetch (sync-v3-closed). Disposition may change once its labels sync."
+                                            title="Tags pull from Intercom when the ticket closes — disposition may change once its labels sync."
                                           >
                                             tags pending sync
                                           </Badge>
