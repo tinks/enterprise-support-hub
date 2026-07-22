@@ -57,7 +57,7 @@ type Snapshot = {
 };
 
 type GroupRow = {
-  group_kind: "domain" | "channel" | "workspace" | "no_signal";
+  group_kind: "domain" | "channel" | "workspace" | "no_signal" | "personal_unlabeled";
   group_key: string;
   display_name: string | null;
   ticket_count: number;
