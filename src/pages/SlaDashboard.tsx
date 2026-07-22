@@ -8,6 +8,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Loader2, Gauge, Info, RefreshCw } from "lucide-react";
 import {
   evaluateCompliance,
@@ -19,6 +26,41 @@ import {
   type SlaCompliance,
 } from "@/lib/slaMetrics";
 import { useSlaBatch, type SlaBatchEnriched } from "@/hooks/useSlaBatch";
+
+type DateWindow = "7d" | "30d" | "90d" | "month" | "all";
+
+const WINDOW_LABELS: Record<DateWindow, string> = {
+  "7d": "Last 7 days",
+  "30d": "Last 30 days",
+  "90d": "Last 90 days",
+  month: "This month",
+  all: "All time",
+};
+
+const WINDOW_CAPTIONS: Record<DateWindow, string> = {
+  "7d": "resolved in the last 7 days",
+  "30d": "resolved in the last 30 days",
+  "90d": "resolved in the last 90 days",
+  month: "resolved this month",
+  all: "resolved (all time)",
+};
+
+function windowStartMs(w: DateWindow, now: Date): number | null {
+  if (w === "all") return null;
+  if (w === "month") return new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const days = w === "7d" ? 7 : w === "30d" ? 30 : 90;
+  return now.getTime() - days * 24 * 60 * 60 * 1000;
+}
+
+function rowClosedAtMs(r: SlaBatchEnriched): number | null {
+  if (r.intercom_closed_at) {
+    const t = Date.parse(r.intercom_closed_at);
+    if (!Number.isNaN(t)) return t;
+  }
+  const s = r.raw_payload?.statistics?.last_close_at;
+  if (typeof s === "number" && s > 0) return s * 1000;
+  return null;
+}
 
 
 // Compliance color tone from a percentage — always paired with the visible number.
@@ -36,6 +78,17 @@ function formatTarget(sec: number | null, clock: "business" | "calendar"): strin
 
 export default function SlaDashboard() {
   const { loading, error, inScope, excluded, noCustomer, manuallyLogged, refresh } = useSlaBatch();
+  const [dateWindow, setDateWindow] = useState<DateWindow>("30d");
+
+  // Filter in-scope rows to selected window by finalized/close date.
+  const windowedInScope = useMemo(() => {
+    const startMs = windowStartMs(dateWindow, new Date());
+    if (startMs == null) return inScope;
+    return inScope.filter((r) => {
+      const t = rowClosedAtMs(r);
+      return t != null && t >= startMs;
+    });
+  }, [inScope, dateWindow]);
 
   // Bucket by severity, evaluate compliance per row (single computation reused below).
   const { buckets, unclassified, classifiedCount } = useMemo(() => {
@@ -44,16 +97,16 @@ export default function SlaDashboard() {
     };
     const unclassified: SlaBatchEnriched[] = [];
     let classifiedCount = 0;
-    for (const r of inScope) {
+    for (const r of windowedInScope) {
       const sev = parseSeverity(r.raw_payload?.custom_attributes?.Severity);
       if (sev == null) { unclassified.push(r); continue; }
       classifiedCount++;
       buckets[sev].push({ row: r, compliance: evaluateCompliance(r.sla, sev) });
     }
     return { buckets, unclassified, classifiedCount };
-  }, [inScope]);
+  }, [windowedInScope]);
 
-  const total = inScope.length;
+  const total = windowedInScope.length;
   const coveragePct = total ? (classifiedCount / total) * 100 : 0;
 
   // Per-severity summary at customer-initiated basis (the honest default).
@@ -113,24 +166,41 @@ export default function SlaDashboard() {
           <Card><CardContent className="p-4 text-sm text-destructive">{error}</CardContent></Card>
         )}
 
-        {/* Population chips */}
-        <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-xs">
-          <span className="text-foreground">
-            <span className="font-semibold tabular-nums">{total}</span> in-scope
-          </span>
-          <span className="text-foreground">
-            Severity coverage: <span className="font-semibold tabular-nums">{coveragePct.toFixed(0)}%</span>
-          </span>
-          <span className="text-muted-foreground">
-            Excluded: <span className="tabular-nums">{excluded.length}</span>
-          </span>
-          <span className="text-muted-foreground">
-            Internal / no-customer: <span className="tabular-nums">{noCustomer.length}</span>
-          </span>
-          <span className="text-muted-foreground">
-            Manually-logged: <span className="tabular-nums">{manuallyLogged.length}</span>
-          </span>
-          {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+        {/* Date window selector + population chips */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs uppercase tracking-wide text-muted-foreground">Window</span>
+            <Select value={dateWindow} onValueChange={(v) => setDateWindow(v as DateWindow)}>
+              <SelectTrigger className="h-8 w-[180px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(WINDOW_LABELS) as DateWindow[]).map((w) => (
+                  <SelectItem key={w} value={w}>{WINDOW_LABELS[w]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-xs text-muted-foreground italic">{WINDOW_CAPTIONS[dateWindow]}</span>
+          </div>
+          <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-xs">
+            <span className="text-foreground">
+              <span className="font-semibold tabular-nums">{total}</span> in-scope
+              <span className="text-muted-foreground"> · {WINDOW_CAPTIONS[dateWindow]}</span>
+            </span>
+            <span className="text-foreground">
+              Severity coverage: <span className="font-semibold tabular-nums">{coveragePct.toFixed(0)}%</span>
+            </span>
+            <span className="text-muted-foreground">
+              Excluded: <span className="tabular-nums">{excluded.length}</span>
+            </span>
+            <span className="text-muted-foreground">
+              Internal / no-customer: <span className="tabular-nums">{noCustomer.length}</span>
+            </span>
+            <span className="text-muted-foreground">
+              Manually-logged: <span className="tabular-nums">{manuallyLogged.length}</span>
+            </span>
+            {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+          </div>
         </div>
 
         {/* Compliance scorecard */}
@@ -142,6 +212,11 @@ export default function SlaDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
+            {total === 0 ? (
+              <div className="p-8 text-center text-sm text-muted-foreground">
+                No tickets resolved in this window.
+              </div>
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
@@ -212,6 +287,7 @@ export default function SlaDashboard() {
                 </tbody>
               </table>
             </div>
+            )}
           </CardContent>
         </Card>
 
