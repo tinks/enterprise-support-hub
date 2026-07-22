@@ -287,6 +287,7 @@ export default function SlaDashboard() {
                 </tbody>
               </table>
             </div>
+            )}
           </CardContent>
         </Card>
 
