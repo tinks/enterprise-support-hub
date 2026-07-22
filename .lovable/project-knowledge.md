@@ -893,7 +893,7 @@ Tag propagation: the BEFORE trigger `intercom_tickets_v3_apply_customer` passes 
 
 ### Key RPCs / views
 
-`v3_derive_customer`, `v3_coverage_current`, `v3_capture_coverage_snapshot`, `v3_unattributed_groups`, `v3_no_signal_tickets`, `v3_personal_unlabeled_tickets`, `v3_channels_usage`, `v3_accounts_usage`, `v3_orphan_overrides`, `v3_orphan_override_suggestions`, `v3_generate_channel_proposals`, `v3_channel_proposals_pending`, `v3_tickets_for_channel`, `v3_tickets_for_override_key`, `backfill_v3_customer_keys`.
+`v3_derive_customer`, `v3_coverage_current`, `v3_capture_coverage_snapshot`, `v3_unattributed_groups`, `v3_unattributed_sync_status`, `v3_no_signal_tickets`, `v3_personal_unlabeled_tickets`, `v3_channels_usage`, `v3_accounts_usage`, `v3_orphan_overrides`, `v3_orphan_override_suggestions`, `v3_generate_channel_proposals`, `v3_channel_proposals_pending`, `v3_tickets_for_channel`, `v3_tickets_for_override_key`, `backfill_v3_customer_keys`.
 
 ### Design principles
 
