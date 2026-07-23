@@ -395,10 +395,6 @@ export default function SlaReport() {
                   <th className="py-1 pr-3">n</th>
                   <th className="py-1 pr-3">FR %met</th>
                   <th className="py-1 pr-3">Res %met</th>
-                  <th className="py-1 pr-3">FR Avg</th>
-                  <th className="py-1 pr-3">FR Median</th>
-                  <th className="py-1 pr-3">Res Avg</th>
-                  <th className="py-1 pr-3">Res Median</th>
                   <th className="py-1 pr-3">Pre-inbox median</th>
                 </tr>
               </thead>
@@ -409,15 +405,12 @@ export default function SlaReport() {
                     <td className="py-1 pr-3">{s.n}</td>
                     <td className="py-1 pr-3">{pctText(s.fr.pct)}</td>
                     <td className="py-1 pr-3">{pctText(s.res.pct)}</td>
-                    <td className="py-1 pr-3">{formatDuration(s.fr.avg)}</td>
-                    <td className="py-1 pr-3">{formatDuration(s.fr.median)}</td>
-                    <td className="py-1 pr-3">{formatDuration(s.res.avg)}</td>
-                    <td className="py-1 pr-3">{formatDuration(s.res.median)}</td>
                     <td className="py-1 pr-3">{formatDuration(s.preInboxMedian)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+
           </CardContent>
         </Card>
 
