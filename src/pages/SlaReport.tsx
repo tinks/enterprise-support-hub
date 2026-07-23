@@ -285,9 +285,6 @@ export default function SlaReport() {
                   <div className="text-xs tabular-nums pt-1">
                     met {s.met} · breach {s.breach} · excused {s.excused} · not-evaluable {s.notEvaluable}
                   </div>
-                  <div className="text-xs tabular-nums">
-                    Median {formatDuration(s.median)} · p90 {formatDuration(s.p90)} · Avg {formatDuration(s.avg)}
-                  </div>
                 </div>
               );
             })}
