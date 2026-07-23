@@ -908,15 +908,17 @@ export type SlaCompliance = {
 export function evaluateCompliance(sla: SlaResult, severity: Severity): SlaCompliance {
   const target = SLA_TARGETS[severity];
 
-  // First Response = first HUMAN engineer reply (bots/Sam excluded), measured
-  // from the SLA clock-start = Enterprise Inbox assignment (else createdAt).
-  // Anything before the anchor (intake, Sam's AI turn, pre-ticket chatter) is
-  // pre-Enterprise and NOT counted. This replaces the earlier
-  // escalationBasis-branched FRT.
+  // First Response = first PUBLIC reply by a SUPPORT-roster teammate (Sam and
+  // bots excluded), measured from the SLA clock-start (Enterprise Inbox
+  // assignment, else createdAt) and CLAMPED at 0. A support reply that landed
+  // BEFORE the anchor means the customer never waited on the Enterprise queue
+  // → FRT 0 → MET, rather than being dropped as un-measurable.
+  // RESOLUTION LOGIC BELOW IS UNCHANGED.
   const frValue =
     target.firstResponseClock === "business"
-      ? sla.firstHumanReplyFromInboxBusinessHoursS
-      : sla.firstHumanReplyFromInboxS;
+      ? sla.firstSupportReplyFromInboxBusinessHoursS
+      : sla.firstSupportReplyFromInboxS;
+
   const firstResponse: ComplianceVerdict = {
     value: frValue,
     target: target.firstResponseS,
