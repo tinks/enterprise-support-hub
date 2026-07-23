@@ -52,8 +52,14 @@ function computeStats(
   m: Metric,
   isExcused: (cid: string, metric: Metric) => boolean,
 ): MetricStats {
+  // First response is scoped to customer-initiated tickets only — matching the
+  // SLA Dashboard/Workbench "customer" basis. Agent-opened tickets have no
+  // customer waiting, so an FR clock is meaningless there. Resolution counts all.
+  const scope = m === "first_response"
+    ? rows.filter((r) => r.row.sla.initiatedBy === "customer")
+    : rows;
   let met = 0, breach = 0, excused = 0, notEvaluable = 0;
-  for (const { row, comp } of rows) {
+  for (const { row, comp } of scope) {
     const v = verdict(comp, m);
     if (v.met === true) met++;
     else if (v.met === false) {
@@ -62,9 +68,9 @@ function computeStats(
     } else notEvaluable++;
   }
   const denom = met + breach;
-  const agg = aggregate(rows.map((r) => verdict(r.comp, m).value));
+  const agg = aggregate(scope.map((r) => verdict(r.comp, m).value));
   return {
-    n: rows.length, met, breach, excused, notEvaluable,
+    n: scope.length, met, breach, excused, notEvaluable,
     pct: denom ? (met / denom) * 100 : null,
     avg: agg.avg, median: agg.median, p90: agg.p90,
   };
@@ -234,6 +240,7 @@ export default function SlaReport() {
             <CardDescription className="text-xs">
               Across scored in-scope tickets. % met = met / (met + unexcused breach). Excused and
               not-evaluable are excluded from the denominator and shown separately.
+              First response is scoped to customer-initiated tickets (agent-opened tickets excluded).
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 text-sm">
@@ -365,6 +372,7 @@ function SeverityTable({
         <CardTitle className="text-base">{title} — vs PROPOSED targets</CardTitle>
         <CardDescription className="text-xs">
           % met = met / (met + unexcused breach). Median / p90 are the calibration evidence.
+          {metric === "first_response" && " First response is scoped to customer-initiated tickets (agent-opened tickets excluded)."}
         </CardDescription>
       </CardHeader>
       <CardContent className="overflow-x-auto">
