@@ -629,6 +629,8 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
     firstSupportReplyS,
     firstSupportReplyFromInboxS,
     firstSupportReplyFromInboxBusinessHoursS,
+    workBeforeTicketS,
+    workBeforeTicketBusinessHoursS,
 
     ttrS,
     ttrBusinessHoursS,
