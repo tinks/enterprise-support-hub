@@ -1088,7 +1088,34 @@ Also preserved: a **Legacy (compare)** view backed by stored Intercom fields, ke
 
 **Tests** — `src/lib/__tests__/slaMetrics.test.ts` (56 passing at last count). Cover actor classification, escalation post-AI-handoff (back-compat), `noCustomerParticipant`, `manuallyLogged` detection, `businessHoursBetween` (weekday, DST, weekend), BH ≤ calendar invariants, initiation classification, inbox-anchor detection with and without an Enterprise Inbox assignment, FR-from-inbox (pre-anchor human ignored; no post-anchor reply → null; anchor-null fallback to open), stop-the-clock resolution from the anchor (Sam's pre-anchor handling excluded), `preInboxTimeS`, `formatBusinessDuration`.
 
+#### Monthly SLA Report — `/sla-report` (`src/pages/SlaReport.tsx`) — target PROPOSAL
+
+Third SLA view (protected route, nav link "SLA Report"), shipped in commit `7a2810d`. **Strictly read-only and additive**: it reuses `useSlaBatch` / `computeSla` / `evaluateCompliance` / `aggregate` / `SLA_TARGETS` and `rowClosedAtMs` (from `src/lib/slaWindow.ts`) — **no engine, hook, resolver or target changes**.
+
+**Why it exists (the framing — this is the anti-drift anchor):** this report is a **DATA-BACKED TARGET *PROPOSAL*, not a compliance scorecard.** `SLA_TARGETS` is explicitly PROVISIONAL / unratified, so the report inverts the usual emphasis: the **distribution stats (Median / p90) are the headline EVIDENCE** for where targets could reasonably be set, and every "% met" is labelled **"vs PROPOSED target"**. A top banner states it verbatim: *"Proposed SLA targets — performance baseline for calibration, not committed-SLA compliance."* The what-if / slider view in the backlog is the natural live companion; this static monthly report is its precursor and the artefact used to argue the numbers in a meeting.
+
+**Population & window:** ALL Enterprise finalized/reopened tickets from the hook's `inScope` bucket — **no owner filter** (deliberately different from the owner-scoped operator views). Month selector offers the last 12 months and defaults to the **current calendar month**; membership is **finalized-in-month**, computed with `rowClosedAtMs(row)` against `[monthStart, nextMonthStart)`. (Created-in-month is a noted future option.)
+
+**Sections:**
+
+- **§1 Scope & Population** — in-scope population count; **exclusion breakdown by reason** (`not_enterprise`, `enterprise-fyi`+`enterprise-duplicate`, `merged_ticket`, `rsa_override = false`, `test_account`, `prospect_personal`, `enterprise_prospect`, plus `other` when non-zero — display-only mirror of `classifySlaBatchRow`'s predicates); `noCustomer` and `manuallyLogged` counts; and a **severity reconciliation** list that must add up: `population = Sev1 + Sev2 + Sev3 + Sev4 + Unclassified` with a visible ✓ / ✗ MISMATCH marker. Tickets whose `parseSeverity` is `null` stay **IN the population** and are surfaced in a loud destructive block — *"Unclassified severity: N (missing Severity attribute — cannot be scored)"*. **Why:** never silently drop unscoreable rows; the reconciliation line makes any future drift in the buckets self-evident.
+- **§2 Headline** — overall First Response and Resolution %met over all scored in-scope rows, each with met / breach / excused / not-evaluable counts and Median / p90 / Avg beneath it.
+- **§3a First Response by Severity** and **§3b Resolution by Severity** — columns: `Sev · n · Target (clock) · %met (breach / excused) · not-evaluable · Avg · Median · p90`.
+- **§4 Breaches vs PROPOSED targets** — FR and Resolution breach lists (ticket subject with Intercom deep link, customer label, severity, actual, target + clock, breach/excused badge) plus the **override rate** ("X of Y excused") for each metric, so excusing can't quietly inflate the headline.
+- **§5 By Source** — Slack / Sam-first / Direct (`origin === "slack"` → Slack, else `sla.flags.samParticipated` → Sam-first, else Direct): n, FR %met, Res %met, FR+Res Avg and Median, and **pre-inbox median**.
+- **§6 Data-Quality Footer** — severity coverage %, exclusion / no-customer / manually-logged counts, not-evaluable counts, plus the standing caveats (targets provisional; no trend line in the first reporting month; Sam-anchored tickets measure post-handoff time only with pre-inbox reported separately; Sev 4 resolution best-effort).
+
+**COUNTING RULES (the credibility core — document precisely):**
+
+- **`%met = met_true / (met_true + breach)`**, where `breach` counts only **unexcused** breaches (an excused breach is one with a matching row in `sla_breach_overrides` via the hook's `isExcused(cid, metric)`).
+- **Excused AND not-evaluable are BOTH excluded from the denominator** and shown as their own visible counts. *Why:* they are different kinds of "not a data point" (a judged exception vs no measurable value) and folding either into met-or-breach would silently move the headline.
+- **Sev 4 Resolution has no committed target** → rendered "no target (best-effort)", no %met, but Avg / Median / p90 still shown for visibility.
+- **Clock basis is per severity, not blanket:** **Sev 1 = calendar / 24-7**, **Sev 2–4 = Berlin business hours**. The headline basis is therefore worded "each severity's committed clock", never "business hours".
+
+**Test data:** renders the same shared `TestDataToggle` + `TestDataBanner` (imported from `SlaWorkbench.tsx`), default OFF — test-account tickets are excluded from the population unless the toggle is ON, exactly as on Dashboard/Workbench.
+
 ### Caveats to keep in mind when reading numbers
+
 
 - **OPEN tickets (~10 %) are excluded** from Batch — the snapshot doesn't store `conversation_parts` for them, so `computeSla` can't run. Resolution numbers are therefore **optimistically biased**: worst / longest-tail cases are missing.
 - **Holidays not modeled** — Berlin business-hours treats every Mon–Fri as a full 15 h workday.
