@@ -24,6 +24,7 @@ import AnalyticsV3 from "./pages/AnalyticsV3";
 import Changelog from "./pages/Changelog";
 import SlaWorkbench from "./pages/SlaWorkbench";
 import SlaDashboard from "./pages/SlaDashboard";
+import SlaReport from "./pages/SlaReport";
 import { Navigate } from "react-router-dom";
 import Customers from "./pages/Customers";
 
@@ -57,7 +58,9 @@ const App = () => (
           <Route path="/knowledge" element={<ProtectedRoute><ProjectKnowledge /></ProtectedRoute>} />
           <Route path="/changelog" element={<ProtectedRoute><Changelog /></ProtectedRoute>} />
           <Route path="/sla" element={<ProtectedRoute><SlaDashboard /></ProtectedRoute>} />
+          <Route path="/sla-report" element={<ProtectedRoute><SlaReport /></ProtectedRoute>} />
           <Route path="/sla-workbench" element={<ProtectedRoute><SlaWorkbench /></ProtectedRoute>} />
+
           <Route path="/sla-test" element={<Navigate to="/sla" replace />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

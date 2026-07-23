@@ -21,6 +21,7 @@ const navItems = [
   { to: "/knowledge", icon: BookOpen, label: "Knowledge" },
   { to: "/settings", icon: Settings, label: "Settings" },
   { to: "/sla", icon: Gauge, label: "SLA Dashboard" },
+  { to: "/sla-report", icon: Gauge, label: "SLA Report" },
   { to: "/sla-workbench", icon: Gauge, label: "SLA Workbench" },
 ];
 
