@@ -421,49 +421,8 @@ export default function SlaReport() {
           </CardContent>
         </Card>
 
-        {/* §5b Work Before Ticket */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">§5b Work Before Ticket — Tenet #1 signal</CardTitle>
-            <CardDescription className="text-xs">
-              Time Support was already working the issue <strong>before</strong> it existed as a
-              ticket in the Enterprise Inbox (mirror of the clamped first-response clock). This is a
-              process metric for "no work without a ticket" — <strong>not</strong> an SLA breach.
-              Distinct from pre-inbox time, which is the customer's total wait.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="tabular-nums">
-              {overallWbt.withWork} of {overallWbt.answered} Support-answered tickets
-              {overallWbt.pct == null ? "" : ` (${overallWbt.pct.toFixed(1)}%)`} had Support working
-              before a ticket existed · median {formatDuration(overallWbt.median)} (business hours)
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="text-muted-foreground">
-                  <tr className="text-left">
-                    <th className="py-1 pr-3">Source</th>
-                    <th className="py-1 pr-3">Support-answered</th>
-                    <th className="py-1 pr-3">WBT &gt; 0</th>
-                    <th className="py-1 pr-3">%</th>
-                    <th className="py-1 pr-3">Median WBT (business)</th>
-                  </tr>
-                </thead>
-                <tbody className="tabular-nums">
-                  {bySource.map((s) => (
-                    <tr key={s.key} className="border-t border-border">
-                      <td className="py-1 pr-3">{s.key}</td>
-                      <td className="py-1 pr-3">{s.wbt.answered}</td>
-                      <td className="py-1 pr-3">{s.wbt.withWork}</td>
-                      <td className="py-1 pr-3">{pctText(s.wbt.pct)}</td>
-                      <td className="py-1 pr-3">{formatDuration(s.wbt.median)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Work-Before-Ticket detail lives on the SLA Workbench. */}
+
 
 
         {/* §6 Data quality */}
