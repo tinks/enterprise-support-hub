@@ -491,6 +491,12 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
     firstSupportReply && slaClockStartS != null
       ? Math.max(0, firstSupportReply.ts - slaClockStartS)
       : null;
+  const firstSupportReplyFromInboxBusinessHoursS =
+    firstSupportReply && slaClockStartS != null
+      ? firstSupportReply.ts <= slaClockStartS
+        ? 0
+        : businessHoursBetween(slaClockStartS, firstSupportReply.ts)
+      : null;
 
   // Work-Before-Ticket — mirror of the clamped FRT above.
   const workBeforeTicketS =
