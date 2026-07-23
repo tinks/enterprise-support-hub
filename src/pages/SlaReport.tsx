@@ -142,28 +142,8 @@ export default function SlaReport() {
 
   const overallFr = computeStats(scored, "first_response", isExcused);
   const overallRes = computeStats(scored, "resolution", isExcused);
-  const overallWbt = useMemo(() => wbtStats(scored), [scored]);
 
-  // Exclusion reasons — mirrors classifySlaBatchRow's predicates (display only).
-  const exclusionBreakdown = useMemo(() => {
-    const c = {
-      not_enterprise: 0, fyi_or_duplicate: 0, merged: 0, rsa_false: 0,
-      test_account: 0, prospect_personal: 0, enterprise_prospect: 0, other: 0,
-    };
-    for (const r of monthExcluded) {
-      const tags = Array.isArray(r.tags) ? r.tags : [];
-      const isTest = !!(r.customer_key && batch.testAccountKeys.has(r.customer_key));
-      if (isTest && !showTestData) c.test_account++;
-      else if (r.rsa_override === false) c.rsa_false++;
-      else if (r.rsa_override == null && (tags.includes("enterprise-fyi") || tags.includes("enterprise-duplicate"))) c.fyi_or_duplicate++;
-      else if (tags.includes("merged_ticket")) c.merged++;
-      else if (r.customer_resolution_method === "not_enterprise") c.not_enterprise++;
-      else if (r.customer_resolution_method === "prospect_personal") c.prospect_personal++;
-      else if (r.customer_resolution_method === "enterprise_prospect") c.enterprise_prospect++;
-      else c.other++;
-    }
-    return c;
-  }, [monthExcluded, batch.testAccountKeys, showTestData]);
+  // Exclusion reasons by reason now live on the Workbench (practitioner detail).
 
   const bySource = useMemo(() => {
     const keys = ["Slack", "Sam-first", "Direct"] as const;
@@ -175,10 +155,10 @@ export default function SlaReport() {
         fr: computeStats(rows, "first_response", isExcused),
         res: computeStats(rows, "resolution", isExcused),
         preInboxMedian: aggregate(rows.map((r) => r.row.sla.preInboxTimeS)).median,
-        wbt: wbtStats(rows),
       };
     });
   }, [scored, isExcused]);
+
 
   const monthLabel = months.find((m) => m.value === month)?.label ?? month;
 
