@@ -476,11 +476,8 @@ export default function SlaReport() {
               Coverage: {population.length - unclassified.length} of {population.length} in-scope tickets carry a
               Severity attribute and can be scored ({population.length ? (((population.length - unclassified.length) / population.length) * 100).toFixed(1) : "0.0"}%).
             </div>
-            <div>
-              Excluded from population this month: {monthExcluded.length}; no-customer-participant {monthNoCustomer.length};
-              manually-logged {monthManual.length}.
-            </div>
-            <div>Not-evaluable: First Response {overallFr.notEvaluable} · Resolution {overallRes.notEvaluable} (no measurable value, or no committed target).</div>
+            <div>Granular exclusion + not-evaluable breakdowns live on the SLA Workbench.</div>
+
             <div>Targets are PROVISIONAL/PROPOSED — this report is calibration evidence, not committed-SLA compliance.</div>
             <div>First reporting month has no trend line; comparisons become meaningful once several months exist.</div>
             <div>Sam-anchored tickets: SLA clocks start at Enterprise Inbox assignment, so resolution reflects post-handoff time only. Pre-inbox time is reported separately.</div>
