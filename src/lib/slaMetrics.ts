@@ -318,6 +318,14 @@ export type SlaResult = {
   firstSupportReplyS: number | null;
   firstSupportReplyFromInboxS: number | null;
   firstSupportReplyFromInboxBusinessHoursS: number | null;
+  // Work-Before-Ticket (commit 3) — the MIRROR of the clamped FRT:
+  // max(0, slaClockStartS - firstSupportReplyS). Time Support was already
+  // working the issue BEFORE it existed as a ticket in the Enterprise Inbox.
+  // Only one of FRT / WBT is ever > 0. This is the Tenet #1 ("no work without
+  // a ticket") process signal — NOT an SLA breach. Distinct from
+  // `preInboxTimeS`, which is the customer's total pre-inbox wait.
+  workBeforeTicketS: number | null;
+  workBeforeTicketBusinessHoursS: number | null;
 
   ttrS: number | null;
   ttrBusinessHoursS: number | null;
