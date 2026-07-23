@@ -1,10 +1,26 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, X, Users } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, X, Users, Loader2, Save } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { toast } from "sonner";
+
+type TeammateRole = "support" | "other" | "ai";
+
+interface Teammate {
+  id: string;
+  intercom_admin_id: string;
+  email: string | null;
+  name: string;
+  role: TeammateRole;
+  active: boolean;
+}
 
 interface SettingsData {
   id: string;
@@ -24,48 +40,140 @@ interface AdminMappingCardProps {
   onSave: () => void;
 }
 
-const AdminMappingCard = ({ settings, setSettings, onSave }: AdminMappingCardProps) => {
+const ROLES: TeammateRole[] = ["support", "other", "ai"];
+
+const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
+  const { isAdmin } = useIsAdmin();
+  const [rows, setRows] = useState<Teammate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
   const [newAdminId, setNewAdminId] = useState("");
-  const [newOwnerName, setNewOwnerName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newName, setNewName] = useState("");
+  const [newRole, setNewRole] = useState<TeammateRole>("support");
 
-  const adminMap: Record<string, string> = (() => {
-    try {
-      const raw = (settings as any)?.admin_owner_map;
-      if (!raw || raw === "{}") return {};
-      return JSON.parse(raw);
-    } catch {
-      return {};
+  const load = async () => {
+    const { data, error } = await supabase
+      .from("teammates")
+      .select("id, intercom_admin_id, email, name, role, active")
+      .order("name");
+    if (error) {
+      toast.error("Failed to load teammates: " + error.message);
+    } else {
+      setRows((data || []) as Teammate[]);
     }
-  })();
+    setLoading(false);
+  };
 
-  const entries = Object.entries(adminMap);
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const addMapping = () => {
-    const id = newAdminId.trim();
-    const name = newOwnerName.trim();
-    if (!id || !name) return;
+  /**
+   * Dual-write: `settings.admin_owner_map` is still the source of truth for
+   * owner auto-attribution in intercom-webhook, poll-intercom-inbox,
+   * sync-v3-open/closed, sync-inbox-v2, backfill-enterprise-inbox and
+   * AnalyticsV3. Until those are repointed at `teammates`, every teammates
+   * mutation mirrors the full roster (active AND inactive — historical
+   * attribution must keep resolving) back into the JSON blob.
+   */
+  const syncBlob = async (next: Teammate[]) => {
+    if (!settings) return;
+    const map: Record<string, string> = {};
+    for (const r of next) {
+      if (r.intercom_admin_id && r.name) map[r.intercom_admin_id] = r.name;
+    }
+    const json = JSON.stringify(map);
+    setSettings((s) => (s ? ({ ...s, admin_owner_map: json } as any) : s));
+    const { error } = await supabase
+      .from("settings")
+      .update({ admin_owner_map: json } as any)
+      .eq("id", settings.id);
+    if (error) toast.error("Failed to sync owner map: " + error.message);
+  };
 
-    const updated = { ...adminMap, [id]: name };
-    setSettings((s) =>
-      s ? { ...s, admin_owner_map: JSON.stringify(updated) } as any : s
-    );
+  const addRow = async () => {
+    const intercom_admin_id = newAdminId.trim();
+    const name = newName.trim();
+    if (!intercom_admin_id || !name) {
+      toast.error("Admin ID and name are required");
+      return;
+    }
+    setBusyId("new");
+    const { data, error } = await supabase
+      .from("teammates")
+      .insert({ intercom_admin_id, email: newEmail.trim() || null, name, role: newRole })
+      .select("id, intercom_admin_id, email, name, role, active")
+      .single();
+    setBusyId(null);
+    if (error) {
+      toast.error("Failed to add teammate: " + error.message);
+      return;
+    }
+    const next = [...rows, data as Teammate].sort((a, b) => a.name.localeCompare(b.name));
+    setRows(next);
     setNewAdminId("");
-    setNewOwnerName("");
+    setNewEmail("");
+    setNewName("");
+    setNewRole("support");
+    await syncBlob(next);
+    toast.success(`${name} added`);
   };
 
-  const removeMapping = (adminId: string) => {
-    const updated = { ...adminMap };
-    delete updated[adminId];
-    setSettings((s) =>
-      s ? { ...s, admin_owner_map: JSON.stringify(updated) } as any : s
-    );
+  const patchLocal = (id: string, patch: Partial<Teammate>) => {
+    setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      addMapping();
+  const saveRow = async (row: Teammate) => {
+    if (!row.intercom_admin_id.trim() || !row.name.trim()) {
+      toast.error("Admin ID and name are required");
+      return;
     }
+    setBusyId(row.id);
+    const { error } = await supabase
+      .from("teammates")
+      .update({
+        intercom_admin_id: row.intercom_admin_id.trim(),
+        email: row.email?.trim() || null,
+        name: row.name.trim(),
+        role: row.role,
+        active: row.active,
+      })
+      .eq("id", row.id);
+    setBusyId(null);
+    if (error) {
+      toast.error("Failed to save: " + error.message);
+      return;
+    }
+    await syncBlob(rows.map((r) => (r.id === row.id ? row : r)));
+    toast.success(`${row.name} saved`);
+  };
+
+  const toggleActive = async (row: Teammate, active: boolean) => {
+    patchLocal(row.id, { active });
+    setBusyId(row.id);
+    const { error } = await supabase.from("teammates").update({ active }).eq("id", row.id);
+    setBusyId(null);
+    if (error) {
+      patchLocal(row.id, { active: row.active });
+      toast.error("Failed to update: " + error.message);
+    }
+  };
+
+  const removeRow = async (row: Teammate) => {
+    setBusyId(row.id);
+    const { error } = await supabase.from("teammates").delete().eq("id", row.id);
+    setBusyId(null);
+    if (error) {
+      toast.error("Failed to remove: " + error.message);
+      return;
+    }
+    const next = rows.filter((r) => r.id !== row.id);
+    setRows(next);
+    await syncBlob(next);
+    toast.success(`${row.name} removed`);
   };
 
   return (
@@ -73,57 +181,153 @@ const AdminMappingCard = ({ settings, setSettings, onSave }: AdminMappingCardPro
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
           <Users className="h-5 w-5" />
-          Admin → owner mapping
+          Teammates (admin → owner)
         </CardTitle>
         <CardDescription>
-          Map Intercom admin IDs to owner names. When a conversation is assigned in Intercom, the owner is automatically updated.
+          Canonical roster of Intercom admins. Used to auto-assign the owner when a conversation is
+          assigned in Intercom. <span className="font-medium">Active</span> is roster status only —
+          historical replies always count towards SLA.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex flex-wrap gap-2">
-          {entries.length === 0 && (
-            <span className="text-sm text-muted-foreground">No mappings configured</span>
-          )}
-          {entries.map(([adminId, ownerName]) => (
-            <Badge key={adminId} variant="secondary" className="gap-1 pr-1">
-              {adminId} → {ownerName}
-              <button
-                onClick={() => removeMapping(adminId)}
-                className="ml-1 rounded-full p-0.5 hover:bg-muted-foreground/20 transition-colors"
+        {loading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading teammates…
+          </div>
+        ) : rows.length === 0 ? (
+          <span className="text-sm text-muted-foreground">No teammates configured</span>
+        ) : (
+          <div className="space-y-2">
+            <div className="hidden md:grid grid-cols-[140px_1fr_160px_130px_80px_auto] gap-2 text-xs text-muted-foreground px-1">
+              <span>Intercom admin ID</span>
+              <span>Email</span>
+              <span>Name</span>
+              <span>Role</span>
+              <span>Active</span>
+              <span />
+            </div>
+            {rows.map((row) => (
+              <div
+                key={row.id}
+                className="grid grid-cols-1 md:grid-cols-[140px_1fr_160px_130px_80px_auto] gap-2 items-center rounded-md border p-2"
               >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
-        </div>
-
-        <div className="flex items-end gap-2">
-          <div className="space-y-1 flex-1">
-            <Label className="text-xs">Admin ID</Label>
-            <Input
-              placeholder="9985999"
-              value={newAdminId}
-              onChange={(e) => setNewAdminId(e.target.value)}
-              onKeyDown={handleKeyDown}
-            />
+                <Input
+                  value={row.intercom_admin_id}
+                  disabled={!isAdmin}
+                  onChange={(e) => patchLocal(row.id, { intercom_admin_id: e.target.value })}
+                />
+                <Input
+                  value={row.email ?? ""}
+                  placeholder="—"
+                  disabled={!isAdmin}
+                  onChange={(e) => patchLocal(row.id, { email: e.target.value })}
+                />
+                <Input
+                  value={row.name}
+                  disabled={!isAdmin}
+                  onChange={(e) => patchLocal(row.id, { name: e.target.value })}
+                />
+                {isAdmin ? (
+                  <Select
+                    value={row.role}
+                    onValueChange={(v) => patchLocal(row.id, { role: v as TeammateRole })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ROLES.map((r) => (
+                        <SelectItem key={r} value={r}>
+                          {r}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Badge variant="secondary">{row.role}</Badge>
+                )}
+                <Switch
+                  checked={row.active}
+                  disabled={!isAdmin || busyId === row.id}
+                  onCheckedChange={(v) => toggleActive(row, v)}
+                />
+                {isAdmin && (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1"
+                      disabled={busyId === row.id}
+                      onClick={() => saveRow(row)}
+                    >
+                      {busyId === row.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Save className="h-3 w-3" />
+                      )}
+                      Save
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={busyId === row.id}
+                      onClick={() => removeRow(row)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
-          <div className="space-y-1 flex-1">
-            <Label className="text-xs">Owner name</Label>
-            <Input
-              placeholder="Kristina"
-              value={newOwnerName}
-              onChange={(e) => setNewOwnerName(e.target.value)}
-              onKeyDown={handleKeyDown}
-            />
-          </div>
-          <Button variant="outline" size="sm" onClick={addMapping} className="h-9 gap-1">
-            <Plus className="h-3 w-3" />
-            Add
-          </Button>
-        </div>
+        )}
 
+        {isAdmin && (
+          <div className="grid grid-cols-1 md:grid-cols-[140px_1fr_160px_130px_auto] gap-2 items-end border-t pt-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Admin ID</Label>
+              <Input placeholder="9985999" value={newAdminId} onChange={(e) => setNewAdminId(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Email</Label>
+              <Input
+                placeholder="name@lovable.dev"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Name</Label>
+              <Input placeholder="Kristina" value={newName} onChange={(e) => setNewName(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Role</Label>
+              <Select value={newRole} onValueChange={(v) => setNewRole(v as TeammateRole)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLES.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {r}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button variant="outline" size="sm" onClick={addRow} disabled={busyId === "new"} className="h-9 gap-1">
+              {busyId === "new" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+              Add
+            </Button>
+          </div>
+        )}
+
+        {!isAdmin && (
+          <p className="text-xs text-muted-foreground">Read-only — admin role required to edit.</p>
+        )}
         <p className="text-xs text-muted-foreground">
-          Changes take effect after saving settings above.
+          Changes save immediately and are mirrored into the legacy owner map used by the Intercom
+          sync functions.
         </p>
       </CardContent>
     </Card>
