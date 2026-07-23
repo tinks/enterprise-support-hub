@@ -58,7 +58,9 @@ const App = () => (
           <Route path="/knowledge" element={<ProtectedRoute><ProjectKnowledge /></ProtectedRoute>} />
           <Route path="/changelog" element={<ProtectedRoute><Changelog /></ProtectedRoute>} />
           <Route path="/sla" element={<ProtectedRoute><SlaDashboard /></ProtectedRoute>} />
+          <Route path="/sla-report" element={<ProtectedRoute><SlaReport /></ProtectedRoute>} />
           <Route path="/sla-workbench" element={<ProtectedRoute><SlaWorkbench /></ProtectedRoute>} />
+
           <Route path="/sla-test" element={<Navigate to="/sla" replace />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
