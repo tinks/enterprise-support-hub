@@ -605,6 +605,10 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
     firstHumanReplyFromOpenBusinessHoursS,
     firstHumanReplyFromInboxS,
     firstHumanReplyFromInboxBusinessHoursS,
+    firstSupportReplyS,
+    firstSupportReplyFromInboxS,
+    firstSupportReplyFromInboxBusinessHoursS,
+
     ttrS,
     ttrBusinessHoursS,
     resolutionActiveS,
