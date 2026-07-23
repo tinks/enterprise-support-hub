@@ -155,6 +155,8 @@ export function extractTimeline(raw: any): TimelinePart[] {
         actor: classifyActor(p?.author),
         authorName: p?.author?.name ?? null,
         authorId: p?.author?.id != null ? String(p.author.id) : null,
+        authorEmail: normalizeEmail(p?.author?.email),
+
         partType,
         body,
         isPublicReply: isPublicReplyPart(partType, body),
