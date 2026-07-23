@@ -405,7 +405,22 @@ function sumCustomerWaitGaps(timeline: TimelinePart[], clip: (a: number, b: numb
   return total;
 }
 
-export function computeSla(conversation: any): SlaResult {
+/**
+ * Support roster, passed IN by the caller. The engine stays pure — it never
+ * queries `teammates` itself. Emails are matched lowercased (catches
+ * Slack-mirrored replies Intercom emits as author.type='user'); admin ids
+ * catch native Intercom-admin replies.
+ *
+ * BACKWARD-COMPAT: when omitted (or both sets empty), any `human_admin` public
+ * reply counts as support — i.e. the pre-commit-2 behavior.
+ */
+export type SlaComputeOptions = {
+  supportEmails?: Set<string>;
+  supportAdminIds?: Set<string>;
+};
+
+export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResult {
+
   const timeline = extractTimeline(conversation);
   const createdAt: number | null =
     typeof conversation?.created_at === "number" ? conversation.created_at : null;
