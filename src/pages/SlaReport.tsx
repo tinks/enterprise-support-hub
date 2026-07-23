@@ -141,6 +141,7 @@ export default function SlaReport() {
 
   const overallFr = computeStats(scored, "first_response", isExcused);
   const overallRes = computeStats(scored, "resolution", isExcused);
+  const overallWbt = useMemo(() => wbtStats(scored), [scored]);
 
   // Exclusion reasons — mirrors classifySlaBatchRow's predicates (display only).
   const exclusionBreakdown = useMemo(() => {
