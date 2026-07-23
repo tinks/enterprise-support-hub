@@ -173,6 +173,7 @@ export default function SlaReport() {
         fr: computeStats(rows, "first_response", isExcused),
         res: computeStats(rows, "resolution", isExcused),
         preInboxMedian: aggregate(rows.map((r) => r.row.sla.preInboxTimeS)).median,
+        wbt: wbtStats(rows),
       };
     });
   }, [scored, isExcused]);
