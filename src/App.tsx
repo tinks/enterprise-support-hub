@@ -24,6 +24,7 @@ import AnalyticsV3 from "./pages/AnalyticsV3";
 import Changelog from "./pages/Changelog";
 import SlaWorkbench from "./pages/SlaWorkbench";
 import SlaDashboard from "./pages/SlaDashboard";
+import SlaReport from "./pages/SlaReport";
 import { Navigate } from "react-router-dom";
 import Customers from "./pages/Customers";
 
