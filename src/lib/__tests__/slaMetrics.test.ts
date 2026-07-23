@@ -416,6 +416,10 @@ function mkSla(over: Partial<SlaResult2>): SlaResult2 {
     firstHumanReplyFromOpenBusinessHoursS: null,
     firstHumanReplyFromInboxS: null,
     firstHumanReplyFromInboxBusinessHoursS: null,
+    firstSupportReplyS: null,
+    firstSupportReplyFromInboxS: null,
+    firstSupportReplyFromInboxBusinessHoursS: null,
+
     ttrS: null,
     ttrBusinessHoursS: null,
     resolutionActiveS: null,
