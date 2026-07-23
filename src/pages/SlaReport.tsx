@@ -318,65 +318,16 @@ export default function SlaReport() {
               {overallRes.excused + overallRes.breach ? ` (${((overallRes.excused / (overallRes.excused + overallRes.breach)) * 100).toFixed(0)}%)` : ""}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
-            {(["first_response", "resolution"] as Metric[]).map((m) => {
-              const rows = scored.filter((s) => verdict(s.comp, m).met === false);
-              return (
-                <div key={m}>
-                  <div className="font-medium text-sm mb-1">
-                    {m === "first_response" ? "First Response" : "Resolution"} breaches ({rows.length})
-                  </div>
-                  {rows.length === 0 ? (
-                    <div className="text-xs text-muted-foreground">None.</div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
-                        <thead className="text-muted-foreground">
-                          <tr className="text-left">
-                            <th className="py-1 pr-3">Ticket</th>
-                            <th className="py-1 pr-3">Customer</th>
-                            <th className="py-1 pr-3">Sev</th>
-                            <th className="py-1 pr-3">Actual</th>
-                            <th className="py-1 pr-3">Target</th>
-                            <th className="py-1 pr-3">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.map(({ row, comp }) => {
-                            const v = verdict(comp, m);
-                            const ov = getOverride(row.intercom_conversation_id, m);
-                            return (
-                              <tr key={row.id} className="border-t border-border align-top">
-                                <td className="py-1 pr-3">
-                                  <a
-                                    className="underline"
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    href={`https://app.intercom.com/a/inbox/_/inbox/conversation/${row.intercom_conversation_id}`}
-                                  >
-                                    {row.subject || row.intercom_conversation_id}
-                                  </a>
-                                </td>
-                                <td className="py-1 pr-3">
-                                  {(row.customer_key && customerLabels.get(row.customer_key)) || row.customer_key || "—"}
-                                </td>
-                                <td className="py-1 pr-3 tabular-nums">{comp.severity}</td>
-                                <td className="py-1 pr-3 tabular-nums">{formatDuration(v.value)}</td>
-                                <td className="py-1 pr-3 tabular-nums">{formatDuration(v.target)} ({v.clock})</td>
-                                <td className="py-1 pr-3">
-                                  {ov ? <Badge variant="secondary">excused · {ov.reason}</Badge> : <Badge variant="destructive">breach</Badge>}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+          <CardContent className="space-y-2 text-sm">
+            <div className="tabular-nums">
+              First Response breaches: <strong>{overallFr.breach}</strong> · Resolution breaches: <strong>{overallRes.breach}</strong>
+              <span className="text-muted-foreground"> (unexcused)</span>
+            </div>
+            <Link to="/sla-workbench" className="text-xs underline text-primary">
+              Per-ticket breach detail + excuse/remove → SLA Workbench
+            </Link>
           </CardContent>
+
         </Card>
 
         {/* §5 By Source */}
