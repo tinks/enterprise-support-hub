@@ -614,7 +614,21 @@ To add a new owner:
 1. Append to `OWNER_OPTIONS` in `src/pages/Conversations.tsx` (also extend the `OwnerFilter` type), `src/pages/ConversationDetail.tsx`, and the `SelectItem` list in `src/pages/TestChannelReview.tsx`.
 2. Add to `OWNER_MAP` in `src/pages/BulkImportReview.tsx` (lowercase name → display name).
 3. Add a sidebar entry in `src/components/AppLayout.tsx` `dashboardItems` (route `/my/<lowercase>` is auto-rendered).
-4. For Intercom auto-assignment, add their Intercom admin ID → owner name in Settings → Admin → owner mapping (`settings.admin_owner_map`). Read by `intercom-webhook` and `poll-intercom-inbox`.
+4. For Intercom auto-assignment, add them in Settings → **Teammates** card (see below). The card writes `public.teammates` and mirrors the mapping into the legacy `settings.admin_owner_map` blob that the sync functions still read.
+
+### Teammate roster — `public.teammates` (canonical)
+
+**WHAT.** `public.teammates` is the single source of truth for who's who: `intercom_admin_id` (text, UNIQUE, NOT NULL), `email`, `name`, `role` (`support` | `other` | `ai`), `active` (default true), `created_at`/`updated_at` (`update_updated_at_column` trigger). RLS mirrors `v3_customer_accounts`: authenticated SELECT; INSERT/UPDATE/DELETE gated on `has_role(auth.uid(),'admin')`. Seeded with 6 rows: Sam `9520895` / lovable@parahelp.com / `ai`; Joel `9852095` (`active=false`, departed); Kristina `9985999`; Tine `10476723`; Matt `10765619`; Eren `10475465` — the last five all `support`.
+
+**WHY.** Owner identity was previously smeared across a JSON blob (`settings.admin_owner_map`), hardcoded `OWNER_OPTIONS` arrays, and `ADMIN_OPTIONS` in `parseThread.ts`. A real table gives the SLA work a stable place to ask "is this admin a human support engineer, the AI agent, or someone else?" without string-matching names.
+
+- `active` is **roster status only** (departed / on-leave). It does **NOT** affect SLA counting — historical replies from an inactive teammate always count. `role` is what SLA actor classification will eventually key off (`ai` = Sam).
+- **The SLA engine does not read this table yet.** This commit is purely additive; no SLA number changes.
+- Managed from Settings → Teammates card (`src/components/AdminMappingCard.tsx`): inline add / edit / remove with admin-gated writes, saving immediately (no Save-settings round-trip).
+
+**Dual-write, deliberately.** `settings.admin_owner_map` is still the reader for owner auto-attribution in `intercom-webhook`, `poll-intercom-inbox`, `sync-v3-open`, `sync-v3-closed`, `sync-inbox-v2`, `backfill-enterprise-inbox`, and `src/pages/AnalyticsV3.tsx`. Rather than risk breaking attribution, every teammates mutation regenerates the blob from the **full** roster (active *and* inactive — historical attribution must keep resolving) and writes it back to `settings`. Retiring the blob and repointing those seven readers at `teammates` is a later tech-debt pass.
+
+
 
 ---
 
