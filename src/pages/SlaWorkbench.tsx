@@ -901,6 +901,54 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
         </div>
       )}
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Work Before Ticket</CardTitle>
+            <CardDescription className="text-xs">
+              Support replied BEFORE the ticket reached the Enterprise Inbox (mirror of the clamped FRT).
+              Distinct from the "Pre-inbox time" tile, which is the customer's total wait before Enterprise Inbox assignment.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm space-y-1 tabular-nums">
+            <div>
+              Tickets with work before ticket: <strong>{wbt.overall.withWork}</strong> of {wbt.overall.answered} support-answered
+              {wbt.overall.pct != null && <> ({wbt.overall.pct.toFixed(1)}%)</>}
+            </div>
+            <div>Median work before ticket (bus.hrs): <strong>{formatDuration(wbt.overall.median)}</strong></div>
+            <div className="pt-1 text-xs text-muted-foreground space-y-0.5">
+              {wbt.bySource.map((s) => (
+                <div key={s.key}>
+                  {s.key}: {s.withWork}/{s.answered}
+                  {s.pct != null && <> ({s.pct.toFixed(0)}%)</>} · median {formatDuration(s.median)}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Excluded from population — by reason</CardTitle>
+            <CardDescription className="text-xs">{excluded.length} excluded rows (all loaded tickets, not window-filtered)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="text-xs space-y-0.5 tabular-nums">
+              <li>not_enterprise: {exclusionBreakdown.not_enterprise}</li>
+              <li>enterprise-fyi + enterprise-duplicate: {exclusionBreakdown.fyi_or_duplicate}</li>
+              <li>merged_ticket: {exclusionBreakdown.merged}</li>
+              <li>rsa_override = false: {exclusionBreakdown.rsa_false}</li>
+              <li>test_account: {exclusionBreakdown.test_account}</li>
+              <li>prospect_personal: {exclusionBreakdown.prospect_personal}</li>
+              <li>enterprise_prospect: {exclusionBreakdown.enterprise_prospect}</li>
+              {exclusionBreakdown.other > 0 && <li>other: {exclusionBreakdown.other}</li>}
+            </ul>
+          </CardContent>
+        </Card>
+      </div>
+
+
+
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">
