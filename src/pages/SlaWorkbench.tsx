@@ -745,11 +745,56 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
     preInbox: aggregate(filteredInScope.map((r) => r.sla.preInboxTimeS)),
   }), [filteredInScope]);
 
+  // Work-Before-Ticket (process signal): Support replied BEFORE the ticket
+  // reached the Enterprise Inbox. Distinct from "Pre-inbox time" (the
+  // customer's total wait before the ticket existed as an Enterprise ticket).
+  const wbt = useMemo(() => {
+    const calc = (rs: CorrectedEnriched[]) => {
+      const answered = rs.filter((r) => r.sla.workBeforeTicketS != null);
+      const withWork = answered.filter((r) => (r.sla.workBeforeTicketS ?? 0) > 0);
+      return {
+        answered: answered.length,
+        withWork: withWork.length,
+        pct: answered.length ? (withWork.length / answered.length) * 100 : null,
+        median: aggregate(withWork.map((r) => r.sla.workBeforeTicketBusinessHoursS)).median,
+      };
+    };
+    const bySource = (["slack", "sam", "direct"] as const).map((k) => ({
+      key: k,
+      ...calc(filteredInScope.filter((r) => (
+        k === "slack" ? r.origin === "slack" : k === "sam" ? r.sla.flags.samParticipated : r.origin !== "slack" && !r.sla.flags.samParticipated
+      ))),
+    }));
+    return { overall: calc(filteredInScope), bySource };
+  }, [filteredInScope]);
+
+  // Exclusion reasons — mirrors classifyRow's predicates (display only).
+  const exclusionBreakdown = useMemo(() => {
+    const c = {
+      not_enterprise: 0, fyi_or_duplicate: 0, merged: 0, rsa_false: 0,
+      test_account: 0, prospect_personal: 0, enterprise_prospect: 0, other: 0,
+    };
+    for (const r of excluded) {
+      const tags = Array.isArray(r.tags) ? r.tags : [];
+      const isTest = !!(r.customer_key && testAccountKeys.has(r.customer_key));
+      if (isTest && !showTestData) c.test_account++;
+      else if (r.rsa_override === false) c.rsa_false++;
+      else if (r.rsa_override == null && (tags.includes("enterprise-fyi") || tags.includes("enterprise-duplicate"))) c.fyi_or_duplicate++;
+      else if (tags.includes("merged_ticket")) c.merged++;
+      else if (r.customer_resolution_method === "not_enterprise") c.not_enterprise++;
+      else if (r.customer_resolution_method === "prospect_personal") c.prospect_personal++;
+      else if (r.customer_resolution_method === "enterprise_prospect") c.enterprise_prospect++;
+      else c.other++;
+    }
+    return c;
+  }, [excluded, testAccountKeys, showTestData]);
+
   const reopenRate = useMemo(() => {
     if (!filteredInScope.length) return null;
     const n = filteredInScope.filter((r) => r.sla.reopenCount > 0).length;
     return { n, total: filteredInScope.length, pct: (n / filteredInScope.length) * 100 };
   }, [filteredInScope]);
+
 
   const sorted = useMemo(() => {
     const dir = sortDir === "asc" ? 1 : -1;
