@@ -419,6 +419,8 @@ function mkSla(over: Partial<SlaResult2>): SlaResult2 {
     firstSupportReplyS: null,
     firstSupportReplyFromInboxS: null,
     firstSupportReplyFromInboxBusinessHoursS: null,
+    workBeforeTicketS: null,
+    workBeforeTicketBusinessHoursS: null,
 
     ttrS: null,
     ttrBusinessHoursS: null,
@@ -792,6 +794,59 @@ describe("computeSla — support-roster FRT", () => {
     expect(r.firstSupportReplyS).toBe(CREATED + 60);
     expect(r.firstSupportReplyFromInboxS).toBe(0);
     expect(r.firstSupportReplyFromInboxBusinessHoursS).toBe(0);
+  });
+
+  describe("work before ticket (commit 3)", () => {
+    it("support reply BEFORE anchor → WBT > 0 while FRT stays 0", () => {
+      const r = computeSla(
+        conv([
+          {
+            created_at: CREATED + 60,
+            part_type: "comment",
+            author: { type: "user", id: "contact-tine", name: "Tine", email: "tine@lovable.dev" },
+            body: "<p>on it</p>",
+          },
+        ]),
+        roster,
+      );
+      expect(r.firstSupportReplyFromInboxS).toBe(0);
+      expect(r.workBeforeTicketS).toBe(ANCHOR_OFFSET - 60);
+      expect(r.workBeforeTicketBusinessHoursS).not.toBeNull();
+      expect(r.workBeforeTicketBusinessHoursS!).toBeGreaterThanOrEqual(0);
+    });
+
+    it("support reply AFTER anchor → WBT 0", () => {
+      const r = computeSla(
+        conv([
+          {
+            created_at: CREATED + ANCHOR_OFFSET + 600,
+            part_type: "comment",
+            author: { type: "admin", id: "10476723", name: "Tine" },
+            body: "<p>hi</p>",
+          },
+        ]),
+        roster,
+      );
+      expect(r.workBeforeTicketS).toBe(0);
+      expect(r.workBeforeTicketBusinessHoursS).toBe(0);
+    });
+
+    it("no support reply → WBT null", () => {
+      const r = computeSla(
+        conv([
+          {
+            created_at: CREATED + ANCHOR_OFFSET + 600,
+            part_type: "comment",
+            author: { type: "admin", id: "9520895", name: "Sam" },
+            body: "<p>bot</p>",
+          },
+        ]),
+        roster,
+      );
+      expect(r.firstSupportReplyS).toBeNull();
+      expect(r.workBeforeTicketS).toBeNull();
+      expect(r.workBeforeTicketBusinessHoursS).toBeNull();
+    });
   });
 
   it("matches by intercom_admin_id too", () => {
