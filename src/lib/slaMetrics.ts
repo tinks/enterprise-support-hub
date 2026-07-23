@@ -309,6 +309,16 @@ export type SlaResult = {
   // now uses for First Response. Replies BEFORE the anchor are ignored.
   firstHumanReplyFromInboxS: number | null;
   firstHumanReplyFromInboxBusinessHoursS: number | null;
+  // SUPPORT-based FRT (commit 2). The first PUBLIC reply by a support-roster
+  // teammate ANYWHERE in the thread, measured from the Enterprise Inbox anchor
+  // and CLAMPED at 0: support answering BEFORE the ticket reached the inbox is
+  // a met SLA (zero wait), not an un-measurable event. Only support counts —
+  // Sam (role='ai') and bots never satisfy First Response.
+  // `firstSupportReplyS` is the absolute unix ts of that reply.
+  firstSupportReplyS: number | null;
+  firstSupportReplyFromInboxS: number | null;
+  firstSupportReplyFromInboxBusinessHoursS: number | null;
+
   ttrS: number | null;
   ttrBusinessHoursS: number | null;
   // Stop-the-clock resolution: active in-our-court time from the SLA
