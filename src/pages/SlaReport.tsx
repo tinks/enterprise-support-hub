@@ -240,6 +240,7 @@ export default function SlaReport() {
             <CardDescription className="text-xs">
               Across scored in-scope tickets. % met = met / (met + unexcused breach). Excused and
               not-evaluable are excluded from the denominator and shown separately.
+              First response is scoped to customer-initiated tickets (agent-opened tickets excluded).
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 text-sm">
