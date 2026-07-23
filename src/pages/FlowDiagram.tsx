@@ -156,11 +156,14 @@ const ROW_H = 380;
 /*  unassigned. CSM is used for non-technical-support questions.        */
 /*  Teammate roster (canonical): public.teammates is the single source  */
 /*  of truth for who's who — intercom_admin_id (unique), email, name,   */
-/*  role (support|other|ai), active. Seeded with Sam(ai), Joel(         */
-/*  active=false, departed), Kristina, Tine, Matt, Eren. `active` is    */
-/*  roster status ONLY — it does NOT affect SLA counting; historical    */
-/*  replies always count. Managed from Settings → Teammates card       */
+/*  role (support|other|ai), active. Seeded with 5 support + Sam(ai);   */
+/*  Joel active=false (departed). `active` is roster status ONLY — it   */
+/*  does NOT affect SLA counting; historical replies always count.      */
+/*  role IS load-bearing: role='support' is the roster the SLA engine   */
+/*  uses for First Response (see Track B), and role='ai' (Sam) is       */
+/*  thereby excluded from it. Managed from Settings → Teammates card    */
 /*  (admin-gated writes via has_role).                                  */
+
 /*  Admin→owner mapping (LEGACY, still live): settings.admin_owner_map  */
 /*  stores a JSON map of Intercom admin IDs to owner names. It remains  */
 /*  the reader for owner auto-attribution in intercom-webhook,          */
