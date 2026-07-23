@@ -246,19 +246,10 @@ export default function SlaReport() {
                 Unclassified severity: {unclassified.length} (missing Severity attribute — cannot be scored)
               </div>
             )}
-            <div>
-              <div className="font-medium mb-1">Excluded from population ({monthExcluded.length})</div>
-              <ul className="text-xs space-y-0.5 tabular-nums">
-                <li>not_enterprise: {exclusionBreakdown.not_enterprise}</li>
-                <li>enterprise-fyi + enterprise-duplicate: {exclusionBreakdown.fyi_or_duplicate}</li>
-                <li>merged_ticket: {exclusionBreakdown.merged}</li>
-                <li>rsa_override = false: {exclusionBreakdown.rsa_false}</li>
-                <li>test_account: {exclusionBreakdown.test_account}</li>
-                <li>prospect_personal: {exclusionBreakdown.prospect_personal}</li>
-                <li>enterprise_prospect: {exclusionBreakdown.enterprise_prospect}</li>
-                {exclusionBreakdown.other > 0 && <li>other: {exclusionBreakdown.other}</li>}
-              </ul>
+            <div className="text-xs tabular-nums">
+              Excluded from population: {monthExcluded.length} — breakdown on the Workbench.
             </div>
+
             <div className="text-xs tabular-nums">
               No customer participant: {monthNoCustomer.length} · Manually-logged (bulk import, unmeasurable): {monthManual.length}
             </div>
