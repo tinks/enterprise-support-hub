@@ -276,7 +276,7 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
   );
 
   return {
-    loading, error, rows, enriched, inScope, excluded, noCustomer, manuallyLogged,
+    loading: loading || !rosterLoaded, error, rows, enriched, inScope, excluded, noCustomer, manuallyLogged,
     overrides, isExcused, getOverride, customerLabels,
     testAccountKeys, isTestAccount, refresh, refreshOverrides,
   };
