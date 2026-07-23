@@ -133,6 +133,8 @@ export function extractTimeline(raw: any): TimelinePart[] {
       actor: src ? classifyActor(src.author) : "customer",
       authorName: src?.author?.name ?? null,
       authorId: src?.author?.id != null ? String(src.author.id) : null,
+      authorEmail: normalizeEmail(src?.author?.email),
+
       partType: "source",
       body,
       isPublicReply: false, // the opening customer message opens the conversation, not a reply
