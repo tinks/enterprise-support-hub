@@ -416,6 +416,10 @@ function mkSla(over: Partial<SlaResult2>): SlaResult2 {
     firstHumanReplyFromOpenBusinessHoursS: null,
     firstHumanReplyFromInboxS: null,
     firstHumanReplyFromInboxBusinessHoursS: null,
+    firstSupportReplyS: null,
+    firstSupportReplyFromInboxS: null,
+    firstSupportReplyFromInboxBusinessHoursS: null,
+
     ttrS: null,
     ttrBusinessHoursS: null,
     resolutionActiveS: null,
@@ -432,17 +436,23 @@ function mkSla(over: Partial<SlaResult2>): SlaResult2 {
 }
 
 describe("evaluateCompliance", () => {
-  it("Sev2 human reply just under 4h business → firstResponse.met = true", () => {
-    const sla = mkSla({ firstHumanReplyFromInboxBusinessHoursS: 4 * 3600 - 1, firstHumanReplyFromInboxS: 4 * 3600 - 1 });
+  it("Sev2 support reply just under 4h business → firstResponse.met = true", () => {
+    const sla = mkSla({ firstSupportReplyFromInboxBusinessHoursS: 4 * 3600 - 1, firstSupportReplyFromInboxS: 4 * 3600 - 1 });
     const c = evaluateCompliance(sla, 2);
     expect(c.firstResponse.clock).toBe("business");
     expect(c.firstResponse.target).toBe(SLA_TARGETS[2].firstResponseS);
     expect(c.firstResponse.met).toBe(true);
   });
-  it("Sev2 human reply just over 4h business → firstResponse.met = false", () => {
-    const sla = mkSla({ firstHumanReplyFromInboxBusinessHoursS: 4 * 3600 + 1 });
+  it("Sev2 support reply just over 4h business → firstResponse.met = false", () => {
+    const sla = mkSla({ firstSupportReplyFromInboxBusinessHoursS: 4 * 3600 + 1 });
     const c = evaluateCompliance(sla, 2);
     expect(c.firstResponse.met).toBe(false);
+  });
+  it("clamped FRT of 0 (support replied before the inbox anchor) → met = true", () => {
+    const sla = mkSla({ firstSupportReplyFromInboxS: 0, firstSupportReplyFromInboxBusinessHoursS: 0 });
+    for (const sev of [1, 2, 3, 4] as const) {
+      expect(evaluateCompliance(sla, sev).firstResponse.met).toBe(true);
+    }
   });
   it("Sev4 resolution.met stays null regardless of ttr", () => {
     const sla = mkSla({ ttrBusinessHoursS: 999999, ttrS: 999999 });
@@ -450,16 +460,25 @@ describe("evaluateCompliance", () => {
     expect(c.resolution.target).toBeNull();
     expect(c.resolution.met).toBeNull();
   });
-  it("both firstHumanReplyFromInbox values null → firstResponse.met = null (not-evaluable)", () => {
-    const sla = mkSla({ firstHumanReplyFromInboxS: null, firstHumanReplyFromInboxBusinessHoursS: null });
+  it("both firstSupportReplyFromInbox values null → firstResponse.met = null (not-evaluable)", () => {
+    const sla = mkSla({ firstSupportReplyFromInboxS: null, firstSupportReplyFromInboxBusinessHoursS: null });
     for (const sev of [1, 2, 3, 4] as const) {
       const c = evaluateCompliance(sla, sev);
       expect(c.firstResponse.value).toBeNull();
       expect(c.firstResponse.met).toBeNull();
     }
   });
+  it("a human_admin reply with NO support reply → firstResponse not-evaluable", () => {
+    const sla = mkSla({
+      firstHumanReplyFromInboxS: 60,
+      firstHumanReplyFromInboxBusinessHoursS: 60,
+      firstSupportReplyFromInboxS: null,
+      firstSupportReplyFromInboxBusinessHoursS: null,
+    });
+    expect(evaluateCompliance(sla, 2).firstResponse.met).toBeNull();
+  });
   it("Sev1 uses calendar clocks for both first response and resolution", () => {
-    const sla = mkSla({ firstHumanReplyFromInboxS: 20 * 60, ttrS: 4 * 3600, resolutionActiveS: 4 * 3600 });
+    const sla = mkSla({ firstSupportReplyFromInboxS: 20 * 60, ttrS: 4 * 3600, resolutionActiveS: 4 * 3600 });
     const c = evaluateCompliance(sla, 1);
     expect(c.firstResponse.clock).toBe("calendar");
     expect(c.resolution.clock).toBe("calendar");
@@ -470,15 +489,16 @@ describe("evaluateCompliance", () => {
     expect(BUSINESS_DAY_SECONDS).toBe(15 * 3600);
   });
 
-  // FRT source: anchored to Enterprise Inbox (firstHumanReplyFromInbox*), no
-  // longer branched by escalationBasis. FromOpen/FromEscalation are retained
-  // on SlaResult for back-compat but are NOT used for compliance.
-  it("FR reads firstHumanReplyFromInbox regardless of escalationBasis", () => {
+  // FRT source: SUPPORT reply, anchored to the Enterprise Inbox and clamped.
+  // FromOpen / FromEscalation / FromInbox(human) are retained on SlaResult for
+  // back-compat but are NOT used for compliance.
+  it("FR reads firstSupportReplyFromInbox regardless of escalationBasis", () => {
     const sla = mkSla({
       escalationBasis: "post_ai_handoff",
-      firstHumanReplyFromInboxBusinessHoursS: 30 * 60,          // anchored — the one used
+      firstSupportReplyFromInboxBusinessHoursS: 30 * 60,        // anchored — the one used
       firstHumanReplyFromEscalationBusinessHoursS: 15 * 3600,   // must be ignored
       firstHumanReplyFromOpenBusinessHoursS: 15 * 3600,         // must be ignored
+      firstHumanReplyFromInboxBusinessHoursS: 15 * 3600,        // must be ignored
     });
     const c = evaluateCompliance(sla, 2);
     expect(c.firstResponse.value).toBe(30 * 60);
@@ -487,13 +507,14 @@ describe("evaluateCompliance", () => {
   it("FromOpen ignored even when FromInbox is set differently", () => {
     const sla = mkSla({
       escalationBasis: "first_human",
-      firstHumanReplyFromInboxBusinessHoursS: 30 * 60,
+      firstSupportReplyFromInboxBusinessHoursS: 30 * 60,
       firstHumanReplyFromOpenBusinessHoursS: 15 * 3600,
     });
     const c = evaluateCompliance(sla, 2);
     expect(c.firstResponse.value).toBe(30 * 60);
     expect(c.firstResponse.met).toBe(true);
   });
+
 });
 
 // FIX 2: Stop-the-clock resolution.
@@ -723,5 +744,129 @@ describe("computeSla — manuallyLogged flag", () => {
       statistics: {},
     });
     expect(r.flags.manuallyLogged).toBe(false);
+  });
+});
+
+// ============================================================================
+// Commit 2 — SUPPORT-based, clamped First Response.
+// ============================================================================
+describe("computeSla — support-roster FRT", () => {
+  const ANCHOR_OFFSET = 3600; // inbox assignment 1h after creation
+  const CREATED = 7_100_000_000;
+
+  const conv = (replies: any[]) => ({
+    created_at: CREATED,
+    source: { author: { type: "user", id: "cust", name: "Cust", email: "a@acme.com" }, body: "<p>help</p>" },
+    conversation_parts: {
+      conversation_parts: [
+        {
+          created_at: CREATED + ANCHOR_OFFSET,
+          part_type: "assignment",
+          author: { type: "admin", id: "999", name: "router" },
+          assigned_to: { type: "team", id: "8484447" },
+          body: null,
+        },
+        ...replies,
+      ],
+    },
+    statistics: {},
+  });
+
+  const roster = {
+    supportEmails: new Set(["tine@lovable.dev"]),
+    supportAdminIds: new Set(["10476723"]),
+  };
+
+  it("support reply BEFORE the inbox anchor → FRT clamped to 0 (met)", () => {
+    const r = computeSla(
+      conv([
+        {
+          created_at: CREATED + 60,
+          part_type: "comment",
+          author: { type: "user", id: "contact-tine", name: "Tine", email: "Tine@Lovable.dev" },
+          body: "<p>on it</p>",
+        },
+      ]),
+      roster,
+    );
+    expect(r.firstSupportReplyS).toBe(CREATED + 60);
+    expect(r.firstSupportReplyFromInboxS).toBe(0);
+    expect(r.firstSupportReplyFromInboxBusinessHoursS).toBe(0);
+  });
+
+  it("matches by intercom_admin_id too", () => {
+    const r = computeSla(
+      conv([
+        {
+          created_at: CREATED + ANCHOR_OFFSET + 600,
+          part_type: "comment",
+          author: { type: "admin", id: "10476723", name: "Tine" },
+          body: "<p>hi</p>",
+        },
+      ]),
+      roster,
+    );
+    expect(r.firstSupportReplyFromInboxS).toBe(600);
+  });
+
+  it("Sam (role=ai, not on the roster) does NOT satisfy First Response", () => {
+    const r = computeSla(
+      conv([
+        {
+          created_at: CREATED + ANCHOR_OFFSET + 30,
+          part_type: "comment",
+          author: { type: "admin", id: "9520895", name: "Sam", email: "lovable@parahelp.com" },
+          body: "<p>AI answer</p>",
+        },
+      ]),
+      roster,
+    );
+    expect(r.firstSupportReplyS).toBeNull();
+    expect(r.firstSupportReplyFromInboxS).toBeNull();
+  });
+
+  it("a non-roster @lovable.dev human does NOT satisfy First Response when a roster is supplied", () => {
+    const r = computeSla(
+      conv([
+        {
+          created_at: CREATED + ANCHOR_OFFSET + 30,
+          part_type: "comment",
+          author: { type: "admin", id: "555", name: "CSM", email: "csm@lovable.dev" },
+          body: "<p>relaying</p>",
+        },
+      ]),
+      roster,
+    );
+    expect(r.firstSupportReplyFromInboxS).toBeNull();
+  });
+
+  it("NO roster → falls back to any human_admin reply (back-compat)", () => {
+    const parts = [
+      {
+        created_at: CREATED + ANCHOR_OFFSET + 30,
+        part_type: "comment",
+        author: { type: "admin", id: "555", name: "CSM", email: "csm@lovable.dev" },
+        body: "<p>relaying</p>",
+      },
+    ];
+    expect(computeSla(conv(parts)).firstSupportReplyFromInboxS).toBe(30);
+    expect(
+      computeSla(conv(parts), { supportEmails: new Set(), supportAdminIds: new Set() })
+        .firstSupportReplyFromInboxS,
+    ).toBe(30);
+  });
+
+  it("extractTimeline lowercases author emails", () => {
+    const r = computeSla(
+      conv([
+        {
+          created_at: CREATED + ANCHOR_OFFSET + 30,
+          part_type: "comment",
+          author: { type: "user", id: "x", name: "T", email: "MiXeD@Lovable.DEV" },
+          body: "<p>hi</p>",
+        },
+      ]),
+    );
+    expect(r.timeline.some((p) => p.authorEmail === "mixed@lovable.dev")).toBe(true);
   });
 });

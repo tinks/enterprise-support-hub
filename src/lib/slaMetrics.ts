@@ -66,6 +66,11 @@ export type TimelinePart = {
   actor: Actor;
   authorName: string | null;
   authorId: string | null;
+  // Lowercased author email when Intercom provides one. Load-bearing for the
+  // SUPPORT-roster FRT: a teammate replying in Slack is mirrored as
+  // author.type = "user" under a contact id, so the email is the only reliable
+  // way to attribute that reply to a support teammate.
+  authorEmail: string | null;
   partType: string;
   body: string; // stripped, may be ""
   isPublicReply: boolean;
@@ -73,6 +78,7 @@ export type TimelinePart = {
   assignedToType: "admin" | "team" | null;
   assignedToId: string | null;
 };
+
 
 function stripHtml(s: any): string {
   if (typeof s !== "string" || !s) return "";
@@ -116,6 +122,13 @@ function readAssignmentTarget(p: any): { type: "admin" | "team" | null; id: stri
   return { type: null, id: null };
 }
 
+function normalizeEmail(raw: any): string | null {
+
+  const e = String(raw ?? "").trim().toLowerCase();
+  return e ? e : null;
+}
+
+
 export function extractTimeline(raw: any): TimelinePart[] {
   const out: TimelinePart[] = [];
   const createdAt = raw?.created_at;
@@ -127,6 +140,8 @@ export function extractTimeline(raw: any): TimelinePart[] {
       actor: src ? classifyActor(src.author) : "customer",
       authorName: src?.author?.name ?? null,
       authorId: src?.author?.id != null ? String(src.author.id) : null,
+      authorEmail: normalizeEmail(src?.author?.email),
+
       partType: "source",
       body,
       isPublicReply: false, // the opening customer message opens the conversation, not a reply
@@ -147,6 +162,8 @@ export function extractTimeline(raw: any): TimelinePart[] {
         actor: classifyActor(p?.author),
         authorName: p?.author?.name ?? null,
         authorId: p?.author?.id != null ? String(p.author.id) : null,
+        authorEmail: normalizeEmail(p?.author?.email),
+
         partType,
         body,
         isPublicReply: isPublicReplyPart(partType, body),
@@ -292,6 +309,16 @@ export type SlaResult = {
   // now uses for First Response. Replies BEFORE the anchor are ignored.
   firstHumanReplyFromInboxS: number | null;
   firstHumanReplyFromInboxBusinessHoursS: number | null;
+  // SUPPORT-based FRT (commit 2). The first PUBLIC reply by a support-roster
+  // teammate ANYWHERE in the thread, measured from the Enterprise Inbox anchor
+  // and CLAMPED at 0: support answering BEFORE the ticket reached the inbox is
+  // a met SLA (zero wait), not an un-measurable event. Only support counts —
+  // Sam (role='ai') and bots never satisfy First Response.
+  // `firstSupportReplyS` is the absolute unix ts of that reply.
+  firstSupportReplyS: number | null;
+  firstSupportReplyFromInboxS: number | null;
+  firstSupportReplyFromInboxBusinessHoursS: number | null;
+
   ttrS: number | null;
   ttrBusinessHoursS: number | null;
   // Stop-the-clock resolution: active in-our-court time from the SLA
@@ -378,7 +405,22 @@ function sumCustomerWaitGaps(timeline: TimelinePart[], clip: (a: number, b: numb
   return total;
 }
 
-export function computeSla(conversation: any): SlaResult {
+/**
+ * Support roster, passed IN by the caller. The engine stays pure — it never
+ * queries `teammates` itself. Emails are matched lowercased (catches
+ * Slack-mirrored replies Intercom emits as author.type='user'); admin ids
+ * catch native Intercom-admin replies.
+ *
+ * BACKWARD-COMPAT: when omitted (or both sets empty), any `human_admin` public
+ * reply counts as support — i.e. the pre-commit-2 behavior.
+ */
+export type SlaComputeOptions = {
+  supportEmails?: Set<string>;
+  supportAdminIds?: Set<string>;
+};
+
+export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResult {
+
   const timeline = extractTimeline(conversation);
   const createdAt: number | null =
     typeof conversation?.created_at === "number" ? conversation.created_at : null;
@@ -418,6 +460,36 @@ export function computeSla(conversation: any): SlaResult {
     firstHumanReplyAfterInbox && slaClockStartS != null
       ? businessHoursBetween(slaClockStartS, firstHumanReplyAfterInbox.ts)
       : null;
+
+  // ---- SUPPORT-based FRT (commit 2) ----------------------------------------
+  // A = ts of the FIRST support public reply ANYWHERE in the thread (not
+  // restricted to post-anchor). B = slaClockStartS. FRT = max(0, A - B):
+  // support answering before the ticket hit the inbox means zero wait → MET.
+  const supportEmails = opts?.supportEmails;
+  const supportAdminIds = opts?.supportAdminIds;
+  const hasRoster = !!((supportEmails?.size ?? 0) + (supportAdminIds?.size ?? 0));
+  const isSupportPart = (p: TimelinePart): boolean => {
+    if (!p.isPublicReply) return false;
+    // No roster supplied → pre-commit-2 fallback: any human_admin reply.
+    if (!hasRoster) return p.actor === "human_admin";
+    // Sam is role='ai' → never in the roster → correctly excluded.
+    if (p.authorEmail && supportEmails?.has(p.authorEmail)) return true;
+    if (p.authorId && supportAdminIds?.has(p.authorId)) return true;
+    return false;
+  };
+  const firstSupportReply = timeline.find(isSupportPart);
+  const firstSupportReplyS = firstSupportReply?.ts ?? null;
+  const firstSupportReplyFromInboxS =
+    firstSupportReply && slaClockStartS != null
+      ? Math.max(0, firstSupportReply.ts - slaClockStartS)
+      : null;
+  const firstSupportReplyFromInboxBusinessHoursS =
+    firstSupportReply && slaClockStartS != null
+      ? firstSupportReply.ts <= slaClockStartS
+        ? 0
+        : businessHoursBetween(slaClockStartS, firstSupportReply.ts)
+      : null;
+
 
   const escalation = detectEscalation(timeline);
 
@@ -533,6 +605,10 @@ export function computeSla(conversation: any): SlaResult {
     firstHumanReplyFromOpenBusinessHoursS,
     firstHumanReplyFromInboxS,
     firstHumanReplyFromInboxBusinessHoursS,
+    firstSupportReplyS,
+    firstSupportReplyFromInboxS,
+    firstSupportReplyFromInboxBusinessHoursS,
+
     ttrS,
     ttrBusinessHoursS,
     resolutionActiveS,
@@ -832,15 +908,17 @@ export type SlaCompliance = {
 export function evaluateCompliance(sla: SlaResult, severity: Severity): SlaCompliance {
   const target = SLA_TARGETS[severity];
 
-  // First Response = first HUMAN engineer reply (bots/Sam excluded), measured
-  // from the SLA clock-start = Enterprise Inbox assignment (else createdAt).
-  // Anything before the anchor (intake, Sam's AI turn, pre-ticket chatter) is
-  // pre-Enterprise and NOT counted. This replaces the earlier
-  // escalationBasis-branched FRT.
+  // First Response = first PUBLIC reply by a SUPPORT-roster teammate (Sam and
+  // bots excluded), measured from the SLA clock-start (Enterprise Inbox
+  // assignment, else createdAt) and CLAMPED at 0. A support reply that landed
+  // BEFORE the anchor means the customer never waited on the Enterprise queue
+  // → FRT 0 → MET, rather than being dropped as un-measurable.
+  // RESOLUTION LOGIC BELOW IS UNCHANGED.
   const frValue =
     target.firstResponseClock === "business"
-      ? sla.firstHumanReplyFromInboxBusinessHoursS
-      : sla.firstHumanReplyFromInboxS;
+      ? sla.firstSupportReplyFromInboxBusinessHoursS
+      : sla.firstSupportReplyFromInboxS;
+
   const firstResponse: ComplianceVerdict = {
     value: frValue,
     target: target.firstResponseS,

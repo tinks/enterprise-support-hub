@@ -128,6 +128,45 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
   const [refreshKey, setRefreshKey] = useState(0);
   const [testAccountKeys, setTestAccountKeys] = useState<Set<string>>(new Set());
 
+  /**
+   * Support roster for the First-Response clock (commit 2). Loaded from the
+   * canonical `teammates` table, role='support' ONLY (Sam is role='ai' → never
+   * counts as First Response) and INCLUDING inactive rows — departed teammates
+   * still answered those historical tickets. The engine stays pure: the roster
+   * is passed into computeSla, never queried inside it.
+   *
+   * `rosterLoaded` gates enrichment so the first render doesn't silently score
+   * the population with the no-roster fallback and then flip.
+   */
+  const [supportEmails, setSupportEmails] = useState<Set<string>>(new Set());
+  const [supportAdminIds, setSupportAdminIds] = useState<Set<string>>(new Set());
+  const [rosterLoaded, setRosterLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("teammates")
+        .select("intercom_admin_id,email,role")
+        .eq("role", "support");
+      if (cancelled) return;
+      if (!error) {
+        const emails = new Set<string>();
+        const ids = new Set<string>();
+        for (const r of (data ?? []) as Array<{ intercom_admin_id: string | null; email: string | null }>) {
+          if (r.email) emails.add(r.email.trim().toLowerCase());
+          if (r.intercom_admin_id) ids.add(String(r.intercom_admin_id).trim());
+        }
+        setSupportEmails(emails);
+        setSupportAdminIds(ids);
+      }
+      // On error we leave both sets empty → engine falls back to the
+      // pre-commit-2 any-human_admin behavior rather than scoring nothing.
+      setRosterLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -161,14 +200,15 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
   }, [refreshKey]);
 
   const enriched = useMemo<SlaBatchEnriched[]>(
-    () => rows.map((r) => {
-      const sla = computeSla(r.raw_payload);
+    () => (rosterLoaded ? rows : []).map((r) => {
+      const sla = computeSla(r.raw_payload, { supportEmails, supportAdminIds });
       const origin = detectOrigin(r.raw_payload);
       const bucket = classifySlaBatchRow(r, sla, { testAccountKeys, showTestData });
       return { ...r, sla, origin, bucket };
     }),
-    [rows, testAccountKeys, showTestData],
+    [rows, testAccountKeys, showTestData, rosterLoaded, supportEmails, supportAdminIds],
   );
+
 
   const inScope = useMemo(() => enriched.filter((r) => r.bucket === "inScope"), [enriched]);
   const excluded = useMemo(() => enriched.filter((r) => r.bucket === "excluded"), [enriched]);
@@ -236,7 +276,7 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
   );
 
   return {
-    loading, error, rows, enriched, inScope, excluded, noCustomer, manuallyLogged,
+    loading: loading || !rosterLoaded, error, rows, enriched, inScope, excluded, noCustomer, manuallyLogged,
     overrides, isExcused, getOverride, customerLabels,
     testAccountKeys, isTestAccount, refresh, refreshOverrides,
   };
