@@ -1,6 +1,15 @@
 import { createClient } from "@supabase/supabase-js";
 import { computeSla, detectOrigin, evaluateCompliance, parseSeverity } from "/dev-server/src/lib/slaMetrics.ts";
-import { classifySlaBatchRow } from "/dev-server/src/hooks/useSlaBatch.ts";
+function classifySlaBatchRow(row:any, sla:any, opts:any){
+  if (sla.flags.manuallyLogged) return "manuallyLogged";
+  const tags = Array.isArray(row.tags)?row.tags:[];
+  const hasTag=(t:string)=>tags.includes(t);
+  if (row.customer_key && opts?.testAccountKeys?.has(row.customer_key)) return "excluded";
+  const excluded = row.rsa_override===false || (row.rsa_override==null && (hasTag("enterprise-fyi")||hasTag("enterprise-duplicate"))) || hasTag("merged_ticket") || ["not_enterprise","prospect_personal","enterprise_prospect"].includes(row.customer_resolution_method);
+  if (excluded) return "excluded";
+  if (sla.flags.noCustomerParticipant) return "noCustomer";
+  return "inScope";
+}
 const url = process.env.VITE_SUPABASE_URL!, key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY!;
 const sb = createClient(url, key);
 const t = await sb.from("teammates").select("intercom_admin_id,email,role").eq("role","support");
