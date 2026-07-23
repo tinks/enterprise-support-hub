@@ -745,11 +745,56 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
     preInbox: aggregate(filteredInScope.map((r) => r.sla.preInboxTimeS)),
   }), [filteredInScope]);
 
+  // Work-Before-Ticket (process signal): Support replied BEFORE the ticket
+  // reached the Enterprise Inbox. Distinct from "Pre-inbox time" (the
+  // customer's total wait before the ticket existed as an Enterprise ticket).
+  const wbt = useMemo(() => {
+    const calc = (rs: CorrectedEnriched[]) => {
+      const answered = rs.filter((r) => r.sla.workBeforeTicketS != null);
+      const withWork = answered.filter((r) => (r.sla.workBeforeTicketS ?? 0) > 0);
+      return {
+        answered: answered.length,
+        withWork: withWork.length,
+        pct: answered.length ? (withWork.length / answered.length) * 100 : null,
+        median: aggregate(withWork.map((r) => r.sla.workBeforeTicketBusinessHoursS)).median,
+      };
+    };
+    const bySource = (["slack", "sam", "direct"] as const).map((k) => ({
+      key: k,
+      ...calc(filteredInScope.filter((r) => (
+        k === "slack" ? r.origin === "slack" : k === "sam" ? r.sla.flags.samParticipated : r.origin !== "slack" && !r.sla.flags.samParticipated
+      ))),
+    }));
+    return { overall: calc(filteredInScope), bySource };
+  }, [filteredInScope]);
+
+  // Exclusion reasons — mirrors classifyRow's predicates (display only).
+  const exclusionBreakdown = useMemo(() => {
+    const c = {
+      not_enterprise: 0, fyi_or_duplicate: 0, merged: 0, rsa_false: 0,
+      test_account: 0, prospect_personal: 0, enterprise_prospect: 0, other: 0,
+    };
+    for (const r of excluded) {
+      const tags = Array.isArray(r.tags) ? r.tags : [];
+      const isTest = !!(r.customer_key && testAccountKeys.has(r.customer_key));
+      if (isTest && !showTestData) c.test_account++;
+      else if (r.rsa_override === false) c.rsa_false++;
+      else if (r.rsa_override == null && (tags.includes("enterprise-fyi") || tags.includes("enterprise-duplicate"))) c.fyi_or_duplicate++;
+      else if (tags.includes("merged_ticket")) c.merged++;
+      else if (r.customer_resolution_method === "not_enterprise") c.not_enterprise++;
+      else if (r.customer_resolution_method === "prospect_personal") c.prospect_personal++;
+      else if (r.customer_resolution_method === "enterprise_prospect") c.enterprise_prospect++;
+      else c.other++;
+    }
+    return c;
+  }, [excluded, testAccountKeys, showTestData]);
+
   const reopenRate = useMemo(() => {
     if (!filteredInScope.length) return null;
     const n = filteredInScope.filter((r) => r.sla.reopenCount > 0).length;
     return { n, total: filteredInScope.length, pct: (n / filteredInScope.length) * 100 };
   }, [filteredInScope]);
+
 
   const sorted = useMemo(() => {
     const dir = sortDir === "asc" ? 1 : -1;
@@ -855,6 +900,54 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
           {" "}({reopenRate.n}/{reopenRate.total})
         </div>
       )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Work Before Ticket</CardTitle>
+            <CardDescription className="text-xs">
+              Support replied BEFORE the ticket reached the Enterprise Inbox (mirror of the clamped FRT).
+              Distinct from the "Pre-inbox time" tile, which is the customer's total wait before Enterprise Inbox assignment.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm space-y-1 tabular-nums">
+            <div>
+              Tickets with work before ticket: <strong>{wbt.overall.withWork}</strong> of {wbt.overall.answered} support-answered
+              {wbt.overall.pct != null && <> ({wbt.overall.pct.toFixed(1)}%)</>}
+            </div>
+            <div>Median work before ticket (bus.hrs): <strong>{formatDuration(wbt.overall.median)}</strong></div>
+            <div className="pt-1 text-xs text-muted-foreground space-y-0.5">
+              {wbt.bySource.map((s) => (
+                <div key={s.key}>
+                  {s.key}: {s.withWork}/{s.answered}
+                  {s.pct != null && <> ({s.pct.toFixed(0)}%)</>} · median {formatDuration(s.median)}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Excluded from population — by reason</CardTitle>
+            <CardDescription className="text-xs">{excluded.length} excluded rows (all loaded tickets, not window-filtered)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="text-xs space-y-0.5 tabular-nums">
+              <li>not_enterprise: {exclusionBreakdown.not_enterprise}</li>
+              <li>enterprise-fyi + enterprise-duplicate: {exclusionBreakdown.fyi_or_duplicate}</li>
+              <li>merged_ticket: {exclusionBreakdown.merged}</li>
+              <li>rsa_override = false: {exclusionBreakdown.rsa_false}</li>
+              <li>test_account: {exclusionBreakdown.test_account}</li>
+              <li>prospect_personal: {exclusionBreakdown.prospect_personal}</li>
+              <li>enterprise_prospect: {exclusionBreakdown.enterprise_prospect}</li>
+              {exclusionBreakdown.other > 0 && <li>other: {exclusionBreakdown.other}</li>}
+            </ul>
+          </CardContent>
+        </Card>
+      </div>
+
+
 
       <Card>
         <CardHeader className="pb-3">

@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TestDataToggle, TestDataBanner } from "@/pages/SlaWorkbench";
 import { useSlaBatch, type SlaBatchEnriched, type SlaOverrideMetric } from "@/hooks/useSlaBatch";
+
 import {
   aggregate,
   evaluateCompliance,
@@ -43,18 +44,8 @@ function verdict(c: SlaCompliance, m: Metric): ComplianceVerdict {
   return m === "first_response" ? c.firstResponse : c.resolution;
 }
 
-// Work-Before-Ticket (Tenet #1 signal) — a PROCESS metric, not an SLA breach.
-// Support-answered = a support reply exists (workBeforeTicketS non-null).
-function wbtStats(rows: Scored[]) {
-  const answered = rows.filter((r) => r.row.sla.workBeforeTicketS != null);
-  const withWork = answered.filter((r) => (r.row.sla.workBeforeTicketS ?? 0) > 0);
-  return {
-    answered: answered.length,
-    withWork: withWork.length,
-    pct: answered.length ? (withWork.length / answered.length) * 100 : null,
-    median: aggregate(withWork.map((r) => r.row.sla.workBeforeTicketBusinessHoursS)).median,
-  };
-}
+// Work-Before-Ticket detail now lives on the SLA Workbench.
+
 
 function computeStats(
   rows: Scored[],
@@ -141,28 +132,8 @@ export default function SlaReport() {
 
   const overallFr = computeStats(scored, "first_response", isExcused);
   const overallRes = computeStats(scored, "resolution", isExcused);
-  const overallWbt = useMemo(() => wbtStats(scored), [scored]);
 
-  // Exclusion reasons — mirrors classifySlaBatchRow's predicates (display only).
-  const exclusionBreakdown = useMemo(() => {
-    const c = {
-      not_enterprise: 0, fyi_or_duplicate: 0, merged: 0, rsa_false: 0,
-      test_account: 0, prospect_personal: 0, enterprise_prospect: 0, other: 0,
-    };
-    for (const r of monthExcluded) {
-      const tags = Array.isArray(r.tags) ? r.tags : [];
-      const isTest = !!(r.customer_key && batch.testAccountKeys.has(r.customer_key));
-      if (isTest && !showTestData) c.test_account++;
-      else if (r.rsa_override === false) c.rsa_false++;
-      else if (r.rsa_override == null && (tags.includes("enterprise-fyi") || tags.includes("enterprise-duplicate"))) c.fyi_or_duplicate++;
-      else if (tags.includes("merged_ticket")) c.merged++;
-      else if (r.customer_resolution_method === "not_enterprise") c.not_enterprise++;
-      else if (r.customer_resolution_method === "prospect_personal") c.prospect_personal++;
-      else if (r.customer_resolution_method === "enterprise_prospect") c.enterprise_prospect++;
-      else c.other++;
-    }
-    return c;
-  }, [monthExcluded, batch.testAccountKeys, showTestData]);
+  // Exclusion reasons by reason now live on the Workbench (practitioner detail).
 
   const bySource = useMemo(() => {
     const keys = ["Slack", "Sam-first", "Direct"] as const;
@@ -174,10 +145,10 @@ export default function SlaReport() {
         fr: computeStats(rows, "first_response", isExcused),
         res: computeStats(rows, "resolution", isExcused),
         preInboxMedian: aggregate(rows.map((r) => r.row.sla.preInboxTimeS)).median,
-        wbt: wbtStats(rows),
       };
     });
   }, [scored, isExcused]);
+
 
   const monthLabel = months.find((m) => m.value === month)?.label ?? month;
 
@@ -246,19 +217,10 @@ export default function SlaReport() {
                 Unclassified severity: {unclassified.length} (missing Severity attribute — cannot be scored)
               </div>
             )}
-            <div>
-              <div className="font-medium mb-1">Excluded from population ({monthExcluded.length})</div>
-              <ul className="text-xs space-y-0.5 tabular-nums">
-                <li>not_enterprise: {exclusionBreakdown.not_enterprise}</li>
-                <li>enterprise-fyi + enterprise-duplicate: {exclusionBreakdown.fyi_or_duplicate}</li>
-                <li>merged_ticket: {exclusionBreakdown.merged}</li>
-                <li>rsa_override = false: {exclusionBreakdown.rsa_false}</li>
-                <li>test_account: {exclusionBreakdown.test_account}</li>
-                <li>prospect_personal: {exclusionBreakdown.prospect_personal}</li>
-                <li>enterprise_prospect: {exclusionBreakdown.enterprise_prospect}</li>
-                {exclusionBreakdown.other > 0 && <li>other: {exclusionBreakdown.other}</li>}
-              </ul>
+            <div className="text-xs tabular-nums">
+              Excluded from population: {monthExcluded.length} — breakdown on the Workbench.
             </div>
+
             <div className="text-xs tabular-nums">
               No customer participant: {monthNoCustomer.length} · Manually-logged (bulk import, unmeasurable): {monthManual.length}
             </div>
@@ -284,9 +246,6 @@ export default function SlaReport() {
                   <div className="text-xs text-muted-foreground">met vs PROPOSED target</div>
                   <div className="text-xs tabular-nums pt-1">
                     met {s.met} · breach {s.breach} · excused {s.excused} · not-evaluable {s.notEvaluable}
-                  </div>
-                  <div className="text-xs tabular-nums">
-                    Median {formatDuration(s.median)} · p90 {formatDuration(s.p90)} · Avg {formatDuration(s.avg)}
                   </div>
                 </div>
               );
@@ -318,65 +277,16 @@ export default function SlaReport() {
               {overallRes.excused + overallRes.breach ? ` (${((overallRes.excused / (overallRes.excused + overallRes.breach)) * 100).toFixed(0)}%)` : ""}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
-            {(["first_response", "resolution"] as Metric[]).map((m) => {
-              const rows = scored.filter((s) => verdict(s.comp, m).met === false);
-              return (
-                <div key={m}>
-                  <div className="font-medium text-sm mb-1">
-                    {m === "first_response" ? "First Response" : "Resolution"} breaches ({rows.length})
-                  </div>
-                  {rows.length === 0 ? (
-                    <div className="text-xs text-muted-foreground">None.</div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
-                        <thead className="text-muted-foreground">
-                          <tr className="text-left">
-                            <th className="py-1 pr-3">Ticket</th>
-                            <th className="py-1 pr-3">Customer</th>
-                            <th className="py-1 pr-3">Sev</th>
-                            <th className="py-1 pr-3">Actual</th>
-                            <th className="py-1 pr-3">Target</th>
-                            <th className="py-1 pr-3">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.map(({ row, comp }) => {
-                            const v = verdict(comp, m);
-                            const ov = getOverride(row.intercom_conversation_id, m);
-                            return (
-                              <tr key={row.id} className="border-t border-border align-top">
-                                <td className="py-1 pr-3">
-                                  <a
-                                    className="underline"
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    href={`https://app.intercom.com/a/inbox/_/inbox/conversation/${row.intercom_conversation_id}`}
-                                  >
-                                    {row.subject || row.intercom_conversation_id}
-                                  </a>
-                                </td>
-                                <td className="py-1 pr-3">
-                                  {(row.customer_key && customerLabels.get(row.customer_key)) || row.customer_key || "—"}
-                                </td>
-                                <td className="py-1 pr-3 tabular-nums">{comp.severity}</td>
-                                <td className="py-1 pr-3 tabular-nums">{formatDuration(v.value)}</td>
-                                <td className="py-1 pr-3 tabular-nums">{formatDuration(v.target)} ({v.clock})</td>
-                                <td className="py-1 pr-3">
-                                  {ov ? <Badge variant="secondary">excused · {ov.reason}</Badge> : <Badge variant="destructive">breach</Badge>}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+          <CardContent className="space-y-2 text-sm">
+            <div className="tabular-nums">
+              First Response breaches: <strong>{overallFr.breach}</strong> · Resolution breaches: <strong>{overallRes.breach}</strong>
+              <span className="text-muted-foreground"> (unexcused)</span>
+            </div>
+            <Link to="/sla-workbench" className="text-xs underline text-primary">
+              Per-ticket breach detail + excuse/remove → SLA Workbench
+            </Link>
           </CardContent>
+
         </Card>
 
         {/* §5 By Source */}
@@ -395,10 +305,6 @@ export default function SlaReport() {
                   <th className="py-1 pr-3">n</th>
                   <th className="py-1 pr-3">FR %met</th>
                   <th className="py-1 pr-3">Res %met</th>
-                  <th className="py-1 pr-3">FR Avg</th>
-                  <th className="py-1 pr-3">FR Median</th>
-                  <th className="py-1 pr-3">Res Avg</th>
-                  <th className="py-1 pr-3">Res Median</th>
                   <th className="py-1 pr-3">Pre-inbox median</th>
                 </tr>
               </thead>
@@ -409,61 +315,17 @@ export default function SlaReport() {
                     <td className="py-1 pr-3">{s.n}</td>
                     <td className="py-1 pr-3">{pctText(s.fr.pct)}</td>
                     <td className="py-1 pr-3">{pctText(s.res.pct)}</td>
-                    <td className="py-1 pr-3">{formatDuration(s.fr.avg)}</td>
-                    <td className="py-1 pr-3">{formatDuration(s.fr.median)}</td>
-                    <td className="py-1 pr-3">{formatDuration(s.res.avg)}</td>
-                    <td className="py-1 pr-3">{formatDuration(s.res.median)}</td>
                     <td className="py-1 pr-3">{formatDuration(s.preInboxMedian)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+
           </CardContent>
         </Card>
 
-        {/* §5b Work Before Ticket */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">§5b Work Before Ticket — Tenet #1 signal</CardTitle>
-            <CardDescription className="text-xs">
-              Time Support was already working the issue <strong>before</strong> it existed as a
-              ticket in the Enterprise Inbox (mirror of the clamped first-response clock). This is a
-              process metric for "no work without a ticket" — <strong>not</strong> an SLA breach.
-              Distinct from pre-inbox time, which is the customer's total wait.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="tabular-nums">
-              {overallWbt.withWork} of {overallWbt.answered} Support-answered tickets
-              {overallWbt.pct == null ? "" : ` (${overallWbt.pct.toFixed(1)}%)`} had Support working
-              before a ticket existed · median {formatDuration(overallWbt.median)} (business hours)
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead className="text-muted-foreground">
-                  <tr className="text-left">
-                    <th className="py-1 pr-3">Source</th>
-                    <th className="py-1 pr-3">Support-answered</th>
-                    <th className="py-1 pr-3">WBT &gt; 0</th>
-                    <th className="py-1 pr-3">%</th>
-                    <th className="py-1 pr-3">Median WBT (business)</th>
-                  </tr>
-                </thead>
-                <tbody className="tabular-nums">
-                  {bySource.map((s) => (
-                    <tr key={s.key} className="border-t border-border">
-                      <td className="py-1 pr-3">{s.key}</td>
-                      <td className="py-1 pr-3">{s.wbt.answered}</td>
-                      <td className="py-1 pr-3">{s.wbt.withWork}</td>
-                      <td className="py-1 pr-3">{pctText(s.wbt.pct)}</td>
-                      <td className="py-1 pr-3">{formatDuration(s.wbt.median)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Work-Before-Ticket detail lives on the SLA Workbench. */}
+
 
 
         {/* §6 Data quality */}
@@ -476,11 +338,8 @@ export default function SlaReport() {
               Coverage: {population.length - unclassified.length} of {population.length} in-scope tickets carry a
               Severity attribute and can be scored ({population.length ? (((population.length - unclassified.length) / population.length) * 100).toFixed(1) : "0.0"}%).
             </div>
-            <div>
-              Excluded from population this month: {monthExcluded.length}; no-customer-participant {monthNoCustomer.length};
-              manually-logged {monthManual.length}.
-            </div>
-            <div>Not-evaluable: First Response {overallFr.notEvaluable} · Resolution {overallRes.notEvaluable} (no measurable value, or no committed target).</div>
+            <div>Granular exclusion + not-evaluable breakdowns live on the SLA Workbench.</div>
+
             <div>Targets are PROVISIONAL/PROPOSED — this report is calibration evidence, not committed-SLA compliance.</div>
             <div>First reporting month has no trend line; comparisons become meaningful once several months exist.</div>
             <div>Sam-anchored tickets: SLA clocks start at Enterprise Inbox assignment, so resolution reflects post-handoff time only. Pre-inbox time is reported separately.</div>
