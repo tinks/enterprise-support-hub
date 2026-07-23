@@ -461,6 +461,36 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
       ? businessHoursBetween(slaClockStartS, firstHumanReplyAfterInbox.ts)
       : null;
 
+  // ---- SUPPORT-based FRT (commit 2) ----------------------------------------
+  // A = ts of the FIRST support public reply ANYWHERE in the thread (not
+  // restricted to post-anchor). B = slaClockStartS. FRT = max(0, A - B):
+  // support answering before the ticket hit the inbox means zero wait → MET.
+  const supportEmails = opts?.supportEmails;
+  const supportAdminIds = opts?.supportAdminIds;
+  const hasRoster = !!((supportEmails?.size ?? 0) + (supportAdminIds?.size ?? 0));
+  const isSupportPart = (p: TimelinePart): boolean => {
+    if (!p.isPublicReply) return false;
+    // No roster supplied → pre-commit-2 fallback: any human_admin reply.
+    if (!hasRoster) return p.actor === "human_admin";
+    // Sam is role='ai' → never in the roster → correctly excluded.
+    if (p.authorEmail && supportEmails?.has(p.authorEmail)) return true;
+    if (p.authorId && supportAdminIds?.has(p.authorId)) return true;
+    return false;
+  };
+  const firstSupportReply = timeline.find(isSupportPart);
+  const firstSupportReplyS = firstSupportReply?.ts ?? null;
+  const firstSupportReplyFromInboxS =
+    firstSupportReply && slaClockStartS != null
+      ? Math.max(0, firstSupportReply.ts - slaClockStartS)
+      : null;
+  const firstSupportReplyFromInboxBusinessHoursS =
+    firstSupportReply && slaClockStartS != null
+      ? firstSupportReply.ts <= slaClockStartS
+        ? 0
+        : businessHoursBetween(slaClockStartS, firstSupportReply.ts)
+      : null;
+
+
   const escalation = detectEscalation(timeline);
 
   const firstResponseAnyAgentS =
