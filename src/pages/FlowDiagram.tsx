@@ -154,11 +154,22 @@ const ROW_H = 380;
 /*  from the Conversations table and the detail view Classification    */
 /*  card. Owner filter dropdown lets users filter by owner or          */
 /*  unassigned. CSM is used for non-technical-support questions.        */
-/*  Admin→owner mapping: settings.admin_owner_map stores a JSON map    */
-/*  of Intercom admin IDs to owner names (e.g. 9985999→Kristina,       */
-/*  9852095→Joel, 9520895→Sam). The intercom-webhook reads this map    */
-/*  on every assignment event and auto-sets the conversation owner.     */
-/*  Editable from the Settings page Admin mapping card.                 */
+/*  Teammate roster (canonical): public.teammates is the single source  */
+/*  of truth for who's who — intercom_admin_id (unique), email, name,   */
+/*  role (support|other|ai), active. Seeded with Sam(ai), Joel(         */
+/*  active=false, departed), Kristina, Tine, Matt, Eren. `active` is    */
+/*  roster status ONLY — it does NOT affect SLA counting; historical    */
+/*  replies always count. Managed from Settings → Teammates card       */
+/*  (admin-gated writes via has_role).                                  */
+/*  Admin→owner mapping (LEGACY, still live): settings.admin_owner_map  */
+/*  stores a JSON map of Intercom admin IDs to owner names. It remains  */
+/*  the reader for owner auto-attribution in intercom-webhook,          */
+/*  poll-intercom-inbox, sync-v3-open, sync-v3-closed, sync-inbox-v2,   */
+/*  backfill-enterprise-inbox and AnalyticsV3. The Teammates card       */
+/*  DUAL-WRITES every mutation into the blob (all rows, active and      */
+/*  inactive) so attribution can't drift while those readers are        */
+/*  repointed at `teammates` in a later tech-debt pass.                 */
+
 /* ------------------------------------------------------------------ */
 /*  Inbox row color-coding (Conversations table):                      */
 /*  1. Coral left border + bg  → no owner assigned (highest priority)  */
