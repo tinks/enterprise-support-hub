@@ -622,8 +622,8 @@ To add a new owner:
 
 **WHY.** Owner identity was previously smeared across a JSON blob (`settings.admin_owner_map`), hardcoded `OWNER_OPTIONS` arrays, and `ADMIN_OPTIONS` in `parseThread.ts`. A real table gives the SLA work a stable place to ask "is this admin a human support engineer, the AI agent, or someone else?" without string-matching names.
 
-- `active` is **roster status only** (departed / on-leave). It does **NOT** affect SLA counting — historical replies from an inactive teammate always count. `role` is what SLA actor classification will eventually key off (`ai` = Sam).
-- **The SLA engine does not read this table yet.** This commit is purely additive; no SLA number changes.
+- `active` is **roster status only** (departed / on-leave). It does **NOT** affect SLA counting — historical replies from an inactive teammate always count. `role` is what the SLA support roster keys off (`support` = counts for First Response, `ai` = Sam, excluded).
+- **`role` is load-bearing for SLA.** The SLA engine's First Response metric reads the `role='support'` roster (see Track B → *Support-based First Response*): `useSlaBatch` loads those rows' `email` + `intercom_admin_id` and passes them into `computeSla`. `role='ai'` (Sam) is therefore excluded from First Response by construction. Changing someone's `role` changes FR numbers; changing `active` does not.
 - Managed from Settings → Teammates card (`src/components/AdminMappingCard.tsx`): inline add / edit / remove with admin-gated writes, saving immediately (no Save-settings round-trip).
 
 **Dual-write, deliberately.** `settings.admin_owner_map` is still the reader for owner auto-attribution in `intercom-webhook`, `poll-intercom-inbox`, `sync-v3-open`, `sync-v3-closed`, `sync-inbox-v2`, `backfill-enterprise-inbox`, and `src/pages/AnalyticsV3.tsx`. Rather than risk breaking attribution, every teammates mutation regenerates the blob from the **full** roster (active *and* inactive — historical attribution must keep resolving) and writes it back to `settings`. Retiring the blob and repointing those seven readers at `teammates` is a later tech-debt pass.
@@ -989,7 +989,17 @@ Pure, source-agnostic TypeScript. No network, DB, or Intercom client access. Sam
 | Handling time (customer-wait sum) | `handlingTimeS` | `handlingTimeBusinessHoursS` |
 | Reopen count | `reopenCount` | — |
 
-**First Response — inbox-anchored** (`firstHumanReplyFromInboxS` / `…BusinessHoursS`): the first public reply by a `human_admin` (Sam and bots excluded) AT/AFTER `slaClockStartS`. Replies before the anchor are ignored — that's the whole point. If no human reply after the anchor → `null` (not-evaluable). `evaluateCompliance` reads these two fields for First Response.
+**First Response — SUPPORT-based and clamped** (`firstSupportReplyFromInboxS` / `firstSupportReplyFromInboxBusinessHoursS`) — commit `1752ca6`:
+
+- **A** = ts of the **first PUBLIC reply anywhere in the thread by a teammate on the SUPPORT roster** (`public.teammates WHERE role='support'`), matched by **email OR `intercom_admin_id`**. **B** = `slaClockStartS` (the Enterprise Inbox anchor). **`FRT = max(0, A − B)`**.
+- **Sam is `role='ai'`** → never on the roster → correctly excluded, no special-casing needed.
+- **No support reply at all → `null`** (not-evaluable). A reply by a non-support admin does not stop the FR clock.
+- _Why email **or** id:_ a support engineer's **Slack** reply mirrors into Intercom carrying only the **email** (no admin id), while an in-Intercom reply carries the **admin id**. Matching on both is the only way to catch every real first response — matching on either alone silently misses a whole channel.
+- _Why clamped:_ support who answered **before** the ticket reached the Enterprise Inbox previously produced a negative/false breach. `max(0, …)` makes "we answered before the ticket existed" a **MET at 0** — the honest reading.
+- **Roster is passed IN, engine stays pure:** `computeSla(payload, { supportEmails, supportAdminIds })`; `useSlaBatch` loads the roster from `teammates` and threads it through. **No-roster fallback:** if the roster query fails, both sets are empty and the engine falls back to the pre-commit behaviour (**any `human_admin` public reply**) rather than scoring nothing.
+- `evaluateCompliance` reads these two fields — and only these — for First Response. The older `firstHumanReplyFromInbox*` fields remain on `SlaResult` for reference/display only.
+
+**Work-Before-Ticket** (`workBeforeTicketS` / `workBeforeTicketBusinessHoursS`) — commit `9edcf7a` — is the exact **mirror** of the clamped FRT: **`max(0, B − A)`**, i.e. how long Support was already working the issue before the ticket existed. It is a **Tenet #1 ("no work without a ticket") process signal, NOT an SLA breach**, and never enters any `%met`. **Distinct from pre-inbox time:** pre-inbox = the *customer's* total wait before the anchor; Work-Before-Ticket = *our* documented work that predates the anchor. Surfaced on the **Workbench only** (Work Before Ticket card + by-source breakdown).
 
 **Stop-the-clock resolution — inbox-anchored** (`resolutionActiveS` / `…BusinessHoursS`): active in-our-court time walked from `slaClockStartS` (NOT `created_at`) to `last_close_at ?? first_close_at`. Excludes intervals where we replied and are awaiting the customer (customer public parts open a segment; a public reply by `human_admin` or `sam_ai` closes it) AND excludes closed-then-reopened gaps. Guard: if `closeAt < slaClockStartS` → 0. **Why anchored:** Sam's pre-handoff handling and pre-ticket Slack work are pre-Enterprise, so resolution no longer counts them — combined with the ball-in-our-court walk, we neither breach because a customer is slow (one real ticket: 68 of 76 business-hours were the customer working with their own IT department) nor because Sam took time before handoff.
 
@@ -1020,7 +1030,7 @@ Provisional per-severity targets (single source of truth in `SLA_TARGETS`, edita
 
 `parseSeverity(raw)` reads `raw_payload.custom_attributes.Severity`. Returns `null` for missing / unknown; **never** defaulted to a severity — a missing mapping surfaces loudly in a visible "Unclassified" bucket rather than hiding in Sev 3 (surface-errors-loudly). `evaluateCompliance(sla, severity)` returns `{ severity, firstResponse, resolution }` each with `{ value, target, clock, met }` where `met` is `null` when unmeasurable.
 
-- **First Response** picks the clock (`business` vs `calendar`) per severity and reads **`firstHumanReplyFromInbox*`** — nothing else. `escalationBasis` branching is gone.
+- **First Response** picks the clock (`business` vs `calendar`) per severity and reads **`firstSupportReplyFromInbox*`** (SUPPORT roster, clamped) — nothing else. `escalationBasis` branching is gone.
 - **Resolution** reads **`resolutionActive*`** (also inbox-anchored). Raw `ttr*` is never used by compliance. Sev 4 returns `met: null` (no committed target).
 
 ### Read-only fetch — `supabase/functions/sla-ticket-analyze`
@@ -1125,8 +1135,21 @@ Third SLA view (protected route, nav link "SLA Report"), shipped in commit `7a28
 - **Excused AND not-evaluable are BOTH excluded from the denominator** and shown as their own visible counts. *Why:* they are different kinds of "not a data point" (a judged exception vs no measurable value) and folding either into met-or-breach would silently move the headline.
 - **Sev 4 Resolution has no committed target** → rendered "no target (best-effort)", no %met, but Avg / Median / p90 still shown for visibility.
 - **Clock basis is per severity, not blanket:** **Sev 1 = calendar / 24-7**, **Sev 2–4 = Berlin business hours**. The headline basis is therefore worded "each severity's committed clock", never "business hours".
+- **FR BASIS = CUSTOMER-INITIATED, on ALL pages** (commit `91ae443`). Every First-Response tally on **Dashboard, Report and Workbench** counts only rows where `sla.initiatedBy === "customer"`. **Agent-initiated tickets** (we opened them — outbound, CSM relay, forwarded email) are excluded from First Response because **there is no customer waiting**, so "first response" is meaningless there. **Resolution always covers all in-scope tickets.** _Why it's called out:_ `SlaReport` originally computed FR over ALL initiations while the Dashboard used customer-initiated only, so the two surfaces disagreed on the same month; the fix made the basis identical everywhere and the wording explicit on each surface.
 
 **Test data:** renders the same shared `TestDataToggle` + `TestDataBanner` (imported from `SlaWorkbench.tsx`), default OFF — test-account tickets are excluded from the population unless the toggle is ON, exactly as on Dashboard/Workbench.
+
+### The three SLA surfaces — division of labour (reorg `f3bb52f`)
+
+One engine, one hook (`useSlaBatch`), three purpose-built pages:
+
+| Route | Audience | Window | Contains |
+|---|---|---|---|
+| **`/sla`** (`SlaDashboard.tsx`) | live **OPS** view | rolling window | population/coverage chips, per-severity compliance scorecard, per-severity breach badges, "how these are measured" popover. Links out to the Workbench to investigate or override. |
+| **`/sla-report`** (`SlaReport.tsx`) | leadership, the **formal monthly report** | one **calendar month** (finalized-in-month) | lean layout: proposal banner → §1 scope & population (+ loud Unclassified block) → §2 headline `%met` + met/breach/excused/not-evaluable counts → §3a/§3b by-severity scorecard with Avg/Median/p90 → §4 breach **summary** + Workbench link → §5 lean by-source → §6 caveats. **A data-backed PROPOSAL** — `SLA_TARGETS` is provisional. |
+| **`/sla-workbench`** (`SlaWorkbench.tsx`) | practitioners | filterable (window / customer / frBasis) | per-ticket tables, **per-ticket breach lists with excuse / remove** (the only place `sla_breach_overrides` is written), **Work-Before-Ticket card**, **Excluded-by-reason card**, by-source breakout, KPI tiles, live Analyze-by-ID. |
+
+**What moved in the reorg:** Work-Before-Ticket and the per-reason exclusion table came **off** the Report and onto the Workbench; the Report's §2 dropped Median/p90/Avg (those are per-severity evidence, not a rollup number) and §4 dropped per-ticket breach tables for a summary + link. Principle: **leadership reads outcomes, practitioners read detail** — and any given number lives in exactly one place.
 
 ### Caveats to keep in mind when reading numbers
 
@@ -1144,6 +1167,8 @@ Third SLA view (protected route, nav link "SLA Report"), shipped in commit `7a28
 - **Stored-payload completeness for Slack**: for Slack-originated tickets the stored `raw_payload` may be less complete than a live Intercom fetch — the live tab remains authoritative per-ticket.
 - **Manual initiation-override** to correct forwarded-email misclassification.
 - **Holiday-aware business-hours calendar**.
+- **TECH DEBT — rollup logic is duplicated per page.** Each of the three SLA pages carries its own `computeStats`/scorecard code over the same `useSlaBatch` spine, and Dashboard vs Report overlap heavily. Until a shared rollup module exists, **any counting-rule change must be applied to all three pages in lockstep** — the FR-basis drift fixed in `91ae443` is exactly the failure mode this duplication produces.
+- **Retire `settings.admin_owner_map`** and repoint its 7 legacy readers at `public.teammates`.
 - **Aggregate dashboard + SLA compliance slider** — plumbing is in place; UI wiring TBD after target ratification.
 
 
