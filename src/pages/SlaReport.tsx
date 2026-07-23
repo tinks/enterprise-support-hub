@@ -44,18 +44,8 @@ function verdict(c: SlaCompliance, m: Metric): ComplianceVerdict {
   return m === "first_response" ? c.firstResponse : c.resolution;
 }
 
-// Work-Before-Ticket (Tenet #1 signal) — a PROCESS metric, not an SLA breach.
-// Support-answered = a support reply exists (workBeforeTicketS non-null).
-function wbtStats(rows: Scored[]) {
-  const answered = rows.filter((r) => r.row.sla.workBeforeTicketS != null);
-  const withWork = answered.filter((r) => (r.row.sla.workBeforeTicketS ?? 0) > 0);
-  return {
-    answered: answered.length,
-    withWork: withWork.length,
-    pct: answered.length ? (withWork.length / answered.length) * 100 : null,
-    median: aggregate(withWork.map((r) => r.row.sla.workBeforeTicketBusinessHoursS)).median,
-  };
-}
+// Work-Before-Ticket detail now lives on the SLA Workbench.
+
 
 function computeStats(
   rows: Scored[],
