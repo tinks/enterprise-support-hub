@@ -66,6 +66,11 @@ export type TimelinePart = {
   actor: Actor;
   authorName: string | null;
   authorId: string | null;
+  // Lowercased author email when Intercom provides one. Load-bearing for the
+  // SUPPORT-roster FRT: a teammate replying in Slack is mirrored as
+  // author.type = "user" under a contact id, so the email is the only reliable
+  // way to attribute that reply to a support teammate.
+  authorEmail: string | null;
   partType: string;
   body: string; // stripped, may be ""
   isPublicReply: boolean;
@@ -73,6 +78,7 @@ export type TimelinePart = {
   assignedToType: "admin" | "team" | null;
   assignedToId: string | null;
 };
+
 
 function stripHtml(s: any): string {
   if (typeof s !== "string" || !s) return "";
