@@ -121,7 +121,9 @@ function readAssignmentTarget(p: any): { type: "admin" | "team" | null; id: stri
   }
   return { type: null, id: null };
 }
+
 function normalizeEmail(raw: any): string | null {
+
   const e = String(raw ?? "").trim().toLowerCase();
   return e ? e : null;
 }
