@@ -746,3 +746,127 @@ describe("computeSla — manuallyLogged flag", () => {
     expect(r.flags.manuallyLogged).toBe(false);
   });
 });
+
+// ============================================================================
+// Commit 2 — SUPPORT-based, clamped First Response.
+// ============================================================================
+describe("computeSla — support-roster FRT", () => {
+  const ANCHOR_OFFSET = 3600; // inbox assignment 1h after creation
+  const CREATED = 7_100_000_000;
+
+  const conv = (replies: any[]) => ({
+    created_at: CREATED,
+    source: { author: { type: "user", id: "cust", name: "Cust", email: "a@acme.com" }, body: "<p>help</p>" },
+    conversation_parts: {
+      conversation_parts: [
+        {
+          created_at: CREATED + ANCHOR_OFFSET,
+          part_type: "assignment",
+          author: { type: "admin", id: "999", name: "router" },
+          assigned_to: { type: "team", id: "8484447" },
+          body: null,
+        },
+        ...replies,
+      ],
+    },
+    statistics: {},
+  });
+
+  const roster = {
+    supportEmails: new Set(["tine@lovable.dev"]),
+    supportAdminIds: new Set(["10476723"]),
+  };
+
+  it("support reply BEFORE the inbox anchor → FRT clamped to 0 (met)", () => {
+    const r = computeSla(
+      conv([
+        {
+          created_at: CREATED + 60,
+          part_type: "comment",
+          author: { type: "user", id: "contact-tine", name: "Tine", email: "Tine@Lovable.dev" },
+          body: "<p>on it</p>",
+        },
+      ]),
+      roster,
+    );
+    expect(r.firstSupportReplyS).toBe(CREATED + 60);
+    expect(r.firstSupportReplyFromInboxS).toBe(0);
+    expect(r.firstSupportReplyFromInboxBusinessHoursS).toBe(0);
+  });
+
+  it("matches by intercom_admin_id too", () => {
+    const r = computeSla(
+      conv([
+        {
+          created_at: CREATED + ANCHOR_OFFSET + 600,
+          part_type: "comment",
+          author: { type: "admin", id: "10476723", name: "Tine" },
+          body: "<p>hi</p>",
+        },
+      ]),
+      roster,
+    );
+    expect(r.firstSupportReplyFromInboxS).toBe(600);
+  });
+
+  it("Sam (role=ai, not on the roster) does NOT satisfy First Response", () => {
+    const r = computeSla(
+      conv([
+        {
+          created_at: CREATED + ANCHOR_OFFSET + 30,
+          part_type: "comment",
+          author: { type: "admin", id: "9520895", name: "Sam", email: "lovable@parahelp.com" },
+          body: "<p>AI answer</p>",
+        },
+      ]),
+      roster,
+    );
+    expect(r.firstSupportReplyS).toBeNull();
+    expect(r.firstSupportReplyFromInboxS).toBeNull();
+  });
+
+  it("a non-roster @lovable.dev human does NOT satisfy First Response when a roster is supplied", () => {
+    const r = computeSla(
+      conv([
+        {
+          created_at: CREATED + ANCHOR_OFFSET + 30,
+          part_type: "comment",
+          author: { type: "admin", id: "555", name: "CSM", email: "csm@lovable.dev" },
+          body: "<p>relaying</p>",
+        },
+      ]),
+      roster,
+    );
+    expect(r.firstSupportReplyFromInboxS).toBeNull();
+  });
+
+  it("NO roster → falls back to any human_admin reply (back-compat)", () => {
+    const parts = [
+      {
+        created_at: CREATED + ANCHOR_OFFSET + 30,
+        part_type: "comment",
+        author: { type: "admin", id: "555", name: "CSM", email: "csm@lovable.dev" },
+        body: "<p>relaying</p>",
+      },
+    ];
+    expect(computeSla(conv(parts)).firstSupportReplyFromInboxS).toBe(30);
+    expect(
+      computeSla(conv(parts), { supportEmails: new Set(), supportAdminIds: new Set() })
+        .firstSupportReplyFromInboxS,
+    ).toBe(30);
+  });
+
+  it("extractTimeline lowercases author emails", () => {
+    const r = computeSla(
+      conv([
+        {
+          created_at: CREATED + ANCHOR_OFFSET + 30,
+          part_type: "comment",
+          author: { type: "user", id: "x", name: "T", email: "MiXeD@Lovable.DEV" },
+          body: "<p>hi</p>",
+        },
+      ]),
+    );
+    expect(r.timeline.some((p) => p.authorEmail === "mixed@lovable.dev")).toBe(true);
+  });
+});
