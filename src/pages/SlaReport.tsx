@@ -372,6 +372,7 @@ function SeverityTable({
         <CardTitle className="text-base">{title} — vs PROPOSED targets</CardTitle>
         <CardDescription className="text-xs">
           % met = met / (met + unexcused breach). Median / p90 are the calibration evidence.
+          {metric === "first_response" && " First response is scoped to customer-initiated tickets (agent-opened tickets excluded)."}
         </CardDescription>
       </CardHeader>
       <CardContent className="overflow-x-auto">
