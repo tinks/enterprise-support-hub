@@ -925,3 +925,73 @@ describe("computeSla — support-roster FRT", () => {
     expect(r.timeline.some((p) => p.authorEmail === "mixed@lovable.dev")).toBe(true);
   });
 });
+
+// ============================================================================
+// Resolution clock — a close STOPS the clock (phantom-breach regression).
+// ============================================================================
+describe("computeSla — close stops the resolution clock", () => {
+  const CREATED = 7_200_000_000;
+  const ANCHOR = CREATED + 600; // inbox assignment 10m after creation
+  const ADMIN = { type: "admin", id: "10476723", name: "Matt", email: "matt.niiro@lovable.dev" };
+  const CUST = { type: "user", id: "cust", name: "Cust", email: "a@acme.com" };
+
+  const conv = (parts: any[], statistics: any) => ({
+    created_at: CREATED,
+    source: { author: CUST, body: "<p>help</p>" },
+    conversation_parts: {
+      conversation_parts: [
+        {
+          created_at: ANCHOR,
+          part_type: "assignment",
+          author: { type: "admin", id: "999", name: "router" },
+          assigned_to: { type: "team", id: "8484447" },
+          body: null,
+        },
+        ...parts,
+      ],
+    },
+    statistics,
+  });
+
+  const HOUR = 3600;
+  const DAY = 86400;
+
+  it("close stops the clock across a reopen gap", () => {
+    const close1 = ANCHOR + 2 * HOUR;
+    const reopen = close1 + 30 * DAY;
+    const close2 = reopen + 2 * HOUR;
+    const r = computeSla(
+      conv(
+        [
+          { created_at: ANCHOR + HOUR, part_type: "comment", author: ADMIN, body: "<p>fixed</p>" },
+          { created_at: ANCHOR + HOUR + 600, part_type: "comment", author: CUST, body: "<p>thanks!</p>" },
+          { created_at: close1, part_type: "close", author: ADMIN, body: null },
+          { created_at: reopen, part_type: "open", author: CUST, body: "<p>back again</p>" },
+          { created_at: reopen + HOUR, part_type: "comment", author: ADMIN, body: "<p>done</p>" },
+          { created_at: close2, part_type: "close", author: ADMIN, body: null },
+        ],
+        { first_close_at: close1, last_close_at: close2, count_reopens: 1 },
+      ),
+    );
+    expect(r.resolutionActiveS).not.toBeNull();
+    expect(r.resolutionActiveS as number).toBeLessThan(6 * HOUR);
+    expect(r.resolutionActiveS as number).toBeGreaterThan(0);
+  });
+
+  it("customer-last-word close, no reopen, adds only the small tail", () => {
+    const lastCustomer = ANCHOR + HOUR + 600;
+    const close1 = lastCustomer + 300;
+    const r = computeSla(
+      conv(
+        [
+          { created_at: ANCHOR + HOUR, part_type: "comment", author: ADMIN, body: "<p>fixed</p>" },
+          { created_at: lastCustomer, part_type: "comment", author: CUST, body: "<p>thanks!</p>" },
+          { created_at: close1, part_type: "close", author: ADMIN, body: null },
+        ],
+        { first_close_at: close1, last_close_at: close1, count_reopens: 0 },
+      ),
+    );
+    // active = anchor→admin reply (1h) + customer last word→close (5m)
+    expect(r.resolutionActiveS).toBe(HOUR + 300);
+  });
+});
