@@ -1,66 +1,48 @@
 
-## Scope
+# SLA breach overrides — write/read map + minimal surfacing fix
 
-Documentation only. No SQL, RPC, edge-function, or UI behavior changes. Two files touched:
+## 1. Where overrides are CREATED (write)
 
-1. `.lovable/project-knowledge.md` — surgical edits inside `## v3 Customer resolution (Track A)` (lines 826–892).
-2. `src/pages/FlowDiagram.tsx` — update the `customer-resolution` node bullets (around lines 785–802) to reflect the new Rule 0 and in-scope coverage.
+- **`src/pages/SlaWorkbench.tsx` — `ExcuseDialog`** (lines **1767–1834**).
+  - Reason `<Select>` with 4 options — Holiday / Customer-side hold / Data artifact / Other (lines **1810–1821**).
+  - Free-text `<Textarea>` for `note` (lines **1822–1825**).
+  - Upsert into `sla_breach_overrides` on `(intercom_conversation_id, metric)` — lines **1789–1794**.
+- Trigger buttons live in `ComplianceSection`'s FR + Resolution breach tables via `<ExcuseCell onExcuse={…}>` (lines **1605–1616** and **1682–1693**), which open the dialog by setting `excuseTarget` (state at **1229**).
+- This is the **only** create site in the frontend. (Delete/remove path: `.from("sla_breach_overrides").delete()` at lines **1612** and **1689**.)
 
-## Edits to `.lovable/project-knowledge.md`
+## 2. Where overrides are READ + RENDERED
 
-### A. Resolver — LOCKSTEP contract (lines 851–867)
+Shared hook: **`src/hooks/useSlaBatch.ts`** loads the full table into a `Map` (lines **221–240**) and exposes `isExcused` (247) + `getOverride` (243). Full row is available to consumers, including `reason` and `note`.
 
-Prepend a new Rule 0 above the current override rule and renumber the rest:
+Render sites:
 
-> **0. population gate** — if the ticket's Intercom `tags` contain `enterprise-not-enterprise`, resolve to `customer_key/kind/method = 'not_enterprise'` (confidence `high`). Evaluated ABOVE override so an out-of-scope ticket is excluded even if an override was set.
->
-> _Why:_ whether a ticket is Enterprise work is a *population* question, separate from *which customer* it is. It's driven by a ticket tag (not an account field) because enterprise-ness is temporal — a ticket reflects the customer's status at its moment. Because the gate reads the live tag, removing the label re-derives the ticket normally on the next write/sync (future-proof if the company later upgrades/returns to Enterprise).
+| # | File : lines | Uses `reason`? | Uses `note`? | What it shows |
+|---|---|---|---|---|
+| A | `src/pages/SlaDashboard.tsx` : **291–292, 317–318** (leadership scorecard, per-customer rows) | No | No | Just a count: `· {N} excused` next to breach counts. |
+| B | `src/pages/SlaWorkbench.tsx` `ComplianceSection` FR-breach table row : **1578–1618** | No (row-level) | No | Row visually marked with `opacity-60 line-through` (line **1582**). |
+| C | `src/pages/SlaWorkbench.tsx` `ComplianceSection` Resolution-breach table row : **1652–1694** | No (row-level) | No | Same strikethrough treatment (line **1656**). |
+| D | `src/pages/SlaWorkbench.tsx` `ExcuseCell` : **1723–1765** (rendered inside each excused row in B/C above) | Yes — inline text `Excused · {reason}` (lines **1736–1741**) | **Only as a native browser `title=` tooltip** on the same span (line **1738**) | Reason is visible; note is effectively hidden — hover-only, no visual affordance, doesn't work on touch, easy to miss. |
 
-Add a short note under the lockstep bullets:
+No other components query `sla_breach_overrides` or consume `getOverride`/`isExcused`.
 
-- `v3_derive_customer` signature is now `(_contact_email, _override_key, _contact_domain, _slack_channel_id_detected, _workspace_id_detected, _tags text[])` — 6 args. The old 5-arg and 2-arg overloads were dropped; a single canonical function remains.
-- BEFORE trigger `intercom_tickets_v3_apply_customer` passes `NEW.tags`; `backfill_v3_customer_keys` passes each ticket's tags; Deno `_shared/v3-customer.ts` passes `_tags`. All lockstep components updated.
+## 3. Gap confirmation
 
-### B. Data model (lines 830–840)
+The `note` a user types in the ExcuseDialog is **never rendered as visible text anywhere** in the app after save. Its single surfacing is the `title={override.note ?? ""}` attribute on the "Excused · {reason}" span in `ExcuseCell` (SlaWorkbench.tsx line **1738**) — a browser tooltip on hover. `reason` is at least shown inline on that same span; on the Dashboard, neither reason nor note appears at all (only an "excused" count). So yes, the gap is real: humans have no visible way to review the note they wrote.
 
-Append to the `intercom_tickets_v3` columns bullet: `customer_kind` and `customer_resolution_method` now include the value `not_enterprise`.
+## 4. Minimal surfacing fix (proposal)
 
-### C. Verified coverage (line 871)
+Scope: **`src/pages/SlaWorkbench.tsx` only** — extend the existing "Excused · {reason}" indicator inside `ExcuseCell` (lines **1733–1751**) so the note is visible, not hover-gated. No new components, no schema/hook/query changes, no Dashboard changes (Dashboard is intentionally aggregate-only; the practitioner surface is Workbench, which is already where the "Excuse" action lives per project docs).
 
-Extend the paragraph to document:
+Two options, both small; recommend **Option A** for lowest change:
 
-- `v3_coverage_current()` now returns `excluded_not_enterprise` (count of tickets gated to `not_enterprise`) and `population` (= `total_tickets − excluded_not_enterprise`).
-- `pct_attributed` is now computed over `population` (in-scope tickets), NOT over `total_tickets`.
-- `v3_coverage_snapshots` gained an `excluded_not_enterprise` column, persisted by `v3_capture_coverage_snapshot()`.
-- _Why:_ excluding out-of-scope tickets from the denominator keeps coverage honest — an assist to a non-Enterprise party shouldn't count for or against attribution. The excluded count is shown, never silently dropped.
+- **Option A — inline note under the reason chip (recommended).** In `ExcuseCell`, keep the current inline `Excused · {reason}` chip and, when `override.note` is non-empty, render a second line beneath it: `<div className="text-[11px] text-muted-foreground italic max-w-[280px] truncate" title={override.note}>"{override.note}"</div>`. Keeps `title` as the full-text fallback for long notes; matches the existing muted-foreground / xs-text idiom used throughout `ComplianceSection`. Both FR and Resolution breach tables inherit it automatically since both use `ExcuseCell`. The `Action` column already renders arbitrary content, so no table layout changes required beyond the cell being taller when a note exists.
 
-### D. UI — `/customers` Coverage tab (line 875)
+- **Option B — small expand toggle on the chip.** Turn "Excused · {reason}" into a `<button>` with a `▸/▾` glyph that toggles a note block below. More clicks, more state, no real benefit given notes are short.
 
-Extend the Coverage bullet: adds a **"Non-Enterprise (excluded)"** KPI card (with tooltip); the attributed line now reads "N of {population} in-scope tickets".
+Not proposed: Dashboard surfacing, a separate audit page, or hover-cards — all would be over-engineering for the stated problem ("user entered notes and has no way to view them"). If leadership later needs to see excuse rationale on `/sla`, that is a follow-up.
 
-### E. Design principles (lines 887–891)
+### Files that would change (fix pass, for reference only — do not implement yet)
+- `src/pages/SlaWorkbench.tsx` — `ExcuseCell` body only (~4 lines added).
 
-Replace the single prospect bullet with the three-way taxonomy:
-
-- **not-enterprise** — never an Enterprise customer / out of scope (e.g. a Support Engineer assisting a non-Enterprise party) → `enterprise-not-enterprise` tag → excluded from the population.
-- **prospect** — pre-sales inbound (pricing, security, exploring upgrade) → `enterprise-prospect` tag + a real registry account → counted (pre-sales load).
-- **customer (incl. former)** — is or was a real Enterprise customer, even briefly (e.g. a churned/torn-down account) → plain registry account, no tag → attributed and counted.
-
-Note: all three ride on the ticket (Intercom tags, read-only), not a mutable account field, because status is temporal.
-
-## Edits to `src/pages/FlowDiagram.tsx`
-
-In the `customer-resolution` node (around lines 785–802):
-
-- Rewrite the resolver-order bullet (line 793) to start with the population gate:
-  `Resolver order (first match wins): tag 'enterprise-not-enterprise' → 'not_enterprise' (population gate, short-circuits before override) → override → slack_channel (mapped, non-internal) → domain (…) → workspace_id (medium) → 'unattributed'.`
-- Update the LOCKSTEP bullet (line 794) to mention the new 6th arg `_tags text[]` on `v3_derive_customer` and that the BEFORE trigger + backfill + Deno wrapper all pass tags.
-- Update the coverage bullet (line 798) to say `pct_attributed` is computed over `population` = `total_tickets − excluded_not_enterprise`, and that `v3_coverage_current` / `v3_coverage_snapshots` expose `excluded_not_enterprise`.
-- Update the UI bullet (line 799) to mention the new "Non-Enterprise (excluded)" KPI card and the "N of {population} in-scope tickets" label.
-- Replace the "prospects are real accounts" clause in the design-principles bullet (line 802) with the three-way not-enterprise / prospect / customer taxonomy summary.
-
-## Reconciliation notes
-
-Before writing, each statement will be re-checked against the current code (`_shared/v3-customer.ts`, `src/pages/Customers.tsx`, existing knowledge doc). Anything that doesn't match the code will be flagged in the response rather than silently written — for example, if the SQL side of any lockstep component turns out not to have been updated yet, that will be called out instead of asserted.
-
-No other sections of the knowledge doc or FlowDiagram are touched.
+### Docs-of-record follow-up
+After the fix, one-line update to `.lovable/project-knowledge.md` + `src/pages/FlowDiagram.tsx` where the SLA Workbench compliance section is described, noting that excused breaches now show reason **and note** inline in the breach tables.

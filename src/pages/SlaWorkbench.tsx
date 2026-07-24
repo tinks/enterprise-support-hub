@@ -1732,21 +1732,28 @@ function ExcuseCell({
 }) {
   if (excused && override) {
     return (
-      <div className="inline-flex items-center gap-2">
-        <span
-          className="text-xs text-muted-foreground"
-          title={override.note ?? ""}
-        >
-          Excused · {override.reason.replace("_", " ")}
-        </span>
-        <button
-          onClick={onRemove}
-          disabled={!isAdmin}
-          className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
-          title={isAdmin ? "Remove override" : "Admin only"}
-        >
-          Remove
-        </button>
+      <div className="inline-flex flex-col items-end gap-0.5 text-right no-underline">
+        <div className="inline-flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            Excused · {override.reason.replace("_", " ")}
+          </span>
+          <button
+            onClick={onRemove}
+            disabled={!isAdmin}
+            className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
+            title={isAdmin ? "Remove override" : "Admin only"}
+          >
+            Remove
+          </button>
+        </div>
+        {override.note && (
+          <div
+            className="text-[11px] text-muted-foreground italic max-w-[280px] truncate"
+            title={override.note}
+          >
+            “{override.note}”
+          </div>
+        )}
       </div>
     );
   }
