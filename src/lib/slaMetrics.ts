@@ -569,6 +569,20 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
     let segStart = slaClockStartS;
     for (const p of timeline) {
       if (p.ts < slaClockStartS || p.ts > closeAt) continue;
+      // A close STOPS the resolution clock — the ball is no longer ours once the
+      // ticket is closed. A later customer message / reopen starts a fresh
+      // in-our-court segment via the customer branch below. Without this, a close
+      // that follows the customer's last word ("thanks!" → close with no reply
+      // after) left the ball "with us"; if the ticket was later reopened,
+      // last_close jumped forward and the whole dormant gap was wrongly counted as
+      // active resolution time (phantom breach).
+      if (p.partType === "close") {
+        if (ballWithUs) {
+          total += clip(segStart, p.ts);
+          ballWithUs = false;
+        }
+        continue;
+      }
       if (p.actor === "customer") {
         if (!ballWithUs) {
           ballWithUs = true;
