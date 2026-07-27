@@ -253,11 +253,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    const summary = { lookbackDays, dryRun, scanned: messages.length, extracted, inserted, would_insert, skipped_domain_exists, skipped_account_key_exists, unparsed, errors };
+    const summary = { lookbackDays, dryRun, scanned: messages.length, extracted, inserted, would_insert, skipped_domain_exists, skipped_account_key_exists, unparsed, malformed, errors };
     console.log("poll-slack-closed-won:", summary);
+    if (!dryRun) {
+      const problems = [...errors, ...malformed.map((m) => `malformed domain ${m}`)];
+      await recordIntegrationHealth(
+        supabase,
+        "slack_closed_won_poll",
+        problems.length ? "error" : "ok",
+        problems.length ? problems.join("; ").slice(0, 400) : null,
+      );
+    }
     return new Response(JSON.stringify(summary), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
     console.error("poll-slack-closed-won fatal:", err);
+    if (!dryRun) {
+      await recordIntegrationHealth(supabase, "slack_closed_won_poll", "error", `Fatal: ${String(err).slice(0, 400)}`);
+    }
     return new Response(
       JSON.stringify({ error: "Internal error", details: String(err) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
