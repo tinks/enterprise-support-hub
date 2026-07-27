@@ -74,6 +74,13 @@ function linearIssueId(url: string): string | null {
   return m ? m[1] : null;
 }
 
+function escalatedIssueUrl(ca: any): string | null {
+  const v = ca?.["Escalated Issue"] ?? ca?.["Linear Issue"];
+  const s = v == null ? "" : String(v).trim();
+  return s || null;
+}
+
+
 
 function fmtDate(v: string | number | null | undefined) {
   if (v == null) return "—";
