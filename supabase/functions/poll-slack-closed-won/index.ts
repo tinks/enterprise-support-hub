@@ -142,10 +142,14 @@ Deno.serve(async (req) => {
     // 2. Extract candidates
     const candidatesByDomain = new Map<string, { account_key: string; label: string; domain: string }>();
     let extracted = 0;
+    const unparsed: string[] = [];
     for (const m of messages) {
       const text = collectText(m);
       const c = extractCompany(text);
-      if (!c) continue;
+      if (!c) {
+        if (unparsed.length < 10) unparsed.push(text.replace(/\s+/g, " ").slice(0, 160));
+        continue;
+      }
       const account_key = toAccountKey(c.name);
       if (!account_key) continue;
       extracted++;
@@ -156,7 +160,7 @@ Deno.serve(async (req) => {
 
     const candidates = [...candidatesByDomain.values()];
     if (candidates.length === 0) {
-      const summary = { scanned: messages.length, extracted, inserted: 0, skipped_domain_exists: 0, skipped_account_key_exists: 0, errors: [] as string[] };
+      const summary = { lookbackDays, dryRun, scanned: messages.length, extracted, inserted: 0, skipped_domain_exists: 0, skipped_account_key_exists: 0, unparsed, errors: [] as string[] };
       console.log("poll-slack-closed-won:", summary);
       return new Response(JSON.stringify(summary), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
