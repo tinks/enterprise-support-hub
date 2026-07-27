@@ -222,7 +222,7 @@ export default function CustomerReport() {
         severity: parseSeverity(ca?.Severity),
         ticketType: ca?.["Ticket type"] || "—",
         escalatedToEng: ca?.["Escalated to Engineering"] === "Yes",
-        linkedIssue: ca?.["Linear Issue"] || null,
+        linkedIssue: escalatedIssueUrl(ca),
         state: t.lifecycle_status === "reopened_after_finalize" ? "Reopened" : "Open",
         created: t.intercom_created_at,
       });
@@ -237,7 +237,7 @@ export default function CustomerReport() {
         severity: parseSeverity(ca?.Severity),
         ticketType: ca?.["Ticket type"] || "—",
         escalatedToEng: ca?.["Escalated to Engineering"] === "Yes",
-        linkedIssue: ca?.["Linear Issue"] || null,
+        linkedIssue: escalatedIssueUrl(ca),
         state: "Closed",
         created: row.intercom_created_at,
       });
