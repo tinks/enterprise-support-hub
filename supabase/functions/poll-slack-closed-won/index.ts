@@ -85,7 +85,21 @@ Deno.serve(async (req) => {
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
-  const oldest = Math.floor(Date.now() / 1000) - LOOKBACK_DAYS * 24 * 60 * 60;
+
+  // Optional diagnostic overrides: { lookbackDays?: number, dryRun?: boolean }
+  let lookbackDays = LOOKBACK_DAYS;
+  let dryRun = false;
+  try {
+    const b = await req.json();
+    if (b && typeof b === "object") {
+      if (typeof b.lookbackDays === "number" && b.lookbackDays > 0 && b.lookbackDays <= 365) {
+        lookbackDays = Math.floor(b.lookbackDays);
+      }
+      if (b.dryRun === true) dryRun = true;
+    }
+  } catch { /* no body */ }
+
+  const oldest = Math.floor(Date.now() / 1000) - lookbackDays * 24 * 60 * 60;
 
   try {
     // 1. Page through conversations.history
