@@ -15,6 +15,7 @@ import {
   CLEAN_DATA_START_UNIX,
   decideFinalizedUpdate,
   domainOf,
+  extractTags,
   intercomHeaders,
   isFinalizedTicketState,
   isTicketPayload,
