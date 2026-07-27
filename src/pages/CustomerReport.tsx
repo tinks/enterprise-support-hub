@@ -296,6 +296,71 @@ export default function CustomerReport() {
               </CardContent>
             </Card>
 
+            {/* Escalated to Dev */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Escalated to Dev</CardTitle>
+                <CardDescription className="text-xs">
+                  {escalated.length} escalated item(s) — bugs, incidents, or escalated to engineering (open + closed)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-left">Subject</TableHead>
+                      <TableHead className="text-left w-[140px]">Intercom ID</TableHead>
+                      <TableHead className="text-left w-[100px]">Severity</TableHead>
+                      <TableHead className="text-left w-[110px]">Type</TableHead>
+                      <TableHead className="text-left w-[100px]">Esc→Eng</TableHead>
+                      <TableHead className="text-left w-[130px]">Linked issue</TableHead>
+                      <TableHead className="text-left w-[100px]">State</TableHead>
+                      <TableHead className="text-left w-[110px]">Created</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {escalated.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-sm text-muted-foreground py-8 text-center">
+                          No escalated items for this customer.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {escalated.map((e) => (
+                      <TableRow key={e.id}>
+                        <TableCell className="text-left max-w-[320px] truncate">{e.subject || "(no subject)"}</TableCell>
+                        <TableCell className="text-left tabular-nums text-xs select-all">{e.intercom_conversation_id}</TableCell>
+                        <TableCell className="text-left">{e.severity == null ? "—" : `Sev ${e.severity}`}</TableCell>
+                        <TableCell className="text-left">{e.ticketType}</TableCell>
+                        <TableCell className="text-left">
+                          {e.escalatedToEng
+                            ? <Badge variant="outline" className="text-[10px] border-primary/40 bg-primary/10">Yes</Badge>
+                            : "—"}
+                        </TableCell>
+                        <TableCell className="text-left">
+                          {e.linkedIssue ? (
+                            <a
+                              href={e.linkedIssue}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary underline underline-offset-2 text-xs"
+                            >
+                              {linearIssueId(e.linkedIssue) ?? "Link"}
+                            </a>
+                          ) : "—"}
+                        </TableCell>
+                        <TableCell className="text-left">
+                          <Badge variant="outline" className="text-[10px]">{e.state}</Badge>
+                        </TableCell>
+                        <TableCell className="text-left tabular-nums">{fmtDate(e.created)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+
             {/* Open issues */}
             <Card>
               <CardHeader className="pb-2">
