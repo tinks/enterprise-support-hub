@@ -499,12 +499,19 @@ Empty/missing values are omitted so existing values are never overwritten with b
 - Each `Tooltip` uses a controlled `open` prop: `open={!expanded && activeTooltip === item.label}`
 - `activeTooltip` is cleared on sidebar expand and on mouse leave
 
-### Dashboards flyout
-- Joel and Kristina are grouped under a "Dashboards" parent item
-- Hovering "Dashboards" reveals a flyout submenu rendered via `DropdownMenuPortal` so it is not clipped by the sidebar's scroll container
-- The flyout uses a **150ms debounce** (`closeTimerRef`) so the menu stays mounted while the mouse crosses from the trigger to the submenu
-- Clicking Joel or Kristina navigates to `/my/joel` or `/my/kristina` and closes the flyout
-- When the mouse leaves both the sidebar and the flyout, everything collapses
+### Left-nav information architecture (regroup `b5b66e0`)
+- The rail went from a **flat ~17-item alphabetical list** to **6 rail items grouped by USE** (job-to-be-done), each one a hover-flyout. The two `v2` nav entries were removed.
+- Structure:
+  - **Reports** ▸ Analytics (`/`) · Analytics v3 · Insights · SLA Report
+  - **Customer report** — standalone top-level link (kept there because CSMs were already told it's there; moves under Reports later)
+  - **Issues** ▸ Inbox (`/conversations`) · Inbox v3
+  - **Dashboards** ▸ SLA Dashboard (`/sla`) · Joel · Kristina · Tine · Eren · Matt
+  - **Tools** ▸ Import · SLA Workbench
+  - **Admin** ▸ Customers · Settings · Knowledge · Flow · Changelog
+- **Why by use, not by name:** you navigate by intent ("report", "work the queue", "configure"), and the flat list overflowed a 13" screen.
+- **Deliberate tradeoff:** a feature family is **split across use-groups** — SLA Report → Reports, SLA Dashboard → Dashboards, SLA Workbench → Tools. Mitigated by keeping the family name in the **child label** ("SLA Report" / "SLA Dashboard" / "SLA Workbench") so it stays findable by reading.
+- **Mechanic:** one **generic per-row hover flyout** (generalized from the old single hardcoded Dashboards flyout), positioned at each group row via `getBoundingClientRect().top`, rendered outside the sidebar so it isn't clipped, with the same ~150ms close debounce so the mouse can cross into it. A group that shrinks to exactly **one item degrades to a plain link** — future-proofing as legacy/v2 options fall off.
+- **De-nav'd, not deleted:** only the v2 NAV ENTRIES were removed; the `/analytics-v2` and `/inbox-v2` ROUTES still exist and are reachable by URL. Data cleanup is a separate later task.
 
 ---
 
@@ -1150,6 +1157,10 @@ Third SLA view (protected route, nav link "SLA Report"), shipped in commit `7a28
 - **FR BASIS = CUSTOMER-INITIATED, on ALL pages** (commit `91ae443`). Every First-Response tally on **Dashboard, Report and Workbench** counts only rows where `sla.initiatedBy === "customer"`. **Agent-initiated tickets** (we opened them — outbound, CSM relay, forwarded email) are excluded from First Response because **there is no customer waiting**, so "first response" is meaningless there. **Resolution always covers all in-scope tickets.** _Why it's called out:_ `SlaReport` originally computed FR over ALL initiations while the Dashboard used customer-initiated only, so the two surfaces disagreed on the same month; the fix made the basis identical everywhere and the wording explicit on each surface.
 
 **Test data:** renders the same shared `TestDataToggle` + `TestDataBanner` (imported from `SlaWorkbench.tsx`), default OFF — test-account tickets are excluded from the population unless the toggle is ON, exactly as on Dashboard/Workbench.
+
+### Where these surfaces live in the nav (regroup `b5b66e0`)
+
+The left nav is grouped **by use**, not by feature family, so the SLA surfaces are deliberately split: **SLA Report** sits under *Reports*, **SLA Dashboard** under *Dashboards*, **SLA Workbench** under *Tools*; **Customer report** is a standalone top-level link. The family name is kept in each child label so it's still findable by reading. Full rationale and mechanics in §19 "Left-nav information architecture".
 
 ### The three SLA surfaces — division of labour (reorg `f3bb52f`)
 
