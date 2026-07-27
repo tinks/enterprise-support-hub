@@ -120,19 +120,29 @@ Deno.serve(async (req) => {
   // reopen/silent-nudge path (mirroring sync-v3-closed) instead of clobbering them.
   const ids = conversations.map((c) => String(c.id));
   const existingFinalized = new Map<string, any>();
+  // Non-finalized rows, used for the delta check that decides whether an open
+  // ticket needs a full GET (to refresh custom_attributes / raw_payload / signals).
+  const existingOpen = new Map<string, { id: string; intercom_updated_at: string | null; last_full_fetch_at: string | null }>();
   if (ids.length) {
     const { data: existing } = await supabase
       .from("intercom_tickets_v3")
-      .select("id, intercom_conversation_id, lifecycle_status, intercom_updated_at, reopen_count, reopen_count_at_finalize, silent_update_count, raw_payload")
+      .select("id, intercom_conversation_id, lifecycle_status, intercom_updated_at, last_full_fetch_at, reopen_count, reopen_count_at_finalize, silent_update_count, raw_payload")
       .in("intercom_conversation_id", ids);
     for (const r of existing || []) {
       if (r.lifecycle_status === "finalized") {
         existingFinalized.set(String(r.intercom_conversation_id), r);
+      } else {
+        existingOpen.set(String(r.intercom_conversation_id), {
+          id: r.id,
+          intercom_updated_at: r.intercom_updated_at,
+          last_full_fetch_at: r.last_full_fetch_at,
+        });
       }
     }
   }
 
-  let inserted = 0, updated = 0, skipped = 0, failed = 0, reopened = 0, silentNudges = 0, ticketsFinalized = 0;
+  let inserted = 0, updated = 0, skipped = 0, failed = 0, reopened = 0, silentNudges = 0, ticketsFinalized = 0, attrRefreshed = 0;
+
 
   for (const conv of conversations) {
     const convId = String(conv.id);
