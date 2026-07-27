@@ -10,7 +10,8 @@ export type IntegrationKey =
   | "intercom_csat"
   | "intercom_import"
   | "gmail_poll"
-  | "inbox_v2_sync";
+  | "inbox_v2_sync"
+  | "slack_closed_won_poll";
 
 export type IntegrationStatus = "ok" | "auth_error" | "error";
 
