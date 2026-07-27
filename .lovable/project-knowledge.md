@@ -1160,6 +1160,29 @@ One engine, one hook (`useSlaBatch`), three purpose-built pages:
 | **`/sla`** (`SlaDashboard.tsx`) | live **OPS** view | rolling window | population/coverage chips, per-severity compliance scorecard, per-severity breach badges, "how these are measured" popover. Links out to the Workbench to investigate or override. |
 | **`/sla-report`** (`SlaReport.tsx`) | leadership, the **formal monthly report** | one **calendar month** (finalized-in-month) | lean layout: proposal banner → §1 scope & population (+ loud Unclassified block) → §2 headline `%met` + met/breach/excused/not-evaluable counts → §3a/§3b by-severity scorecard with Avg/Median/p90 → §4 breach **summary** + Workbench link → §5 lean by-source → §6 caveats. **A data-backed PROPOSAL** — `SLA_TARGETS` is provisional. |
 | **`/sla-workbench`** (`SlaWorkbench.tsx`) | practitioners | filterable (window / customer / frBasis) | per-ticket tables, **per-ticket breach lists with excuse / remove** (the only place `sla_breach_overrides` is written; excused rows render the override **reason AND free-text note inline** beneath the "Excused · {reason}" chip — muted italic, quoted, truncated with the full note preserved in a `title` tooltip; commit `daebf72`, UI-only in `ExcuseCell`, applies to both FR and Resolution tables), **Work-Before-Ticket card**, **Excluded-by-reason card**, by-source breakout, KPI tiles, live Analyze-by-ID. |
+| **`/customer-report`** (`CustomerReport.tsx`) — **experimental prototype** (Beaker nav, out to CSMs for feedback) | **CSMs**, per-customer | preset range (This month default / Last month / 30d / 90d) | one customer at a time: summary stat cards (open, closed, FR %met, Res %met, breaches, CSAT) + Escalated-to-Dev / Open issues / Closed issues tables. Reuses `useSlaBatch` + `evaluateCompliance` — no new SLA computation. |
+
+#### Customer Report — `/customer-report` (`src/pages/CustomerReport.tsx`) — experimental prototype
+
+A per-customer SLA + volume view for CSM-style consumption. Route in `App.tsx`, nav entry in `AppLayout` flagged experimental (Beaker icon).
+
+**Audience / why the shape:** CSMs do **not** have Intercom access, so **all** detail is self-contained in-app. Intercom conversation IDs render as **plain selectable text** (so a CSM can quote the id to support), deliberately **not** deep-links. The one external link on the page is the **Escalated Issue (Linear)** — the actual escalated-issue reference.
+
+**Numbers reuse the engine:** consumes `useSlaBatch` + `evaluateCompliance` (**not** a new SLA computation), so every figure matches the Dashboard/Report exactly. Currently-open counts come from a light `intercom_tickets_v3` query (`lifecycle_status ∈ open / reopened_after_finalize`) by `customer_key`; the customer list comes from `v3_customer_accounts` (excludes `is_test`).
+
+**Filters:** searchable customer combobox; date range (This month **default** / Last month / 30d / 90d, applied to closed rows via `finalized_at` / `closed_at`); "Show closed issues" toggle, **default off**.
+
+**Summary cards:** Currently open (per-severity mini-breakdown) · Closed in range (per-severity mini-breakdown; **Unclassified shown only when >0** and styled as an anomaly — closed tickets should always be classified) · First Response met % (**customer-initiated** scope) · Resolution met % · Breaches · CSAT positive (% of ratings 4–5 on the 1–5 scale; the description carries the response **count** and the average).
+
+**Escalated to Dev table** — independent of the Show-closed toggle; **always** shows open **and** closed escalations. Criteria: `Escalated to Engineering = Yes` **OR** `Ticket type ∈ {Bug, Incident}`. Columns: Subject · Intercom ID · Severity · Type · Esc→Eng · Linked issue · State · Created. **Linked issue** reads the **`Escalated Issue`** custom attribute (legacy `Linear Issue` fallback) and renders a clickable Linear link showing the issue id (e.g. `ENT-2804`). _Deliberate:_ it does **not** scrape notes for Linear URLs — a URL in a note may be a related investigation, not the filed issue.
+
+**Open issues table** (always): Subject · Intercom ID · Severity · Created · Last activity (`intercom_updated_at`) · State — no outcome columns, because open tickets have no resolution yet.
+
+**Closed issues table** (only when Show-closed is on): Subject · Intercom ID · Severity · Created · Resolved · First Response (value + met/breach) · Resolution (value + met/breach).
+
+**Status:** experimental prototype, out to CSMs for feedback.
+
+
 
 **Excused-breach note surfacing (`daebf72`, Workbench-only):** override `note` values used to live only in a native `title=` hover on the "Excused" chip — invisible on touch, no affordance, so a human who wrote a note had no reliable way to read it back ("captured but invisible" gap). `ExcuseCell` now renders the note inline (muted italic, quoted, truncated) directly beneath the "Excused · {reason}" chip on both the First-Response and Resolution breach tables, with the full note kept in a tooltip for long text. UI-only change — no schema, hook, query or engine touched. The Dashboard (`/sla`) is intentionally NOT changed: it stays aggregate and shows only an "excused" count.
 
