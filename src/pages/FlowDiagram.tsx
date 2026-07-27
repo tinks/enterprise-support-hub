@@ -750,13 +750,17 @@ function buildNodes(
       position: { x: COL_W * -0.6, y: ROW_H * 2.9 },
       data: {
         label: "Inbox v3 — open refresh",
-        desc: "Cheap freshness pass for open enterprise tickets. Search-payload only, no per-conversation GET.",
+        desc: "Cheap freshness pass for open enterprise tickets. Search-payload only, plus a delta-gated single GET when the ticket actually changed.",
         icon: Beaker,
         edgeFunction: "sync-v3-open",
         details: [
           "Cron sync-v3-open-frequent, every 5 min, windowHours=2.",
           "Upserts the minimum needed for the v3 inbox view: state, admin assignee, owner, subject, contact, timestamps. Never touches finalized rows; never overwrites product_area / classification / tags / csat_* — those are only trusted at close.",
+          "Delta-gated attribute refresh (Phase 1 Batch 1): open tickets used to carry STALE or NULL custom_attributes because the open path never called syncTicketAttributes — Severity, which drives the SLA target, was only refreshed at close. Verified failure: a ticket read Sev 4 in our store while Intercom said Sev 1, so it was judged against the wrong target.",
+          "Fix: needFull = new to us OR changed since our last FULL fetch. The delta compares live updated_at against last_full_fetch_at — deliberately NOT intercom_updated_at, which the minimal path advances and would therefore suppress refreshes forever. When needFull, a single GET /conversations/{id} refreshes raw_payload, custom_attributes (syncTicketAttributes → jsonb mirror + EAV table), writeV3Signals, and last_full_fetch_at. Unchanged tickets stay on the cheap no-GET minimal upsert. A ticket found closed/resolved at GET time is routed to finalizeConversation. Response carries an attr_refreshed counter.",
+          "Still poll-based only. Batch 2 (webhook triggering the same per-ticket full fetch in real time) and severity-change HISTORY tracking (needs event_details, absent at Intercom API version 2.11) are NOT implemented.",
         ],
+
         accent: "orange",
       },
     },
