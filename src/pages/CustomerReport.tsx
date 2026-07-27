@@ -191,6 +191,52 @@ export default function CustomerReport() {
     return { n: ratings.length, pctPositive: (positive / ratings.length) * 100, avg };
   }, [scored]);
 
+  const escalated = useMemo(() => {
+    type Row = {
+      id: string;
+      subject: string | null;
+      intercom_conversation_id: string;
+      severity: Severity | null;
+      ticketType: string;
+      escalatedToEng: boolean;
+      linkedIssue: string | null;
+      state: "Open" | "Reopened" | "Closed";
+      created: string | number | null;
+    };
+    const rows: Row[] = [];
+    for (const t of openTickets) {
+      const ca = t.raw_payload?.custom_attributes;
+      if (!isEscalated(ca)) continue;
+      rows.push({
+        id: t.id,
+        subject: t.subject,
+        intercom_conversation_id: t.intercom_conversation_id,
+        severity: parseSeverity(ca?.Severity),
+        ticketType: ca?.["Ticket type"] || "—",
+        escalatedToEng: ca?.["Escalated to Engineering"] === "Yes",
+        linkedIssue: ca?.["Linear Issue"] || null,
+        state: t.lifecycle_status === "reopened_after_finalize" ? "Reopened" : "Open",
+        created: t.intercom_created_at,
+      });
+    }
+    for (const { row } of scored) {
+      const ca = row.raw_payload?.custom_attributes;
+      if (!isEscalated(ca)) continue;
+      rows.push({
+        id: row.id,
+        subject: row.subject,
+        intercom_conversation_id: row.intercom_conversation_id,
+        severity: parseSeverity(ca?.Severity),
+        ticketType: ca?.["Ticket type"] || "—",
+        escalatedToEng: ca?.["Escalated to Engineering"] === "Yes",
+        linkedIssue: ca?.["Linear Issue"] || null,
+        state: "Closed",
+        created: row.intercom_created_at,
+      });
+    }
+    return rows;
+  }, [openTickets, scored]);
+
   const customerName = customer ? (customerLabels.get(customer) ?? accounts.find((a) => a.account_key === customer)?.label ?? customer) : null;
 
 
