@@ -62,6 +62,18 @@ function fmt(sec: number | null, clock: "business" | "calendar") {
   return (clock === "business" ? formatBusinessDuration : formatDuration)(sec);
 }
 
+function isEscalated(ca: any): boolean {
+  const tt = String(ca?.["Ticket type"] ?? "").toLowerCase();
+  const esc = String(ca?.["Escalated to Engineering"] ?? "").toLowerCase() === "yes";
+  return esc || tt === "bug" || tt === "incident";
+}
+
+function linearIssueId(url: string): string | null {
+  const m = url.match(/\/issue\/([A-Za-z0-9]+-\d+)/);
+  return m ? m[1] : null;
+}
+
+
 function fmtDate(v: string | number | null | undefined) {
   if (v == null) return "—";
   const d = typeof v === "number" ? new Date(v) : new Date(v);
@@ -179,6 +191,52 @@ export default function CustomerReport() {
     return { n: ratings.length, pctPositive: (positive / ratings.length) * 100, avg };
   }, [scored]);
 
+  const escalated = useMemo(() => {
+    type Row = {
+      id: string;
+      subject: string | null;
+      intercom_conversation_id: string;
+      severity: Severity | null;
+      ticketType: string;
+      escalatedToEng: boolean;
+      linkedIssue: string | null;
+      state: "Open" | "Reopened" | "Closed";
+      created: string | number | null;
+    };
+    const rows: Row[] = [];
+    for (const t of openTickets) {
+      const ca = t.raw_payload?.custom_attributes;
+      if (!isEscalated(ca)) continue;
+      rows.push({
+        id: t.id,
+        subject: t.subject,
+        intercom_conversation_id: t.intercom_conversation_id,
+        severity: parseSeverity(ca?.Severity),
+        ticketType: ca?.["Ticket type"] || "—",
+        escalatedToEng: ca?.["Escalated to Engineering"] === "Yes",
+        linkedIssue: ca?.["Linear Issue"] || null,
+        state: t.lifecycle_status === "reopened_after_finalize" ? "Reopened" : "Open",
+        created: t.intercom_created_at,
+      });
+    }
+    for (const { row } of scored) {
+      const ca = row.raw_payload?.custom_attributes;
+      if (!isEscalated(ca)) continue;
+      rows.push({
+        id: row.id,
+        subject: row.subject,
+        intercom_conversation_id: row.intercom_conversation_id,
+        severity: parseSeverity(ca?.Severity),
+        ticketType: ca?.["Ticket type"] || "—",
+        escalatedToEng: ca?.["Escalated to Engineering"] === "Yes",
+        linkedIssue: ca?.["Linear Issue"] || null,
+        state: "Closed",
+        created: row.intercom_created_at,
+      });
+    }
+    return rows;
+  }, [openTickets, scored]);
+
   const customerName = customer ? (customerLabels.get(customer) ?? accounts.find((a) => a.account_key === customer)?.label ?? customer) : null;
 
 
@@ -295,6 +353,71 @@ export default function CustomerReport() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Escalated to Dev */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Escalated to Dev</CardTitle>
+                <CardDescription className="text-xs">
+                  {escalated.length} escalated item(s) — bugs, incidents, or escalated to engineering (open + closed)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-left">Subject</TableHead>
+                      <TableHead className="text-left w-[140px]">Intercom ID</TableHead>
+                      <TableHead className="text-left w-[100px]">Severity</TableHead>
+                      <TableHead className="text-left w-[110px]">Type</TableHead>
+                      <TableHead className="text-left w-[100px]">Esc→Eng</TableHead>
+                      <TableHead className="text-left w-[130px]">Linked issue</TableHead>
+                      <TableHead className="text-left w-[100px]">State</TableHead>
+                      <TableHead className="text-left w-[110px]">Created</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {escalated.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-sm text-muted-foreground py-8 text-center">
+                          No escalated items for this customer.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {escalated.map((e) => (
+                      <TableRow key={e.id}>
+                        <TableCell className="text-left max-w-[320px] truncate">{e.subject || "(no subject)"}</TableCell>
+                        <TableCell className="text-left tabular-nums text-xs select-all">{e.intercom_conversation_id}</TableCell>
+                        <TableCell className="text-left">{e.severity == null ? "—" : `Sev ${e.severity}`}</TableCell>
+                        <TableCell className="text-left">{e.ticketType}</TableCell>
+                        <TableCell className="text-left">
+                          {e.escalatedToEng
+                            ? <Badge variant="outline" className="text-[10px] border-primary/40 bg-primary/10">Yes</Badge>
+                            : "—"}
+                        </TableCell>
+                        <TableCell className="text-left">
+                          {e.linkedIssue ? (
+                            <a
+                              href={e.linkedIssue}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary underline underline-offset-2 text-xs"
+                            >
+                              {linearIssueId(e.linkedIssue) ?? "Link"}
+                            </a>
+                          ) : "—"}
+                        </TableCell>
+                        <TableCell className="text-left">
+                          <Badge variant="outline" className="text-[10px]">{e.state}</Badge>
+                        </TableCell>
+                        <TableCell className="text-left tabular-nums">{fmtDate(e.created)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
 
             {/* Open issues */}
             <Card>
