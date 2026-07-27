@@ -27,6 +27,7 @@ import SlaDashboard from "./pages/SlaDashboard";
 import SlaReport from "./pages/SlaReport";
 import { Navigate } from "react-router-dom";
 import Customers from "./pages/Customers";
+import CustomerReport from "./pages/CustomerReport";
 
 
 const queryClient = new QueryClient();
@@ -46,6 +47,7 @@ const App = () => (
           <Route path="/inbox-v3" element={<ProtectedRoute><InboxV3 /></ProtectedRoute>} />
           <Route path="/analytics-v3" element={<ProtectedRoute><AnalyticsV3 /></ProtectedRoute>} />
 
+          <Route path="/customer-report" element={<ProtectedRoute><CustomerReport /></ProtectedRoute>} />
           <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
           <Route path="/conversations/:id" element={<ProtectedRoute><ConversationDetail /></ProtectedRoute>} />
           <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
