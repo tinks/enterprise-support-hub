@@ -271,10 +271,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    const summary = { lookbackDays, dryRun, scanned: messages.length, extracted, inserted, would_insert, skipped_domain_exists, skipped_account_key_exists, unparsed, malformed, errors };
+    const summary = { lookbackDays, dryRun, scanned: messages.length, extracted, inserted, would_insert, skipped_domain_exists, skipped_account_key_exists, unparsed, malformed, missing_domain, errors };
     console.log("poll-slack-closed-won:", summary);
     if (!dryRun) {
-      const problems = [...errors, ...malformed.map((m) => `malformed domain ${m}`)];
+      const problems = [...errors, ...problemNotes];
       await recordIntegrationHealth(
         supabase,
         "slack_closed_won_poll",
