@@ -73,8 +73,9 @@ function extractCompany(text: string): { name: string; domain: string; malformed
   domain = domain.replace(/^<|>$/g, "");
   domain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
   domain = domain.replace(/[|].*$/, ""); // slack link syntax <https://x.com|x.com>
-  if (!name || !domain) return null;
-  return { name, domain, malformed: !DOMAIN_RE.test(domain) };
+  if (!name) return null;
+  if (!domain) return { name, domain: "", malformed: false, missing: true };
+  return { name, domain, malformed: !DOMAIN_RE.test(domain), missing: false };
 }
 
 function toAccountKey(name: string): string {
