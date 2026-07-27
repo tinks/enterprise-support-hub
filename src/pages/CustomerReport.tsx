@@ -54,6 +54,7 @@ type OpenTicket = {
   intercom_conversation_id: string;
   subject: string | null;
   intercom_created_at: string | null;
+  intercom_updated_at: string | null;
   lifecycle_status: string | null;
   raw_payload: any;
 };
@@ -123,7 +124,7 @@ export default function CustomerReport() {
       setOpenLoading(true);
       const { data } = await supabase
         .from("intercom_tickets_v3")
-        .select("id,intercom_conversation_id,subject,intercom_created_at,lifecycle_status,raw_payload")
+        .select("id,intercom_conversation_id,subject,intercom_created_at,intercom_updated_at,lifecycle_status,raw_payload")
         .eq("customer_key", customer)
         .in("lifecycle_status", ["open", "reopened_after_finalize"])
         .order("intercom_created_at", { ascending: false });
@@ -237,6 +238,15 @@ export default function CustomerReport() {
     return rows;
   }, [openTickets, scored]);
 
+  const openBySev = useMemo(() => {
+    const b: Record<Severity | "unclassified", number> = { 1: 0, 2: 0, 3: 0, 4: 0, unclassified: 0 };
+    for (const t of openTickets) {
+      const s = parseSeverity(t.raw_payload?.custom_attributes?.Severity);
+      b[s ?? "unclassified"]++;
+    }
+    return b;
+  }, [openTickets]);
+
   const customerName = customer ? (customerLabels.get(customer) ?? accounts.find((a) => a.account_key === customer)?.label ?? customer) : null;
 
 
@@ -314,8 +324,8 @@ export default function CustomerReport() {
             {/* Summary */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <StatCard title="Total tickets" desc={`Open + closed in ${RANGE_LABELS[range].toLowerCase()}`} value={String(openTickets.length + closedRows.length)} />
-              <StatCard title="Currently open" desc="Open or reopened right now" value={openLoading ? "…" : String(openTickets.length)} />
-              <StatCard title="Closed in range" desc={RANGE_LABELS[range]} value={String(closedRows.length)} />
+              <StatCard title="Currently open" desc="Open or reopened right now" value={openLoading ? "…" : String(openTickets.length)} sev={openBySev} />
+              <StatCard title="Closed in range" desc={RANGE_LABELS[range]} value={String(closedRows.length)} sev={summary.bySev} unclassifiedIsAnomaly />
               <StatCard
                 title="First response met"
                 desc={`Customer-initiated only (n=${summary.frDenom})`}
@@ -336,23 +346,6 @@ export default function CustomerReport() {
               />
             </div>
 
-            {/* Severity breakdown */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Closed by severity</CardTitle>
-                <CardDescription className="text-xs">Unclassified severity is surfaced, never defaulted.</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2 pt-0">
-                {([1, 2, 3, 4] as const).map((s) => (
-                  <Badge key={s} variant="outline" className="text-xs">Sev {s}: {summary.bySev[s]}</Badge>
-                ))}
-                {summary.bySev.unclassified > 0 && (
-                  <Badge variant="outline" className="text-xs border-destructive/50 bg-destructive/10 text-destructive">
-                    Unclassified: {summary.bySev.unclassified}
-                  </Badge>
-                )}
-              </CardContent>
-            </Card>
 
             {/* Escalated to Dev */}
             <Card>
@@ -433,13 +426,14 @@ export default function CustomerReport() {
                       <TableHead className="text-left w-[140px]">Intercom ID</TableHead>
                       <TableHead className="text-left w-[100px]">Severity</TableHead>
                       <TableHead className="text-left w-[110px]">Created</TableHead>
+                      <TableHead className="text-left w-[110px]">Last activity</TableHead>
                       <TableHead className="text-left w-[100px]">State</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {openTickets.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-sm text-muted-foreground py-8 text-center">
+                        <TableCell colSpan={6} className="text-sm text-muted-foreground py-8 text-center">
                           No open issues.
                         </TableCell>
                       </TableRow>
@@ -452,6 +446,7 @@ export default function CustomerReport() {
                           <TableCell className="text-left tabular-nums text-xs select-all">{t.intercom_conversation_id}</TableCell>
                           <TableCell className="text-left">{sev == null ? "—" : `Sev ${sev}`}</TableCell>
                           <TableCell className="text-left tabular-nums">{fmtDate(t.intercom_created_at)}</TableCell>
+                          <TableCell className="text-left tabular-nums">{fmtDate(t.intercom_updated_at)}</TableCell>
                           <TableCell className="text-left">
                             <Badge variant="outline" className="text-[10px]">
                               {t.lifecycle_status === "reopened_after_finalize" ? "Reopened" : "Open"}
@@ -531,7 +526,11 @@ export default function CustomerReport() {
   );
 }
 
-function StatCard({ title, desc, value, emphasize }: { title: string; desc: string; value: string; emphasize?: boolean }) {
+function StatCard({ title, desc, value, emphasize, sev, unclassifiedIsAnomaly }: {
+  title: string; desc: string; value: string; emphasize?: boolean;
+  sev?: Record<Severity | "unclassified", number>;
+  unclassifiedIsAnomaly?: boolean;
+}) {
   return (
     <Card className={emphasize ? "ring-1 ring-primary/40" : ""}>
       <CardHeader className="pb-2">
@@ -540,6 +539,14 @@ function StatCard({ title, desc, value, emphasize }: { title: string; desc: stri
       </CardHeader>
       <CardContent className="pt-0">
         <div className="text-2xl font-bold tabular-nums">{value}</div>
+        {sev && (
+          <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+            {([1, 2, 3, 4] as const).map((s) => <span key={s}>S{s} {sev[s]}</span>)}
+            {sev.unclassified > 0 && (
+              <span className={unclassifiedIsAnomaly ? "text-destructive" : ""}>Uncl {sev.unclassified}</span>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
