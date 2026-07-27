@@ -54,6 +54,7 @@ type OpenTicket = {
   intercom_conversation_id: string;
   subject: string | null;
   intercom_created_at: string | null;
+  intercom_updated_at: string | null;
   lifecycle_status: string | null;
   raw_payload: any;
 };
@@ -123,7 +124,7 @@ export default function CustomerReport() {
       setOpenLoading(true);
       const { data } = await supabase
         .from("intercom_tickets_v3")
-        .select("id,intercom_conversation_id,subject,intercom_created_at,lifecycle_status,raw_payload")
+        .select("id,intercom_conversation_id,subject,intercom_created_at,intercom_updated_at,lifecycle_status,raw_payload")
         .eq("customer_key", customer)
         .in("lifecycle_status", ["open", "reopened_after_finalize"])
         .order("intercom_created_at", { ascending: false });
@@ -236,6 +237,15 @@ export default function CustomerReport() {
     }
     return rows;
   }, [openTickets, scored]);
+
+  const openBySev = useMemo(() => {
+    const b: Record<Severity | "unclassified", number> = { 1: 0, 2: 0, 3: 0, 4: 0, unclassified: 0 };
+    for (const t of openTickets) {
+      const s = parseSeverity(t.raw_payload?.custom_attributes?.Severity);
+      b[s ?? "unclassified"]++;
+    }
+    return b;
+  }, [openTickets]);
 
   const customerName = customer ? (customerLabels.get(customer) ?? accounts.find((a) => a.account_key === customer)?.label ?? customer) : null;
 
