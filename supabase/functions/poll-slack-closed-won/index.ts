@@ -59,17 +59,23 @@ function stripMarkdown(s: string): string {
 // A plausible registrable domain: labels separated by dots, alpha TLD >= 2 chars.
 const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.[a-z]{2,}$/;
 
-function extractCompany(text: string): { name: string; domain: string; malformed: boolean } | null {
-  const nameMatch = text.match(/Company Name:\s*(.+)/i);
-  const domainMatch = text.match(/Company Domain:\s*(\S+)/i);
+// NOTE: the domain capture is deliberately restricted to horizontal whitespace
+// ([ \t]*) — using \s* lets the match cross a newline when HubSpot posts an
+// EMPTY "Company Domain:" line, silently capturing the next line's leading
+// emoji shortcode (e.g. AARP captured ":page_facing_up:" from the following
+// "Deal Name:" line). A blank domain is reported as `missing`, not malformed.
+function extractCompany(text: string): { name: string; domain: string; malformed: boolean; missing: boolean } | null {
+  const nameMatch = text.match(/Company Name:[ \t]*(.+)/i);
+  const domainMatch = text.match(/Company Domain:[ \t]*(\S*)/i);
   if (!nameMatch || !domainMatch) return null;
   const name = stripMarkdown(nameMatch[1].split("\n")[0]);
   let domain = domainMatch[1].trim().toLowerCase();
   domain = domain.replace(/^<|>$/g, "");
   domain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
   domain = domain.replace(/[|].*$/, ""); // slack link syntax <https://x.com|x.com>
-  if (!name || !domain) return null;
-  return { name, domain, malformed: !DOMAIN_RE.test(domain) };
+  if (!name) return null;
+  if (!domain) return { name, domain: "", malformed: false, missing: true };
+  return { name, domain, malformed: !DOMAIN_RE.test(domain), missing: false };
 }
 
 function toAccountKey(name: string): string {
@@ -157,17 +163,24 @@ Deno.serve(async (req) => {
       cursor = data.response_metadata?.next_cursor ?? "";
     } while (cursor);
 
-    // 2. Extract candidates. Malformed domains are never inserted — they are
-    //    surfaced loudly as warnings and mark the run unhealthy.
+    // 2. Extract candidates. Malformed domains and blank ("missing") domains are
+    //    never inserted — both are surfaced loudly and mark the run unhealthy so
+    //    the account can be added by hand instead of failing silently.
     const candidatesByDomain = new Map<string, { account_key: string; label: string; domain: string }>();
     let extracted = 0;
     const unparsed: string[] = [];
     const malformed: string[] = [];
+    const missing_domain: string[] = [];
     for (const m of messages) {
       const text = collectText(m);
       const c = extractCompany(text);
       if (!c) {
         if (unparsed.length < 10) unparsed.push(text.replace(/\s+/g, " ").slice(0, 160));
+        continue;
+      }
+      if (c.missing) {
+        missing_domain.push(c.name);
+        console.error("poll-slack-closed-won blank Company Domain:", c.name);
         continue;
       }
       if (c.malformed) {
@@ -183,16 +196,21 @@ Deno.serve(async (req) => {
       }
     }
 
+    const problemNotes = [
+      ...malformed.map((m) => `malformed domain ${m}`),
+      ...missing_domain.map((n) => `blank Company Domain for "${n}" — add the account manually`),
+    ];
+
     const candidates = [...candidatesByDomain.values()];
     if (candidates.length === 0) {
-      const summary = { lookbackDays, dryRun, scanned: messages.length, extracted, inserted: 0, skipped_domain_exists: 0, skipped_account_key_exists: 0, unparsed, malformed, errors: [] as string[] };
+      const summary = { lookbackDays, dryRun, scanned: messages.length, extracted, inserted: 0, skipped_domain_exists: 0, skipped_account_key_exists: 0, unparsed, malformed, missing_domain, errors: [] as string[] };
       console.log("poll-slack-closed-won:", summary);
       if (!dryRun) {
         await recordIntegrationHealth(
           supabase,
           "slack_closed_won_poll",
-          malformed.length ? "error" : "ok",
-          malformed.length ? `Malformed company domain(s) skipped: ${malformed.join("; ").slice(0, 400)}` : null,
+          problemNotes.length ? "error" : "ok",
+          problemNotes.length ? problemNotes.join("; ").slice(0, 400) : null,
         );
       }
       return new Response(JSON.stringify(summary), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -253,10 +271,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    const summary = { lookbackDays, dryRun, scanned: messages.length, extracted, inserted, would_insert, skipped_domain_exists, skipped_account_key_exists, unparsed, malformed, errors };
+    const summary = { lookbackDays, dryRun, scanned: messages.length, extracted, inserted, would_insert, skipped_domain_exists, skipped_account_key_exists, unparsed, malformed, missing_domain, errors };
     console.log("poll-slack-closed-won:", summary);
     if (!dryRun) {
-      const problems = [...errors, ...malformed.map((m) => `malformed domain ${m}`)];
+      const problems = [...errors, ...problemNotes];
       await recordIntegrationHealth(
         supabase,
         "slack_closed_won_poll",
