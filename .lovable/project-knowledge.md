@@ -1158,6 +1158,10 @@ Third SLA view (protected route, nav link "SLA Report"), shipped in commit `7a28
 
 **Test data:** renders the same shared `TestDataToggle` + `TestDataBanner` (imported from `SlaWorkbench.tsx`), default OFF — test-account tickets are excluded from the population unless the toggle is ON, exactly as on Dashboard/Workbench.
 
+### Where these surfaces live in the nav (regroup `b5b66e0`)
+
+The left nav is grouped **by use**, not by feature family, so the SLA surfaces are deliberately split: **SLA Report** sits under *Reports*, **SLA Dashboard** under *Dashboards*, **SLA Workbench** under *Tools*; **Customer report** is a standalone top-level link. The family name is kept in each child label so it's still findable by reading. Full rationale and mechanics in §19 "Left-nav information architecture".
+
 ### The three SLA surfaces — division of labour (reorg `f3bb52f`)
 
 One engine, one hook (`useSlaBatch`), three purpose-built pages:
