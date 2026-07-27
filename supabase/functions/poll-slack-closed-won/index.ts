@@ -56,7 +56,10 @@ function stripMarkdown(s: string): string {
     .trim();
 }
 
-function extractCompany(text: string): { name: string; domain: string } | null {
+// A plausible registrable domain: labels separated by dots, alpha TLD >= 2 chars.
+const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.[a-z]{2,}$/;
+
+function extractCompany(text: string): { name: string; domain: string; malformed: boolean } | null {
   const nameMatch = text.match(/Company Name:\s*(.+)/i);
   const domainMatch = text.match(/Company Domain:\s*(\S+)/i);
   if (!nameMatch || !domainMatch) return null;
@@ -66,7 +69,7 @@ function extractCompany(text: string): { name: string; domain: string } | null {
   domain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
   domain = domain.replace(/[|].*$/, ""); // slack link syntax <https://x.com|x.com>
   if (!name || !domain) return null;
-  return { name, domain };
+  return { name, domain, malformed: !DOMAIN_RE.test(domain) };
 }
 
 function toAccountKey(name: string): string {
