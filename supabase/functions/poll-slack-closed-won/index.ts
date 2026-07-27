@@ -170,7 +170,7 @@ Deno.serve(async (req) => {
     let extracted = 0;
     const unparsed: string[] = [];
     const malformed: string[] = [];
-    const missing_domain: string[] = [];
+    const missingRaw: { name: string; account_key: string }[] = [];
     for (const m of messages) {
       const text = collectText(m);
       const c = extractCompany(text);
@@ -179,7 +179,7 @@ Deno.serve(async (req) => {
         continue;
       }
       if (c.missing) {
-        missing_domain.push(c.name);
+        missingRaw.push({ name: c.name, account_key: toAccountKey(c.name) });
         console.error("poll-slack-closed-won blank Company Domain:", c.name);
         continue;
       }
@@ -196,10 +196,29 @@ Deno.serve(async (req) => {
       }
     }
 
+    // A blank Company Domain only stays a problem while the account is absent from the
+    // registry. Once someone adds it by hand (domain-less or otherwise) the run is healthy
+    // again — otherwise the health card would stay red forever on an already-handled row.
+    const missing_domain: string[] = [];
+    const missing_domain_handled: string[] = [];
+    if (missingRaw.length) {
+      const { data: handledRows, error: errMissing } = await supabase
+        .from("v3_customer_accounts")
+        .select("account_key")
+        .in("account_key", missingRaw.map((m) => m.account_key).filter(Boolean));
+      if (errMissing) throw errMissing;
+      const handled = new Set<string>((handledRows ?? []).map((r: any) => r.account_key));
+      for (const m of missingRaw) {
+        if (m.account_key && handled.has(m.account_key)) missing_domain_handled.push(m.name);
+        else missing_domain.push(m.name);
+      }
+    }
+
     const problemNotes = [
       ...malformed.map((m) => `malformed domain ${m}`),
       ...missing_domain.map((n) => `blank Company Domain for "${n}" — add the account manually`),
     ];
+
 
     const candidates = [...candidatesByDomain.values()];
     if (candidates.length === 0) {
