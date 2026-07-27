@@ -1,12 +1,16 @@
 // Daily poll of Slack channel C09CL5E028N ("closed-won" feed) via the linked
-// bot Slack connection. For each message in the last 2 days, extract
+// bot Slack connection. For each message in the last 7 days, extract
 //   Company Name: <name>
 //   Company Domain: <domain>
 // and insert missing rows into public.v3_customer_accounts. Deduplication is
-// by extracted company domain (batch + existing rows). See
-// .lovable/project-knowledge.md for the wider account-ingestion flow.
+// by extracted company domain (batch + existing rows), so a wide lookback is
+// idempotent. Every non-dry run records into `integration_health` (key
+// `slack_closed_won_poll`) so Slack API errors, insert failures, and malformed
+// domains surface in Settings → Integration health and the alert channel
+// instead of failing silently. See .lovable/project-knowledge.md.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { recordIntegrationHealth } from "../_shared/integration-health.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,7 +20,7 @@ const corsHeaders = {
 
 const CHANNEL_ID = "C09CL5E028N";
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/slack/api";
-const LOOKBACK_DAYS = 2;
+const LOOKBACK_DAYS = 7;
 
 function collectText(msg: any): string {
   const parts: string[] = [];
