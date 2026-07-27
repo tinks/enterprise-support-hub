@@ -305,7 +305,7 @@ Deno.serve(async (req) => {
       // those stay close-only (sync-v3-closed owns them).
       const { error, data: upserted } = await supabase
         .from("intercom_tickets_v3")
-        .upsert({ ...row, raw_payload: icData, last_full_fetch_at: new Date().toISOString() }, { onConflict: "intercom_conversation_id" })
+        .upsert({ ...row, raw_payload: icData, tags: extractTags(icData), last_full_fetch_at: new Date().toISOString() }, { onConflict: "intercom_conversation_id" })
         .select("id, created_at");
       if (error) { failed++; continue; }
       if (upserted && upserted[0]) {
