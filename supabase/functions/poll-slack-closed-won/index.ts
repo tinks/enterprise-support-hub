@@ -1,12 +1,16 @@
 // Daily poll of Slack channel C09CL5E028N ("closed-won" feed) via the linked
-// bot Slack connection. For each message in the last 2 days, extract
+// bot Slack connection. For each message in the last 7 days, extract
 //   Company Name: <name>
 //   Company Domain: <domain>
 // and insert missing rows into public.v3_customer_accounts. Deduplication is
-// by extracted company domain (batch + existing rows). See
-// .lovable/project-knowledge.md for the wider account-ingestion flow.
+// by extracted company domain (batch + existing rows), so a wide lookback is
+// idempotent. Every non-dry run records into `integration_health` (key
+// `slack_closed_won_poll`) so Slack API errors, insert failures, and malformed
+// domains surface in Settings → Integration health and the alert channel
+// instead of failing silently. See .lovable/project-knowledge.md.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { recordIntegrationHealth } from "../_shared/integration-health.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,7 +20,7 @@ const corsHeaders = {
 
 const CHANNEL_ID = "C09CL5E028N";
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/slack/api";
-const LOOKBACK_DAYS = 2;
+const LOOKBACK_DAYS = 7;
 
 function collectText(msg: any): string {
   const parts: string[] = [];
@@ -52,7 +56,10 @@ function stripMarkdown(s: string): string {
     .trim();
 }
 
-function extractCompany(text: string): { name: string; domain: string } | null {
+// A plausible registrable domain: labels separated by dots, alpha TLD >= 2 chars.
+const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.[a-z]{2,}$/;
+
+function extractCompany(text: string): { name: string; domain: string; malformed: boolean } | null {
   const nameMatch = text.match(/Company Name:\s*(.+)/i);
   const domainMatch = text.match(/Company Domain:\s*(\S+)/i);
   if (!nameMatch || !domainMatch) return null;
@@ -62,7 +69,7 @@ function extractCompany(text: string): { name: string; domain: string } | null {
   domain = domain.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
   domain = domain.replace(/[|].*$/, ""); // slack link syntax <https://x.com|x.com>
   if (!name || !domain) return null;
-  return { name, domain };
+  return { name, domain, malformed: !DOMAIN_RE.test(domain) };
 }
 
 function toAccountKey(name: string): string {
@@ -123,6 +130,9 @@ Deno.serve(async (req) => {
       const body = await res.text();
       let data: any;
       try { data = JSON.parse(body); } catch {
+        if (!dryRun) {
+          await recordIntegrationHealth(supabase, "slack_closed_won_poll", "error", `Slack gateway returned non-JSON (${res.status}): ${body.slice(0, 200)}`);
+        }
         return new Response(
           JSON.stringify({ error: "Slack gateway returned non-JSON", status: res.status, details: body.slice(0, 500) }),
           { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -130,6 +140,14 @@ Deno.serve(async (req) => {
       }
       if (!res.ok || !data.ok) {
         console.error(`conversations.history failed [${res.status}]:`, body);
+        if (!dryRun) {
+          await recordIntegrationHealth(
+            supabase,
+            "slack_closed_won_poll",
+            res.status === 401 || res.status === 403 ? "auth_error" : "error",
+            `Slack API error (${res.status}): ${data?.error ?? body.slice(0, 200)}`,
+          );
+        }
         return new Response(
           JSON.stringify({ error: "Slack API error", status: res.status, details: data?.error ?? body.slice(0, 500) }),
           { status: res.status || 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -139,15 +157,22 @@ Deno.serve(async (req) => {
       cursor = data.response_metadata?.next_cursor ?? "";
     } while (cursor);
 
-    // 2. Extract candidates
+    // 2. Extract candidates. Malformed domains are never inserted — they are
+    //    surfaced loudly as warnings and mark the run unhealthy.
     const candidatesByDomain = new Map<string, { account_key: string; label: string; domain: string }>();
     let extracted = 0;
     const unparsed: string[] = [];
+    const malformed: string[] = [];
     for (const m of messages) {
       const text = collectText(m);
       const c = extractCompany(text);
       if (!c) {
         if (unparsed.length < 10) unparsed.push(text.replace(/\s+/g, " ").slice(0, 160));
+        continue;
+      }
+      if (c.malformed) {
+        malformed.push(`${c.name}: "${c.domain}"`);
+        console.error("poll-slack-closed-won malformed domain:", c);
         continue;
       }
       const account_key = toAccountKey(c.name);
@@ -160,8 +185,16 @@ Deno.serve(async (req) => {
 
     const candidates = [...candidatesByDomain.values()];
     if (candidates.length === 0) {
-      const summary = { lookbackDays, dryRun, scanned: messages.length, extracted, inserted: 0, skipped_domain_exists: 0, skipped_account_key_exists: 0, unparsed, errors: [] as string[] };
+      const summary = { lookbackDays, dryRun, scanned: messages.length, extracted, inserted: 0, skipped_domain_exists: 0, skipped_account_key_exists: 0, unparsed, malformed, errors: [] as string[] };
       console.log("poll-slack-closed-won:", summary);
+      if (!dryRun) {
+        await recordIntegrationHealth(
+          supabase,
+          "slack_closed_won_poll",
+          malformed.length ? "error" : "ok",
+          malformed.length ? `Malformed company domain(s) skipped: ${malformed.join("; ").slice(0, 400)}` : null,
+        );
+      }
       return new Response(JSON.stringify(summary), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -220,11 +253,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    const summary = { lookbackDays, dryRun, scanned: messages.length, extracted, inserted, would_insert, skipped_domain_exists, skipped_account_key_exists, unparsed, errors };
+    const summary = { lookbackDays, dryRun, scanned: messages.length, extracted, inserted, would_insert, skipped_domain_exists, skipped_account_key_exists, unparsed, malformed, errors };
     console.log("poll-slack-closed-won:", summary);
+    if (!dryRun) {
+      const problems = [...errors, ...malformed.map((m) => `malformed domain ${m}`)];
+      await recordIntegrationHealth(
+        supabase,
+        "slack_closed_won_poll",
+        problems.length ? "error" : "ok",
+        problems.length ? problems.join("; ").slice(0, 400) : null,
+      );
+    }
     return new Response(JSON.stringify(summary), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
     console.error("poll-slack-closed-won fatal:", err);
+    if (!dryRun) {
+      await recordIntegrationHealth(supabase, "slack_closed_won_poll", "error", `Fatal: ${String(err).slice(0, 400)}`);
+    }
     return new Response(
       JSON.stringify({ error: "Internal error", details: String(err) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },

@@ -27,6 +27,7 @@ const INTEGRATIONS: Array<{ key: string; label: string; description: string; max
   { key: "intercom_import", label: "Manual Intercom import", description: "On-demand imports from the Log Conversation form.", maxStaleMin: 30 * 24 * 60 },
   { key: "gmail_poll", label: "Gmail poll", description: "Pulls support@ mail and reconciles to Intercom.", maxStaleMin: 30 },
   { key: "inbox_v2_sync", label: "Inbox V2 sync", description: "Mirrors Intercom into the Inbox V2 sandbox (every 15 min).", maxStaleMin: 30 },
+  { key: "slack_closed_won_poll", label: "Closed-won account import", description: "Imports new customer accounts from Slack #closed-won (daily, 7-day lookback).", maxStaleMin: 36 * 60 },
 ];
 
 type Severity = "ok" | "warn" | "auth" | "error" | "unknown";
