@@ -213,7 +213,7 @@ Deno.serve(async (req) => {
 
 
 
-      // Search-payload only (NO GET /conversations/{id})
+      // Search-payload derived fields (shared by the minimal and full paths).
       const sa = conv.source?.author;
       const contactName: string | null = sa?.name || sa?.email || null;
       const contactEmail: string | null = sa?.email || null;
@@ -240,17 +240,83 @@ Deno.serve(async (req) => {
         last_synced_at: new Date().toISOString(),
       };
 
+      // Minimal, search-payload-only upsert (NO GET /conversations/{id}).
+      const minimalUpsert = async (): Promise<string | null> => {
+        const { error, data: upserted } = await supabase
+          .from("intercom_tickets_v3")
+          .upsert(row, { onConflict: "intercom_conversation_id" })
+          .select("id, created_at");
+        if (error) { failed++; return null; }
+        if (upserted && upserted[0]) {
+          const isNew = Date.now() - new Date(upserted[0].created_at).getTime() < 5000;
+          if (isNew) inserted++; else updated++;
+          return upserted[0].id as string;
+        }
+        updated++;
+        return null;
+      };
+
+      // Delta check: open tickets carry stale `custom_attributes` (Severity →
+      // SLA target) because the minimal path never refreshes them. Spend a
+      // single GET when the ticket is new to us or has changed since last sync.
+      const existingRow = existingOpen.get(convId);
+      const convUpdatedUnix = typeof conv.updated_at === "number" ? conv.updated_at : 0;
+      const priorUpdatedUnix = existingRow?.intercom_updated_at
+        ? Math.floor(new Date(existingRow.intercom_updated_at).getTime() / 1000)
+        : 0;
+      const needFull = !existingRow || !existingRow.last_full_fetch_at || convUpdatedUnix > priorUpdatedUnix;
+
+      if (!needFull) { await minimalUpsert(); continue; }
+
+      const fRes = await fetch(`https://api.intercom.io/conversations/${convId}`, {
+        headers: intercomHeaders(INTERCOM_API_TOKEN),
+      });
+      if (!fRes.ok) { await minimalUpsert(); continue; }
+      const icData = await fRes.json();
+
+      // Moved out of the Enterprise Inbox between search and GET → minimal only.
+      if (String(icData.team_assignee_id ?? "") !== String(enterpriseInboxId)) {
+        await minimalUpsert();
+        continue;
+      }
+
+      // Closed/resolved since the search snapshot → hand to the finalize path.
+      if (String(icData.state || "") === "closed" || (isTicketPayload(icData) && isFinalizedTicketState(icData))) {
+        const result = await finalizeConversation({
+          supabase,
+          intercomToken: INTERCOM_API_TOKEN,
+          convId,
+          enterpriseInboxId,
+          adminOwnerMap,
+          existing: existingRow ? { id: existingRow.id } : null,
+        });
+        if (result.kind === "inserted" || result.kind === "updated") ticketsFinalized++;
+        else if (result.kind === "skipped") skipped++;
+        else failed++;
+        continue;
+      }
+
+      // Still open: minimal row PLUS raw_payload so attributes/signals refresh.
+      // Deliberately NOT refreshing product_area/classification/tags/csat —
+      // those stay close-only (sync-v3-closed owns them).
       const { error, data: upserted } = await supabase
         .from("intercom_tickets_v3")
-        .upsert(row, { onConflict: "intercom_conversation_id" })
+        .upsert({ ...row, raw_payload: icData, last_full_fetch_at: new Date().toISOString() }, { onConflict: "intercom_conversation_id" })
         .select("id, created_at");
       if (error) { failed++; continue; }
       if (upserted && upserted[0]) {
         const isNew = Date.now() - new Date(upserted[0].created_at).getTime() < 5000;
         if (isNew) inserted++; else updated++;
+        const ticketId = upserted[0].id;
+        try { await syncTicketAttributes(supabase, ticketId, icData, { convId }); }
+        catch (e) { console.error(`[sync-v3-open] attr sync (open) ${convId}: ${(e as Error).message}`); }
+        try { await writeV3Signals(supabase, ticketId, icData, { convId }); }
+        catch (e) { console.error(`[sync-v3-open] signal write (open) ${convId}: ${(e as Error).message}`); }
+        attrRefreshed++;
       } else {
         updated++;
       }
+
     } catch (e) {
       console.error(`[sync-v3-open] err on ${convId}:`, (e as Error).message);
       failed++;
