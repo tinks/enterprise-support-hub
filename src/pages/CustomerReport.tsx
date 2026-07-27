@@ -167,40 +167,20 @@ export default function CustomerReport() {
     };
   }, [scored]);
 
+  const csat = useMemo(() => {
+    const ratings: number[] = [];
+    for (const { row } of scored) {
+      const r = Number(row.raw_payload?.conversation_rating?.rating);
+      if (Number.isFinite(r) && r >= 1 && r <= 5) ratings.push(r);
+    }
+    if (ratings.length === 0) return { n: 0, pctPositive: null as number | null, avg: null as number | null };
+    const positive = ratings.filter((r) => r >= 4).length;
+    const avg = ratings.reduce((a, b) => a + b, 0) / ratings.length;
+    return { n: ratings.length, pctPositive: (positive / ratings.length) * 100, avg };
+  }, [scored]);
+
   const customerName = customer ? (customerLabels.get(customer) ?? accounts.find((a) => a.account_key === customer)?.label ?? customer) : null;
 
-  type DetailRow = {
-    key: string;
-    subject: string;
-    sev: Severity | null;
-    created: string | null;
-    closed: number | null;
-    compliance: SlaCompliance | null;
-    state: string;
-  };
-
-  const detailRows = useMemo<DetailRow[]>(() => {
-    const open: DetailRow[] = openTickets.map((t) => ({
-      key: `o-${t.id}`,
-      subject: t.subject || "(no subject)",
-      sev: parseSeverity(t.raw_payload?.custom_attributes?.Severity),
-      created: t.intercom_created_at,
-      closed: null,
-      compliance: null,
-      state: t.lifecycle_status === "reopened_after_finalize" ? "Reopened" : "Open",
-    }));
-    if (!showClosed) return open;
-    const closed: DetailRow[] = scored.map(({ row, sev, compliance }) => ({
-      key: `c-${row.id}`,
-      subject: row.subject || "(no subject)",
-      sev,
-      created: row.intercom_created_at,
-      closed: rowClosedAtMs(row),
-      compliance,
-      state: "Closed",
-    }));
-    return [...open, ...closed];
-  }, [openTickets, scored, showClosed]);
 
   return (
     <AppLayout>
