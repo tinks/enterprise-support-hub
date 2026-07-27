@@ -62,6 +62,18 @@ function fmt(sec: number | null, clock: "business" | "calendar") {
   return (clock === "business" ? formatBusinessDuration : formatDuration)(sec);
 }
 
+function isEscalated(ca: any): boolean {
+  const tt = String(ca?.["Ticket type"] ?? "").toLowerCase();
+  const esc = String(ca?.["Escalated to Engineering"] ?? "").toLowerCase() === "yes";
+  return esc || tt === "bug" || tt === "incident";
+}
+
+function linearIssueId(url: string): string | null {
+  const m = url.match(/\/issue\/([A-Za-z0-9]+-\d+)/);
+  return m ? m[1] : null;
+}
+
+
 function fmtDate(v: string | number | null | undefined) {
   if (v == null) return "—";
   const d = typeof v === "number" ? new Date(v) : new Date(v);
