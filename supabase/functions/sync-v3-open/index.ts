@@ -261,10 +261,13 @@ Deno.serve(async (req) => {
       // single GET when the ticket is new to us or has changed since last sync.
       const existingRow = existingOpen.get(convId);
       const convUpdatedUnix = typeof conv.updated_at === "number" ? conv.updated_at : 0;
-      const priorUpdatedUnix = existingRow?.intercom_updated_at
-        ? Math.floor(new Date(existingRow.intercom_updated_at).getTime() / 1000)
+      const lastFullUnix = existingRow?.last_full_fetch_at
+        ? Math.floor(new Date(existingRow.last_full_fetch_at).getTime() / 1000)
         : 0;
-      const needFull = !existingRow || !existingRow.last_full_fetch_at || convUpdatedUnix > priorUpdatedUnix;
+      // Refresh when the ticket has changed since our last FULL fetch (not since the
+      // last minimal sync — the minimal path advances intercom_updated_at, which
+      // would otherwise suppress the full fetch forever and leave attributes stale).
+      const needFull = !existingRow || !existingRow.last_full_fetch_at || convUpdatedUnix > lastFullUnix;
 
       if (!needFull) { await minimalUpsert(); continue; }
 
