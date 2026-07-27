@@ -324,8 +324,8 @@ export default function CustomerReport() {
             {/* Summary */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <StatCard title="Total tickets" desc={`Open + closed in ${RANGE_LABELS[range].toLowerCase()}`} value={String(openTickets.length + closedRows.length)} />
-              <StatCard title="Currently open" desc="Open or reopened right now" value={openLoading ? "…" : String(openTickets.length)} />
-              <StatCard title="Closed in range" desc={RANGE_LABELS[range]} value={String(closedRows.length)} />
+              <StatCard title="Currently open" desc="Open or reopened right now" value={openLoading ? "…" : String(openTickets.length)} sev={openBySev} />
+              <StatCard title="Closed in range" desc={RANGE_LABELS[range]} value={String(closedRows.length)} sev={summary.bySev} unclassifiedIsAnomaly />
               <StatCard
                 title="First response met"
                 desc={`Customer-initiated only (n=${summary.frDenom})`}
@@ -346,23 +346,6 @@ export default function CustomerReport() {
               />
             </div>
 
-            {/* Severity breakdown */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">Closed by severity</CardTitle>
-                <CardDescription className="text-xs">Unclassified severity is surfaced, never defaulted.</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2 pt-0">
-                {([1, 2, 3, 4] as const).map((s) => (
-                  <Badge key={s} variant="outline" className="text-xs">Sev {s}: {summary.bySev[s]}</Badge>
-                ))}
-                {summary.bySev.unclassified > 0 && (
-                  <Badge variant="outline" className="text-xs border-destructive/50 bg-destructive/10 text-destructive">
-                    Unclassified: {summary.bySev.unclassified}
-                  </Badge>
-                )}
-              </CardContent>
-            </Card>
 
             {/* Escalated to Dev */}
             <Card>
@@ -541,7 +524,11 @@ export default function CustomerReport() {
   );
 }
 
-function StatCard({ title, desc, value, emphasize }: { title: string; desc: string; value: string; emphasize?: boolean }) {
+function StatCard({ title, desc, value, emphasize, sev, unclassifiedIsAnomaly }: {
+  title: string; desc: string; value: string; emphasize?: boolean;
+  sev?: Record<Severity | "unclassified", number>;
+  unclassifiedIsAnomaly?: boolean;
+}) {
   return (
     <Card className={emphasize ? "ring-1 ring-primary/40" : ""}>
       <CardHeader className="pb-2">
@@ -550,6 +537,14 @@ function StatCard({ title, desc, value, emphasize }: { title: string; desc: stri
       </CardHeader>
       <CardContent className="pt-0">
         <div className="text-2xl font-bold tabular-nums">{value}</div>
+        {sev && (
+          <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+            {([1, 2, 3, 4] as const).map((s) => <span key={s}>S{s} {sev[s]}</span>)}
+            {sev.unclassified > 0 && (
+              <span className={unclassifiedIsAnomaly ? "text-destructive" : ""}>Uncl {sev.unclassified}</span>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
