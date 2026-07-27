@@ -59,9 +59,14 @@ function stripMarkdown(s: string): string {
 // A plausible registrable domain: labels separated by dots, alpha TLD >= 2 chars.
 const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*\.[a-z]{2,}$/;
 
-function extractCompany(text: string): { name: string; domain: string; malformed: boolean } | null {
-  const nameMatch = text.match(/Company Name:\s*(.+)/i);
-  const domainMatch = text.match(/Company Domain:\s*(\S+)/i);
+// NOTE: the domain capture is deliberately restricted to horizontal whitespace
+// ([ \t]*) — using \s* lets the match cross a newline when HubSpot posts an
+// EMPTY "Company Domain:" line, silently capturing the next line's leading
+// emoji shortcode (e.g. AARP captured ":page_facing_up:" from the following
+// "Deal Name:" line). A blank domain is reported as `missing`, not malformed.
+function extractCompany(text: string): { name: string; domain: string; malformed: boolean; missing: boolean } | null {
+  const nameMatch = text.match(/Company Name:[ \t]*(.+)/i);
+  const domainMatch = text.match(/Company Domain:[ \t]*(\S*)/i);
   if (!nameMatch || !domainMatch) return null;
   const name = stripMarkdown(nameMatch[1].split("\n")[0]);
   let domain = domainMatch[1].trim().toLowerCase();
