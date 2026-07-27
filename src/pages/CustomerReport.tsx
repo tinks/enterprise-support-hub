@@ -426,13 +426,14 @@ export default function CustomerReport() {
                       <TableHead className="text-left w-[140px]">Intercom ID</TableHead>
                       <TableHead className="text-left w-[100px]">Severity</TableHead>
                       <TableHead className="text-left w-[110px]">Created</TableHead>
+                      <TableHead className="text-left w-[110px]">Last activity</TableHead>
                       <TableHead className="text-left w-[100px]">State</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {openTickets.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={5} className="text-sm text-muted-foreground py-8 text-center">
+                        <TableCell colSpan={6} className="text-sm text-muted-foreground py-8 text-center">
                           No open issues.
                         </TableCell>
                       </TableRow>
@@ -445,6 +446,7 @@ export default function CustomerReport() {
                           <TableCell className="text-left tabular-nums text-xs select-all">{t.intercom_conversation_id}</TableCell>
                           <TableCell className="text-left">{sev == null ? "—" : `Sev ${sev}`}</TableCell>
                           <TableCell className="text-left tabular-nums">{fmtDate(t.intercom_created_at)}</TableCell>
+                          <TableCell className="text-left tabular-nums">{fmtDate(t.intercom_updated_at)}</TableCell>
                           <TableCell className="text-left">
                             <Badge variant="outline" className="text-[10px]">
                               {t.lifecycle_status === "reopened_after_finalize" ? "Reopened" : "Open"}
