@@ -751,7 +751,9 @@ Free-text `manual_conversations.contact_name` is normalised into a stable accoun
 
 `public.integration_health` (PK = `integration` key) stores the last success/failure per backend integration. Authenticated users read it; only edge functions (service role) write to it. Shared helper `recordIntegrationHealth(sb, key, status, error?)` upserts a row with `last_success_at`/`last_failure_at`, `last_status` (`ok`/`auth_error`/`error`), `last_error`, and `consecutive_failures`. `auth_error` is mapped from HTTP 401/403 via `classifyHttpStatus`.
 
-Wired into: `poll-intercom-inbox` (search 4xx + on success), `intercom-webhook` (auto-import fetch failure + success), `refresh-intercom-csat` (aggregated per run; auth_error only if every fetch was 401/403), `import-intercom-ticket` (per call), `poll-gmail` (success + error categorised by `PollErrorCategory`: oauth/token/scope → auth_error, else error).
+Wired into: `poll-intercom-inbox` (search 4xx + on success), `intercom-webhook` (auto-import fetch failure + success), `refresh-intercom-csat` (aggregated per run; auth_error only if every fetch was 401/403), `import-intercom-ticket` (per call), `poll-gmail` (success + error categorised by `PollErrorCategory`: oauth/token/scope → auth_error, else error), `sync-inbox-v2`, `poll-slack-closed-won` (`slack_closed_won_poll`: Slack API/gateway errors, insert failures, and malformed extracted domains).
+
+**Standing rule:** any scheduled/background function must report through `integration_health` — a run that does nothing must be distinguishable from a run that failed. New pollers add their key to `IntegrationKey` in `_shared/integration-health.ts`, to `INTEGRATIONS` in `src/components/IntegrationHealthCard.tsx`, and to `INTEGRATIONS` in `supabase/functions/integration-health-alert/index.ts` (all three lists must stay in lockstep). Data-quality anomalies (not just HTTP failures) count as `error` — silently skipping bad input is not acceptable.
 
 **Run-level aggregation in `poll-intercom-inbox`**: the function loops through one team-assignee query plus N admin-assignee queries. Each failed search records an `auth_error`/`error` mid-run, but the function only writes `intercom_poll = "ok"` at the end of the run if `upstreamFailed` stayed false. If any query failed, the final write re-stamps the last `auth_error`/`error` so it sticks. Without this, a fully 401'd run (e.g. expired `INTERCOM_API_TOKEN`) would still surface as Healthy because the trailing `"ok"` upsert reset `consecutive_failures` to 0. The same pattern should be used for any future poller that fans out multiple upstream calls per invocation.
 
@@ -928,12 +930,15 @@ New customer accounts are seeded automatically from the Slack "closed-won" chann
 - **Function:** `poll-slack-closed-won` (edge function, `verify_jwt = false`).
 - **Schedule:** `pg_cron` job `poll-slack-closed-won-daily`, `0 4 * * *` (daily at 04:00 UTC).
 - **Source:** Slack channel `C09CL5E028N`, read via the "11 - PICK THIS BOT CONNECTION" bot token (`SLACK_API_KEY_1`) through the connector gateway `conversations.history`.
-- **Window:** every run scans messages with `ts >= now − 2 days` (today−1 and today−2), so a missed run self-heals the next day.
+- **Window:** every run scans messages with `ts >= now − 7 days` (widened from 2 days on 27 Jul 2026). Dedup makes a wide window free, and it catches late-posted/late-edited announcements that a 2-day window missed (e.g. Collinson).
 - **Extraction:** per message text, pulls the value after `Company Name:` and `Company Domain:` (markdown stripped, domain lower-cased).
 - **`account_key` derivation:** company name → lowercase → spaces to `_` → strip non-alphanumerics.
 - **Dedup:** skips candidates whose `domain` is already present in any `v3_customer_accounts.domains` array (via `.overlaps`) OR whose `account_key` already exists. Also dedupes within the batch.
-- **Insert shape:** `{ account_key, label: <company name>, domains: [<domain>], notes: 'Auto-created from Slack #closed-won' }`. All other columns default.
+- **Malformed-domain guard:** the extracted domain must match a registrable-domain shape (labels + alpha TLD ≥ 2). Anything else (e.g. AARP's `:page_facing_up:`) is **never inserted** — it is listed in the response `malformed[]`, logged, and marks the run unhealthy. Previously such junk would have been silently written as an account.
+- **Insert shape:** `{ account_key, label: <company name>, domains: [<domain>], notes: 'Auto-created from Slack #closed-won on <date>' }`. All other columns default.
 - **Idempotent:** re-running the same day is a no-op because dedup fires on both keys.
+- **Diagnostics:** optional POST body `{ lookbackDays?: number (1–365), dryRun?: boolean }`. `dryRun` reports `would_insert[]` and writes nothing (and skips health recording). Responses always include `scanned`, `extracted`, `inserted`, `skipped_*`, `unparsed[]`, `malformed[]`, `errors[]`.
+- **No silent failures:** every non-dry run records `integration_health.slack_closed_won_poll` — `ok` only when there were zero insert errors and zero malformed domains; `auth_error` on Slack 401/403; `error` on Slack API/non-JSON gateway responses, insert failures, malformed domains, or a fatal exception. Surfaced in Settings → Integration health (36h staleness window, i.e. one missed daily run) and alerted to `#enterprise-support-hub-alerts` by `integration-health-alert`.
 
 ---
 
