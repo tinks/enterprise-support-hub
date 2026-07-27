@@ -130,6 +130,9 @@ Deno.serve(async (req) => {
       const body = await res.text();
       let data: any;
       try { data = JSON.parse(body); } catch {
+        if (!dryRun) {
+          await recordIntegrationHealth(supabase, "slack_closed_won_poll", "error", `Slack gateway returned non-JSON (${res.status}): ${body.slice(0, 200)}`);
+        }
         return new Response(
           JSON.stringify({ error: "Slack gateway returned non-JSON", status: res.status, details: body.slice(0, 500) }),
           { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -137,6 +140,14 @@ Deno.serve(async (req) => {
       }
       if (!res.ok || !data.ok) {
         console.error(`conversations.history failed [${res.status}]:`, body);
+        if (!dryRun) {
+          await recordIntegrationHealth(
+            supabase,
+            "slack_closed_won_poll",
+            res.status === 401 || res.status === 403 ? "auth_error" : "error",
+            `Slack API error (${res.status}): ${data?.error ?? body.slice(0, 200)}`,
+          );
+        }
         return new Response(
           JSON.stringify({ error: "Slack API error", status: res.status, details: data?.error ?? body.slice(0, 500) }),
           { status: res.status || 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
