@@ -74,6 +74,13 @@ function linearIssueId(url: string): string | null {
   return m ? m[1] : null;
 }
 
+function escalatedIssueUrl(ca: any): string | null {
+  const v = ca?.["Escalated Issue"] ?? ca?.["Linear Issue"];
+  const s = v == null ? "" : String(v).trim();
+  return s || null;
+}
+
+
 
 function fmtDate(v: string | number | null | undefined) {
   if (v == null) return "—";
@@ -215,7 +222,7 @@ export default function CustomerReport() {
         severity: parseSeverity(ca?.Severity),
         ticketType: ca?.["Ticket type"] || "—",
         escalatedToEng: ca?.["Escalated to Engineering"] === "Yes",
-        linkedIssue: ca?.["Linear Issue"] || null,
+        linkedIssue: escalatedIssueUrl(ca),
         state: t.lifecycle_status === "reopened_after_finalize" ? "Reopened" : "Open",
         created: t.intercom_created_at,
       });
@@ -230,7 +237,7 @@ export default function CustomerReport() {
         severity: parseSeverity(ca?.Severity),
         ticketType: ca?.["Ticket type"] || "—",
         escalatedToEng: ca?.["Escalated to Engineering"] === "Yes",
-        linkedIssue: ca?.["Linear Issue"] || null,
+        linkedIssue: escalatedIssueUrl(ca),
         state: "Closed",
         created: row.intercom_created_at,
       });
@@ -540,12 +547,15 @@ function StatCard({ title, desc, value, emphasize, sev, unclassifiedIsAnomaly }:
       <CardContent className="pt-0">
         <div className="text-2xl font-bold tabular-nums">{value}</div>
         {sev && (
-          <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-            {([1, 2, 3, 4] as const).map((s) => <span key={s}>S{s} {sev[s]}</span>)}
+          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted-foreground">
+            {([1, 2, 3, 4] as const).map((s) => (
+              <span key={s} className="whitespace-nowrap">Sev {s}: <span className="font-semibold text-foreground">{sev[s]}</span></span>
+            ))}
             {sev.unclassified > 0 && (
-              <span className={unclassifiedIsAnomaly ? "text-destructive" : ""}>Uncl {sev.unclassified}</span>
+              <span className={cn("whitespace-nowrap", unclassifiedIsAnomaly && "text-destructive")}>Uncl: <span className="font-semibold">{sev.unclassified}</span></span>
             )}
           </div>
+
         )}
       </CardContent>
     </Card>
