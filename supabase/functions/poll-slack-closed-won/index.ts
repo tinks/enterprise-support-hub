@@ -157,15 +157,22 @@ Deno.serve(async (req) => {
       cursor = data.response_metadata?.next_cursor ?? "";
     } while (cursor);
 
-    // 2. Extract candidates
+    // 2. Extract candidates. Malformed domains are never inserted — they are
+    //    surfaced loudly as warnings and mark the run unhealthy.
     const candidatesByDomain = new Map<string, { account_key: string; label: string; domain: string }>();
     let extracted = 0;
     const unparsed: string[] = [];
+    const malformed: string[] = [];
     for (const m of messages) {
       const text = collectText(m);
       const c = extractCompany(text);
       if (!c) {
         if (unparsed.length < 10) unparsed.push(text.replace(/\s+/g, " ").slice(0, 160));
+        continue;
+      }
+      if (c.malformed) {
+        malformed.push(`${c.name}: "${c.domain}"`);
+        console.error("poll-slack-closed-won malformed domain:", c);
         continue;
       }
       const account_key = toAccountKey(c.name);
@@ -178,8 +185,16 @@ Deno.serve(async (req) => {
 
     const candidates = [...candidatesByDomain.values()];
     if (candidates.length === 0) {
-      const summary = { lookbackDays, dryRun, scanned: messages.length, extracted, inserted: 0, skipped_domain_exists: 0, skipped_account_key_exists: 0, unparsed, errors: [] as string[] };
+      const summary = { lookbackDays, dryRun, scanned: messages.length, extracted, inserted: 0, skipped_domain_exists: 0, skipped_account_key_exists: 0, unparsed, malformed, errors: [] as string[] };
       console.log("poll-slack-closed-won:", summary);
+      if (!dryRun) {
+        await recordIntegrationHealth(
+          supabase,
+          "slack_closed_won_poll",
+          malformed.length ? "error" : "ok",
+          malformed.length ? `Malformed company domain(s) skipped: ${malformed.join("; ").slice(0, 400)}` : null,
+        );
+      }
       return new Response(JSON.stringify(summary), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
