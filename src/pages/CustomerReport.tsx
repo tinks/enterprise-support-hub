@@ -271,6 +271,11 @@ export default function CustomerReport() {
                 emphasize
               />
               <StatCard title="Breaches" desc="First response + resolution" value={String(summary.breaches)} />
+              <StatCard
+                title="CSAT positive"
+                desc={csat.n === 0 ? "0 responses" : `${csat.n} responses · avg ${csat.avg!.toFixed(1)}`}
+                value={csat.pctPositive == null ? "n/a" : `${csat.pctPositive.toFixed(0)}%`}
+              />
             </div>
 
             {/* Severity breakdown */}
@@ -283,70 +288,119 @@ export default function CustomerReport() {
                 {([1, 2, 3, 4] as const).map((s) => (
                   <Badge key={s} variant="outline" className="text-xs">Sev {s}: {summary.bySev[s]}</Badge>
                 ))}
-                <Badge variant="outline" className="text-xs">Unclassified: {summary.bySev.unclassified}</Badge>
+                {summary.bySev.unclassified > 0 && (
+                  <Badge variant="outline" className="text-xs border-destructive/50 bg-destructive/10 text-destructive">
+                    Unclassified: {summary.bySev.unclassified}
+                  </Badge>
+                )}
               </CardContent>
             </Card>
 
-            {/* Detail */}
+            {/* Open issues */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Issues {showClosed ? "(open + closed)" : "(currently open)"}
-                </CardTitle>
-                <CardDescription className="text-xs">{detailRows.length} row(s)</CardDescription>
+                <CardTitle className="text-sm font-medium">Open issues</CardTitle>
+                <CardDescription className="text-xs">{openTickets.length} row(s)</CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="text-left">Subject</TableHead>
+                      <TableHead className="text-left w-[140px]">Intercom ID</TableHead>
                       <TableHead className="text-left w-[100px]">Severity</TableHead>
                       <TableHead className="text-left w-[110px]">Created</TableHead>
-                      <TableHead className="text-left w-[110px]">Resolved</TableHead>
-                      <TableHead className="text-left w-[160px]">First response</TableHead>
-                      <TableHead className="text-left w-[160px]">Resolution</TableHead>
                       <TableHead className="text-left w-[100px]">State</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {detailRows.length === 0 && (
+                    {openTickets.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-sm text-muted-foreground py-8 text-center">
-                          No issues to show.
+                        <TableCell colSpan={5} className="text-sm text-muted-foreground py-8 text-center">
+                          No open issues.
                         </TableCell>
                       </TableRow>
                     )}
-                    {detailRows.map((r) => (
-                      <TableRow key={r.key}>
-                        <TableCell className="text-left max-w-[360px] truncate">{r.subject}</TableCell>
-                        <TableCell className="text-left">{r.sev == null ? "—" : `Sev ${r.sev}`}</TableCell>
-                        <TableCell className="text-left tabular-nums">{fmtDate(r.created)}</TableCell>
-                        <TableCell className="text-left tabular-nums">{fmtDate(r.closed)}</TableCell>
-                        <TableCell className="text-left">
-                          {r.compliance ? (
-                            <span className="flex items-center gap-2">
-                              <span className="tabular-nums text-xs">{fmt(r.compliance.firstResponse.value, r.compliance.firstResponse.clock)}</span>
-                              <MetBadge met={r.compliance.firstResponse.met} />
-                            </span>
-                          ) : "—"}
-                        </TableCell>
-                        <TableCell className="text-left">
-                          {r.compliance ? (
-                            <span className="flex items-center gap-2">
-                              <span className="tabular-nums text-xs">{fmt(r.compliance.resolution.value, r.compliance.resolution.clock)}</span>
-                              <MetBadge met={r.compliance.resolution.met} />
-                            </span>
-                          ) : "—"}
-                        </TableCell>
-                        <TableCell className="text-left">
-                          <Badge variant="outline" className="text-[10px]">{r.state}</Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {openTickets.map((t) => {
+                      const sev = parseSeverity(t.raw_payload?.custom_attributes?.Severity);
+                      return (
+                        <TableRow key={t.id}>
+                          <TableCell className="text-left max-w-[360px] truncate">{t.subject || "(no subject)"}</TableCell>
+                          <TableCell className="text-left tabular-nums text-xs select-all">{t.intercom_conversation_id}</TableCell>
+                          <TableCell className="text-left">{sev == null ? "—" : `Sev ${sev}`}</TableCell>
+                          <TableCell className="text-left tabular-nums">{fmtDate(t.intercom_created_at)}</TableCell>
+                          <TableCell className="text-left">
+                            <Badge variant="outline" className="text-[10px]">
+                              {t.lifecycle_status === "reopened_after_finalize" ? "Reopened" : "Open"}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
+
+            {/* Closed issues */}
+            {showClosed && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Closed issues</CardTitle>
+                  <CardDescription className="text-xs">{scored.length} row(s) · {RANGE_LABELS[range]}</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-left">Subject</TableHead>
+                        <TableHead className="text-left w-[140px]">Intercom ID</TableHead>
+                        <TableHead className="text-left w-[100px]">Severity</TableHead>
+                        <TableHead className="text-left w-[110px]">Created</TableHead>
+                        <TableHead className="text-left w-[110px]">Resolved</TableHead>
+                        <TableHead className="text-left w-[160px]">First response</TableHead>
+                        <TableHead className="text-left w-[160px]">Resolution</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {scored.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-sm text-muted-foreground py-8 text-center">
+                            No closed issues in range.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {scored.map(({ row, sev, compliance }) => (
+                        <TableRow key={row.id}>
+                          <TableCell className="text-left max-w-[360px] truncate">{row.subject || "(no subject)"}</TableCell>
+                          <TableCell className="text-left tabular-nums text-xs select-all">{row.intercom_conversation_id}</TableCell>
+                          <TableCell className="text-left">{sev == null ? "—" : `Sev ${sev}`}</TableCell>
+                          <TableCell className="text-left tabular-nums">{fmtDate(row.intercom_created_at)}</TableCell>
+                          <TableCell className="text-left tabular-nums">{fmtDate(rowClosedAtMs(row))}</TableCell>
+                          <TableCell className="text-left">
+                            {compliance ? (
+                              <span className="flex items-center gap-2">
+                                <span className="tabular-nums text-xs">{fmt(compliance.firstResponse.value, compliance.firstResponse.clock)}</span>
+                                <MetBadge met={compliance.firstResponse.met} />
+                              </span>
+                            ) : "—"}
+                          </TableCell>
+                          <TableCell className="text-left">
+                            {compliance ? (
+                              <span className="flex items-center gap-2">
+                                <span className="tabular-nums text-xs">{fmt(compliance.resolution.value, compliance.resolution.clock)}</span>
+                                <MetBadge met={compliance.resolution.met} />
+                              </span>
+                            ) : "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+
           </>
         )}
       </div>
