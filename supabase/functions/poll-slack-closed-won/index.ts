@@ -193,10 +193,17 @@ Deno.serve(async (req) => {
     let skipped_domain_exists = 0;
     let skipped_account_key_exists = 0;
     const errors: string[] = [];
+    const would_insert: string[] = [];
 
     for (const c of candidates) {
       if (claimedDomains.has(c.domain)) { skipped_domain_exists++; continue; }
       if (claimedKeys.has(c.account_key)) { skipped_account_key_exists++; continue; }
+      if (dryRun) {
+        would_insert.push(`${c.account_key} (${c.domain})`);
+        claimedDomains.add(c.domain);
+        claimedKeys.add(c.account_key);
+        continue;
+      }
       const { error } = await supabase.from("v3_customer_accounts").insert({
         account_key: c.account_key,
         label: c.label,
@@ -213,7 +220,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const summary = { scanned: messages.length, extracted, inserted, skipped_domain_exists, skipped_account_key_exists, errors };
+    const summary = { lookbackDays, dryRun, scanned: messages.length, extracted, inserted, would_insert, skipped_domain_exists, skipped_account_key_exists, unparsed, errors };
     console.log("poll-slack-closed-won:", summary);
     return new Response(JSON.stringify(summary), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
