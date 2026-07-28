@@ -783,6 +783,27 @@ function buildNodes(
       },
     },
     {
+      id: "inbox-v3-reconcile",
+      type: "flowNode",
+      position: { x: COL_W * -0.6, y: ROW_H * 3.45 },
+      data: {
+        label: "Inbox v3 — transferred-out reconciliation",
+        desc: "Hourly truth-set diff that catches tickets which LEFT the Enterprise Inbox and marks them transferred_out instead of leaving them phantom-open.",
+        icon: Beaker,
+        edgeFunction: "reconcile-v3-open",
+        details: [
+          "PROBLEM (phantom-open): a ticket reassigned to another team — and often resolved there — used to linger in v3 forever as state=open with stale attributes and null severity. sync-v3-open searches by team_assignee_id = enterprise inbox, so a ticket that left the inbox is never seen again and never re-checked. Those phantoms polluted the Active queue and the Customers unattributed queue and would false-alarm a staleness/triage alert. Bounded at ~6–7 tickets.",
+          "Cron reconcile-v3-open-hourly at 7 * * * *. Step 1: paginated Intercom search for ALL conversations with team_assignee_id = enterprise inbox AND state ∈ {open, snoozed} — deliberately NO time window, this is the authoritative truth set, not a delta. Step 2: diff against our rows with lifecycle_status IN (open, reopened_after_finalize) → 'departed'. Step 3: each departed ticket gets its own GET /conversations/{id} (authoritative re-check): team ≠ inbox ⇒ transferred_out (+ transferred_at, reassigned_team_id); closed/resolved in our inbox ⇒ finalizeConversation catch-up; still ours + open ⇒ left alone (still_open_edge).",
+          "Transfer takes precedence over close, DELIBERATELY: if a ticket both moved teams and closed, the close belongs to the other team and must not count as our resolution. Known consequence — a transferred-then-closed ticket never gets finalized in v3.",
+          "SAFETY: if the truth-set search errors the run aborts with 502 and writes NOTHING; and because every mark is backed by a per-ticket GET, even a partially-paginated truth set can't cause a mis-mark. One pass both cleans existing phantoms and prevents new ones.",
+          "Lifecycle state transferred_out is auto-EXCLUDED from SLA with no extra filtering, because useSlaBatch only loads finalized / reopened_after_finalize — a ticket another team resolved is not our resolution to own. Kept visible, out of our numbers. AnalyticsV3 active/open counts explicitly exclude transferred_out. Surface: InboxV3 'Team Reassignment' tab (count badge; expandable table Subject · Intercom ID · Customer · Time-in-inbox · Reassigned-to · Transferred).",
+          "Observability: writes an integration_health row per run (key reconcile-v3-open, cast at the call site — not yet in the IntegrationKey union or the integration-health-alert list, so no Slack alert yet). Response returns split counters transferred_out / finalized_catchup / get_failed / update_failed / finalize_skipped / still_open_edge plus a capped samples array — the split is what turned an opaque 'skipped: 7' into a diagnosable failure.",
+          "Constraint-bug footnote: the first migration's DROP CONSTRAINT IF EXISTS used a GUESSED name and missed the real pre-existing intercom_tickets_v3_lifecycle_chk, so a duplicate CHECK survived and silently rejected every transferred_out write (all 7 departed rows returned update_failed) until it was dropped in a follow-up migration. Lesson: look up a constraint's real name in pg_constraint before ALTER.",
+        ],
+        accent: "orange",
+      },
+    },
+    {
       id: "changelog-page",
       type: "flowNode",
       position: { x: COL_W * -0.6, y: ROW_H * 3 },
