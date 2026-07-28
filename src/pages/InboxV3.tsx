@@ -397,6 +397,12 @@ export default function InboxV3() {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger value="transferred" className="gap-2">
+              Team Reassignment
+              <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                {transferredRows.length}
+              </span>
+            </TabsTrigger>
           </TabsList>
 
           <div className="flex flex-wrap items-center gap-2 mt-4">
