@@ -45,6 +45,8 @@ type Ticket = {
   customer_source: string | null;
   customer_override_key: string | null;
   customer_override_reason: string | null;
+  transferred_at: string | null;
+  reassigned_team_id: string | null;
 };
 
 type AccountOpt = { account_key: string; label: string };
