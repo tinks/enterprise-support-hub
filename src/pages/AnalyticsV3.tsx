@@ -181,7 +181,8 @@ export default function AnalyticsV3() {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
             .select("id,intercom_created_at,lifecycle_status,reopen_count,tags,rsa_override,customer_key")
-            .neq("lifecycle_status", "finalized")
+            // Explicit allow-list: 'transferred_out' is terminal (left our scope), never "active".
+            .in("lifecycle_status", ["open", "reopened_after_finalize"])
             .order("intercom_created_at", { ascending: true })
             .range(aOff, aOff + PAGE - 1);
           if (error) throw error;
