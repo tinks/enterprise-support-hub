@@ -472,6 +472,17 @@ export default function InboxV3() {
             </div>
             <ActiveTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} onMarkFinalized={markAsFinalized} accountLabel={accountLabel} />
           </TabsContent>
+
+          <TabsContent value="transferred" className="mt-4 space-y-3">
+            <div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                Tickets reassigned away from the Enterprise inbox. Terminal state — excluded from the Active queue and from
+                active/open analytics. "Time in inbox" is a proxy (transferred − created).
+              </span>
+            </div>
+            <TransferredTable rows={filtered} loading={currentLoading} onSelect={setSelected} accountLabel={accountLabel} />
+          </TabsContent>
         </Tabs>
       </div>
 
