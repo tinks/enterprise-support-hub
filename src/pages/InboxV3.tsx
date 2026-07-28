@@ -205,8 +205,23 @@ export default function InboxV3() {
     setActiveLoading(false);
   };
 
+  // Terminal state: the ticket left our scope when another team took it over.
+  const loadTransferred = async () => {
+    setTransferredLoading(true);
+    const { data, error } = await supabase
+      .from("intercom_tickets_v3")
+      .select("*")
+      .eq("lifecycle_status", "transferred_out")
+      .order("transferred_at", { ascending: false, nullsFirst: false })
+      .limit(1000);
+    if (!error) setTransferredRows((data ?? []) as Ticket[]);
+    setTransferredLoading(false);
+  };
+
   useEffect(() => { loadFinalized(); }, [lifecycle]);
   useEffect(() => { loadActive(); }, []);
+  useEffect(() => { loadTransferred(); }, []);
+
 
   // Deep-link support: /inbox-v3?customer=<key>
   useEffect(() => {
