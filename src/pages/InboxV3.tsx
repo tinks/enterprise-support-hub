@@ -45,6 +45,8 @@ type Ticket = {
   customer_source: string | null;
   customer_override_key: string | null;
   customer_override_reason: string | null;
+  transferred_at: string | null;
+  reassigned_team_id: string | null;
 };
 
 type AccountOpt = { account_key: string; label: string };
@@ -66,7 +68,12 @@ function intercomUrl(id: string) {
 }
 
 export default function InboxV3() {
-  const [tab, setTab] = useState<"finalized" | "active">("active");
+  const [tab, setTab] = useState<"finalized" | "active" | "transferred">("active");
+
+  // Team Reassignment tab state (lifecycle_status = 'transferred_out')
+  const [transferredRows, setTransferredRows] = useState<Ticket[]>([]);
+  const [transferredLoading, setTransferredLoading] = useState(true);
+
 
   // Finalized tab state
   const [finalizedRows, setFinalizedRows] = useState<Ticket[]>([]);
@@ -198,8 +205,23 @@ export default function InboxV3() {
     setActiveLoading(false);
   };
 
+  // Terminal state: the ticket left our scope when another team took it over.
+  const loadTransferred = async () => {
+    setTransferredLoading(true);
+    const { data, error } = await supabase
+      .from("intercom_tickets_v3")
+      .select("*")
+      .eq("lifecycle_status", "transferred_out")
+      .order("transferred_at", { ascending: false, nullsFirst: false })
+      .limit(1000);
+    if (!error) setTransferredRows((data ?? []) as Ticket[]);
+    setTransferredLoading(false);
+  };
+
   useEffect(() => { loadFinalized(); }, [lifecycle]);
   useEffect(() => { loadActive(); }, []);
+  useEffect(() => { loadTransferred(); }, []);
+
 
   // Deep-link support: /inbox-v3?customer=<key>
   useEffect(() => {
@@ -263,9 +285,9 @@ export default function InboxV3() {
     toast({ title: "Reset to auto-derived" });
   };
 
-  const currentRows = tab === "finalized" ? finalizedRows : activeRows;
-  const currentLoading = tab === "finalized" ? finalizedLoading : activeLoading;
-  const reload = tab === "finalized" ? loadFinalized : loadActive;
+  const currentRows = tab === "finalized" ? finalizedRows : tab === "transferred" ? transferredRows : activeRows;
+  const currentLoading = tab === "finalized" ? finalizedLoading : tab === "transferred" ? transferredLoading : activeLoading;
+  const reload = tab === "finalized" ? loadFinalized : tab === "transferred" ? loadTransferred : loadActive;
 
   const ownerOpts = useMemo(
     () => Array.from(new Set(currentRows.map((r) => r.owner).filter(Boolean))).sort() as string[],
@@ -349,7 +371,7 @@ export default function InboxV3() {
           </div>
         </div>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "finalized" | "active")}>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "finalized" | "active" | "transferred")}>
           <TabsList>
             <TabsTrigger value="active" className="gap-2">
               Active ({activeRows.length})
@@ -374,6 +396,12 @@ export default function InboxV3() {
                   {finalizedAttention}
                 </span>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="transferred" className="gap-2">
+              Team Reassignment
+              <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                {transferredRows.length}
+              </span>
             </TabsTrigger>
           </TabsList>
 
@@ -443,6 +471,17 @@ export default function InboxV3() {
               </span>
             </div>
             <ActiveTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} onMarkFinalized={markAsFinalized} accountLabel={accountLabel} />
+          </TabsContent>
+
+          <TabsContent value="transferred" className="mt-4 space-y-3">
+            <div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                Tickets reassigned away from the Enterprise inbox. Terminal state — excluded from the Active queue and from
+                active/open analytics. "Time in inbox" is a proxy (transferred − created).
+              </span>
+            </div>
+            <TransferredTable rows={filtered} loading={currentLoading} onSelect={setSelected} accountLabel={accountLabel} />
           </TabsContent>
         </Tabs>
       </div>
@@ -821,6 +860,65 @@ function Field({ label, value, mono }: { label: string; value: string | null; mo
     <div className="grid grid-cols-[140px_1fr] gap-3">
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className={`text-sm ${mono ? "font-mono" : ""}`}>{value || "—"}</dd>
+    </div>
+  );
+}
+
+function TransferredTable({ rows, loading, onSelect, accountLabel }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; accountLabel: (key: string | null) => string }) {
+  return (
+    <div className="rounded-md border border-border overflow-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-[320px]">Subject</TableHead>
+            <TableHead className="w-[140px]">Intercom ID</TableHead>
+            <TableHead className="w-[160px]">Customer</TableHead>
+            <TableHead className="w-[140px]">Time in inbox</TableHead>
+            <TableHead className="w-[160px]">Reassigned to</TableHead>
+            <TableHead className="w-[140px]">Transferred</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading && (
+            <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
+            </TableCell></TableRow>
+          )}
+          {!loading && rows.length === 0 && (
+            <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
+              No reassigned tickets.
+            </TableCell></TableRow>
+          )}
+          {!loading && rows.map((r) => {
+            // Proxy: we don't yet record inbox-entry time, so measure from conversation creation.
+            const inboxS =
+              r.transferred_at && r.intercom_created_at
+                ? Math.max(0, (new Date(r.transferred_at).getTime() - new Date(r.intercom_created_at).getTime()) / 1000)
+                : null;
+            return (
+              <TableRow key={r.id} className="cursor-pointer" onClick={() => onSelect(r)}>
+                <TableCell className="truncate max-w-[320px]">{r.subject || "—"}</TableCell>
+                <TableCell
+                  className="font-mono text-xs select-text"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {r.intercom_conversation_id}
+                </TableCell>
+                <TableCell className="truncate max-w-[160px]">
+                  <Badge variant="secondary" className="text-xs">
+                    {r.customer_key ? accountLabel(r.customer_key) : (r.contact_domain || "—")}
+                  </Badge>
+                </TableCell>
+                <TableCell className="tabular-nums text-xs">{formatDuration(inboxS)}</TableCell>
+                <TableCell className="font-mono text-xs">{r.reassigned_team_id || "—"}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {r.transferred_at ? format(new Date(r.transferred_at), "MMM d, yyyy") : "—"}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
     </div>
   );
 }

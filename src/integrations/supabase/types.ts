@@ -569,6 +569,7 @@ export type Database = {
           product_area: string | null
           project_uuid_detected: string | null
           raw_payload: Json | null
+          reassigned_team_id: string | null
           reopen_count: number
           reopen_count_at_finalize: number | null
           rsa_override: boolean | null
@@ -580,6 +581,7 @@ export type Database = {
           team_assignee_id: string | null
           time_to_first_admin_reply_s: number | null
           time_to_resolve_s: number | null
+          transferred_at: string | null
           updated_at: string
           workspace_id_detected: string | null
         }
@@ -618,6 +620,7 @@ export type Database = {
           product_area?: string | null
           project_uuid_detected?: string | null
           raw_payload?: Json | null
+          reassigned_team_id?: string | null
           reopen_count?: number
           reopen_count_at_finalize?: number | null
           rsa_override?: boolean | null
@@ -629,6 +632,7 @@ export type Database = {
           team_assignee_id?: string | null
           time_to_first_admin_reply_s?: number | null
           time_to_resolve_s?: number | null
+          transferred_at?: string | null
           updated_at?: string
           workspace_id_detected?: string | null
         }
@@ -667,6 +671,7 @@ export type Database = {
           product_area?: string | null
           project_uuid_detected?: string | null
           raw_payload?: Json | null
+          reassigned_team_id?: string | null
           reopen_count?: number
           reopen_count_at_finalize?: number | null
           rsa_override?: boolean | null
@@ -678,6 +683,7 @@ export type Database = {
           team_assignee_id?: string | null
           time_to_first_admin_reply_s?: number | null
           time_to_resolve_s?: number | null
+          transferred_at?: string | null
           updated_at?: string
           workspace_id_detected?: string | null
         }
