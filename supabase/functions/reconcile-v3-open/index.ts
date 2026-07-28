@@ -214,6 +214,11 @@ Deno.serve(async (req) => {
     pushSample({ convId, outcome: "still_open_edge", curTeam, curState });
   }
 
+  await health(
+    supabase,
+    "ok",
+    `departed=${departed.length} transferred_out=${transferred_out} finalized=${finalized_catchup} get_failed=${get_failed} update_failed=${update_failed}`,
+  );
 
   return json({
     ok: true,
