@@ -114,7 +114,12 @@ Deno.serve(async (req) => {
   // ---- 3. Per-ticket authoritative re-check ----
   let transferred_out = 0;
   let finalized_catchup = 0;
-  let skipped = 0;
+  let get_failed = 0;
+  let update_failed = 0;
+  let finalize_skipped = 0;
+  let still_open_edge = 0;
+  const samples: any[] = [];
+  const pushSample = (s: any) => { if (samples.length < 12) samples.push(s); };
 
   for (const row of departed) {
     if (Date.now() - startedAt > TIME_BUDGET_MS) {
@@ -129,14 +134,17 @@ Deno.serve(async (req) => {
         headers: intercomHeaders(INTERCOM_API_TOKEN),
       });
       if (!res.ok) {
-        console.warn(`[reconcile-v3-open] GET ${convId} -> ${res.status}, skipping`);
-        skipped++;
+        const body = await res.text();
+        console.warn(`[reconcile-v3-open] GET ${convId} -> ${res.status}: ${body.slice(0, 200)}`);
+        get_failed++;
+        pushSample({ convId, outcome: "get_failed", getStatus: res.status, error: body.slice(0, 200) });
         continue;
       }
       icData = await res.json();
     } catch (e) {
       console.warn(`[reconcile-v3-open] GET ${convId} threw: ${(e as Error).message}`);
-      skipped++;
+      get_failed++;
+      pushSample({ convId, outcome: "get_failed", getStatus: null, error: (e as Error).message });
       continue;
     }
 
@@ -155,9 +163,11 @@ Deno.serve(async (req) => {
         .eq("id", row.id);
       if (upErr) {
         console.error(`[reconcile-v3-open] transfer update failed conv=${convId}: ${upErr.message}`);
-        skipped++;
+        update_failed++;
+        pushSample({ convId, outcome: "update_failed", curTeam, curState, updateError: upErr.message });
       } else {
         transferred_out++;
+        pushSample({ convId, outcome: "transferred_out", curTeam, curState });
       }
       continue;
     }
@@ -173,16 +183,20 @@ Deno.serve(async (req) => {
       });
       if (r.kind === "inserted" || r.kind === "updated") {
         finalized_catchup++;
+        pushSample({ convId, outcome: "finalized", curTeam, curState });
       } else {
         console.warn(`[reconcile-v3-open] finalize ${convId} -> ${r.kind}: ${(r as any).reason ?? ""}`);
-        skipped++;
+        finalize_skipped++;
+        pushSample({ convId, outcome: "finalize_skipped", curTeam, curState, reason: (r as any).reason ?? r.kind });
       }
       continue;
     }
 
     // Still open and still in our inbox — pagination/snooze edge. Leave alone.
-    skipped++;
+    still_open_edge++;
+    pushSample({ convId, outcome: "still_open_edge", curTeam, curState });
   }
+
 
   return json({
     ok: true,
