@@ -846,6 +846,24 @@ Reporting-grade mirror of Intercom enterprise tickets, built as a parallel stack
 
 - Out of scope (deliberate non-goals): no edits to `inbox_v2_tickets`, `sync-inbox-v2`, `InboxV2.tsx`, `AnalyticsV2.tsx`, or any existing cron. No engagement classification in v3 (RSA replaces that role). Reopens are flagged only — never re-finalize. No automatic v2→v3 cutover; both run in parallel until manually cut over.
 
+### Transferred-out reconciliation — `reconcile-v3-open` (commits `c8c12fd`, `9392d4c`, `4a44cb0`, `a7b5537`)
+
+**Problem ("phantom-open").** Tickets transferred OUT of the Enterprise Inbox — reassigned to another team and often resolved there — used to linger in v3 forever as `state='open'` with stale attributes and null severity. `sync-v3-open` searches by `team_assignee_id = enterprise inbox`, so a ticket that left the inbox is never seen again and is never re-checked. Those phantoms polluted the Active queue and the Customers unattributed queue, and would have false-alarmed any staleness/triage alert. Bounded population at the time of the fix: ~6–7 tickets.
+
+**Lifecycle state.** `intercom_tickets_v3.lifecycle_status` gains `transferred_out`, plus columns `transferred_at` and `reassigned_team_id`. Such tickets are **auto-excluded from SLA** with no extra filtering, because `useSlaBatch` only loads `finalized` / `reopened_after_finalize` — a ticket another team resolved is not our resolution to own. They stay visible (own tab) but out of our numbers. `AnalyticsV3` active/open counts explicitly exclude `transferred_out`.
+
+**Function.** `supabase/functions/reconcile-v3-open/index.ts`, cron `reconcile-v3-open-hourly` at `7 * * * *`.
+1. **Truth set** — paginated Intercom search for ALL conversations with `team_assignee_id = enterpriseInboxId` AND `state ∈ {open, snoozed}`. Deliberately **no time window**: this is the authoritative "what is actually in our inbox right now" set, not a delta.
+2. **Diff** — our rows with `lifecycle_status IN (open, reopened_after_finalize)` that are absent from the truth set are "departed".
+3. **Per-ticket authoritative re-check** — each departed ticket gets its own `GET /conversations/{id}`. `team ≠ inbox` ⇒ `transferred_out` (+ `transferred_at`, `reassigned_team_id`); `closed`/resolved-ticket in our inbox ⇒ `finalizeConversation` catch-up; still ours + open ⇒ left alone (`still_open_edge`, pagination/snooze edge).
+   - **Transfer takes precedence over close, deliberately** — if a ticket both moved teams and closed, the close belongs to the other team and must not be counted as our resolution. Known consequence: a transferred-then-closed ticket never gets finalized in v3.
+4. **Safety** — if the truth-set search errors, the run **aborts with 502 and writes nothing**; and because every mark is backed by a per-ticket GET, even a partially-paginated truth set can't cause a mis-mark. One pass both cleans existing phantoms and prevents new ones.
+5. **Observability** — writes an `integration_health` row per run (key `reconcile-v3-open`, cast at the call site; not yet in the `IntegrationKey` union or the `integration-health-alert` list, so no Slack alert yet). Response returns split counters `transferred_out` / `finalized_catchup` / `get_failed` / `update_failed` / `finalize_skipped` / `still_open_edge` plus a capped `samples` array — the split counters are what turned an opaque `skipped: 7` into a diagnosable failure.
+
+**Surface.** `InboxV3` gains a **"Team Reassignment"** tab (count badge; expandable table: Subject · Intercom ID · Customer · Time-in-inbox · Reassigned-to · Transferred).
+
+**Constraint-bug footnote.** The first migration added a `lifecycle_status` CHECK constraint but its `DROP CONSTRAINT IF EXISTS` used a *guessed* name, missing the real pre-existing `intercom_tickets_v3_lifecycle_chk`. The stale constraint survived and silently rejected every `transferred_out` write (all 7 departed rows came back as `update_failed`) until it was dropped in a follow-up migration. **Lesson: look up a constraint's real name (`pg_constraint`) before ALTER — never guess it.**
+
 ## v3 Customer resolution (Track A)
 
 Attributes each `intercom_tickets_v3` ticket to a known **customer account** so support data can be sliced by customer. Intercom is read-only — all customer mapping lives in Lovable and nothing is written back.
