@@ -28,6 +28,7 @@ const INTEGRATIONS: Array<{ key: string; label: string; description: string; max
   { key: "gmail_poll", label: "Gmail poll", description: "Pulls support@ mail and reconciles to Intercom.", maxStaleMin: 30 },
   { key: "inbox_v2_sync", label: "Inbox V2 sync", description: "Mirrors Intercom into the Inbox V2 sandbox (every 15 min).", maxStaleMin: 30 },
   { key: "slack_closed_won_poll", label: "Closed-won account import", description: "Imports new customer accounts from Slack #closed-won (daily, 7-day lookback).", maxStaleMin: 36 * 60 },
+  { key: "reconcile-v3-open", label: "Transferred-out reconciliation", description: "Catches tickets that left the Enterprise Inbox and marks them transferred_out (hourly).", maxStaleMin: 180 },
 ];
 
 type Severity = "ok" | "warn" | "auth" | "error" | "unknown";
