@@ -863,3 +863,62 @@ function Field({ label, value, mono }: { label: string; value: string | null; mo
     </div>
   );
 }
+
+function TransferredTable({ rows, loading, onSelect, accountLabel }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; accountLabel: (key: string | null) => string }) {
+  return (
+    <div className="rounded-md border border-border overflow-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="w-[320px]">Subject</TableHead>
+            <TableHead className="w-[140px]">Intercom ID</TableHead>
+            <TableHead className="w-[160px]">Customer</TableHead>
+            <TableHead className="w-[140px]">Time in inbox</TableHead>
+            <TableHead className="w-[160px]">Reassigned to</TableHead>
+            <TableHead className="w-[140px]">Transferred</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {loading && (
+            <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
+            </TableCell></TableRow>
+          )}
+          {!loading && rows.length === 0 && (
+            <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
+              No reassigned tickets.
+            </TableCell></TableRow>
+          )}
+          {!loading && rows.map((r) => {
+            // Proxy: we don't yet record inbox-entry time, so measure from conversation creation.
+            const inboxS =
+              r.transferred_at && r.intercom_created_at
+                ? Math.max(0, (new Date(r.transferred_at).getTime() - new Date(r.intercom_created_at).getTime()) / 1000)
+                : null;
+            return (
+              <TableRow key={r.id} className="cursor-pointer" onClick={() => onSelect(r)}>
+                <TableCell className="truncate max-w-[320px]">{r.subject || "—"}</TableCell>
+                <TableCell
+                  className="font-mono text-xs select-text"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {r.intercom_conversation_id}
+                </TableCell>
+                <TableCell className="truncate max-w-[160px]">
+                  <Badge variant="secondary" className="text-xs">
+                    {r.customer_key ? accountLabel(r.customer_key) : (r.contact_domain || "—")}
+                  </Badge>
+                </TableCell>
+                <TableCell className="tabular-nums text-xs">{formatDuration(inboxS)}</TableCell>
+                <TableCell className="font-mono text-xs">{r.reassigned_team_id || "—"}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {r.transferred_at ? format(new Date(r.transferred_at), "MMM d, yyyy") : "—"}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
