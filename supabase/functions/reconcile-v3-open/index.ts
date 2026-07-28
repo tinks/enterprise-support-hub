@@ -19,6 +19,22 @@ import {
   V3_CORS_HEADERS,
 } from "../_shared/v3.ts";
 import { finalizeConversation } from "../_shared/v3-finalize.ts";
+import {
+  type IntegrationKey,
+  recordIntegrationHealth,
+} from "../_shared/integration-health.ts";
+
+// Not part of the shared IntegrationKey union (that file is out of scope for this change);
+// cast at the call site so the health row is still recorded under a stable key.
+const HEALTH_KEY = "reconcile-v3-open" as IntegrationKey;
+
+async function health(sb: any, status: "ok" | "error", detail?: string) {
+  try {
+    await recordIntegrationHealth(sb, HEALTH_KEY, status, detail ?? null);
+  } catch (e) {
+    console.error("[reconcile-v3-open] health write failed", e);
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: V3_CORS_HEADERS });
@@ -78,6 +94,7 @@ Deno.serve(async (req) => {
     if (!res.ok) {
       const text = await res.text();
       console.error(`[reconcile-v3-open] truth-set search failed ${res.status}: ${text.slice(0, 300)}`);
+      await health(supabase, "error", `truth-set search failed ${res.status}: ${text.slice(0, 200)}`);
       // CRITICAL GUARD: never mark anything off a failed truth set.
       return json({
         ok: false,
@@ -197,6 +214,11 @@ Deno.serve(async (req) => {
     pushSample({ convId, outcome: "still_open_edge", curTeam, curState });
   }
 
+  await health(
+    supabase,
+    "ok",
+    `departed=${departed.length} transferred_out=${transferred_out} finalized=${finalized_catchup} get_failed=${get_failed} update_failed=${update_failed}`,
+  );
 
   return json({
     ok: true,
