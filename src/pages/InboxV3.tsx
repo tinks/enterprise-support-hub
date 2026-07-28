@@ -68,7 +68,12 @@ function intercomUrl(id: string) {
 }
 
 export default function InboxV3() {
-  const [tab, setTab] = useState<"finalized" | "active">("active");
+  const [tab, setTab] = useState<"finalized" | "active" | "transferred">("active");
+
+  // Team Reassignment tab state (lifecycle_status = 'transferred_out')
+  const [transferredRows, setTransferredRows] = useState<Ticket[]>([]);
+  const [transferredLoading, setTransferredLoading] = useState(true);
+
 
   // Finalized tab state
   const [finalizedRows, setFinalizedRows] = useState<Ticket[]>([]);
