@@ -205,8 +205,14 @@ Deno.serve(async (req) => {
     departed: departed.length,
     transferred_out,
     finalized_catchup,
-    skipped,
+    skipped: get_failed + update_failed + finalize_skipped + still_open_edge,
+    get_failed,
+    update_failed,
+    finalize_skipped,
+    still_open_edge,
+    samples,
     elapsed_ms: Date.now() - startedAt,
+
   });
 });
 
