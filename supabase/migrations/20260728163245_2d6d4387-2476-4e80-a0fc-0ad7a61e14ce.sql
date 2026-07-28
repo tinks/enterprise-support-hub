@@ -1,0 +1,1 @@
+ALTER TABLE public.intercom_tickets_v3 DROP CONSTRAINT IF EXISTS intercom_tickets_v3_lifecycle_chk;
