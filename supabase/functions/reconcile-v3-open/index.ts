@@ -24,9 +24,7 @@ import {
   recordIntegrationHealth,
 } from "../_shared/integration-health.ts";
 
-// Not part of the shared IntegrationKey union (that file is out of scope for this change);
-// cast at the call site so the health row is still recorded under a stable key.
-const HEALTH_KEY = "reconcile-v3-open" as IntegrationKey;
+const HEALTH_KEY: IntegrationKey = "reconcile-v3-open";
 
 async function health(sb: any, status: "ok" | "error", detail?: string) {
   try {

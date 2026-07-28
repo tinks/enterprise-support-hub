@@ -11,7 +11,8 @@ export type IntegrationKey =
   | "intercom_import"
   | "gmail_poll"
   | "inbox_v2_sync"
-  | "slack_closed_won_poll";
+  | "slack_closed_won_poll"
+  | "reconcile-v3-open";
 
 export type IntegrationStatus = "ok" | "auth_error" | "error";
 

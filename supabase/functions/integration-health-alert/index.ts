@@ -31,6 +31,7 @@ const INTEGRATIONS: Config[] = [
   { key: "gmail_poll",        label: "Gmail poll",               maxStaleMin: 30 },
   { key: "inbox_v2_sync",     label: "Inbox V2 sync",            maxStaleMin: 30 },
   { key: "slack_closed_won_poll", label: "Closed-won account import", maxStaleMin: 36 * 60 },
+  { key: "reconcile-v3-open", label: "Transferred-out reconciliation", maxStaleMin: 180 },
 ];
 
 interface HealthRow {
