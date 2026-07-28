@@ -371,7 +371,7 @@ export default function InboxV3() {
           </div>
         </div>
 
-        <Tabs value={tab} onValueChange={(v) => setTab(v as "finalized" | "active")}>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "finalized" | "active" | "transferred")}>
           <TabsList>
             <TabsTrigger value="active" className="gap-2">
               Active ({activeRows.length})
