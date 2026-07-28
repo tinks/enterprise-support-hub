@@ -94,6 +94,7 @@ Deno.serve(async (req) => {
     if (!res.ok) {
       const text = await res.text();
       console.error(`[reconcile-v3-open] truth-set search failed ${res.status}: ${text.slice(0, 300)}`);
+      await health(supabase, "error", `truth-set search failed ${res.status}: ${text.slice(0, 200)}`);
       // CRITICAL GUARD: never mark anything off a failed truth set.
       return json({
         ok: false,
