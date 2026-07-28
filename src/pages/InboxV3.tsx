@@ -285,9 +285,9 @@ export default function InboxV3() {
     toast({ title: "Reset to auto-derived" });
   };
 
-  const currentRows = tab === "finalized" ? finalizedRows : activeRows;
-  const currentLoading = tab === "finalized" ? finalizedLoading : activeLoading;
-  const reload = tab === "finalized" ? loadFinalized : loadActive;
+  const currentRows = tab === "finalized" ? finalizedRows : tab === "transferred" ? transferredRows : activeRows;
+  const currentLoading = tab === "finalized" ? finalizedLoading : tab === "transferred" ? transferredLoading : activeLoading;
+  const reload = tab === "finalized" ? loadFinalized : tab === "transferred" ? loadTransferred : loadActive;
 
   const ownerOpts = useMemo(
     () => Array.from(new Set(currentRows.map((r) => r.owner).filter(Boolean))).sort() as string[],
