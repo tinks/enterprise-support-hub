@@ -511,6 +511,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
     let q = sb.from("intercom_tickets_v3")
       .select("id,intercom_conversation_id,subject,contact_email,contact_domain,slack_channel_id_detected,workspace_id_detected,intercom_created_at,last_full_fetch_at")
       .eq("customer_key", "unattributed")
+      .neq("lifecycle_status", "transferred_out")
       .order("intercom_created_at", { ascending: false })
       .limit(500);
     if (g.group_kind === "domain") q = q.eq("contact_domain", g.group_key);
