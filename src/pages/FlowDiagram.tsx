@@ -28,6 +28,7 @@ import {
   Users,
   CheckCircle2,
   Beaker,
+  ClipboardList,
   ScrollText,
   Download,
 } from "lucide-react";
