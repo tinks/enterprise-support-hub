@@ -28,6 +28,7 @@ import SlaReport from "./pages/SlaReport";
 import { Navigate } from "react-router-dom";
 import Customers from "./pages/Customers";
 import CustomerReport from "./pages/CustomerReport";
+import Backlog from "./pages/Backlog";
 
 
 const queryClient = new QueryClient();
@@ -56,6 +57,7 @@ const App = () => (
           <Route path="/import/bulk" element={<ProtectedRoute><BulkImportReview /></ProtectedRoute>} />
           <Route path="/test-review" element={<ProtectedRoute><TestChannelReview /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+          <Route path="/backlog" element={<ProtectedRoute><Backlog /></ProtectedRoute>} />
           <Route path="/flow" element={<ProtectedRoute><FlowDiagram /></ProtectedRoute>} />
           <Route path="/knowledge" element={<ProtectedRoute><ProjectKnowledge /></ProtectedRoute>} />
           <Route path="/changelog" element={<ProtectedRoute><Changelog /></ProtectedRoute>} />

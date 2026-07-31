@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
@@ -384,8 +384,8 @@ export default function Backlog() {
                               {rows.map((i) => {
                                 const isOpen = !!expanded[i.id];
                                 return (
-                                  <>
-                                    <TableRow key={i.id}>
+                                  <Fragment key={i.id}>
+                                    <TableRow>
                                       <TableCell>
                                         <button
                                           aria-label={isOpen ? "Collapse row" : "Expand row"}
@@ -472,7 +472,7 @@ export default function Backlog() {
                                         </TableCell>
                                       </TableRow>
                                     )}
-                                  </>
+                                  </Fragment>
                                 );
                               })}
                             </TableBody>

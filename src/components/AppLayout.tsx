@@ -69,6 +69,7 @@ const navEntries: NavEntry[] = [
     items: [
       { to: "/import", label: "Import" },
       { to: "/sla-workbench", label: "SLA Workbench" },
+      { to: "/backlog", label: "Backlog" },
     ],
   },
   {
