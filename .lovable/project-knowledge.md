@@ -1238,6 +1238,50 @@ A per-customer SLA + volume view for CSM-style consumption. Route in `App.tsx`, 
 - **Retire `settings.admin_owner_map`** and repoint its 7 legacy readers at `public.teammates`.
 - **Aggregate dashboard + SLA compliance slider** — plumbing is in place; UI wiring TBD after target ratification.
 
+---
+
+## Backlog — in-app team work tracker (`/backlog`)
+
+Migration `eba8ac3` (table) + page `bc367f1` (`src/pages/Backlog.tsx`), reachable from the **Tools** nav flyout.
+
+### Purpose / WHY
+
+A single-pane, team-facing tracker of **all** outstanding ESH work — bugs, to-dos, tech debt, feature requests and strategic items — in one place instead of scattered across Slack threads, docs and heads. It is deliberately a **first small step toward the team actually WORKING inside ESH** (the "ESH work-tickets pivot" direction): it is team-writable to drive adoption, and the `assignee` field exists to nudge explicit ownership rather than diffuse "someone should".
+
+### Table — `public.esh_backlog_items`
+
+`title` (NOT NULL), `description`, `category`, `status`, `priority`, `area`, `assignee` (teammate email; **NULL = unassigned**), `linked_ref` (free text — ticket id / commit sha / Linear id / URL), `source` (provenance for seeded items), `created_by`, `created_at`, `updated_at` (bumped by the shared `update_updated_at_column()` trigger).
+
+CHECK constraints:
+- `category ∈ (bug, todo, tech_debt, feature_request, strategic)`
+- `status ∈ (open, in_progress, blocked, done, wontfix)` — default `open`
+- `priority ∈ (high, med, low)` **OR NULL**
+
+### Charter alignment
+
+- **Bad values are rejected LOUDLY.** The category/status CHECKs make a typo'd or invented bucket fail the write rather than silently mis-bucket an item.
+- **`priority IS NULL` is an explicit "Unprioritized" state**, never defaulted — an unprioritized item must look unprioritized, not quietly "med".
+- **Dismissals use `wontfix`, not deletion** — nothing is silently lost; a rejected idea stays auditable with its reasoning.
+- **Permissions:** SELECT / INSERT / UPDATE open to any authenticated teammate (team-writable on purpose); DELETE **admin-only** via `has_role(auth.uid(),'admin')` — the same admin check gating the customer Registry and Teammates writes. The UI hides the delete control for non-admins, but RLS is the enforcement.
+
+### UI — `src/pages/Backlog.tsx`
+
+- Per-category **open-count strip** (counts exclude `done` / `wontfix`).
+- Filter row: category / status / priority / assignee / free-text search, plus a **"show done & won't fix" toggle that is OFF by default**.
+- Collapsible per-category sections, rows sorted **priority → `updated_at`**; rows expand for full detail.
+- Inline `status` / `priority` / `assignee` edits with toasts; add/edit dialog; admin-gated delete with a confirm step.
+- Assignee dropdown is sourced from `public.teammates WHERE active AND role <> 'ai'` — Sam can never be assigned work.
+
+### State
+
+The table is currently **EMPTY** and the page renders its empty state. A ~38-item inventory of known outstanding work is compiled and **STAGED**, to be seeded later on Matt's explicit go.
+
+### Known caveats
+
+- `assignee` / `created_by` are free-text emails with **no FK to `teammates`** — the dropdown constrains new writes, but any pre-existing or hand-entered value renders raw.
+- The INSERT/UPDATE policies are intentionally always-true (shared team backlog); the linter flags this as permissive. If authorship enforcement is wanted later, UPDATE can be narrowed to `created_by = auth.jwt()->>'email' OR has_role(...)`.
+
+
 
 
 
