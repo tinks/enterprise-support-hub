@@ -227,6 +227,54 @@ export type Database = {
         }
         Relationships: []
       }
+      esh_backlog_items: {
+        Row: {
+          area: string | null
+          assignee: string | null
+          category: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          linked_ref: string | null
+          priority: string | null
+          source: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          area?: string | null
+          assignee?: string | null
+          category: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          linked_ref?: string | null
+          priority?: string | null
+          source?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          area?: string | null
+          assignee?: string | null
+          category?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          linked_ref?: string | null
+          priority?: string | null
+          source?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       flow_node_positions: {
         Row: {
           id: string
