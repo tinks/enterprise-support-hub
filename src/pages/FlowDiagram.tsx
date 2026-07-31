@@ -823,6 +823,24 @@ function buildNodes(
       },
     },
     {
+      id: "backlog-page",
+      type: "flowNode",
+      position: { x: COL_W * -1.8, y: ROW_H * 3 },
+      data: {
+        label: "Backlog (team work tracker)",
+        desc: "In-app, team-facing backlog of ALL outstanding ESH work at /backlog (Tools nav flyout). First small step toward the team actually WORKING inside ESH (\"ESH work-tickets pivot\") rather than tracking ESH work elsewhere.",
+        icon: ClipboardList,
+        details: [
+          "Table public.esh_backlog_items — title, description, category, status, priority, area, assignee (teammate email; NULL = unassigned), linked_ref (free text: ticket id / commit sha / Linear id / URL), source (provenance for seeded items), created_by, created_at, updated_at (bumped by the shared update_updated_at_column trigger).",
+          "CHECK constraints reject bad values LOUDLY rather than mis-bucketing: category ∈ (bug, todo, tech_debt, feature_request, strategic); status ∈ (open, in_progress, blocked, done, wontfix); priority ∈ (high, med, low) OR NULL. Priority NULL is an EXPLICIT 'Unprioritized' state — never defaulted to a value nobody chose.",
+          "Dismissals use status 'wontfix', not deletion, so nothing is silently lost. RLS: SELECT / INSERT / UPDATE open to any authenticated teammate (team-writable on purpose — adoption beats gatekeeping); DELETE admin-only via has_role(auth.uid(),'admin'), the same admin check used by the Registry and Teammates tables. The UI hides the delete control for non-admins, but RLS is the real enforcement.",
+          "UI src/pages/Backlog.tsx: per-category open-count strip (counts exclude done/wontfix), filter row (category / status / priority / assignee / free-text search + a 'show done & won't fix' toggle that is OFF by default), collapsible per-category sections sorted priority → updated_at, expandable detail rows, inline status/priority/assignee edits with toasts, add/edit dialog, and an admin-gated delete with confirm. Assignee dropdown is sourced from public.teammates WHERE active AND role <> 'ai' (Sam is never an assignee).",
+          "STATE: the table is currently EMPTY — the page renders its empty state. A ~38-item inventory of known outstanding work is compiled and STAGED, to be seeded later on Matt's explicit go.",
+        ],
+        accent: "default",
+      },
+    },
+    {
       id: "customer-resolution",
       type: "flowNode",
       position: { x: COL_W * -0.6, y: ROW_H * 3.6 },
