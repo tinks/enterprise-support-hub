@@ -45,7 +45,7 @@ import {
   type DateWindow,
   WINDOW_LABELS,
   WINDOW_CAPTIONS,
-  windowStartMs,
+  windowRange,
   rowClosedAtMs,
 } from "@/lib/slaWindow";
 
