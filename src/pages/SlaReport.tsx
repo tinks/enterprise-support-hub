@@ -345,6 +345,32 @@ export default function SlaReport() {
               </div>
             </div>
 
+            <div className="rounded-md border border-border px-3 py-2 text-xs space-y-1">
+              <div className="font-medium">Triage discipline (provisional 30-min target)</div>
+              <div className="grid gap-2 sm:grid-cols-3 tabular-nums">
+                {[
+                  ["Over target (violations)", triage.discipline.violations],
+                  ["Answered before Severity assigned", triage.discipline.answeredFirst],
+                  ["Severity recorded at close", triage.discipline.atClose],
+                ].map(([label, count]) => (
+                  <div key={label as string}>
+                    <span className="text-muted-foreground">{label as string}: </span>
+                    <span className="font-medium">
+                      {count as number}
+                      {triage.n ? ` (${(((count as number) / triage.n) * 100).toFixed(0)}%)` : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="text-muted-foreground">
+                Over the {triage.n} evaluable tickets. The 30-minute business-hours triage target is
+                <strong> provisional</strong> (it should always sit at or below the strictest First-Response target);
+                "at close" means the first Severity was set within 30 minutes of the ticket closing.
+              </div>
+            </div>
+
+
+
             <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs space-y-1">
               <div className="tabular-nums font-medium">
                 Triage measurable for {triage.n} of {triage.m} in-scope tickets
