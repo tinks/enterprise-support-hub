@@ -155,8 +155,41 @@ export default function SlaReport() {
     });
   }, [scored, isExcused]);
 
+  // --- Triage time (MEASURE-FIRST, no target) -----------------------------
+  // Inbox-anchor → first Severity assignment. Severity-agnostic, so it is the
+  // one metric that legitimately supports a single global number. Only rows
+  // that actually carry a Severity event are evaluable — event_details capture
+  // began ~2026-07-15, so earlier-closed tickets are structurally not-evaluable.
+  const triage = useMemo(() => {
+    const evaluable = population.filter((r) => r.sla.hasSeverityEvent && r.sla.timeToTriageS != null);
+    const wall = aggregate(evaluable.map((r) => r.sla.timeToTriageS));
+    const bh = aggregate(evaluable.map((r) => r.sla.timeToTriageBusinessHoursS));
+    const groups = new Map<string, SlaBatchEnriched[]>();
+    for (const r of evaluable) {
+      const sev = parseSeverity(r.raw_payload?.custom_attributes?.["Severity"]);
+      const key = sev == null ? "unclassified" : String(sev);
+      const list = groups.get(key) ?? [];
+      list.push(r);
+      groups.set(key, list);
+    }
+    const bySeverity = ["1", "2", "3", "4", "unclassified"].map((key) => {
+      const rows = groups.get(key) ?? [];
+      const a = aggregate(rows.map((r) => r.sla.timeToTriageS));
+      return { key, n: rows.length, median: a.median, avg: a.avg };
+    });
+    const reclassified = evaluable.filter((r) => (r.sla.severityEventCount ?? 0) > 1).length;
+    return {
+      n: evaluable.length,
+      m: population.length,
+      wall,
+      bhMedian: bh.median,
+      bySeverity,
+      reclassified,
+    };
+  }, [population]);
 
   const monthLabel = months.find((m) => m.value === month)?.label ?? month;
+
 
   return (
     <AppLayout>
@@ -259,6 +292,93 @@ export default function SlaReport() {
             })}
           </CardContent>
         </Card>
+
+        {/* §2b Triage time — MEASURE-FIRST, no target */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">§2b Triage time — measure-first (no target)</CardTitle>
+            <CardDescription className="text-xs">
+              Enterprise-Inbox anchor → first Severity assignment. Severity-agnostic, so this is the
+              one responsiveness figure that supports a single global number.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <div className="grid gap-4 sm:grid-cols-4">
+              {[
+                ["Median (wall-clock)", triage.wall.median],
+                ["Average", triage.wall.avg],
+                ["p90", triage.wall.p90],
+              ].map(([label, v]) => (
+                <div key={label as string} className="rounded-md border border-border p-3 space-y-1">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">{label as string}</div>
+                  <div className="text-2xl font-bold tabular-nums">{formatDuration(v as number | null)}</div>
+                </div>
+              ))}
+              <div className="rounded-md border border-border p-3 space-y-1">
+                <div className="text-xs text-muted-foreground uppercase tracking-wide">n (evaluable)</div>
+                <div className="text-2xl font-bold tabular-nums">{triage.n}</div>
+              </div>
+            </div>
+
+            <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs space-y-1">
+              <div className="tabular-nums font-medium">
+                Triage measurable for {triage.n} of {triage.m} in-scope tickets
+                {triage.m ? ` (${((triage.n / triage.m) * 100).toFixed(0)}%)` : ""}.
+              </div>
+              <div className="text-muted-foreground">
+                Severity-change events (<code>event_details</code>) are only captured from ~15 July 2026 onward
+                (Intercom API 2.13 + one-off backfill). Tickets closed before that line-in-the-sand carry no
+                Severity event and are <strong>not-evaluable</strong>, not fast. The figures above describe the
+                evaluable subset only — they are not the whole population.
+              </div>
+            </div>
+
+            <div>
+              <div className="font-medium mb-1">
+                Business-hours variant — median: <span className="tabular-nums">{formatDuration(triage.bhMedian)}</span>
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Same evaluable set, measured on the Berlin business clock (Mon–Fri 09:00–24:00). Off-hours
+                arrivals look slow on wall-clock; this variant strips that.
+              </div>
+            </div>
+
+            <div>
+              <div className="font-medium mb-1">By final severity (secondary)</div>
+              <table className="w-full text-xs">
+                <thead className="text-muted-foreground">
+                  <tr className="text-left border-b border-border">
+                    <th className="py-1 pr-3 font-medium">Severity</th>
+                    <th className="py-1 pr-3 font-medium">n</th>
+                    <th className="py-1 pr-3 font-medium">Median</th>
+                    <th className="py-1 pr-3 font-medium">Average</th>
+                  </tr>
+                </thead>
+                <tbody className="tabular-nums">
+                  {triage.bySeverity.map((g) => (
+                    <tr key={g.key} className="border-b border-border/50">
+                      <td className="py-1 pr-3">{g.key === "unclassified" ? "Unclassified" : `Sev ${g.key}`}</td>
+                      <td className="py-1 pr-3">{g.n}</td>
+                      <td className="py-1 pr-3">{formatDuration(g.median)}</td>
+                      <td className="py-1 pr-3">{formatDuration(g.avg)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="text-xs text-muted-foreground mt-1">
+                Grouped by the ticket's <em>final</em> Severity attribute. {triage.reclassified} of {triage.n} evaluable
+                tickets had more than one Severity event (re-classified after first triage).
+              </div>
+            </div>
+
+            <div className="rounded-md border-2 border-primary/40 bg-primary/5 px-3 py-2 text-xs">
+              <strong>Measure-first:</strong> no triage target is set yet and no compliance verdict is rendered here.
+              This distribution is the basis for proposing one — the what-if slider can tune it later.
+            </div>
+          </CardContent>
+        </Card>
+
+
 
         <SeverityTable
           title="§3a First Response by Severity"
