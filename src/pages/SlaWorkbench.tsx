@@ -864,6 +864,8 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
 
       <ComplianceSection inScope={filteredInScope} manuallyLoggedCount={manuallyLogged.length} isExcused={isExcused} getOverride={getOverride} refreshOverrides={refreshOverrides} />
 
+      <TriageViolationsSection inScope={filteredInScope} customerLabels={customerLabels} />
+
 
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
