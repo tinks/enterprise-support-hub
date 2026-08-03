@@ -414,7 +414,7 @@ function sumCustomerWaitGaps(timeline: TimelinePart[], clip: (a: number, b: numb
   let total = 0;
   let pending: number | null = null;
   for (const p of timeline) {
-    if (p.actor === "customer") {
+    if (p.actor === "customer" || p.actor === "shared_inbox") {
       // Both source and later customer messages open the pending clock.
       if (pending == null) pending = p.ts;
     } else if (p.isPublicReply && (p.actor === "human_admin" || p.actor === "sam_ai")) {
@@ -621,7 +621,9 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
 
   const samParticipated = timeline.some((p) => p.isPublicReply && p.actor === "sam_ai");
   const noHumanReply = !firstHumanReply;
-  const noCustomerParticipant = !timeline.some((p) => p.actor === "customer");
+  const noCustomerParticipant = !timeline.some(
+    (p) => p.actor === "customer" || p.actor === "shared_inbox",
+  );
 
   // Manually-logged bulk-import Slack thread — signature body from the
   // Enterprise Support Hub import path. Unmeasurable for SLA.
