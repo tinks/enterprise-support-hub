@@ -462,6 +462,17 @@ export type SlaResult = {
   timeToTriageBusinessHoursS: number | null;
   severityEventCount: number;
   hasSeverityEvent: boolean;
+  // ---- Triage discipline flags (provisional target, see TRIAGE_TARGET_S) ----
+  // Business-hours triage exceeded the provisional 30-min target. Rows that are
+  // not evaluable (no Severity event / no anchor) are NEVER violations.
+  triageViolation: boolean;
+  // A human teammate publicly replied before any Severity was assigned. Sam and
+  // the shared relay inbox are excluded so an instant AI reply cannot trip this.
+  answeredBeforeClassified: boolean;
+  // First Severity assignment landed within SEVERITY_AT_CLOSE_WINDOW_S of close
+  // — the "classified at close" bookkeeping pattern.
+  severityRecordedAtClose: boolean;
+
   flags: SlaFlags;
   // Who opened the conversation. "agent" means WE opened it (teammate outreach,
   // CSM relay, forwarded email, or Sam). "customer" means an external party
