@@ -995,3 +995,74 @@ describe("computeSla — close stops the resolution clock", () => {
     expect(r.resolutionActiveS).toBe(HOUR + 300);
   });
 });
+
+// ============================================================================
+// B6 — shared relay inbox (enterprise-support@lovable.dev)
+// ============================================================================
+import { classifyActor as classifyActorB6, computeSla as computeSlaB6 } from "@/lib/slaMetrics";
+
+describe("B6 — shared relay inbox is customer-side, not our reply", () => {
+  const T = 6_000_000_000;
+  const HOUR = 3600;
+  const CUST = { type: "user", id: "cust-b6", name: "Anthony", email: "anthony@att.com" };
+  const ADMIN = { type: "admin", id: "10765619", name: "Matt", email: "matt@lovable.dev" };
+  const RELAY = { type: "user", id: "relay-b6", name: null, email: "enterprise-support@lovable.dev" };
+
+  const conv = (relayAuthor: any) => {
+    const anchor = T + 100;
+    const close = anchor + 5 * HOUR;
+    return {
+      created_at: T,
+      source: { author: CUST, body: "<p>help</p>" },
+      conversation_parts: {
+        conversation_parts: [
+          { created_at: anchor, part_type: "assignment", author: ADMIN, body: "", assigned_to: { type: "team", id: ENTERPRISE_INBOX_TEAM_ID } },
+          { created_at: anchor + HOUR, part_type: "comment", author: ADMIN, body: "<p>our reply</p>" },
+          { created_at: anchor + 2 * HOUR, part_type: "comment", author: relayAuthor, body: "<p>customer message via relay</p>" },
+        ],
+      },
+      statistics: { last_close_at: close, first_close_at: close, count_reopens: 0 },
+    };
+  };
+
+  it("(a) classifyActor → shared_inbox", () => {
+    expect(classifyActorB6(RELAY)).toBe("shared_inbox");
+    expect(classifyActorB6(ADMIN)).toBe("human_admin");
+  });
+
+  it("(b) relay part RETURNS the ball to us → larger resolutionActive than if it were ours", () => {
+    const relayed = computeSlaB6(conv(RELAY)).resolutionActiveS as number;
+    const asAdmin = computeSlaB6(conv({ type: "admin", id: "999", name: "X", email: "x@lovable.dev" })).resolutionActiveS as number;
+    expect(relayed).toBeGreaterThan(asAdmin);
+    // ours: anchor→1h reply. relayed: that + relay@2h → close@5h = +3h
+    expect(asAdmin).toBe(HOUR);
+    expect(relayed).toBe(HOUR + 3 * HOUR);
+  });
+
+  it("(c) relay part is not counted as our first human/support reply", () => {
+    const parts = [
+      { created_at: T + 100, part_type: "assignment", author: ADMIN, body: "", assigned_to: { type: "team", id: ENTERPRISE_INBOX_TEAM_ID } },
+      { created_at: T + 200, part_type: "comment", author: RELAY, body: "<p>relayed</p>" },
+    ];
+    const r = computeSlaB6({
+      created_at: T,
+      source: { author: CUST, body: "<p>help</p>" },
+      conversation_parts: { conversation_parts: parts },
+      statistics: {},
+    });
+    expect(r.flags.noHumanReply).toBe(true);
+    expect(r.firstHumanReplyFromInboxS).toBeNull();
+    expect(r.firstSupportReplyS).toBeNull();
+    expect(r.initiatedBy).toBe("customer");
+  });
+
+  it("shared_inbox as the SOURCE author → customer-initiated", () => {
+    const r = computeSlaB6({
+      created_at: T,
+      source: { author: RELAY, body: "<p>forwarded</p>" },
+      conversation_parts: { conversation_parts: [] },
+      statistics: {},
+    });
+    expect(r.initiatedBy).toBe("customer");
+  });
+});
