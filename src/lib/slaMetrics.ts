@@ -91,6 +91,11 @@ export type TimelinePart = {
   isNote: boolean;
   assignedToType: "admin" | "team" | null;
   assignedToId: string | null;
+  // Raw Intercom `event_details` for the part (Intercom-Version >= 2.13).
+  // Carries attribute-change payloads such as
+  // { attribute: { name: "Severity" }, value: { name: "2" }, ... }.
+  // null when the part has no event_details.
+  eventDetails: any | null;
 };
 
 
