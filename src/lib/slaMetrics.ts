@@ -301,6 +301,89 @@ export type SlaFlags = {
   manuallyLogged: boolean;
 };
 
+// ============================================================================
+// Triage — Severity attribute events
+// ============================================================================
+//
+// Intercom emits severity changes as conversation parts with
+// part_type = "conversation_attribute_updated_by_admin" and
+// event_details = { attribute: { name: "Severity" }, value: { name: "2" } }.
+// `event_details` is only returned from Intercom-Version 2.13 onwards; 2.13
+// carries the NEW value but omits `value.previous`, so the previous value is
+// derived chronologically from the preceding event.
+
+export type SeverityEvent = {
+  ts: number;
+  to: string | null;
+  from: string | null;
+  authorType: string | null;
+  authorEmail: string | null;
+};
+
+export function extractSeverityEvents(timeline: TimelinePart[]): SeverityEvent[] {
+  const raw: Array<SeverityEvent & { _previous: string | null }> = [];
+  for (const p of timeline) {
+    if (p.partType !== "conversation_attribute_updated_by_admin") continue;
+    const ed = p.eventDetails;
+    if (!ed || ed?.attribute?.name !== "Severity") continue;
+    const toRaw = ed?.value?.name;
+    const prevRaw = ed?.value?.previous;
+    raw.push({
+      ts: p.ts,
+      to: toRaw != null ? String(toRaw) : null,
+      from: null,
+      authorType: p.actor ?? null,
+      authorEmail: p.authorEmail ?? null,
+      _previous: prevRaw != null ? String(prevRaw) : null,
+    });
+  }
+  raw.sort((a, b) => a.ts - b.ts);
+  const out: SeverityEvent[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const e = raw[i];
+    const from = e._previous != null ? e._previous : i === 0 ? null : out[i - 1].to;
+    out.push({ ts: e.ts, to: e.to, from, authorType: e.authorType, authorEmail: e.authorEmail });
+  }
+  return out;
+}
+
+export type TriageResult = {
+  firstSeverityAtS: number | null;
+  firstSeverityValue: string | null;
+  timeToTriageS: number | null;
+  timeToTriageBusinessHoursS: number | null;
+  severityEventCount: number;
+  hasSeverityEvent: boolean;
+};
+
+/**
+ * MEASURE-FIRST triage metric: time from the Enterprise-Inbox anchor
+ * (`slaClockStartS`) to the FIRST Severity assignment. No target, no
+ * compliance. Null (not-evaluable) when there is no Severity event or no
+ * anchor — never defaults to 0. Severity set BEFORE the anchor clamps to 0.
+ */
+export function computeTriage(
+  timeline: TimelinePart[],
+  slaClockStartS: number | null,
+): TriageResult {
+  const events = extractSeverityEvents(timeline);
+  const first = events.length ? events[0] : null;
+  const firstSeverityAtS = first ? first.ts : null;
+  const evaluable = firstSeverityAtS != null && slaClockStartS != null;
+  return {
+    firstSeverityAtS,
+    firstSeverityValue: first ? first.to : null,
+    timeToTriageS: evaluable ? Math.max(0, firstSeverityAtS! - slaClockStartS!) : null,
+    timeToTriageBusinessHoursS: evaluable
+      ? firstSeverityAtS! <= slaClockStartS!
+        ? 0
+        : Math.max(0, businessHoursBetween(slaClockStartS!, firstSeverityAtS!))
+      : null,
+    severityEventCount: events.length,
+    hasSeverityEvent: events.length > 0,
+  };
+}
+
 export type SlaResult = {
   createdAtS: number | null;
   // SLA clock-start: the ts of the first assignment to the Enterprise Inbox
@@ -360,6 +443,15 @@ export type SlaResult = {
   handlingTimeS: number;
   handlingTimeBusinessHoursS: number;
   partsCount: number;
+  // Triage (measure-first): time from the SLA anchor to the first Severity
+  // assignment. See computeTriage.
+  firstSeverityAtS: number | null;
+  firstSeverityValue: string | null;
+  timeToTriageS: number | null;
+  timeToTriageBusinessHoursS: number | null;
+  severityEventCount: number;
+  hasSeverityEvent: boolean;
+  severityEvents: SeverityEvent[];
   flags: SlaFlags;
   // Who opened the conversation. "agent" means WE opened it (teammate outreach,
   // CSM relay, forwarded email, or Sam). "customer" means an external party
@@ -650,6 +742,9 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
   const initiatedBy: "customer" | "agent" =
     sourceActor === "human_admin" || sourceActor === "sam_ai" ? "agent" : "customer";
 
+  const severityEvents = extractSeverityEvents(timeline);
+  const triage = computeTriage(timeline, slaClockStartS);
+
   return {
     createdAtS: createdAt,
     enterpriseInboxAssignedAtS,
@@ -681,6 +776,8 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
     handlingTimeS,
     handlingTimeBusinessHoursS,
     partsCount: timeline.length,
+    ...triage,
+    severityEvents,
     flags: {
       isTicket: !!conversation?.ticket,
       samParticipated,
