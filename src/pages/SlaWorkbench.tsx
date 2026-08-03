@@ -431,6 +431,8 @@ function HeroHumanStat({ calendar, businessHours, noCustomer }: { calendar: numb
 // ----- Actor color chip -----
 const ACTOR_STYLES: Record<Actor, { label: string; className: string }> = {
   customer:     { label: "customer",     className: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30" },
+  shared_inbox: { label: "shared inbox", className: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30" },
+
   human_admin:  { label: "human admin",  className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30" },
   sam_ai:       { label: "Sam · AI",     className: "bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300 border-fuchsia-500/40" },
   operator_bot: { label: "operator bot", className: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30" },
