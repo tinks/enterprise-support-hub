@@ -765,6 +765,24 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
 
   const triage = computeTriage(timeline, slaClockStartS);
 
+  // ---- Triage discipline flags (provisional targets) -----------------------
+  const triageViolation =
+    triage.hasSeverityEvent &&
+    triage.timeToTriageBusinessHoursS != null &&
+    triage.timeToTriageBusinessHoursS > TRIAGE_TARGET_S;
+  // `firstHumanReply` is the first PUBLIC reply by a human_admin — Sam (sam_ai)
+  // and the shared relay inbox (shared_inbox) are separate actors and excluded.
+  const answeredBeforeClassified =
+    !!firstHumanReply &&
+    triage.firstSeverityAtS != null &&
+    firstHumanReply.ts < triage.firstSeverityAtS;
+  const severityRecordedAtClose =
+    triage.firstSeverityAtS != null &&
+    closeAt != null &&
+    triage.firstSeverityAtS <= closeAt &&
+    closeAt - triage.firstSeverityAtS <= SEVERITY_AT_CLOSE_WINDOW_S;
+
+
   return {
     createdAtS: createdAt,
     enterpriseInboxAssignedAtS,
