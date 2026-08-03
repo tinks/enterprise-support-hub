@@ -174,7 +174,7 @@ export default function SlaReport() {
     }
     const bySeverity = ["1", "2", "3", "4", "unclassified"].map((key) => {
       const rows = groups.get(key) ?? [];
-      const a = aggregate(rows.map((r) => r.sla.timeToTriageS));
+      const a = aggregate(rows.map((r) => r.sla.timeToTriageBusinessHoursS));
       return { key, n: rows.length, median: a.median, avg: a.avg };
     });
     const reclassified = evaluable.filter((r) => (r.sla.severityEventCount ?? 0) > 1).length;
@@ -182,10 +182,11 @@ export default function SlaReport() {
       n: evaluable.length,
       m: population.length,
       wall,
-      bhMedian: bh.median,
+      bh,
       bySeverity,
       reclassified,
     };
+
   }, [population]);
 
   const monthLabel = months.find((m) => m.value === month)?.label ?? month;
@@ -303,20 +304,38 @@ export default function SlaReport() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
-            <div className="grid gap-4 sm:grid-cols-4">
-              {[
-                ["Median (wall-clock)", triage.wall.median],
-                ["Average", triage.wall.avg],
-                ["p90", triage.wall.p90],
-              ].map(([label, v]) => (
-                <div key={label as string} className="rounded-md border border-border p-3 space-y-1">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide">{label as string}</div>
-                  <div className="text-2xl font-bold tabular-nums">{formatDuration(v as number | null)}</div>
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide mb-2">
+                Business hours (Mon–Fri 09:00–24:00 Berlin) — headline
+              </div>
+              <div className="grid gap-4 sm:grid-cols-4">
+                {[
+                  ["Median", triage.bh.median],
+                  ["Average", triage.bh.avg],
+                  ["p90", triage.bh.p90],
+                ].map(([label, v]) => (
+                  <div key={label as string} className="rounded-md border border-border p-3 space-y-1">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wide">{label as string}</div>
+                    <div className="text-2xl font-bold tabular-nums">{formatDuration(v as number | null)}</div>
+                  </div>
+                ))}
+                <div className="rounded-md border border-border p-3 space-y-1">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">n (evaluable)</div>
+                  <div className="text-2xl font-bold tabular-nums">{triage.n}</div>
                 </div>
-              ))}
-              <div className="rounded-md border border-border p-3 space-y-1">
-                <div className="text-xs text-muted-foreground uppercase tracking-wide">n (evaluable)</div>
-                <div className="text-2xl font-bold tabular-nums">{triage.n}</div>
+              </div>
+            </div>
+
+            <div className="rounded-md border border-border px-3 py-2 text-xs space-y-1">
+              <div className="font-medium">
+                Wall-clock (includes off-hours) — median{" "}
+                <span className="tabular-nums">{formatDuration(triage.wall.median)}</span> · avg{" "}
+                <span className="tabular-nums">{formatDuration(triage.wall.avg)}</span> · p90{" "}
+                <span className="tabular-nums">{formatDuration(triage.wall.p90)}</span>
+              </div>
+              <div className="text-muted-foreground">
+                Real and still important, but <strong>expected higher until off-hours coverage exists</strong> —
+                a ticket landing overnight is not slow work, it is uncovered time.
               </div>
             </div>
 
@@ -334,17 +353,8 @@ export default function SlaReport() {
             </div>
 
             <div>
-              <div className="font-medium mb-1">
-                Business-hours variant — median: <span className="tabular-nums">{formatDuration(triage.bhMedian)}</span>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Same evaluable set, measured on the Berlin business clock (Mon–Fri 09:00–24:00). Off-hours
-                arrivals look slow on wall-clock; this variant strips that.
-              </div>
-            </div>
+              <div className="font-medium mb-1">By final severity (secondary, business hours)</div>
 
-            <div>
-              <div className="font-medium mb-1">By final severity (secondary)</div>
               <table className="w-full text-xs">
                 <thead className="text-muted-foreground">
                   <tr className="text-left border-b border-border">
