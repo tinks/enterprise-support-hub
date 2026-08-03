@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeSla, businessHoursBetween, formatBusinessDuration, type SlaResult } from "@/lib/slaMetrics";
+import { computeSla, businessHoursBetween, formatBusinessDuration, extractTimeline, extractSeverityEvents, type SlaResult } from "@/lib/slaMetrics";
 
 describe("formatBusinessDuration", () => {
   it("null → '—'", () => expect(formatBusinessDuration(null)).toBe("—"));
@@ -1080,5 +1080,79 @@ describe("B6 — shared relay inbox is customer-side, not our reply", () => {
       statistics: {},
     });
     expect(r.flags.noCustomerParticipant).toBe(false);
+  });
+});
+
+// ============================================================================
+// Triage — Severity events + time-to-triage (measure-first, no target)
+// ============================================================================
+describe("triage — Severity events", () => {
+  const TEAM = "8484447";
+  const T = Date.UTC(2025, 5, 2, 8, 0, 0) / 1000; // Mon 10:00 Berlin
+  const CUSTOMER = { type: "user", id: "c1", name: "Cust", email: "a@acme.com" };
+  const ADMIN = { type: "admin", id: "77", name: "Agent", email: "agent@lovable.dev" };
+
+  const sevPart = (ts: number, value: string, previous?: string | null) => ({
+    created_at: ts,
+    part_type: "conversation_attribute_updated_by_admin",
+    author: ADMIN,
+    body: "",
+    event_details: {
+      attribute: { name: "Severity" },
+      value: previous === undefined ? { name: value } : { name: value, previous },
+    },
+  });
+
+  const build = (parts: any[]) => ({
+    created_at: T,
+    source: { author: CUSTOMER, body: "<p>help</p>" },
+    conversation_parts: { conversation_parts: parts },
+    statistics: {},
+  });
+
+  const anchor = (ts: number) => ({
+    created_at: ts,
+    part_type: "assignment",
+    author: ADMIN,
+    body: "",
+    assigned_to: { type: "team", id: TEAM },
+  });
+
+  it("(a) anchor then Severity 15 min later → timeToTriageS === 900", () => {
+    const r = computeSla(build([anchor(T + 60), sevPart(T + 60 + 900, "2")]));
+    expect(r.slaClockStartS).toBe(T + 60);
+    expect(r.timeToTriageS).toBe(900);
+    expect(r.timeToTriageBusinessHoursS).toBe(900);
+    expect(r.firstSeverityValue).toBe("2");
+    expect(r.hasSeverityEvent).toBe(true);
+    expect(r.severityEventCount).toBe(1);
+  });
+
+  it("(b) chronological `from` derivation when `previous` is absent", () => {
+    const timeline = extractTimeline(
+      build([anchor(T + 60), sevPart(T + 100, "4"), sevPart(T + 200, "2"), sevPart(T + 300, "1")]),
+    );
+    const events = extractSeverityEvents(timeline);
+    expect(events.map((e) => e.to)).toEqual(["4", "2", "1"]);
+    expect(events.map((e) => e.from)).toEqual([null, "4", "2"]);
+    expect(events.every((e) => e.authorType === "human_admin")).toBe(true);
+  });
+
+  it("(c) no Severity event → not evaluable", () => {
+    const r = computeSla(build([anchor(T + 60), { created_at: T + 120, part_type: "comment", author: ADMIN, body: "<p>hi</p>" }]));
+    expect(r.hasSeverityEvent).toBe(false);
+    expect(r.severityEventCount).toBe(0);
+    expect(r.timeToTriageS).toBeNull();
+    expect(r.timeToTriageBusinessHoursS).toBeNull();
+    expect(r.firstSeverityAtS).toBeNull();
+    expect(r.firstSeverityValue).toBeNull();
+  });
+
+  it("(d) Severity set BEFORE the anchor → clamped to 0", () => {
+    const r = computeSla(build([sevPart(T + 60, "3"), anchor(T + 600)]));
+    expect(r.slaClockStartS).toBe(T + 600);
+    expect(r.timeToTriageS).toBe(0);
+    expect(r.timeToTriageBusinessHoursS).toBe(0);
+    expect(r.firstSeverityValue).toBe("3");
   });
 });
