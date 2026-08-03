@@ -45,7 +45,7 @@ import {
   type DateWindow,
   WINDOW_LABELS,
   WINDOW_CAPTIONS,
-  windowStartMs,
+  windowRange,
   rowClosedAtMs,
 } from "@/lib/slaWindow";
 
@@ -701,11 +701,12 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
 
   // Date-window filter over in-scope rows.
   const inScopeDate = useMemo(() => {
-    const startMs = windowStartMs(dateWindow, new Date());
-    if (startMs == null) return inScope;
+    const { startMs, endMs } = windowRange(dateWindow, new Date());
+    if (startMs == null && endMs == null) return inScope;
     return inScope.filter((r) => {
       const t = rowClosedAtMs(r);
-      return t != null && t >= startMs;
+      if (t == null) return false;
+      return (startMs == null || t >= startMs) && (endMs == null || t < endMs);
     });
   }, [inScope, dateWindow]);
 
