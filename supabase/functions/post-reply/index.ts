@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
             Authorization: `Bearer ${intercomToken}`,
             "Content-Type": "application/json",
             Accept: "application/json",
-            "Intercom-Version": "2.11",
+            "Intercom-Version": "2.13",
           },
           body: JSON.stringify({
             message_type: "comment",
@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
                 Authorization: `Bearer ${intercomToken}`,
                 "Content-Type": "application/json",
                 Accept: "application/json",
-                "Intercom-Version": "2.11",
+                "Intercom-Version": "2.13",
               },
               body: JSON.stringify({
                 message_type: "comment",
@@ -304,7 +304,7 @@ Deno.serve(async (req) => {
                 Authorization: `Bearer ${intercomToken}`,
                 "Content-Type": "application/json",
                 Accept: "application/json",
-                "Intercom-Version": "2.11",
+                "Intercom-Version": "2.13",
               },
               body: JSON.stringify({
                 message_type: "comment",

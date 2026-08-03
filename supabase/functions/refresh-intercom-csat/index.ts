@@ -13,7 +13,7 @@ async function fetchIntercomConv(id: string, token: string) {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/json",
-      "Intercom-Version": "2.11",
+      "Intercom-Version": "2.13",
     },
   });
   if (!res.ok) {

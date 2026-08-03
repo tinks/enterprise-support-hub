@@ -162,7 +162,7 @@ async function createIntercomTicket(opts: {
     Authorization: `Bearer ${intercomToken}`,
     "Content-Type": "application/json",
     Accept: "application/json",
-    "Intercom-Version": "2.11",
+    "Intercom-Version": "2.13",
   };
 
   // Add eyes reaction to original message
@@ -696,7 +696,7 @@ async function createIntercomTicket(opts: {
                   Authorization: `Bearer ${intercomToken}`,
                   "Content-Type": "application/json",
                   Accept: "application/json",
-                  "Intercom-Version": "2.11",
+                  "Intercom-Version": "2.13",
                 },
                 body: JSON.stringify({ ticket_type_id: "1" }),
               });
@@ -1591,7 +1591,7 @@ Deno.serve(async (req) => {
               headers: {
                 Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
                 Accept: "application/json",
-                "Intercom-Version": "2.11",
+                "Intercom-Version": "2.13",
               },
             });
             if (convoRes.ok) {
@@ -1705,7 +1705,7 @@ Deno.serve(async (req) => {
                 Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
                 "Content-Type": "application/json",
                 Accept: "application/json",
-                "Intercom-Version": "2.11",
+                "Intercom-Version": "2.13",
               },
               body: JSON.stringify({
                 ticket_type_id: "1",

@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
       Authorization: `Bearer ${intercomToken}`,
       "Content-Type": "application/json",
       Accept: "application/json",
-      "Intercom-Version": "2.11",
+      "Intercom-Version": "2.13",
     };
 
     const allConversations = new Map<string, { id: string; title: string; created_at: string | null; state: string }>();
