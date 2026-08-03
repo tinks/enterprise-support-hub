@@ -815,6 +815,10 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
     handlingTimeBusinessHoursS,
     partsCount: timeline.length,
     ...triage,
+    triageViolation,
+    answeredBeforeClassified,
+    severityRecordedAtClose,
+
     flags: {
       isTicket: !!conversation?.ticket,
       samParticipated,
