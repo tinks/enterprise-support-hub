@@ -442,7 +442,14 @@ Dedup: `reminder_sent_at` prevents duplicate reminders; atomic status guard prev
 
 ## 16. Intercom API Version
 
-All Intercom API calls use `Intercom-Version: 2.11`.
+All Intercom API calls use `Intercom-Version: 2.13` (bumped from `2.11`; the constant lives in `intercomHeaders` in `supabase/functions/_shared/v3.ts` and is mirrored in the standalone functions).
+
+**Why 2.13 (commit `3f5272d`).** A read-only version spike (temporary edge function, GET-only, deleted after the run) probed 2.10 / 2.11 / 2.12 / 2.13 / Unstable against the same conversation: **2.13 is the MINIMUM version that returns `event_details` on conversation parts** — 2.10–2.12 return none. `event_details` is what carries attribute-change history (`event_details.attribute.name`, `event_details.value.name`), which the Severity-change / triage metrics require. Notes:
+
+- **Regression-checked as additive-only** vs 2.11 — no field our sync reads was dropped, so the bump is safe for `sync-v3-open`, `sync-v3-closed`, `reconcile-v3-open` and every other caller. Verified end-to-end by invoking the open and closed syncs after deploy.
+- **2.13 supplies `value.name` (the NEW value) but NOT `value.previous`.** The previous value is therefore **derived by chronological ordering** in the engine, not read from the payload.
+- **`Unstable` deliberately NOT used** — it is un-pinned and can change under us.
+
 
 ### Intercom custom-attribute mapping
 On every import path, the Intercom REST response's `custom_attributes` are mapped onto the local row via a shared `extractIntercomCustomFields(icData)` helper:
