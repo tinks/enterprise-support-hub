@@ -1166,3 +1166,65 @@ describe("triage — Severity events", () => {
     expect(r.firstSeverityValue).toBe("3");
   });
 });
+
+// ============================================================================
+// Triage discipline flags (provisional 30-min business-hours target)
+// ============================================================================
+describe("triage discipline flags", () => {
+  const TEAM = "8484447";
+  const T = Date.UTC(2025, 5, 2, 8, 0, 0) / 1000; // Mon 10:00 Berlin
+  const CUSTOMER = { type: "user", id: "c1", name: "Cust", email: "a@acme.com" };
+  const ADMIN = { type: "admin", id: "77", name: "Agent", email: "agent@lovable.dev" };
+
+  const anchor = (ts: number) => ({
+    created_at: ts,
+    part_type: "assignment",
+    author: ADMIN,
+    body: "",
+    assigned_to: { type: "team", id: TEAM },
+  });
+  const sevPart = (ts: number, value: string) => ({
+    created_at: ts,
+    part_type: "conversation_attribute_updated_by_admin",
+    author: ADMIN,
+    body: "",
+    event_details: { attribute: { name: "Severity" }, value: { name: value } },
+  });
+  const reply = (ts: number, author: any) => ({
+    created_at: ts,
+    part_type: "comment",
+    author,
+    body: "<p>on it</p>",
+  });
+  const build = (parts: any[], statistics: any = {}) => ({
+    created_at: T,
+    source: { author: CUSTOMER, body: "<p>help</p>" },
+    conversation_parts: { conversation_parts: parts },
+    statistics,
+  });
+
+  it("human replies before Severity, Severity set near close → all three flags true", () => {
+    const A = T + 60;
+    const sevTs = A + 2 * 24 * 3600;
+    const r = computeSla(
+      build([anchor(A), reply(A + 2 * 3600, ADMIN), sevPart(sevTs, "2")], {
+        last_close_at: sevTs + 300,
+      }),
+    );
+    expect(r.answeredBeforeClassified).toBe(true);
+    expect(r.severityRecordedAtClose).toBe(true);
+    expect(r.triageViolation).toBe(true);
+  });
+
+  it("Severity set 10 min after anchor before any reply → all three flags false", () => {
+    const A = T + 60;
+    const r = computeSla(
+      build([anchor(A), sevPart(A + 600, "3"), reply(A + 3600, ADMIN)], {
+        last_close_at: A + 4 * 3600,
+      }),
+    );
+    expect(r.triageViolation).toBe(false);
+    expect(r.answeredBeforeClassified).toBe(false);
+    expect(r.severityRecordedAtClose).toBe(false);
+  });
+});
