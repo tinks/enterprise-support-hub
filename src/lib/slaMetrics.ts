@@ -31,6 +31,15 @@ export const SAM_AUTHOR_EMAILS: ReadonlySet<string> = new Set([
 // internal domain — a real customer can never have that email.
 export const TEAMMATE_EMAIL_DOMAIN = "lovable.dev";
 
+// Shared relay inboxes that forward CUSTOMER content in under an @lovable.dev
+// address. Intercom types these parts as `user`/`lead` (never `admin`) and
+// sets `waiting_since` on them — they must be treated as customer-side, never
+// as our agent reply (see B6 / ticket 215475248028246). Explicit allowlist:
+// every other @lovable.dev author is a real teammate.
+export const SHARED_MAILBOX_EMAILS: ReadonlySet<string> = new Set([
+  "enterprise-support@lovable.dev",
+]);
+
 // Intercom team id for the Enterprise Inbox — the moment a ticket becomes the
 // Enterprise team's responsibility; the SLA clock-start. Everything before
 // this (intake, Sam's AI handling, pre-ticket Slack/CSM chatter) is
@@ -40,22 +49,27 @@ export const ENTERPRISE_INBOX_TEAM_ID = "8484447";
 
 export type Actor =
   | "customer"
+  | "shared_inbox"
   | "human_admin"
   | "sam_ai"
   | "operator_bot"
   | "system";
 
-function classifyActor(author: any): Actor {
+export function classifyActor(author: any): Actor {
   const type = String(author?.type || "").toLowerCase();
   const id = author?.id != null ? String(author.id) : "";
   const email = String(author?.email || "").toLowerCase();
   if (SAM_AUTHOR_IDS.has(id) || (email && SAM_AUTHOR_EMAILS.has(email))) return "sam_ai";
+  // MUST precede the @lovable.dev → human_admin rule: that domain rule is what
+  // currently mis-brands relayed customer messages as our reply.
+  if (email && SHARED_MAILBOX_EMAILS.has(email)) return "shared_inbox";
   if (email.endsWith("@" + TEAMMATE_EMAIL_DOMAIN)) return "human_admin";
   if (type === "bot") return "operator_bot";
   if (type === "admin") return "human_admin";
   if (type === "user" || type === "lead" || type === "contact") return "customer";
   return "system";
 }
+
 
 // ============================================================================
 // Timeline extraction
