@@ -1,0 +1,1 @@
+update public.intercom_tickets_v3 set last_full_fetch_at = null where intercom_conversation_id = '215475337143858';
