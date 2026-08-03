@@ -155,8 +155,41 @@ export default function SlaReport() {
     });
   }, [scored, isExcused]);
 
+  // --- Triage time (MEASURE-FIRST, no target) -----------------------------
+  // Inbox-anchor → first Severity assignment. Severity-agnostic, so it is the
+  // one metric that legitimately supports a single global number. Only rows
+  // that actually carry a Severity event are evaluable — event_details capture
+  // began ~2026-07-15, so earlier-closed tickets are structurally not-evaluable.
+  const triage = useMemo(() => {
+    const evaluable = population.filter((r) => r.sla.hasSeverityEvent && r.sla.timeToTriageS != null);
+    const wall = aggregate(evaluable.map((r) => r.sla.timeToTriageS));
+    const bh = aggregate(evaluable.map((r) => r.sla.timeToTriageBusinessHoursS));
+    const groups = new Map<string, SlaBatchEnriched[]>();
+    for (const r of evaluable) {
+      const sev = parseSeverity(r.raw_payload?.custom_attributes?.["Severity"]);
+      const key = sev == null ? "unclassified" : String(sev);
+      const list = groups.get(key) ?? [];
+      list.push(r);
+      groups.set(key, list);
+    }
+    const bySeverity = ["1", "2", "3", "4", "unclassified"].map((key) => {
+      const rows = groups.get(key) ?? [];
+      const a = aggregate(rows.map((r) => r.sla.timeToTriageS));
+      return { key, n: rows.length, median: a.median, avg: a.avg };
+    });
+    const reclassified = evaluable.filter((r) => (r.sla.severityEventCount ?? 0) > 1).length;
+    return {
+      n: evaluable.length,
+      m: population.length,
+      wall,
+      bhMedian: bh.median,
+      bySeverity,
+      reclassified,
+    };
+  }, [population]);
 
   const monthLabel = months.find((m) => m.value === month)?.label ?? month;
+
 
   return (
     <AppLayout>
