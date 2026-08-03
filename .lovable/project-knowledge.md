@@ -1166,12 +1166,50 @@ Also preserved: a **Legacy (compare)** view backed by stored Intercom fields, ke
 
 **Severity-event parser (`src/lib/slaMetrics.ts`).** `TimelinePart` gained **`eventDetails`**, populated from each part's `event_details` (`null` when absent). **`extractSeverityEvents(timeline)`** selects the Severity attribute-update parts and returns a **ts-ascending** list of `{ ts, to, from, authorType, authorEmail }`: `to = String(event_details.value.name)`; `from` uses `value.previous` when present and otherwise is derived chronologically (`from[0] = null`, `from[i] = events[i-1].to`). Author typing reuses the existing **`Actor`** model, which already includes **`shared_inbox`** (B6).
 
-**Triage metric — `computeTriage` (MEASURE-FIRST, no target).** Time from the **Enterprise-Inbox anchor (`slaClockStartS`)** to the **FIRST Severity assignment**. Fields on `SlaResult`: `firstSeverityAtS`, `firstSeverityValue`, `timeToTriageS` (wall-clock), `timeToTriageBusinessHoursS` (Berlin business clock), `severityEventCount`, `hasSeverityEvent`.
+**Triage metric — `computeTriage` (MEASURE-FIRST, PROVISIONAL target).** Time from the **Enterprise-Inbox anchor (`slaClockStartS`)** to the **FIRST Severity assignment**. Fields on `SlaResult`: `firstSeverityAtS`, `firstSeverityValue`, `timeToTriageS` (wall-clock), `timeToTriageBusinessHoursS` (Berlin business clock), `severityEventCount`, `hasSeverityEvent`.
 
 - **`null` = not-evaluable** when there is no Severity event or no anchor — **never defaulted to 0** (surface anomalies loudly, never invent values). A Severity event **before** the anchor **clamps to 0**.
-- **No target and no compliance verdict yet — deliberately.** The distribution is the evidence from which a target gets *proposed*; committing a number before seeing the data is exactly the mistake this whole track exists to avoid.
+- **The only target is PROVISIONAL** (`TRIAGE_TARGET_S`, 30 min business hours — see the discipline flags below). It is unratified; the distribution remains the evidence from which it gets ratified or moved. Committing a number before seeing the data is exactly the mistake this whole track exists to avoid.
 - **Why triage is the metric leadership can have as a single number:** it is **severity-agnostic**. A blended "global FRT average" mixes severities with different targets *and* different clocks (Sev 1 calendar vs Sev 2–4 business hours), so its average is meaningless; triage time has one definition for every ticket.
 - **Pairing intent:** **triage-time + a (still-to-come) global FRT-compliance %** are the **two-part responsiveness view** for leadership, replacing the misleading single "global FRT average". One says how fast we *pick things up*, the other how often we *hit the committed clock*.
+
+#### Business-hours headline (commit `b951be7`)
+
+Report **§2b** now leads with the **BUSINESS-HOURS** clock: the four headline cards (median / average / p90 / n) and the by-final-severity mini-table all read `timeToTriageBusinessHoursS` (Europe/Berlin, Mon–Fri 09:00–24:00, DST-aware). **Wall-clock is kept but demoted** to a labelled secondary row: *"expected higher until off-hours coverage exists."*
+
+**Why the flip.** There is **no off-hours coverage today**. Wall-clock triage is therefore inflated by overnight and weekend **arrivals** that get triaged at business open — a staffing-model fact, not slow work. Leading with wall-clock would have mis-stated the team's responsiveness and, worse, invited a target set against a number nobody can influence without a rota. Wall-clock stays visible (never hidden) because it is the customer-experienced reality and the argument for off-hours coverage.
+
+The **honest coverage line** is unchanged and mandatory: *"Triage measurable for N of M in-scope tickets"*, with the note that `event_details` capture only starts **~15 July 2026** — earlier tickets are **NOT-EVALUABLE, not fast**.
+
+#### Triage-discipline flags (commit `05c77ea`, `src/lib/slaMetrics.ts`)
+
+Three booleans on `SlaResult`, computed in `computeSla`:
+
+| Flag | Definition |
+| --- | --- |
+| `triageViolation` | `timeToTriageBusinessHoursS > TRIAGE_TARGET_S` (**1800 s / 30 min**, business-hours basis, **PROVISIONAL**). Not-evaluable rows (no Severity event, no anchor) are **never** violations — absence of data is never scored as a miss. |
+| `answeredBeforeClassified` | The first **`human_admin` public** reply lands **before** the first Severity event. Sam (`sam_ai`) and `shared_inbox` are deliberately excluded — neither is a triaging teammate. |
+| `severityRecordedAtClose` | The first Severity event lands within `SEVERITY_AT_CLOSE_WINDOW_S` (**1800 s / 30 min**) of the close. |
+
+Surfaced as the Report §2b **"Triage discipline (provisional 30-min target)"** row over the evaluable set: **% over target · % answered before Severity · % Severity recorded at close.**
+
+**KEY INSIGHT — why these flags exist.** Time-to-triage today measures triage **DISCIPLINE**, not reaction speed: *is Severity set at first touch, or bookkept at close?* Exemplar **ticket `215475222535453`** — engaged in **~2 h** (Sam instant, human reply at 2 h) but Severity, and the other three "required-at-closure" canonical fields, were **not set until it closed 75 h later**. The ticket was **worked fast and recorded late**; only the discipline flags separate those two stories. So the metric's real job is to drive the **"set Severity at intake"** policy — which is also what will make the triage number trustworthy as a speed metric later.
+
+**Target invariant.** The triage target (30 min) must **always stay ≤ the strictest FRT SLA** (Sev 1 FR 30 m). Triage is a *precondition* of a correct first response — you cannot hit a severity-specific FRT target for a severity you have not assigned — so if Sev 1 FR ever tightens, `TRIAGE_TARGET_S` moves with it. Noted in-code above the constant.
+
+#### `triage_overrides` + Workbench "Triage violations" (migration `2e4fbbd` · commit `e9b3bae`)
+
+`public.triage_overrides` — one row per `intercom_conversation_id` (**UNIQUE**), columns `reason` (CHECK-constrained), `note`, `created_by`, `created_at`, `updated_at` (trigger-maintained). It **mirrors `sla_breach_overrides`** in shape and in Workbench styling, with one deliberate difference: it is **TEAM-WRITABLE**.
+
+- **Any authenticated teammate** can excuse a violation (SELECT / INSERT / UPDATE); `created_by` records **who** (email from `supabase.auth.getSession()`).
+- **DELETE is admin-only** so the **audit trail survives** — RLS enforces it; the "clear override" control is simply hidden for non-admins.
+- Saving is an **upsert `onConflict=intercom_conversation_id`**, so editing an existing override is the same call.
+- **Reasons:** `off_hours` · `non_support_thread` · `recorded_at_close` · `answered_before_classified` · `genuine_miss` · `other`. The dropdown **auto-suggests** `recorded_at_close`, else `answered_before_classified`, straight from the engine flags.
+
+**Workbench section** (`src/pages/SlaWorkbench.tsx`, rendered next to `ComplianceSection`, same `filteredInScope` population / window / customer filter as the breach tables). Violations = rows with `sla.triageViolation === true`. Header: **total violations · excused · OVERRIDE-RATE % · unexcused**, plus a per-reason breakdown. Per row: subject + conversation id (Intercom deep link), customer, **triage business-hours primary with wall-clock secondary**, FRT (`firstSupportReplyFromInbox*`), **"answered before Sev" / "Sev at close"** badges, severity, and the override control.
+
+**Why.** **Override-rate is a tracked red-flag KPI**, exactly as it is for SLA breaches — a high rate means the *target or the population* is wrong, not that the team is excused. The section's purpose is to **work the tail**: excuse off-hours and non-support-thread noise so the **genuine misses stand alone** and are actionable. The 30-min target stays **provisional** throughout (measure-first).
+
 
 #### Monthly SLA Report — `/sla-report` (`src/pages/SlaReport.tsx`) — target PROPOSAL
 
