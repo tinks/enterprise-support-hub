@@ -47,6 +47,17 @@ export const SHARED_MAILBOX_EMAILS: ReadonlySet<string> = new Set([
 // against SLA.
 export const ENTERPRISE_INBOX_TEAM_ID = "8484447";
 
+// ---- Triage discipline (PROVISIONAL, tunable) -------------------------------
+// Both constants are provisional proposals, not agreed SLA targets. They exist
+// so we can MEASURE the two behaviours we are re-enforcing; tune freely.
+// TRIAGE_TARGET_S is on a BUSINESS-HOURS basis and should always stay <= the
+// strictest First-Response target.
+export const TRIAGE_TARGET_S = 1800; // 30 min, business hours
+// Window before close within which a first Severity assignment is read as
+// "classified at close" rather than triaged.
+export const SEVERITY_AT_CLOSE_WINDOW_S = 1800; // 30 min
+
+
 export type Actor =
   | "customer"
   | "shared_inbox"
