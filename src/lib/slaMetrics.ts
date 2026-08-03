@@ -167,6 +167,7 @@ export function extractTimeline(raw: any): TimelinePart[] {
       isNote: false,
       assignedToType: null,
       assignedToId: null,
+      eventDetails: null,
     });
   }
   const arr = raw?.conversation_parts?.conversation_parts;
@@ -189,6 +190,7 @@ export function extractTimeline(raw: any): TimelinePart[] {
         isNote: isNotePart(partType),
         assignedToType: assign.type,
         assignedToId: assign.id,
+        eventDetails: p?.event_details ?? null,
       });
     }
   }
