@@ -451,7 +451,6 @@ export type SlaResult = {
   timeToTriageBusinessHoursS: number | null;
   severityEventCount: number;
   hasSeverityEvent: boolean;
-  severityEvents: SeverityEvent[];
   flags: SlaFlags;
   // Who opened the conversation. "agent" means WE opened it (teammate outreach,
   // CSM relay, forwarded email, or Sam). "customer" means an external party
@@ -742,7 +741,6 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
   const initiatedBy: "customer" | "agent" =
     sourceActor === "human_admin" || sourceActor === "sam_ai" ? "agent" : "customer";
 
-  const severityEvents = extractSeverityEvents(timeline);
   const triage = computeTriage(timeline, slaClockStartS);
 
   return {
@@ -777,7 +775,6 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
     handlingTimeBusinessHoursS,
     partsCount: timeline.length,
     ...triage,
-    severityEvents,
     flags: {
       isTicket: !!conversation?.ticket,
       samParticipated,
