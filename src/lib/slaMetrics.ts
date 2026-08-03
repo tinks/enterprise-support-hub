@@ -801,7 +801,8 @@ export type Part = {
 };
 
 function actorToLegacyAuthorType(actor: Actor): Part["authorType"] {
-  if (actor === "customer") return "user";
+  // shared_inbox is customer-side (relayed customer content) → "user".
+  if (actor === "customer" || actor === "shared_inbox") return "user";
   if (actor === "human_admin" || actor === "sam_ai") return "admin";
   if (actor === "operator_bot") return "bot";
   return "other";
