@@ -178,14 +178,20 @@ export default function SlaReport() {
       return { key, n: rows.length, median: a.median, avg: a.avg };
     });
     const reclassified = evaluable.filter((r) => (r.sla.severityEventCount ?? 0) > 1).length;
+    const n = evaluable.length;
+    const violations = evaluable.filter((r) => r.sla.triageViolation).length;
+    const answeredFirst = evaluable.filter((r) => r.sla.answeredBeforeClassified).length;
+    const atClose = evaluable.filter((r) => r.sla.severityRecordedAtClose).length;
     return {
-      n: evaluable.length,
+      n,
       m: population.length,
       wall,
       bh,
       bySeverity,
       reclassified,
+      discipline: { violations, answeredFirst, atClose },
     };
+
 
   }, [population]);
 
@@ -338,6 +344,32 @@ export default function SlaReport() {
                 a ticket landing overnight is not slow work, it is uncovered time.
               </div>
             </div>
+
+            <div className="rounded-md border border-border px-3 py-2 text-xs space-y-1">
+              <div className="font-medium">Triage discipline (provisional 30-min target)</div>
+              <div className="grid gap-2 sm:grid-cols-3 tabular-nums">
+                {[
+                  ["Over target (violations)", triage.discipline.violations],
+                  ["Answered before Severity assigned", triage.discipline.answeredFirst],
+                  ["Severity recorded at close", triage.discipline.atClose],
+                ].map(([label, count]) => (
+                  <div key={label as string}>
+                    <span className="text-muted-foreground">{label as string}: </span>
+                    <span className="font-medium">
+                      {count as number}
+                      {triage.n ? ` (${(((count as number) / triage.n) * 100).toFixed(0)}%)` : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="text-muted-foreground">
+                Over the {triage.n} evaluable tickets. The 30-minute business-hours triage target is
+                <strong> provisional</strong> (it should always sit at or below the strictest First-Response target);
+                "at close" means the first Severity was set within 30 minutes of the ticket closing.
+              </div>
+            </div>
+
+
 
             <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs space-y-1">
               <div className="tabular-nums font-medium">

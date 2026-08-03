@@ -47,6 +47,17 @@ export const SHARED_MAILBOX_EMAILS: ReadonlySet<string> = new Set([
 // against SLA.
 export const ENTERPRISE_INBOX_TEAM_ID = "8484447";
 
+// ---- Triage discipline (PROVISIONAL, tunable) -------------------------------
+// Both constants are provisional proposals, not agreed SLA targets. They exist
+// so we can MEASURE the two behaviours we are re-enforcing; tune freely.
+// TRIAGE_TARGET_S is on a BUSINESS-HOURS basis and should always stay <= the
+// strictest First-Response target.
+export const TRIAGE_TARGET_S = 1800; // 30 min, business hours
+// Window before close within which a first Severity assignment is read as
+// "classified at close" rather than triaged.
+export const SEVERITY_AT_CLOSE_WINDOW_S = 1800; // 30 min
+
+
 export type Actor =
   | "customer"
   | "shared_inbox"
@@ -451,6 +462,17 @@ export type SlaResult = {
   timeToTriageBusinessHoursS: number | null;
   severityEventCount: number;
   hasSeverityEvent: boolean;
+  // ---- Triage discipline flags (provisional target, see TRIAGE_TARGET_S) ----
+  // Business-hours triage exceeded the provisional 30-min target. Rows that are
+  // not evaluable (no Severity event / no anchor) are NEVER violations.
+  triageViolation: boolean;
+  // A human teammate publicly replied before any Severity was assigned. Sam and
+  // the shared relay inbox are excluded so an instant AI reply cannot trip this.
+  answeredBeforeClassified: boolean;
+  // First Severity assignment landed within SEVERITY_AT_CLOSE_WINDOW_S of close
+  // — the "classified at close" bookkeeping pattern.
+  severityRecordedAtClose: boolean;
+
   flags: SlaFlags;
   // Who opened the conversation. "agent" means WE opened it (teammate outreach,
   // CSM relay, forwarded email, or Sam). "customer" means an external party
@@ -743,6 +765,24 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
 
   const triage = computeTriage(timeline, slaClockStartS);
 
+  // ---- Triage discipline flags (provisional targets) -----------------------
+  const triageViolation =
+    triage.hasSeverityEvent &&
+    triage.timeToTriageBusinessHoursS != null &&
+    triage.timeToTriageBusinessHoursS > TRIAGE_TARGET_S;
+  // `firstHumanReply` is the first PUBLIC reply by a human_admin — Sam (sam_ai)
+  // and the shared relay inbox (shared_inbox) are separate actors and excluded.
+  const answeredBeforeClassified =
+    !!firstHumanReply &&
+    triage.firstSeverityAtS != null &&
+    firstHumanReply.ts < triage.firstSeverityAtS;
+  const severityRecordedAtClose =
+    triage.firstSeverityAtS != null &&
+    closeAt != null &&
+    triage.firstSeverityAtS <= closeAt &&
+    closeAt - triage.firstSeverityAtS <= SEVERITY_AT_CLOSE_WINDOW_S;
+
+
   return {
     createdAtS: createdAt,
     enterpriseInboxAssignedAtS,
@@ -775,6 +815,10 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
     handlingTimeBusinessHoursS,
     partsCount: timeline.length,
     ...triage,
+    triageViolation,
+    answeredBeforeClassified,
+    severityRecordedAtClose,
+
     flags: {
       isTicket: !!conversation?.ticket,
       samParticipated,
