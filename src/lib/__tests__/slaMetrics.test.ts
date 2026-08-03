@@ -436,6 +436,10 @@ function mkSla(over: Partial<SlaResult2>): SlaResult2 {
     timeToTriageBusinessHoursS: null,
     severityEventCount: 0,
     hasSeverityEvent: false,
+    triageViolation: false,
+    answeredBeforeClassified: false,
+    severityRecordedAtClose: false,
+
     flags: { isTicket: false, samParticipated: false, noHumanReply: false, hasParts: false, noCustomerParticipant: false, manuallyLogged: false },
     initiatedBy: "customer",
     timeline: [],
