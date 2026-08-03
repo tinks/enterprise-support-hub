@@ -178,14 +178,20 @@ export default function SlaReport() {
       return { key, n: rows.length, median: a.median, avg: a.avg };
     });
     const reclassified = evaluable.filter((r) => (r.sla.severityEventCount ?? 0) > 1).length;
+    const n = evaluable.length;
+    const violations = evaluable.filter((r) => r.sla.triageViolation).length;
+    const answeredFirst = evaluable.filter((r) => r.sla.answeredBeforeClassified).length;
+    const atClose = evaluable.filter((r) => r.sla.severityRecordedAtClose).length;
     return {
-      n: evaluable.length,
+      n,
       m: population.length,
       wall,
       bh,
       bySeverity,
       reclassified,
+      discipline: { violations, answeredFirst, atClose },
     };
+
 
   }, [population]);
 
