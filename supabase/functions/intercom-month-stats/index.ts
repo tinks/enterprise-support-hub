@@ -72,7 +72,7 @@ async function computeStatsForMonth(
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
         Accept: "application/json",
-        "Intercom-Version": "2.11",
+        "Intercom-Version": "2.13",
       },
       body: JSON.stringify(body),
     });

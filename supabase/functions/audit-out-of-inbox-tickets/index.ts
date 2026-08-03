@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
     checked++;
     try {
       const res = await fetch(`https://api.intercom.io/conversations/${row.intercomId}`, {
-        headers: { Authorization: `Bearer ${INTERCOM_API_TOKEN}`, Accept: "application/json", "Intercom-Version": "2.11" },
+        headers: { Authorization: `Bearer ${INTERCOM_API_TOKEN}`, Accept: "application/json", "Intercom-Version": "2.13" },
       });
       if (res.status === 404) {
         notFound++;

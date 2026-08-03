@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
       Authorization: `Bearer ${intercomToken}`,
       "Content-Type": "application/json",
       Accept: "application/json",
-      "Intercom-Version": "2.11",
+      "Intercom-Version": "2.13",
     };
 
     let email: string | null = null;

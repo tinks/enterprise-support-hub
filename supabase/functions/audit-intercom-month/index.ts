@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
       };
       const r = await fetch("https://api.intercom.io/conversations/search", {
         method: "POST",
-        headers: { Authorization: `Bearer ${INTERCOM_API_TOKEN}`, "Content-Type": "application/json", Accept: "application/json", "Intercom-Version": "2.11" },
+        headers: { Authorization: `Bearer ${INTERCOM_API_TOKEN}`, "Content-Type": "application/json", Accept: "application/json", "Intercom-Version": "2.13" },
         body: JSON.stringify(searchBody),
       });
       if (!r.ok) {
@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
     for (const intercomConvId of toImport) {
       try {
         const icRes = await fetch(`https://api.intercom.io/conversations/${intercomConvId}`, {
-          headers: { Authorization: `Bearer ${INTERCOM_API_TOKEN}`, Accept: "application/json", "Intercom-Version": "2.11" },
+          headers: { Authorization: `Bearer ${INTERCOM_API_TOKEN}`, Accept: "application/json", "Intercom-Version": "2.13" },
         });
         if (!icRes.ok) { results.push({ id: intercomConvId, status: "failed", error: `API ${icRes.status}` }); await new Promise(r => setTimeout(r, 200)); continue; }
         const icData = await icRes.json();
@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
         let allParts = icData.conversation_parts?.conversation_parts || [];
         let nextUrl = icData.conversation_parts?.pages?.next;
         while (nextUrl) {
-          const pr = await fetch(nextUrl, { headers: { Authorization: `Bearer ${INTERCOM_API_TOKEN}`, Accept: "application/json", "Intercom-Version": "2.11" } });
+          const pr = await fetch(nextUrl, { headers: { Authorization: `Bearer ${INTERCOM_API_TOKEN}`, Accept: "application/json", "Intercom-Version": "2.13" } });
           if (!pr.ok) break;
           const pd = await pr.json();
           allParts = [...allParts, ...(pd.conversation_parts || [])];

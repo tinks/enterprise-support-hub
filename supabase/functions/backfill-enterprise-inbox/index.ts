@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
         Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
         "Content-Type": "application/json",
         Accept: "application/json",
-        "Intercom-Version": "2.11",
+        "Intercom-Version": "2.13",
       },
       body: JSON.stringify(searchBody),
     });
@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
         headers: {
           Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
           Accept: "application/json",
-          "Intercom-Version": "2.11",
+          "Intercom-Version": "2.13",
         },
       });
       if (!icRes.ok) {
@@ -158,7 +158,7 @@ Deno.serve(async (req) => {
             headers: {
               Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
               Accept: "application/json",
-              "Intercom-Version": "2.11",
+              "Intercom-Version": "2.13",
             },
           });
           if (cr.ok) {
@@ -227,7 +227,7 @@ Deno.serve(async (req) => {
           headers: {
             Authorization: `Bearer ${INTERCOM_API_TOKEN}`,
             Accept: "application/json",
-            "Intercom-Version": "2.11",
+            "Intercom-Version": "2.13",
           },
         });
         if (!pr.ok) break;

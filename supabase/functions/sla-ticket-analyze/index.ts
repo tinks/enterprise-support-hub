@@ -9,7 +9,7 @@ const corsHeaders = {
 };
 
 const INTERCOM_BASE = "https://api.intercom.io";
-const INTERCOM_VERSION = "2.11";
+const INTERCOM_VERSION = "2.13";
 const MAX_IDS = 10;
 
 function normalizeId(input: unknown): string | null {
