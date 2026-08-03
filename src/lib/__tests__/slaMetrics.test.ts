@@ -1065,4 +1065,20 @@ describe("B6 — shared relay inbox is customer-side, not our reply", () => {
     });
     expect(r.initiatedBy).toBe("customer");
   });
+
+  it("(d) relay-only customer thread → noCustomerParticipant is false", () => {
+    const r = computeSlaB6({
+      created_at: T,
+      source: { author: RELAY, body: "<p>forwarded from customer</p>" },
+      conversation_parts: {
+        conversation_parts: [
+          { created_at: T + 100, part_type: "assignment", author: ADMIN, body: "", assigned_to: { type: "team", id: ENTERPRISE_INBOX_TEAM_ID } },
+          { created_at: T + 200, part_type: "comment", author: ADMIN, body: "<p>our reply</p>" },
+          { created_at: T + 300, part_type: "comment", author: RELAY, body: "<p>relayed follow-up</p>" },
+        ],
+      },
+      statistics: {},
+    });
+    expect(r.flags.noCustomerParticipant).toBe(false);
+  });
 });
