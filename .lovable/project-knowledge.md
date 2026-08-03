@@ -1254,6 +1254,22 @@ One engine, one hook (`useSlaBatch`), three purpose-built pages:
 | **`/sla-workbench`** (`SlaWorkbench.tsx`) | practitioners | filterable (window / customer / frBasis) | per-ticket tables, **per-ticket breach lists with excuse / remove** (the only place `sla_breach_overrides` is written; excused rows render the override **reason AND free-text note inline** beneath the "Excused · {reason}" chip — muted italic, quoted, truncated with the full note preserved in a `title` tooltip; commit `daebf72`, UI-only in `ExcuseCell`, applies to both FR and Resolution tables), **Work-Before-Ticket card**, **Excluded-by-reason card**, by-source breakout, KPI tiles, live Analyze-by-ID. |
 | **`/customer-report`** (`CustomerReport.tsx`) — **experimental prototype** (Beaker nav, out to CSMs for feedback) | **CSMs**, per-customer | preset range (This month default / Last month / 30d / 90d) | one customer at a time: summary stat cards (open, closed, FR %met, Res %met, breaches, CSAT) + Escalated-to-Dev / Open issues / Closed issues tables. Reuses `useSlaBatch` + `evaluateCompliance` — no new SLA computation. |
 
+##### Shared SLA date-window (`src/lib/slaWindow.ts`)
+
+The "Window" selector on **`/sla` (SlaDashboard)** and **`/sla-workbench` (SlaWorkbench)** — which also scopes the breach cards — is driven by one shared module: `DateWindow`, `WINDOW_LABELS`, `WINDOW_CAPTIONS`, `windowRange`, `windowStartMs`, `rowClosedAtMs`. Both dropdowns render `Object.keys(WINDOW_LABELS)`, so options appear on both pages automatically.
+
+Options: `7d` · `30d` · `90d` · `month` ("This month") · **`last_month` ("Last month", caption "resolved last month")** · `all`. `last_month` renders **right after** "This month".
+
+**`last_month` is the first BOUNDED window** — the previous **calendar** month, `[first-of-previous-month → first-of-this-month)`, **end exclusive**. All other windows are open-ended "since X → now".
+
+- `windowRange(w, now)` returns `{ startMs, endMs }`: `all` → `{null, null}`; `7d`/`30d`/`90d` → `{ now − Nd, null }`; `month` → `{ first-of-this-month, null }`; `last_month` → `{ first-of-previous-month, first-of-this-month }`. `endMs` is **null for every window except `last_month`**.
+- `windowStartMs(w, now)` is kept and now simply delegates to `windowRange(w, now).startMs`, so pre-existing callers are unaffected.
+- The close-date filters in `SlaDashboard.tsx` and `SlaWorkbench.tsx` apply **both** bounds: keep a row when `(startMs == null || closeMs >= startMs) && (endMs == null || closeMs < endMs)`. Because `endMs` is null elsewhere, every pre-existing window behaves **exactly as before**.
+
+**WHY:** a monthly review needs the previous **completed** calendar month; "This month" is partial and the rolling windows straddle month boundaries. `/sla-report` already offered last month through its own `monthOptions` dropdown — this closes the same gap on the Dashboard and Workbench breach cards. UI/filter-only: no engine, hook, target or schema change.
+
+
+
 #### Customer Report — `/customer-report` (`src/pages/CustomerReport.tsx`) — experimental prototype
 
 A per-customer SLA + volume view for CSM-style consumption. Route in `App.tsx`, nav entry in `AppLayout` flagged experimental (Beaker icon).
