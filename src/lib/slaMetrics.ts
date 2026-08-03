@@ -597,11 +597,15 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
         }
         continue;
       }
-      if (p.actor === "customer") {
+      // `shared_inbox` is a relay forwarding CUSTOMER content — it RETURNS the
+      // ball to us, exactly like a direct customer reply (mirrors Intercom's
+      // own `waiting_since` behavior). See B6.
+      if (p.actor === "customer" || p.actor === "shared_inbox") {
         if (!ballWithUs) {
           ballWithUs = true;
           segStart = p.ts;
         }
+
       } else if (p.isPublicReply && (p.actor === "human_admin" || p.actor === "sam_ai")) {
         if (ballWithUs) {
           total += clip(segStart, p.ts);
