@@ -1945,7 +1945,7 @@ function ViolationsSection({
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           Triage = time from SLA clock start to the first Severity assignment, business hours, 30-minute target.
           First response and resolution use their per-severity targets and clocks (Sev 1 wall-clock 24/7; Sev 2–4 Europe/Berlin business hours).
-          A blank cell means the target was met or the metric is not evaluable for that ticket.
+          Cells that met their target show the measured value in grey; red values are misses. "Not evaluable" means the metric could not be measured for that ticket.
         </p>
       </CardContent>
       <ExcuseDialog
