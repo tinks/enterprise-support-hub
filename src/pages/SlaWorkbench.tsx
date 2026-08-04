@@ -863,9 +863,16 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
         Total loaded: {enriched.length}
       </div>
 
-      <ComplianceSection inScope={filteredInScope} manuallyLoggedCount={manuallyLogged.length} isExcused={isExcused} getOverride={getOverride} refreshOverrides={refreshOverrides} />
+      <ComplianceSection inScope={filteredInScope} manuallyLoggedCount={manuallyLogged.length} isExcused={isExcused} />
 
-      <TriageViolationsSection inScope={filteredInScope} customerLabels={customerLabels} />
+      <ViolationsSection
+        inScope={filteredInScope}
+        customerLabels={customerLabels}
+        isExcused={isExcused}
+        getOverride={getOverride}
+        refreshOverrides={refreshOverrides}
+      />
+
 
 
 
