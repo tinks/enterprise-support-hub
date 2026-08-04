@@ -1030,6 +1030,39 @@ export type Database = {
         }
         Relationships: []
       }
+      sla_violation_overrides: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          intercom_conversation_id: string
+          metric: string
+          note: string | null
+          reason: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          intercom_conversation_id: string
+          metric: string
+          note?: string | null
+          reason: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          intercom_conversation_id?: string
+          metric?: string
+          note?: string | null
+          reason?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       slack_channel_account_map: {
         Row: {
           account_domain: string | null
