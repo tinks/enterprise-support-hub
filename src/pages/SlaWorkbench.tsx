@@ -19,6 +19,7 @@ import {
   parseSeverity,
   evaluateCompliance,
   SLA_TARGETS,
+  TRIAGE_TARGET_S,
   type TicketSla,
   type SlaResult,
   type TimelinePart,
