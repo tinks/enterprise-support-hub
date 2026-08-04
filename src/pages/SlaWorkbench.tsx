@@ -1778,56 +1778,67 @@ function ExcuseCell({
 
 // --- Excuse dialog ---
 function ExcuseDialog({
-  target, onClose, isAdmin, onSaved,
+  target, onClose, onSaved,
 }: {
   target: { cid: string; metric: SlaOverrideMetric; subject: string | null } | null;
   onClose: () => void;
-  isAdmin: boolean;
   onSaved: () => void;
 }) {
-  const [reason, setReason] = useState<SlaOverrideReason>("holiday");
+  const [reason, setReason] = useState<SlaOverrideReason | "">("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    if (target) { setReason("holiday"); setNote(""); }
+    supabase.auth.getSession().then(({ data }) => setEmail(data.session?.user?.email ?? null));
+  }, []);
+
+  useEffect(() => {
+    if (target) { setReason(""); setNote(""); }
   }, [target?.cid, target?.metric]);
 
   const open = !!target;
+  const options = target ? REASONS_BY_METRIC[target.metric] : [];
+
   const save = async () => {
     if (!target) return;
-    if (!isAdmin) { toast({ title: "Admin only", description: "You need the admin role to excuse breaches." }); return; }
+    if (!reason) { toast({ title: "Pick a reason first" }); return; }
     setSaving(true);
     const { error } = await supabase
-      .from("sla_breach_overrides" as any)
+      .from("sla_violation_overrides" as any)
       .upsert(
-        { intercom_conversation_id: target.cid, metric: target.metric, reason, note: note.trim() || null },
+        {
+          intercom_conversation_id: target.cid,
+          metric: target.metric,
+          reason,
+          note: note.trim() || null,
+          created_by: email,
+        },
         { onConflict: "intercom_conversation_id,metric" },
       );
     setSaving(false);
     if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
-    else { toast({ title: "Breach excused" }); onSaved(); }
+    else { toast({ title: "Violation excused" }); onSaved(); }
   };
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Excuse breach</DialogTitle>
+          <DialogTitle>Excuse violation</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div className="text-xs text-muted-foreground truncate">
-            {target?.metric === "first_response" ? "First response" : "Resolution"} · {target?.subject ?? target?.cid}
+            {target ? METRIC_LABELS[target.metric] : ""} · {target?.subject ?? target?.cid}
           </div>
           <div className="space-y-1">
             <label className="text-xs font-medium">Reason</label>
-            <Select value={reason} onValueChange={(v) => setReason(v as SlaOverrideReason)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select value={reason || undefined} onValueChange={(v) => setReason(v as SlaOverrideReason)}>
+              <SelectTrigger><SelectValue placeholder="Reason…" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="holiday">Holiday</SelectItem>
-                <SelectItem value="customer_hold">Customer-side hold</SelectItem>
-                <SelectItem value="data_artifact">Data artifact</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
+                {options.map((r) => (
+                  <SelectItem key={r} value={r}>{REASON_LABELS[r]}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -1838,12 +1849,13 @@ function ExcuseDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={save} disabled={saving || !isAdmin}>{saving ? "Saving…" : "Save"}</Button>
+          <Button onClick={save} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
+
 
 
 // ============================================================================
