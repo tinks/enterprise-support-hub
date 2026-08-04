@@ -1610,8 +1610,7 @@ function ExcuseCell({
       variant="outline"
       size="sm"
       onClick={onExcuse}
-      disabled={!isAdmin}
-      title={isAdmin ? "Excuse this breach" : "Admin only"}
+      title="Excuse this violation"
       className="h-7 text-xs"
     >
       Excuse
