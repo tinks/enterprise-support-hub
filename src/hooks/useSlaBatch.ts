@@ -72,8 +72,17 @@ export function classifySlaBatchRow(row: SlaBatchRow, sla: SlaResult, opts?: Cla
   return "inScope";
 }
 
-export type SlaOverrideMetric = "first_response" | "resolution";
-export type SlaOverrideReason = "holiday" | "customer_hold" | "data_artifact" | "other";
+export type SlaOverrideMetric = "triage" | "first_response" | "resolution";
+export type SlaOverrideReason =
+  | "holiday"
+  | "off_hours"
+  | "customer_hold"
+  | "non_support_thread"
+  | "recorded_at_close"
+  | "answered_before_classified"
+  | "data_artifact"
+  | "genuine_miss"
+  | "other";
 export type SlaOverride = {
   id: string;
   intercom_conversation_id: string;
