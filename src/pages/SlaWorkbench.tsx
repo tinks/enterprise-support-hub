@@ -1221,21 +1221,14 @@ function ComplianceSection({
   inScope,
   manuallyLoggedCount,
   isExcused,
-  getOverride,
-  refreshOverrides,
 }: {
   inScope: CorrectedEnriched[];
   manuallyLoggedCount: number;
   isExcused: (cid: string, metric: SlaOverrideMetric) => boolean;
-  getOverride: (cid: string, metric: SlaOverrideMetric) => SlaOverride | undefined;
-  refreshOverrides: () => void;
 }) {
-  const { isAdmin } = useIsAdmin();
-  const [excuseTarget, setExcuseTarget] = useState<{ cid: string; metric: SlaOverrideMetric; subject: string | null } | null>(null);
-  const [breachesOpen, setBreachesOpen] = useState(false);
-  const [resBreachesOpen, setResBreachesOpen] = useState(false);
   const [bySourceOpen, setBySourceOpen] = useState(false);
   const [frBasis, setFrBasis] = useState<"customer" | "all">("customer");
+
 
   const { buckets, unclassified, classifiedCount } = useMemo(() => {
     const buckets: Record<Severity, SeverityBucket> = {
