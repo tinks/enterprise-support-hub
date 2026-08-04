@@ -1974,12 +1974,18 @@ function MetricCell({
   onRemove: () => void;
 }) {
   if (!miss) {
+    if (notEvaluable) {
+      return <td className="px-3 py-2 text-xs text-muted-foreground">not evaluable</td>;
+    }
     return (
-      <td className="px-3 py-2 text-xs text-muted-foreground">
-        {notEvaluable ? "not evaluable" : "met"}
+      <td className="px-3 py-2">
+        <div className="tabular-nums font-medium text-muted-foreground">{measured}</div>
+        <div className="text-[11px] text-muted-foreground tabular-nums">vs {target} · {clock}</div>
+        {secondary && <div className="text-[11px] text-muted-foreground tabular-nums">{secondary}</div>}
       </td>
     );
   }
+
   return (
     <td className={`px-3 py-2 ${excused ? "opacity-60" : ""}`}>
       <div className={`tabular-nums font-medium ${excused ? "text-muted-foreground line-through" : "text-destructive"}`}>
