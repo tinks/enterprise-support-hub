@@ -29,6 +29,7 @@ import { Navigate } from "react-router-dom";
 import Customers from "./pages/Customers";
 import CustomerReport from "./pages/CustomerReport";
 import Backlog from "./pages/Backlog";
+import Prospects from "./pages/Prospects";
 
 
 const queryClient = new QueryClient();
