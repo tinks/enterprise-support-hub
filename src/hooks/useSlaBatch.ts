@@ -235,7 +235,7 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
     let cancelled = false;
     (async () => {
       const { data, error } = await supabase
-        .from("sla_breach_overrides" as any)
+        .from("sla_violation_overrides" as any)
         .select("id,intercom_conversation_id,metric,reason,note,created_by,created_at");
       if (cancelled) return;
       if (error) { setOverrides(new Map()); return; }
