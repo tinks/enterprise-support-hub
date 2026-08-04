@@ -1847,118 +1847,163 @@ function ExcuseDialog({
 
 
 // ============================================================================
-// Triage violations — provisional 30-min business-hours target, triage_overrides
+// Unified violations — triage (30-min business-hours target), first response,
+// resolution. One row per ticket; overrides live in `sla_violation_overrides`.
 // ============================================================================
-const TRIAGE_REASONS = [
-  "off_hours",
-  "non_support_thread",
-  "recorded_at_close",
-  "answered_before_classified",
-  "genuine_miss",
-  "other",
-] as const;
-type TriageReason = (typeof TRIAGE_REASONS)[number];
+type ViolMetric = SlaOverrideMetric;
 
-const TRIAGE_REASON_LABELS: Record<TriageReason, string> = {
+const REASON_LABELS: Record<SlaOverrideReason, string> = {
+  holiday: "Holiday",
   off_hours: "Off hours",
+  customer_hold: "Customer-side hold",
   non_support_thread: "Non-support thread",
   recorded_at_close: "Recorded at close",
   answered_before_classified: "Answered before classified",
+  data_artifact: "Data artifact",
   genuine_miss: "Genuine miss",
   other: "Other",
 };
 
-type TriageOverride = {
-  id: string;
-  intercom_conversation_id: string;
-  reason: TriageReason;
-  note: string | null;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
+const REASONS_BY_METRIC: Record<ViolMetric, SlaOverrideReason[]> = {
+  triage: ["off_hours", "non_support_thread", "recorded_at_close", "answered_before_classified", "genuine_miss", "other"],
+  first_response: ["holiday", "customer_hold", "data_artifact", "genuine_miss", "other"],
+  resolution: ["holiday", "customer_hold", "data_artifact", "genuine_miss", "other"],
 };
 
-function TriageViolationsSection({
+const METRIC_LABELS: Record<ViolMetric, string> = {
+  triage: "Triage",
+  first_response: "First response",
+  resolution: "Resolution",
+};
+
+type ViolationRow = {
+  row: CorrectedEnriched;
+  severity: Severity | null;
+  compliance: SlaCompliance | null;
+  triageMiss: boolean;
+  frMiss: boolean;
+  resMiss: boolean;
+};
+
+function ViolationsSection({
   inScope,
   customerLabels,
+  isExcused,
+  getOverride,
+  refreshOverrides,
 }: {
   inScope: CorrectedEnriched[];
   customerLabels: Map<string, string>;
+  isExcused: (cid: string, metric: SlaOverrideMetric) => boolean;
+  getOverride: (cid: string, metric: SlaOverrideMetric) => SlaOverride | undefined;
+  refreshOverrides: () => void;
 }) {
   const { isAdmin } = useIsAdmin();
-  const [overrides, setOverrides] = useState<Map<string, TriageOverride>>(new Map());
-  const [email, setEmail] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [hideExcused, setHideExcused] = useState(false);
+  const [excuseTarget, setExcuseTarget] = useState<{ cid: string; metric: ViolMetric; subject: string | null } | null>(null);
 
-  const loadOverrides = async () => {
-    const { data, error } = await supabase.from("triage_overrides" as any).select("*");
-    if (error) { toast({ title: "Failed to load triage overrides", description: error.message, variant: "destructive" }); return; }
-    const m = new Map<string, TriageOverride>();
-    for (const r of (data ?? []) as any[]) m.set(r.intercom_conversation_id, r as TriageOverride);
-    setOverrides(m);
-  };
-
-  useEffect(() => {
-    loadOverrides();
-    supabase.auth.getSession().then(({ data }) => setEmail(data.session?.user?.email ?? null));
-  }, []);
-
-  const violations = useMemo(
-    () => inScope.filter((r) => r.sla.triageViolation === true),
-    [inScope],
-  );
+  const rows = useMemo<ViolationRow[]>(() => {
+    const out: ViolationRow[] = [];
+    for (const r of inScope) {
+      const severity = parseSeverity(r.raw_payload?.custom_attributes?.Severity);
+      const compliance = severity == null ? null : evaluateCompliance(r.sla, severity);
+      const triageMiss = r.sla.triageViolation === true;
+      const frMiss = compliance?.firstResponse.met === false && r.sla.initiatedBy === "customer";
+      const resMiss = compliance?.resolution.met === false;
+      if (!triageMiss && !frMiss && !resMiss) continue;
+      out.push({ row: r, severity, compliance, triageMiss, frMiss: !!frMiss, resMiss: !!resMiss });
+    }
+    // Worst first: most misses, then biggest resolution overshoot.
+    out.sort((a, b) => {
+      const na = Number(a.triageMiss) + Number(a.frMiss) + Number(a.resMiss);
+      const nb = Number(b.triageMiss) + Number(b.frMiss) + Number(b.resMiss);
+      if (na !== nb) return nb - na;
+      return (b.compliance?.resolution.value ?? 0) - (a.compliance?.resolution.value ?? 0);
+    });
+    return out;
+  }, [inScope]);
 
   const summary = useMemo(() => {
-    let excused = 0;
-    const byReason = new Map<TriageReason, number>();
-    for (const r of violations) {
-      const ov = overrides.get(r.intercom_conversation_id);
-      if (ov) {
-        excused++;
-        byReason.set(ov.reason, (byReason.get(ov.reason) ?? 0) + 1);
-      }
+    let misses = 0, excused = 0;
+    const byReason = new Map<SlaOverrideReason, number>();
+    for (const v of rows) {
+      const cid = v.row.intercom_conversation_id;
+      const check = (metric: ViolMetric, miss: boolean) => {
+        if (!miss) return;
+        misses++;
+        const ov = getOverride(cid, metric);
+        if (ov) {
+          excused++;
+          byReason.set(ov.reason, (byReason.get(ov.reason) ?? 0) + 1);
+        }
+      };
+      check("triage", v.triageMiss);
+      check("first_response", v.frMiss);
+      check("resolution", v.resMiss);
     }
     return {
-      total: violations.length,
+      tickets: rows.length,
+      misses,
       excused,
-      unexcused: violations.length - excused,
-      pct: violations.length ? (excused / violations.length) * 100 : null,
+      unexcused: misses - excused,
+      pct: misses ? (excused / misses) * 100 : null,
       byReason: [...byReason.entries()].sort((a, b) => b[1] - a[1]),
     };
-  }, [violations, overrides]);
+  }, [rows, getOverride]);
+
+  const visible = useMemo(() => {
+    if (!hideExcused) return rows;
+    return rows.filter((v) => {
+      const cid = v.row.intercom_conversation_id;
+      const open = (metric: ViolMetric, miss: boolean) => miss && !isExcused(cid, metric);
+      return open("triage", v.triageMiss) || open("first_response", v.frMiss) || open("resolution", v.resMiss);
+    });
+  }, [rows, hideExcused, isExcused]);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Triage violations</CardTitle>
+        <CardTitle className="text-base">Violations</CardTitle>
         <CardDescription>
-          Tickets whose time-to-triage (first Severity assignment) exceeded the provisional 30-minute business-hours target.
-          Measure-first: the target is a proposal, not an agreed commitment — overrides record why a violation is not a real miss.
+          Every in-scope ticket that missed a target — triage (first Severity assignment, 30 min business hours),
+          first response, or resolution — in one row. Overrides record why a miss is not a real miss.
+          First-response misses are counted on customer-initiated tickets only.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="text-xs text-muted-foreground">
-          Violations: <span className="font-medium text-foreground">{summary.total}</span>
+          Tickets with a miss: <span className="font-medium text-foreground">{summary.tickets}</span>
+          {" · "}Total misses: <span className="font-medium text-foreground">{summary.misses}</span>
           {" · "}Excused: <span className="font-medium text-foreground">{summary.excused}</span>
-          {" · "}Override rate: <span className="font-medium text-foreground">{summary.pct == null ? "—" : `${summary.pct.toFixed(0)}%`}</span>
           {" · "}Unexcused: <span className="font-medium text-foreground">{summary.unexcused}</span>
+          {" · "}Override rate: <span className="font-medium text-foreground">{summary.pct == null ? "—" : `${summary.pct.toFixed(0)}%`}</span>
         </div>
+
         {summary.byReason.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {summary.byReason.map(([reason, n]) => (
               <Badge key={reason} variant="secondary" className="text-[11px] font-normal">
-                {TRIAGE_REASON_LABELS[reason]} · {n}
+                {REASON_LABELS[reason]} · {n}
               </Badge>
             ))}
           </div>
         )}
 
-        <button
-          className="text-xs font-medium text-foreground hover:underline"
-          onClick={() => setOpen((v) => !v)}
-        >
-          {open ? "▾" : "▸"} Violation detail ({violations.length})
-        </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            className="text-xs font-medium text-foreground hover:underline"
+            onClick={() => setOpen((v) => !v)}
+          >
+            {open ? "▾" : "▸"} Violation detail ({rows.length} tickets)
+          </button>
+          {open && (
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Switch checked={hideExcused} onCheckedChange={setHideExcused} />
+              Hide fully-excused tickets
+            </label>
+          )}
+        </div>
 
         {open && (
           <div className="overflow-x-auto">
@@ -1967,164 +2012,162 @@ function TriageViolationsSection({
                 <tr>
                   <th className="text-left px-3 py-2 font-medium">Ticket</th>
                   <th className="text-left px-3 py-2 font-medium">Customer</th>
-                  <th className="text-right px-3 py-2 font-medium">Triage</th>
-                  <th className="text-right px-3 py-2 font-medium">FRT</th>
-                  <th className="text-left px-3 py-2 font-medium">Flags</th>
-                  <th className="text-left px-3 py-2 font-medium">Severity</th>
-                  <th className="text-left px-3 py-2 font-medium">Override</th>
+                  <th className="text-left px-3 py-2 font-medium">Sev</th>
+                  <th className="text-left px-3 py-2 font-medium">Triage</th>
+                  <th className="text-left px-3 py-2 font-medium">First response</th>
+                  <th className="text-left px-3 py-2 font-medium">Resolution</th>
                 </tr>
               </thead>
               <tbody>
-                {violations.map((row) => {
-                  const sev = parseSeverity(row.raw_payload?.custom_attributes?.Severity);
+                {visible.map((v) => {
+                  const row = v.row;
+                  const cid = row.intercom_conversation_id;
                   const key = row.customer_key?.trim() || "";
                   const customer = key ? (customerLabels.get(key) ?? key) : "—";
+                  const openExcuse = (metric: ViolMetric) =>
+                    setExcuseTarget({ cid, metric, subject: row.subject });
+                  const removeOverride = async (metric: ViolMetric) => {
+                    if (!isAdmin) { toast({ title: "Admin only", description: "You need the admin role to remove overrides." }); return; }
+                    const { error } = await supabase
+                      .from("sla_violation_overrides" as any)
+                      .delete()
+                      .eq("intercom_conversation_id", cid)
+                      .eq("metric", metric);
+                    if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
+                    else { refreshOverrides(); toast({ title: "Override removed" }); }
+                  };
                   return (
                     <tr key={row.id} className="border-t border-border align-top">
                       <td className="px-3 py-2 max-w-[300px]">
                         <a
-                          href={`https://app.intercom.com/a/inbox/_/inbox/conversation/${row.intercom_conversation_id}`}
+                          href={`https://app.intercom.com/a/inbox/_/inbox/conversation/${cid}`}
                           target="_blank"
                           rel="noreferrer"
                           className="text-foreground hover:underline block truncate"
                           title={row.subject ?? ""}
                         >
-                          {row.subject || `Intercom #${row.intercom_conversation_id}`}
+                          {row.subject || `Intercom #${cid}`}
                         </a>
-                        <span className="text-[11px] text-muted-foreground tabular-nums">#{row.intercom_conversation_id}</span>
-                      </td>
-                      <td className="px-3 py-2 max-w-[160px] truncate" title={customer}>{customer}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        <div className="font-medium text-destructive">
-                          {formatBusinessDuration(row.sla.timeToTriageBusinessHoursS)}
-                        </div>
-                        <div className="text-[11px] text-muted-foreground">
-                          {formatDuration(row.sla.timeToTriageS)} cal
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        <div>{formatBusinessDuration(row.sla.firstSupportReplyFromInboxBusinessHoursS)}</div>
-                        <div className="text-[11px] text-muted-foreground">
-                          {formatDuration(row.sla.firstSupportReplyFromInboxS)} cal
-                        </div>
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex flex-col gap-1">
+                        <span className="text-[11px] text-muted-foreground tabular-nums">#{cid}</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
                           {row.sla.answeredBeforeClassified && (
                             <Badge variant="outline" className="text-[10px] font-normal">answered before Sev</Badge>
                           )}
                           {row.sla.severityRecordedAtClose && (
                             <Badge variant="outline" className="text-[10px] font-normal">Sev at close</Badge>
                           )}
-                          {!row.sla.answeredBeforeClassified && !row.sla.severityRecordedAtClose && (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-xs">{sev == null ? "—" : `Sev ${sev}`}</td>
-                      <td className="px-3 py-2">
-                        <TriageOverrideCell
-                          row={row}
-                          override={overrides.get(row.intercom_conversation_id)}
-                          email={email}
-                          isAdmin={isAdmin}
-                          onChanged={loadOverrides}
-                        />
-                      </td>
+                      <td className="px-3 py-2 max-w-[160px] truncate" title={customer}>{customer}</td>
+                      <td className="px-3 py-2 text-xs whitespace-nowrap">{v.severity == null ? "—" : `Sev ${v.severity}`}</td>
+
+                      <MetricCell
+                        miss={v.triageMiss}
+                        measured={formatBusinessDuration(row.sla.timeToTriageBusinessHoursS)}
+                        secondary={`${formatDuration(row.sla.timeToTriageS)} cal`}
+                        target={formatBusinessDuration(TRIAGE_TARGET_S)}
+                        clock="business hrs"
+                        notEvaluable={row.sla.timeToTriageBusinessHoursS == null}
+                        excused={isExcused(cid, "triage")}
+                        override={getOverride(cid, "triage")}
+                        isAdmin={isAdmin}
+                        onExcuse={() => openExcuse("triage")}
+                        onRemove={() => removeOverride("triage")}
+                      />
+
+                      <MetricCell
+                        miss={v.frMiss}
+                        measured={(v.compliance?.firstResponse.clock === "business" ? formatBusinessDuration : formatDuration)(v.compliance?.firstResponse.value ?? null)}
+                        target={(v.compliance?.firstResponse.clock === "business" ? formatBusinessDuration : formatDuration)(v.compliance?.firstResponse.target ?? null)}
+                        clock={v.compliance?.firstResponse.clock === "business" ? "business hrs" : "calendar"}
+                        notEvaluable={v.compliance?.firstResponse.met == null}
+                        excused={isExcused(cid, "first_response")}
+                        override={getOverride(cid, "first_response")}
+                        isAdmin={isAdmin}
+                        onExcuse={() => openExcuse("first_response")}
+                        onRemove={() => removeOverride("first_response")}
+                      />
+
+                      <MetricCell
+                        miss={v.resMiss}
+                        measured={(v.compliance?.resolution.clock === "business" ? formatBusinessDuration : formatDuration)(v.compliance?.resolution.value ?? null)}
+                        target={(v.compliance?.resolution.clock === "business" ? formatBusinessDuration : formatDuration)(v.compliance?.resolution.target ?? null)}
+                        clock={v.compliance?.resolution.clock === "business" ? "business hrs" : "calendar"}
+                        notEvaluable={v.compliance?.resolution.met == null}
+                        excused={isExcused(cid, "resolution")}
+                        override={getOverride(cid, "resolution")}
+                        isAdmin={isAdmin}
+                        onExcuse={() => openExcuse("resolution")}
+                        onRemove={() => removeOverride("resolution")}
+                      />
                     </tr>
                   );
                 })}
-                {!violations.length && (
-                  <tr><td colSpan={7} className="px-3 py-4 text-center text-muted-foreground text-xs">No triage violations in this population.</td></tr>
+                {!visible.length && (
+                  <tr><td colSpan={6} className="px-3 py-4 text-center text-muted-foreground text-xs">No violations in this population.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
         )}
+
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          Triage = time from SLA clock start to the first Severity assignment, business hours, 30-minute target.
+          First response and resolution use their per-severity targets and clocks (Sev 1 wall-clock 24/7; Sev 2–4 Europe/Berlin business hours).
+          A blank cell means the target was met or the metric is not evaluable for that ticket.
+        </p>
       </CardContent>
+      <ExcuseDialog
+        target={excuseTarget}
+        onClose={() => setExcuseTarget(null)}
+        onSaved={() => { refreshOverrides(); setExcuseTarget(null); }}
+      />
     </Card>
   );
 }
 
-function TriageOverrideCell({
-  row, override, email, isAdmin, onChanged,
+// --- One metric cell inside a violation row ---
+function MetricCell({
+  miss, measured, secondary, target, clock, notEvaluable, excused, override, isAdmin, onExcuse, onRemove,
 }: {
-  row: CorrectedEnriched;
-  override: TriageOverride | undefined;
-  email: string | null;
+  miss: boolean;
+  measured: string;
+  secondary?: string;
+  target: string;
+  clock: string;
+  notEvaluable: boolean;
+  excused: boolean;
+  override: SlaOverride | undefined;
   isAdmin: boolean;
-  onChanged: () => void;
+  onExcuse: () => void;
+  onRemove: () => void;
 }) {
-  const suggested: TriageReason | "" = row.sla.severityRecordedAtClose
-    ? "recorded_at_close"
-    : row.sla.answeredBeforeClassified
-      ? "answered_before_classified"
-      : "";
-  const [reason, setReason] = useState<TriageReason | "">(override?.reason ?? suggested);
-  const [note, setNote] = useState(override?.note ?? "");
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    setReason(override?.reason ?? suggested);
-    setNote(override?.note ?? "");
-  }, [override?.id, override?.reason, override?.note]);
-
-  const save = async () => {
-    if (!reason) { toast({ title: "Pick a reason first" }); return; }
-    setSaving(true);
-    const { error } = await supabase
-      .from("triage_overrides" as any)
-      .upsert(
-        {
-          intercom_conversation_id: row.intercom_conversation_id,
-          reason,
-          note: note.trim() || null,
-          created_by: email,
-        },
-        { onConflict: "intercom_conversation_id" },
-      );
-    setSaving(false);
-    if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
-    else { toast({ title: override ? "Override updated" : "Violation excused" }); onChanged(); }
-  };
-
-  const remove = async () => {
-    if (!isAdmin) { toast({ title: "Admin only", description: "You need the admin role to clear overrides." }); return; }
-    const { error } = await supabase.from("triage_overrides" as any).delete().eq("intercom_conversation_id", row.intercom_conversation_id);
-    if (error) toast({ title: "Failed", description: error.message, variant: "destructive" });
-    else { toast({ title: "Override cleared" }); onChanged(); }
-  };
-
+  if (!miss) {
+    return (
+      <td className="px-3 py-2 text-xs text-muted-foreground">
+        {notEvaluable ? "not evaluable" : "met"}
+      </td>
+    );
+  }
   return (
-    <div className="space-y-1.5 min-w-[240px]">
-      {override && (
-        <div className="text-[11px] text-muted-foreground">
-          Excused · {override.created_by ?? "unknown"} · {format(new Date(override.updated_at), "d MMM yyyy HH:mm")}
-        </div>
-      )}
-      <Select value={reason || undefined} onValueChange={(v) => setReason(v as TriageReason)}>
-        <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Reason…" /></SelectTrigger>
-        <SelectContent>
-          {TRIAGE_REASONS.map((r) => (
-            <SelectItem key={r} value={r}>{TRIAGE_REASON_LABELS[r]}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Textarea
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        rows={1}
-        placeholder="Note (optional)"
-        className="text-xs min-h-[32px]"
-      />
-      <div className="flex items-center gap-2">
-        <Button size="sm" className="h-7 text-xs" onClick={save} disabled={saving}>
-          {saving ? "Saving…" : override ? "Update" : "Save"}
-        </Button>
-        {override && isAdmin && (
-          <button onClick={remove} className="text-[11px] text-muted-foreground hover:text-foreground">Clear override</button>
-        )}
+    <td className={`px-3 py-2 ${excused ? "opacity-60" : ""}`}>
+      <div className={`tabular-nums font-medium ${excused ? "text-muted-foreground line-through" : "text-destructive"}`}>
+        {measured}
       </div>
-    </div>
+      <div className="text-[11px] text-muted-foreground tabular-nums">
+        vs {target} · {clock}
+      </div>
+      {secondary && <div className="text-[11px] text-muted-foreground tabular-nums">{secondary}</div>}
+      <div className="mt-1">
+        <ExcuseCell
+          excused={excused}
+          override={override}
+          isAdmin={isAdmin}
+          onExcuse={onExcuse}
+          onRemove={onRemove}
+        />
+      </div>
+    </td>
   );
 }
+
