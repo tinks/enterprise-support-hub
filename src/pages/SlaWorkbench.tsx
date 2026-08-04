@@ -1263,18 +1263,6 @@ function ComplianceSection({
   const total = inScope.length;
   const coveragePct = total ? (classifiedCount / total) * 100 : 0;
 
-  // First-response breaches list — respects basis (customer-initiated only when "customer").
-  const frBreaches = useMemo(() => {
-    const out: Array<{ row: CorrectedEnriched; compliance: SlaCompliance }> = [];
-    for (const sev of [1, 2, 3, 4] as const) {
-      for (const r of buckets[sev].rows) {
-        if (frBasis === "customer" && r.row.sla.initiatedBy !== "customer") continue;
-        if (r.compliance.firstResponse.met === false) out.push(r);
-      }
-    }
-    return out;
-  }, [buckets, frBasis]);
-
   // Initiation counts across the in-scope population.
   const initiationCounts = useMemo(() => {
     let c = 0, a = 0;
@@ -1285,17 +1273,6 @@ function ComplianceSection({
     return { customer: c, agent: a };
   }, [inScope]);
 
-  // Resolution breaches list (across all severities). Sev 4 has resolution.met === null so it's naturally excluded.
-  const resBreaches = useMemo(() => {
-    const out: Array<{ row: CorrectedEnriched; compliance: SlaCompliance }> = [];
-    for (const sev of [1, 2, 3, 4] as const) {
-      for (const r of buckets[sev].rows) {
-        if (r.compliance.resolution.met === false) out.push(r);
-      }
-    }
-    out.sort((a, b) => (b.compliance.resolution.value ?? 0) - (a.compliance.resolution.value ?? 0));
-    return out;
-  }, [buckets]);
 
   const rowSummary = (b: SeverityBucket) => {
     let frMet = 0, frBreach = 0, frExcused = 0, frNotEval = 0;
