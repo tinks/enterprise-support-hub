@@ -1,48 +1,101 @@
+# Merge SLA breaches and triage violations into one violations table
 
-# SLA breach overrides — write/read map + minimal surfacing fix
+Decision inputs already settled: overrides get unified into a single table, and the 30-minute triage target is treated as agreed (no "provisional" labelling anywhere).
 
-## 1. Where overrides are CREATED (write)
+Current state, verified: the Workbench renders three tables — First-Response breaches and Resolution breaches inside `ComplianceSection` (backed by `sla_breach_overrides`, unique on conversation + metric, 4 rows today), and Triage violations in `TriageViolationsSection` (backed by `triage_overrides`, unique on conversation, 0 rows today). The two override tables use different reason vocabularies and different RLS (breach overrides are admin-write; triage overrides are team-write).
 
-- **`src/pages/SlaWorkbench.tsx` — `ExcuseDialog`** (lines **1767–1834**).
-  - Reason `<Select>` with 4 options — Holiday / Customer-side hold / Data artifact / Other (lines **1810–1821**).
-  - Free-text `<Textarea>` for `note` (lines **1822–1825**).
-  - Upsert into `sla_breach_overrides` on `(intercom_conversation_id, metric)` — lines **1789–1794**.
-- Trigger buttons live in `ComplianceSection`'s FR + Resolution breach tables via `<ExcuseCell onExcuse={…}>` (lines **1605–1616** and **1682–1693**), which open the dialog by setting `excuseTarget` (state at **1229**).
-- This is the **only** create site in the frontend. (Delete/remove path: `.from("sla_breach_overrides").delete()` at lines **1612** and **1689**.)
+## 1. Mockups
 
-## 2. Where overrides are READ + RENDERED
+### Option A — one row per ticket
 
-Shared hook: **`src/hooks/useSlaBatch.ts`** loads the full table into a `Map` (lines **221–240**) and exposes `isExcused` (247) + `getOverride` (243). Full row is available to consumers, including `reason` and `note`.
+A ticket appears once; each metric gets a cell. Empty cell = met or not evaluable. Clicking a red cell opens the excuse dialog for that metric.
 
-Render sites:
+```text
+Violations (14 tickets · 19 misses · 6 excused)                    [window: Last month v]
 
-| # | File : lines | Uses `reason`? | Uses `note`? | What it shows |
-|---|---|---|---|---|
-| A | `src/pages/SlaDashboard.tsx` : **291–292, 317–318** (leadership scorecard, per-customer rows) | No | No | Just a count: `· {N} excused` next to breach counts. |
-| B | `src/pages/SlaWorkbench.tsx` `ComplianceSection` FR-breach table row : **1578–1618** | No (row-level) | No | Row visually marked with `opacity-60 line-through` (line **1582**). |
-| C | `src/pages/SlaWorkbench.tsx` `ComplianceSection` Resolution-breach table row : **1652–1694** | No (row-level) | No | Same strikethrough treatment (line **1656**). |
-| D | `src/pages/SlaWorkbench.tsx` `ExcuseCell` : **1723–1765** (rendered inside each excused row in B/C above) | Yes — inline text `Excused · {reason}` (lines **1736–1741**) | **Only as a native browser `title=` tooltip** on the same span (line **1738**) | Reason is visible; note is effectively hidden — hover-only, no visual affordance, doesn't work on touch, easy to miss. |
+ TICKET                          CUSTOMER   SEV   TRIAGE      FIRST RESP     RESOLUTION   
+ ─────────────────────────────────────────────────────────────────────────────────────────
+ Deploy stuck on build step      Klarna      1    1h 12m ✗    22m ✗          —            
+ #12849                                           vs 30m      vs 15m         met          
+                                                  [excuse]    Excused ·                   
+                                                              holiday                     
+                                                              "EU public hol."            
+ ─────────────────────────────────────────────────────────────────────────────────────────
+ SSO login loop for 3 users      Atlassian   2    48m ✗       —              9d 4h ✗      
+ #12871                                           vs 30m      met            vs 5d        
+                                                  Excused ·                  [excuse]     
+                                                  off hours                               
+                                            ⚑ answered before Sev assigned                
+ ─────────────────────────────────────────────────────────────────────────────────────────
+ Webhook retries duplicated      Mercado     3    —           —              14d 2h ✗     
+ #12902                                           met         met            vs 10d       
+                                                                             [excuse]     
+ ─────────────────────────────────────────────────────────────────────────────────────────
+ Editor freezes on large file    Lotus Bl.   2    2h 07m ✗    1h 41m ✗       6d 1h ✗      
+ #12915                                           vs 30m      vs 30m         vs 5d        
+                                                  [excuse]    [excuse]       [excuse]     
+                                            ⚑ Sev recorded at close                       
+```
 
-No other components query `sla_breach_overrides` or consume `getOverride`/`isExcused`.
+Reads as "which tickets went wrong, and how badly." The triple-miss row is visible at a glance. Cells are dense; a fully-excused ticket still occupies a row.
 
-## 3. Gap confirmation
+### Option B — one row per violation
 
-The `note` a user types in the ExcuseDialog is **never rendered as visible text anywhere** in the app after save. Its single surfacing is the `title={override.note ?? ""}` attribute on the "Excused · {reason}" span in `ExcuseCell` (SlaWorkbench.tsx line **1738**) — a browser tooltip on hover. `reason` is at least shown inline on that same span; on the Dashboard, neither reason nor note appears at all (only an "excused" count). So yes, the gap is real: humans have no visible way to review the note they wrote.
+Each miss is its own row with a Type column. Closest to today's tables.
 
-## 4. Minimal surfacing fix (proposal)
+```text
+Violations (19)                                                    [window: Last month v]
+ [All] [Triage 7] [First response 5] [Resolution 7]        [ ] Hide excused
 
-Scope: **`src/pages/SlaWorkbench.tsx` only** — extend the existing "Excused · {reason}" indicator inside `ExcuseCell` (lines **1733–1751**) so the note is visible, not hover-gated. No new components, no schema/hook/query changes, no Dashboard changes (Dashboard is intentionally aggregate-only; the practitioner surface is Workbench, which is already where the "Excuse" action lives per project docs).
+ TYPE            TICKET                        CUSTOMER   SEV   MEASURED   TARGET  OVERRIDE
+ ─────────────────────────────────────────────────────────────────────────────────────────
+ Triage          Deploy stuck on build step    Klarna      1    1h 12m     30m     [excuse]
+                 #12849
+ First response  Deploy stuck on build step    Klarna      1    22m        15m     Excused ·
+                 #12849                                                            holiday
+ Triage          SSO login loop for 3 users    Atlassian   2    48m        30m     Excused ·
+                 #12871  ⚑ answered before Sev                                     off hours
+ Resolution      SSO login loop for 3 users    Atlassian   2    9d 4h      5d      [excuse]
+ Resolution      Webhook retries duplicated    Mercado     3    14d 2h     10d     [excuse]
+ Triage          Editor freezes on large file  Lotus Bl.   2    2h 07m     30m     [excuse]
+ First response  Editor freezes on large file  Lotus Bl.   2    1h 41m     30m     [excuse]
+ Resolution      Editor freezes on large file  Lotus Bl.   2    6d 1h      5d      [excuse]
+```
 
-Two options, both small; recommend **Option A** for lowest change:
+Simple, sortable by size of miss, filterable by type, one uniform row shape. Same ticket repeats; the "missed all three" pattern is invisible unless sorted by ticket.
 
-- **Option A — inline note under the reason chip (recommended).** In `ExcuseCell`, keep the current inline `Excused · {reason}` chip and, when `override.note` is non-empty, render a second line beneath it: `<div className="text-[11px] text-muted-foreground italic max-w-[280px] truncate" title={override.note}>"{override.note}"</div>`. Keeps `title` as the full-text fallback for long notes; matches the existing muted-foreground / xs-text idiom used throughout `ComplianceSection`. Both FR and Resolution breach tables inherit it automatically since both use `ExcuseCell`. The `Action` column already renders arbitrary content, so no table layout changes required beyond the cell being taller when a note exists.
+Recommendation: **Option A**. It is the only shape that shows the discipline-vs-speed correlation in one look, and the count of distinct problem tickets is the number that matters in a review.
 
-- **Option B — small expand toggle on the chip.** Turn "Excused · {reason}" into a `<button>` with a `▸/▾` glyph that toggles a note block below. More clicks, more state, no real benefit given notes are short.
+## 2. Clock handling
 
-Not proposed: Dashboard surfacing, a separate audit page, or hover-cards — all would be over-engineering for the stated problem ("user entered notes and has no way to view them"). If leadership later needs to see excuse rationale on `/sla`, that is a follow-up.
+Triage is business-hours primary. First response and resolution already carry a per-metric `clock` (business or calendar). Each cell shows its measured value against its own target with a small clock suffix — no attempt to force one clock across the table.
 
-### Files that would change (fix pass, for reference only — do not implement yet)
-- `src/pages/SlaWorkbench.tsx` — `ExcuseCell` body only (~4 lines added).
+## 3. Unified overrides table
 
-### Docs-of-record follow-up
-After the fix, one-line update to `.lovable/project-knowledge.md` + `src/pages/FlowDiagram.tsx` where the SLA Workbench compliance section is described, noting that excused breaches now show reason **and note** inline in the breach tables.
+New `public.sla_violation_overrides`, unique on `(intercom_conversation_id, metric)` where metric is `triage | first_response | resolution`. Merged reason vocabulary:
+
+`holiday`, `off_hours`, `customer_hold`, `non_support_thread`, `recorded_at_close`, `answered_before_classified`, `data_artifact`, `genuine_miss`, `other`
+
+The reason dropdown filters the list per metric: triage cells offer the triage-relevant reasons, first-response and resolution cells offer the breach-relevant ones, `other` always available.
+
+Migration steps:
+1. Create the table with grants, RLS, and an updated_at trigger.
+2. Copy the 4 existing `sla_breach_overrides` rows in with their metric and reason preserved. `triage_overrides` is empty, so nothing to migrate there.
+3. Leave both old tables in place, untouched, as a rollback path. Dropping them is a separate later pass once the merged view is trusted.
+
+RLS: SELECT/INSERT/UPDATE for any authenticated user, DELETE for admins only — the team-writable pattern already used by `triage_overrides` and `esh_backlog_items`. This widens write access relative to `sla_breach_overrides` (currently admin-only insert/update); flagging it explicitly rather than deciding it silently — say the word if breach excuses should stay admin-only and the policy will split by metric instead.
+
+## 4. Frontend changes
+
+- `src/hooks/useSlaBatch.ts` — point the overrides loader at the new table, extend `SlaOverrideMetric` with `"triage"`, widen `SlaOverrideReason`.
+- `src/pages/SlaWorkbench.tsx` — replace the two breach sub-tables inside `ComplianceSection` and the whole `TriageViolationsSection` with one `ViolationsSection` in Option A shape. Per-severity summary rows, the FR basis toggle, and the by-source breakout stay where they are in `ComplianceSection`; only the breach detail tables move out.
+- Remove the "provisional" wording from the triage copy on the Workbench.
+- Headline stats above the table: distinct tickets with a miss, total misses, excused, unexcused.
+
+## 5. Out of scope
+
+`src/pages/SlaReport.tsx` and `src/pages/SlaDashboard.tsx` keep their current shape. The Report's triage discipline section stays as-is apart from the provisional wording, which is handled in a separate pass if wanted.
+
+## 6. Docs of record
+
+After the change: `changelog_entries` row, `.lovable/project-knowledge.md` update routed through `sync-knowledge-pending`, and the `FlowDiagram.tsx` SLA Workbench description — as a separate docs-only pass, not folded into the logic turn.
