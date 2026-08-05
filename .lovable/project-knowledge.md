@@ -1262,7 +1262,7 @@ Third SLA view (protected route, nav link "SLA Report"), shipped in commit `7a28
 
 **COUNTING RULES (the credibility core — document precisely):**
 
-- **`%met = met_true / (met_true + breach)`**, where `breach` counts only **unexcused** breaches (an excused breach is one with a matching row in `sla_breach_overrides` via the hook's `isExcused(cid, metric)`).
+- **`%met = met_true / (met_true + breach)`**, where `breach` counts only **unexcused** breaches (an excused breach is one with a matching row in **`sla_violation_overrides`** — the single consolidated override table — via the hook's `isExcused(cid, metric)`, `metric ∈ triage | first_response | resolution | cadence`).
 - **Excused AND not-evaluable are BOTH excluded from the denominator** and shown as their own visible counts. *Why:* they are different kinds of "not a data point" (a judged exception vs no measurable value) and folding either into met-or-breach would silently move the headline.
 - **Sev 4 Resolution has no committed target** → rendered "no target (best-effort)", no %met, but Avg / Median / p90 still shown for visibility.
 - **Clock basis is per severity, not blanket:** **Sev 1 = calendar / 24-7**, **Sev 2–4 = Berlin business hours**. The headline basis is therefore worded "each severity's committed clock", never "business hours".
