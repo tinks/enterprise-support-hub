@@ -18,6 +18,8 @@ import {
 
   parseSeverity,
   evaluateCompliance,
+  evaluateCadence,
+  CADENCE_TARGETS,
   SLA_TARGETS,
   TRIAGE_TARGET_S,
   type TicketSla,
@@ -1007,7 +1009,7 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
                   </tr>
                 ))}
                 {!loading && !sorted.length && (
-                  <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">No in-scope tickets found.</td></tr>
+                  <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">No in-scope tickets found.</td></tr>
                 )}
               </tbody>
             </table>
@@ -1602,7 +1604,7 @@ function ExcuseCell({
 function ExcuseDialog({
   target, onClose, onSaved,
 }: {
-  target: { cid: string; metric: SlaOverrideMetric; subject: string | null } | null;
+  target: { cid: string; metric: SlaOverrideMetric; subject: string | null; suggestedReason?: SlaOverrideReason } | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -1616,7 +1618,7 @@ function ExcuseDialog({
   }, []);
 
   useEffect(() => {
-    if (target) { setReason(""); setNote(""); }
+    if (target) { setReason(target.suggestedReason ?? ""); setNote(""); }
   }, [target?.cid, target?.metric]);
 
   const open = !!target;
@@ -1702,12 +1704,14 @@ const REASONS_BY_METRIC: Record<ViolMetric, SlaOverrideReason[]> = {
   triage: ["off_hours", "non_support_thread", "recorded_at_close", "answered_before_classified", "genuine_miss", "other"],
   first_response: ["holiday", "customer_hold", "data_artifact", "genuine_miss", "other"],
   resolution: ["holiday", "customer_hold", "data_artifact", "genuine_miss", "other"],
+  cadence: ["customer_hold", "off_hours", "non_support_thread", "data_artifact", "genuine_miss", "other"],
 };
 
 const METRIC_LABELS: Record<ViolMetric, string> = {
   triage: "Triage",
   first_response: "First response",
   resolution: "Resolution",
+  cadence: "Communication cadence",
 };
 
 type ViolationRow = {
@@ -1717,6 +1721,7 @@ type ViolationRow = {
   triageMiss: boolean;
   frMiss: boolean;
   resMiss: boolean;
+  cadenceMiss: boolean;
 };
 
 function ViolationsSection({
@@ -1735,7 +1740,7 @@ function ViolationsSection({
   const { isAdmin } = useIsAdmin();
   const [open, setOpen] = useState(false);
   const [hideExcused, setHideExcused] = useState(false);
-  const [excuseTarget, setExcuseTarget] = useState<{ cid: string; metric: ViolMetric; subject: string | null } | null>(null);
+  const [excuseTarget, setExcuseTarget] = useState<{ cid: string; metric: ViolMetric; subject: string | null; suggestedReason?: SlaOverrideReason } | null>(null);
 
   const rows = useMemo<ViolationRow[]>(() => {
     const out: ViolationRow[] = [];
@@ -1745,13 +1750,15 @@ function ViolationsSection({
       const triageMiss = r.sla.triageViolation === true;
       const frMiss = compliance?.firstResponse.met === false && r.sla.initiatedBy === "customer";
       const resMiss = compliance?.resolution.met === false;
-      if (!triageMiss && !frMiss && !resMiss) continue;
-      out.push({ row: r, severity, compliance, triageMiss, frMiss: !!frMiss, resMiss: !!resMiss });
+      // Cadence: Sev1/Sev2 only, evaluable tickets only — never default to a miss.
+      const cadenceMiss = severity == null ? false : evaluateCadence(r.sla, severity) === false;
+      if (!triageMiss && !frMiss && !resMiss && !cadenceMiss) continue;
+      out.push({ row: r, severity, compliance, triageMiss, frMiss: !!frMiss, resMiss: !!resMiss, cadenceMiss });
     }
     // Worst first: most misses, then biggest resolution overshoot.
     out.sort((a, b) => {
-      const na = Number(a.triageMiss) + Number(a.frMiss) + Number(a.resMiss);
-      const nb = Number(b.triageMiss) + Number(b.frMiss) + Number(b.resMiss);
+      const na = Number(a.triageMiss) + Number(a.frMiss) + Number(a.resMiss) + Number(a.cadenceMiss);
+      const nb = Number(b.triageMiss) + Number(b.frMiss) + Number(b.resMiss) + Number(b.cadenceMiss);
       if (na !== nb) return nb - na;
       return (b.compliance?.resolution.value ?? 0) - (a.compliance?.resolution.value ?? 0);
     });
@@ -1775,6 +1782,7 @@ function ViolationsSection({
       check("triage", v.triageMiss);
       check("first_response", v.frMiss);
       check("resolution", v.resMiss);
+      check("cadence", v.cadenceMiss);
     }
     return {
       tickets: rows.length,
@@ -1791,7 +1799,7 @@ function ViolationsSection({
     return rows.filter((v) => {
       const cid = v.row.intercom_conversation_id;
       const open = (metric: ViolMetric, miss: boolean) => miss && !isExcused(cid, metric);
-      return open("triage", v.triageMiss) || open("first_response", v.frMiss) || open("resolution", v.resMiss);
+      return open("triage", v.triageMiss) || open("first_response", v.frMiss) || open("resolution", v.resMiss) || open("cadence", v.cadenceMiss);
     });
   }, [rows, hideExcused, isExcused]);
 
@@ -1801,7 +1809,7 @@ function ViolationsSection({
         <CardTitle className="text-base">Violations</CardTitle>
         <CardDescription>
           Every in-scope ticket that missed a target — triage (first Severity assignment, 30 min business hours),
-          first response, or resolution — in one row. Overrides record why a miss is not a real miss.
+          first response, resolution, or communication cadence (Sev 1/2 only, provisional) — in one row. Overrides record why a miss is not a real miss.
           First-response misses are counted on customer-initiated tickets only.
         </CardDescription>
       </CardHeader>
@@ -1850,6 +1858,7 @@ function ViolationsSection({
                   <th className="text-left px-3 py-2 font-medium">Triage</th>
                   <th className="text-left px-3 py-2 font-medium">First response</th>
                   <th className="text-left px-3 py-2 font-medium">Resolution</th>
+                  <th className="text-left px-3 py-2 font-medium">Cadence</th>
                 </tr>
               </thead>
               <tbody>
@@ -1858,8 +1867,13 @@ function ViolationsSection({
                   const cid = row.intercom_conversation_id;
                   const key = row.customer_key?.trim() || "";
                   const customer = key ? (customerLabels.get(key) ?? key) : "—";
-                  const openExcuse = (metric: ViolMetric) =>
-                    setExcuseTarget({ cid, metric, subject: row.subject });
+                  const openExcuse = (metric: ViolMetric, suggestedReason?: SlaOverrideReason) =>
+                    setExcuseTarget({ cid, metric, subject: row.subject, suggestedReason });
+                  const cadTarget = v.severity == null ? null : CADENCE_TARGETS[v.severity];
+                  const cadBusiness = cadTarget?.clock === "business";
+                  const cadFmt = cadBusiness ? formatBusinessDuration : formatDuration;
+                  const cadValue = cadBusiness ? row.sla.cadenceMaxGapBusinessHoursS : row.sla.cadenceMaxGapS;
+                  const cadOverlap = row.sla.cadenceMaxGapOverlappedCustomerWait;
                   const removeOverride = async (metric: ViolMetric) => {
                     if (!isAdmin) { toast({ title: "Admin only", description: "You need the admin role to remove overrides." }); return; }
                     const { error } = await supabase
@@ -1934,6 +1948,24 @@ function ViolationsSection({
                         onExcuse={() => openExcuse("resolution")}
                         onRemove={() => removeOverride("resolution")}
                       />
+
+                      {cadTarget == null ? (
+                        <td className="px-3 py-2 text-xs text-muted-foreground">no target</td>
+                      ) : (
+                        <MetricCell
+                          miss={v.cadenceMiss}
+                          measured={cadFmt(cadValue)}
+                          secondary={`${row.sla.cadenceUpdateCount} update${row.sla.cadenceUpdateCount === 1 ? "" : "s"}${cadOverlap ? " · overlapped customer-wait" : ""}`}
+                          target={cadFmt(cadTarget.maxGapS)}
+                          clock={cadBusiness ? "business hrs" : "calendar"}
+                          notEvaluable={evaluateCadence(row.sla, v.severity!) == null}
+                          excused={isExcused(cid, "cadence")}
+                          override={getOverride(cid, "cadence")}
+                          isAdmin={isAdmin}
+                          onExcuse={() => openExcuse("cadence", cadOverlap ? "customer_hold" : undefined)}
+                          onRemove={() => removeOverride("cadence")}
+                        />
+                      )}
                     </tr>
                   );
                 })}
@@ -1948,6 +1980,7 @@ function ViolationsSection({
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           Triage = time from SLA clock start to the first Severity assignment, business hours, 30-minute target.
           First response and resolution use their per-severity targets and clocks (Sev 1 wall-clock 24/7; Sev 2–4 Europe/Berlin business hours).
+          Communication cadence (PROVISIONAL, drumbeat model incl. tail gap) = the worst gap between proactive updates; Sev 1 target 1h wall-clock, Sev 2 target 4h business hours. Sev 3/4 carry no cadence commitment and never show a cadence violation; non-evaluable tickets are never scored as a miss.
           Cells that met their target show the measured value in grey; red values are misses. "Not evaluable" means the metric could not be measured for that ticket.
         </p>
       </CardContent>
