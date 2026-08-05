@@ -1387,4 +1387,18 @@ describe("evaluateCadence", () => {
   it("no cadence (no comms / no close) → null", () => {
     expect(evaluateCadence(mkSla({ hasCadence: false, cadenceMaxGapS: null }), 1)).toBeNull();
   });
+  it("override target flips met↔breach; omitting the arg is unchanged", () => {
+    const sla = mkSla({ hasCadence: true, cadenceMaxGapS: 2 * H, cadenceMaxGapBusinessHoursS: 2 * H });
+    // Default Sev1 target = 1h wall → breach.
+    expect(evaluateCadence(sla, 1)).toBe(false);
+    // Loosened override (3h) → met. Tightened override (1h) → still breach.
+    expect(evaluateCadence(sla, 1, 3 * H)).toBe(true);
+    expect(evaluateCadence(sla, 1, 1 * H)).toBe(false);
+    // Default Sev2 target = 4h business → met; tightened override flips it.
+    expect(evaluateCadence(sla, 2)).toBe(true);
+    expect(evaluateCadence(sla, 2, 1 * H)).toBe(false);
+    // Omitting the arg matches CADENCE_TARGETS exactly.
+    expect(evaluateCadence(sla, 1)).toBe(evaluateCadence(sla, 1, CADENCE_TARGETS[1]!.maxGapS));
+    expect(evaluateCadence(sla, 2)).toBe(evaluateCadence(sla, 2, CADENCE_TARGETS[2]!.maxGapS));
+  });
 });
