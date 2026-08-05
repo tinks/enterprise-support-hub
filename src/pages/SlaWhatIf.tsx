@@ -148,6 +148,7 @@ function compare(
     flipped,
     median: agg.median,
     p90: agg.p90,
+    max: maxOf(values),
   };
 }
 
@@ -171,11 +172,12 @@ function DeltaRow({ c }: { c: Comparison }) {
   );
 }
 
-function DistRef({ median, p90, clock }: { median: number | null; p90: number | null; clock: string }) {
+function DistRef({ median, p90, max, clock }: { median: number | null; p90: number | null; max: number | null; clock: string }) {
   return (
     <div className="text-xs text-muted-foreground">
       Actuals ({clock}): median <span className="tabular-nums">{formatDuration(median)}</span> · p90{" "}
-      <span className="tabular-nums">{formatDuration(p90)}</span>
+      <span className="tabular-nums">{formatDuration(p90)}</span> · longest{" "}
+      <span className="tabular-nums">{formatDuration(max)}</span>
     </div>
   );
 }
@@ -229,7 +231,7 @@ function KnobCard({
             </div>
           </div>
           {comparison && <DeltaRow c={comparison} />}
-          {comparison && <DistRef median={comparison.median} p90={comparison.p90} clock={clock === "business" ? "business hours" : "wall-clock"} />}
+          {comparison && <DistRef median={comparison.median} p90={comparison.p90} max={comparison.max} clock={clock === "business" ? "business hours" : "wall-clock"} />}
         </>
       )}
     </div>
@@ -314,7 +316,7 @@ export default function SlaWhatIf() {
       evaluable, currentMet, proposedMet,
       currentPct: evaluable ? (currentMet / evaluable) * 100 : null,
       proposedPct: evaluable ? (proposedMet / evaluable) * 100 : null,
-      flipped, median: agg.median, p90: agg.p90,
+      flipped, median: agg.median, p90: agg.p90, max: maxOf(values),
     };
   }, [population, whatIfTriage]);
 
@@ -340,7 +342,7 @@ export default function SlaWhatIf() {
         evaluable, currentMet, proposedMet,
         currentPct: evaluable ? (currentMet / evaluable) * 100 : null,
         proposedPct: evaluable ? (proposedMet / evaluable) * 100 : null,
-        flipped, median: agg.median, p90: agg.p90,
+        flipped, median: agg.median, p90: agg.p90, max: maxOf(values),
       };
     };
     return { 1: run(1), 2: run(2) };
