@@ -1251,3 +1251,25 @@ export function evaluateTriage(sla: SlaResult, triageTargetS: number): boolean |
   if (sla.timeToTriageBusinessHoursS == null) return null;
   return sla.timeToTriageBusinessHoursS <= triageTargetS;
 }
+
+// ---- Communication cadence targets (PROVISIONAL) ---------------------------
+// PROVISIONAL proposals, not agreed SLA targets — they exist so cadence can be
+// MEASURED. Sev1 is wall-clock (an active Sev1 does not stop overnight); Sev2
+// is business hours. Sev3/Sev4 have no cadence commitment.
+export const CADENCE_TARGETS: Record<Severity, { maxGapS: number; clock: SlaClock } | null> = {
+  1: { maxGapS: 3600, clock: "wall" }, // 1h wall-clock
+  2: { maxGapS: 14400, clock: "business" }, // 4h business hours
+  3: null,
+  4: null,
+};
+
+// Cadence compliance. null = NOT EVALUABLE (no target for the severity, or no
+// comms / no close) — absence of data is never scored as a miss.
+export function evaluateCadence(sla: SlaResult, severity: Severity): boolean | null {
+  const target = CADENCE_TARGETS[severity];
+  if (!target) return null;
+  if (!sla.hasCadence) return null;
+  const value = target.clock === "business" ? sla.cadenceMaxGapBusinessHoursS : sla.cadenceMaxGapS;
+  if (value == null) return null;
+  return value <= target.maxGapS;
+}
