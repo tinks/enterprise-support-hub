@@ -72,7 +72,7 @@ export function classifySlaBatchRow(row: SlaBatchRow, sla: SlaResult, opts?: Cla
   return "inScope";
 }
 
-export type SlaOverrideMetric = "triage" | "first_response" | "resolution";
+export type SlaOverrideMetric = "triage" | "first_response" | "resolution" | "cadence";
 export type SlaOverrideReason =
   | "holiday"
   | "off_hours"
