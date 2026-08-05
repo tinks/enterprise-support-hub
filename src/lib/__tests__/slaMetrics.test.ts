@@ -440,6 +440,11 @@ function mkSla(over: Partial<SlaResult2>): SlaResult2 {
     triageViolation: false,
     answeredBeforeClassified: false,
     severityRecordedAtClose: false,
+    cadenceUpdateCount: 0,
+    cadenceMaxGapS: null,
+    cadenceMaxGapBusinessHoursS: null,
+    cadenceMaxGapOverlappedCustomerWait: false,
+    hasCadence: false,
 
     flags: { isTicket: false, samParticipated: false, noHumanReply: false, hasParts: false, noCustomerParticipant: false, manuallyLogged: false },
     initiatedBy: "customer",
