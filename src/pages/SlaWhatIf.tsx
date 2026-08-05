@@ -414,6 +414,27 @@ export default function SlaWhatIf() {
 
             <Card>
               <CardHeader>
+                <CardTitle className="text-base">Triage</CardTitle>
+                <CardDescription>
+                  Single global target, business-hours basis (matches the report headline). Tickets
+                  with no Severity event are NOT-EVALUABLE and never counted as a miss.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <KnobCard
+                  title="Time to first Severity assignment"
+                  clock="business"
+                  value={whatIfTriage}
+                  currentValue={TRIAGE_TARGET_S}
+                  knob={knobFor("triage", null)}
+                  onChange={setWhatIfTriage}
+                  comparison={triageCompare}
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
                 <CardTitle className="text-base">First response</CardTitle>
                 <CardDescription>
                   Customer-initiated tickets only, same basis as the monthly report.
@@ -455,27 +476,6 @@ export default function SlaWhatIf() {
                     comparison={resCompare[sev]}
                   />
                 ))}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Triage</CardTitle>
-                <CardDescription>
-                  Single global target, business-hours basis (matches the report headline). Tickets
-                  with no Severity event are NOT-EVALUABLE and never counted as a miss.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <KnobCard
-                  title="Time to first Severity assignment"
-                  clock="business"
-                  value={whatIfTriage}
-                  currentValue={TRIAGE_TARGET_S}
-                  knob={knobFor("triage", null)}
-                  onChange={setWhatIfTriage}
-                  comparison={triageCompare}
-                />
               </CardContent>
             </Card>
 
