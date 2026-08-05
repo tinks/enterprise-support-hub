@@ -483,6 +483,86 @@ export default function SlaReport() {
           isExcused={isExcused}
         />
 
+        {/* §3c Communication cadence — PROVISIONAL, Sev1/Sev2 only */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">§3c Communication cadence — PROVISIONAL (Sev 1 / Sev 2 only)</CardTitle>
+            <CardDescription className="text-xs">
+              Proactive-update frequency during an active incident. <strong>Drumbeat model</strong>: customer
+              silence does <em>not</em> pause the obligation, and the window includes the tail gap
+              (last Lovable update → close). Deliberately conservative — targets are{" "}
+              <strong>not yet ratified</strong>, this is measure-first evidence.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="text-muted-foreground">
+                <tr className="text-left">
+                  <th className="py-1 pr-3">Sev</th>
+                  <th className="py-1 pr-3">Target (clock)</th>
+                  <th className="py-1 pr-3">% met</th>
+                  <th className="py-1 pr-3">n evaluable</th>
+                  <th className="py-1 pr-3">Median max-gap</th>
+                  <th className="py-1 pr-3">p90 max-gap</th>
+                  <th className="py-1 pr-3">Longest max-gap</th>
+                </tr>
+              </thead>
+              <tbody className="tabular-nums">
+                {cadence.map((c) => (
+                  <tr key={c.sev} className="border-t border-border">
+                    <td className="py-1 pr-3">Sev {c.sev}</td>
+                    <td className="py-1 pr-3">
+                      {c.target ? `${formatDuration(c.target.maxGapS)} (${c.target.clock})` : "no cadence target"}
+                    </td>
+                    <td className="py-1 pr-3">
+                      {c.target ? (
+                        <>
+                          {pctText(c.pct)}{" "}
+                          <span className="text-muted-foreground">({c.met} met / {c.breach} over)</span>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">not evaluated</span>
+                      )}
+                    </td>
+                    <td className="py-1 pr-3">{c.target ? `${c.n} of ${c.m}` : "—"}</td>
+                    <td className="py-1 pr-3">{c.target ? formatDuration(c.median) : "—"}</td>
+                    <td className="py-1 pr-3">{c.target ? formatDuration(c.p90) : "—"}</td>
+                    <td className="py-1 pr-3">{c.target ? formatDuration(c.longest) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs space-y-1">
+              {cadence.filter((c) => c.target).map((c) => (
+                <div key={c.sev} className="tabular-nums">
+                  Sev {c.sev}: cadence measurable for <strong>{c.n}</strong> of <strong>{c.m}</strong> in-scope
+                  tickets{c.m ? ` (${((c.n / c.m) * 100).toFixed(0)}%)` : ""} ·{" "}
+                  <span className="text-muted-foreground">
+                    {c.overlapped} of {c.breach} over-target max-gaps overlapped a customer-wait period
+                  </span>
+                </div>
+              ))}
+              <div className="text-muted-foreground">
+                A ticket is evaluable only if it has a cadence window (at least one Lovable public update
+                before close). Tickets without one are <strong>not breaches</strong> — they are excluded from
+                the denominator entirely, never defaulted to met or over-target. Sev 3 / Sev 4 have{" "}
+                <strong>no cadence target by design</strong> and are not evaluated.
+              </div>
+            </div>
+
+            <div className="rounded-md border-2 border-primary/40 bg-primary/5 px-3 py-2 text-xs">
+              <strong>PROVISIONAL — targets not yet ratified; drumbeat model incl. tail gap.</strong> A low
+              %met here is a genuine finding (burst-then-silence during long-running tickets), not a data
+              artifact. The "overlapped customer-wait" count above says how many over-target gaps happened
+              while we were also waiting on the customer — under drumbeat that still counts, but it is the
+              main thing to weigh when ratifying a target.
+            </div>
+          </CardContent>
+        </Card>
+
+
+
         {/* §4 Breaches */}
         <Card>
           <CardHeader>
