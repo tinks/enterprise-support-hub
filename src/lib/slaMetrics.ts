@@ -543,6 +543,12 @@ export type SlaResult = {
   // First Severity assignment landed within SEVERITY_AT_CLOSE_WINDOW_S of close
   // — the "classified at close" bookkeeping pattern.
   severityRecordedAtClose: boolean;
+  // ---- Communication cadence (Phase-1 drumbeat, see computeCadence) --------
+  cadenceUpdateCount: number;
+  cadenceMaxGapS: number | null;
+  cadenceMaxGapBusinessHoursS: number | null;
+  cadenceMaxGapOverlappedCustomerWait: boolean;
+  hasCadence: boolean;
 
   flags: SlaFlags;
   // Who opened the conversation. "agent" means WE opened it (teammate outreach,
