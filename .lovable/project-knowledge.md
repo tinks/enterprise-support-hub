@@ -1197,18 +1197,49 @@ Surfaced as the Report §2b **"Triage discipline (provisional 30-min target)"** 
 
 **Target invariant.** The triage target (30 min) must **always stay ≤ the strictest FRT SLA** (Sev 1 FR 30 m). Triage is a *precondition* of a correct first response — you cannot hit a severity-specific FRT target for a severity you have not assigned — so if Sev 1 FR ever tightens, `TRIAGE_TARGET_S` moves with it. Noted in-code above the constant.
 
-#### `triage_overrides` + Workbench "Triage violations" (migration `2e4fbbd` · commit `e9b3bae`)
+#### Override model — ONE table, `public.sla_violation_overrides` (consolidation `93f3fe0`)
 
-`public.triage_overrides` — one row per `intercom_conversation_id` (**UNIQUE**), columns `reason` (CHECK-constrained), `note`, `created_by`, `created_at`, `updated_at` (trigger-maintained). It **mirrors `sla_breach_overrides`** in shape and in Workbench styling, with one deliberate difference: it is **TEAM-WRITABLE**.
+**Every SLA/triage/cadence exception lives on ONE table.** `public.sla_violation_overrides` — one row per `(intercom_conversation_id, metric)` (**UNIQUE**), columns `metric`, `reason`, `note`, `created_by`, `created_at`, `updated_at` (trigger-maintained), index on `intercom_conversation_id`.
 
-- **Any authenticated teammate** can excuse a violation (SELECT / INSERT / UPDATE); `created_by` records **who** (email from `supabase.auth.getSession()`).
-- **DELETE is admin-only** so the **audit trail survives** — RLS enforces it; the "clear override" control is simply hidden for non-admins.
-- Saving is an **upsert `onConflict=intercom_conversation_id`**, so editing an existing override is the same call.
-- **Reasons:** `off_hours` · `non_support_thread` · `recorded_at_close` · `answered_before_classified` · `genuine_miss` · `other`. The dropdown **auto-suggests** `recorded_at_close`, else `answered_before_classified`, straight from the engine flags.
+- **`metric` CHECK:** `triage` · `first_response` · `resolution` · `cadence`.
+- **Unified 9-value `reason` CHECK:** `holiday` · `off_hours` · `customer_hold` · `non_support_thread` · `recorded_at_close` · `answered_before_classified` · `data_artifact` · `genuine_miss` · `other`. The UI narrows the dropdown per metric (`REASON_OPTIONS` in `SlaWorkbench.tsx`): triage → off_hours / non_support_thread / recorded_at_close / answered_before_classified / genuine_miss / other; FR + Resolution → holiday / customer_hold / data_artifact / genuine_miss / other; cadence → customer_hold / off_hours / non_support_thread / data_artifact / genuine_miss / other.
+- **RLS: SELECT = any authenticated; INSERT / UPDATE / DELETE = ADMIN-ONLY** (`has_role(auth.uid(),'admin')`). The Workbench hides the Excuse / clear controls for non-admins, but RLS is the real enforcement. `created_by` records **who** (email from `supabase.auth.getSession()`).
+- Saving is an **upsert `onConflict=intercom_conversation_id,metric`**, so editing an existing override is the same call.
 
-**Workbench section** (`src/pages/SlaWorkbench.tsx`, rendered next to `ComplianceSection`, same `filteredInScope` population / window / customer filter as the breach tables). Violations = rows with `sla.triageViolation === true`. Header: **total violations · excused · OVERRIDE-RATE % · unexcused**, plus a per-reason breakdown. Per row: subject + conversation id (Intercom deep link), customer, **triage business-hours primary with wall-clock secondary**, FRT (`firstSupportReplyFromInbox*`), **"answered before Sev" / "Sev at close"** badges, severity, and the override control.
+**WHY admin-gated everywhere (and why this REVERSED the earlier triage model).** Triage overrides originally shipped **team-writable** (adoption beats gatekeeping). That is now **deliberately reversed**: *every* SLA target on this system is still **PROPOSED, not ratified**, so an override is not "excusing a miss against a commitment" — it is **editing the evidence used to argue the targets**. Until targets are ratified we gate **uniformly** at admin, then loosen later (per-metric RLS, or a committed-flag that opens writes only for ratified metrics). Any doc/Flow text still describing triage overrides as team-writable is **stale** — corrected in this pass.
 
-**Why.** **Override-rate is a tracked red-flag KPI**, exactly as it is for SLA breaches — a high rate means the *target or the population* is wrong, not that the team is excused. The section's purpose is to **work the tail**: excuse off-hours and non-support-thread noise so the **genuine misses stand alone** and are actionable. The 30-min target stays **provisional** throughout (measure-first).
+**Dropped / dead tables.**
+- **`public.triage_overrides` has been DROPPED** (it held 0 rows). Nothing references it.
+- **`public.sla_breach_overrides` still physically exists but is a DEAD MIRROR** — unreferenced by any code path, holding 4 stale `resolution` rows that were copied into `sla_violation_overrides` at consolidation time. It is a **cleanup candidate**, not a live table; do not read or write it.
+
+**Workbench surface** (`src/pages/SlaWorkbench.tsx`, same `filteredInScope` population / window / customer filter as everything else on the page) is now a **unified Violations table** with one column per metric — **First response · Resolution · Triage · Cadence** — each cell excusable through the shared `ExcuseDialog` (writes the matching `metric`). Header: **total violations · excused · OVERRIDE-RATE % · unexcused**, plus a per-reason breakdown across all metrics. Reason **auto-suggestion** is per metric: triage → `recorded_at_close`, else `answered_before_classified`; cadence → `customer_hold` when the worst gap overlapped a customer-wait.
+
+**Why the unified table.** Override-rate is a tracked **red-flag KPI** — a high rate means the *target or the population* is wrong, not that the team is excused. One table + one section keeps the tail workable: excuse off-hours / non-support-thread / customer-hold noise so the **genuine misses stand alone**, with no chance of the same ticket being excused in one place and counted in another.
+
+#### Communication cadence — the fourth SLA metric (engine + all surfaces; `857c4bd` Report · `a96296a` Workbench · `3dc338e` Dashboard)
+
+**WHAT.** Cadence measures **proactive-update frequency during an active incident** — how long the customer ever went without a public update from us while their ticket was live. It is bound to **Sev 1 and Sev 2 ONLY**.
+
+`CADENCE_TARGETS` (**PROVISIONAL**, `src/lib/slaMetrics.ts`): **Sev 1 = 3600 s (1 h), WALL-clock** · **Sev 2 = 14400 s (4 h), BUSINESS hours** · **Sev 3 / Sev 4 = `null` → "no target"** — rendered as an italic *no target* chip, **never 0 %, never a breach**.
+
+**MODEL — Phase-1 DRUMBEAT.** `computeCadence(timeline, closeAtS)` measures the **max gap between consecutive public Lovable updates**, and:
+- **Customer silence does NOT pause the obligation** — a customer reply inside a gap does not reset the clock. The drumbeat is ours to keep.
+- **The window INCLUDES the tail gap** — last Lovable public update → close. "Went dark, then closed" counts against cadence.
+- Fields on `SlaResult` (spread from `computeCadence` inside `computeSla`, so every surface gets them from the one engine): `cadenceUpdateCount`, `cadenceMaxGapS`, `cadenceMaxGapBusinessHoursS`, `cadenceMaxGapOverlappedCustomerWait`, `hasCadence`.
+- `evaluateCadence(sla, severity, overrideTargetS?)` returns `true | false | null`, picking the severity's own clock (Sev 1 wall, Sev 2 business); the optional third arg exists **only** for the what-if slider.
+
+**Deliberately conservative — and the low %met is a GENUINE finding.** The drumbeat + tail-gap choices make cadence the strictest metric we have. That is intentional: the real behaviour pattern it exposes is **burst-then-silence** (heavy engagement, then a long quiet stretch before close), confirmed by a manual hand-walk of the worst Sev 2 gaps — it is a real finding, **not a measurement artifact**. The `cadenceMaxGapOverlappedCustomerWait` flag marks gaps during which we were *also* waiting on the customer; it exists purely for **interpretability** (and to auto-suggest the `customer_hold` override reason), and does **not** silently forgive the gap.
+
+**HONESTY RULE (charter, non-negotiable).** **Evaluable = `hasCadence`** (the ticket actually has a cadence window). **Non-evaluable tickets are EXCLUDED from the denominator entirely** — never defaulted to met, never counted as a breach. Every surface carries an **"N of M evaluable"** coverage line, same rule as triage's coverage line.
+
+**SURFACES** (all consume the same `useSlaBatch` — **no parallel computation path**):
+- **`/sla-report` §3c "Communication cadence"** — per-severity (Sev 1 / Sev 2) `%met` + **median / p90 / longest max-gap**, an **overlapped customer-wait count**, the "N of M evaluable" coverage line, and a *"PROVISIONAL — targets not yet ratified; drumbeat model incl. tail gap"* caption.
+- **`/sla-workbench` unified Violations table** — a **Cadence** column; a row counts only when the severity has a target (Sev 1/2) **and** `sla.hasCadence` **and** `evaluateCadence(sla, sev) === false`. Shows the worst gap on the severity's own clock, update count, and the overlapped-customer-wait flag. Excusable via `ExcuseDialog` with `metric='cadence'` (admin-gated), auto-suggesting `customer_hold` on overlap.
+- **`/sla` Dashboard scorecard** — a **"Cadence (provisional)"** column matching the FR/Resolution cell pattern exactly: tone-coloured `%met` pill · target + clock · red breach badge linking to the Workbench · excused count · `N of M evaluable` chip. Sev 3/4 render *no target*. A PROVISIONAL footnote and a "Communication cadence (provisional)" entry in the "How these are measured" popover explain the model.
+- **`/sla-what-if`** already exposes **live Sev 1 / Sev 2 cadence knobs** (via `evaluateCadence`'s `overrideTargetS`), so cadence is a **full first-class metric alongside FR / Resolution / Triage** in the visualisation-only slider — local state only, never persisted.
+
+`SlaOverrideMetric` in `src/hooks/useSlaBatch.ts` includes `"cadence"`, so `isExcused(cid, "cadence")` works identically to the other metrics.
+
 
 
 #### Monthly SLA Report — `/sla-report` (`src/pages/SlaReport.tsx`) — target PROPOSAL
