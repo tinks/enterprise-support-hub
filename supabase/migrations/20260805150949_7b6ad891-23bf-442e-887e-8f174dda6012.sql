@@ -1,0 +1,2 @@
+DROP POLICY IF EXISTS "sla violation overrides insert by authenticated" ON public.sla_violation_overrides;
+DROP POLICY IF EXISTS "sla violation overrides update by authenticated" ON public.sla_violation_overrides;

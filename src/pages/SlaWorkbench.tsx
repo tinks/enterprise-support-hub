@@ -1582,6 +1582,9 @@ function ExcuseCell({
       </div>
     );
   }
+  // INSERT/UPDATE on sla_violation_overrides are admin-only via RLS, so the
+  // excuse control is disabled for non-admins (they still see the violation).
+  if (!isAdmin) return null;
   return (
     <Button
       variant="outline"
