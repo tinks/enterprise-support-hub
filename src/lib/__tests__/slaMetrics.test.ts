@@ -368,6 +368,7 @@ describe("computeSla — internal-only thread (no customer participant)", () => 
 import {
   parseSeverity,
   evaluateCompliance,
+  evaluateTriage,
   SLA_TARGETS,
   BUSINESS_DAY_SECONDS,
   type SlaResult as SlaResult2,
@@ -1226,5 +1227,59 @@ describe("triage discipline flags", () => {
     expect(r.triageViolation).toBe(false);
     expect(r.answeredBeforeClassified).toBe(false);
     expect(r.severityRecordedAtClose).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Step 1a: injectable targets + evaluateTriage
+// ---------------------------------------------------------------------------
+describe("evaluateCompliance — injectable targets", () => {
+  it("custom targets flip a default MET into a BREACH", () => {
+    const sla = mkSla({ firstSupportReplyFromInboxBusinessHoursS: 4 * 3600 - 1 });
+    expect(evaluateCompliance(sla, 2).firstResponse.met).toBe(true);
+    const tighter = { ...SLA_TARGETS, 2: { ...SLA_TARGETS[2], firstResponseS: 60 } };
+    const c = evaluateCompliance(sla, 2, tighter);
+    expect(c.firstResponse.met).toBe(false);
+    expect(c.firstResponse.target).toBe(60);
+  });
+  it("custom targets flip a default BREACH into MET", () => {
+    const sla = mkSla({ firstSupportReplyFromInboxBusinessHoursS: 4 * 3600 + 1 });
+    expect(evaluateCompliance(sla, 2).firstResponse.met).toBe(false);
+    const looser = { ...SLA_TARGETS, 2: { ...SLA_TARGETS[2], firstResponseS: 8 * 3600 } };
+    expect(evaluateCompliance(sla, 2, looser).firstResponse.met).toBe(true);
+  });
+  it("omitting the targets arg is identical to explicitly passing SLA_TARGETS", () => {
+    const sla = mkSla({
+      firstSupportReplyFromInboxBusinessHoursS: 5000,
+      firstSupportReplyFromInboxS: 5000,
+      resolutionActiveBusinessHoursS: 40000,
+      resolutionActiveS: 40000,
+    });
+    for (const sev of [1, 2, 3, 4] as const) {
+      expect(evaluateCompliance(sla, sev)).toEqual(evaluateCompliance(sla, sev, SLA_TARGETS));
+    }
+  });
+});
+
+describe("evaluateTriage", () => {
+  it("under target → true", () => {
+    const sla = mkSla({ hasSeverityEvent: true, timeToTriageBusinessHoursS: 900 });
+    expect(evaluateTriage(sla, 1800)).toBe(true);
+  });
+  it("exactly at target → true", () => {
+    const sla = mkSla({ hasSeverityEvent: true, timeToTriageBusinessHoursS: 1800 });
+    expect(evaluateTriage(sla, 1800)).toBe(true);
+  });
+  it("over target → false", () => {
+    const sla = mkSla({ hasSeverityEvent: true, timeToTriageBusinessHoursS: 1801 });
+    expect(evaluateTriage(sla, 1800)).toBe(false);
+  });
+  it("no Severity event → null (not evaluable)", () => {
+    const sla = mkSla({ hasSeverityEvent: false, timeToTriageBusinessHoursS: 100 });
+    expect(evaluateTriage(sla, 1800)).toBeNull();
+  });
+  it("no anchor / no triage measurement → null", () => {
+    const sla = mkSla({ hasSeverityEvent: true, timeToTriageBusinessHoursS: null });
+    expect(evaluateTriage(sla, 1800)).toBeNull();
   });
 });
