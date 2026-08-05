@@ -1064,7 +1064,15 @@ export type SlaTarget = {
   firstResponseClock: SlaClock;
   resolutionS: number | null; // null = no committed resolution (Sev 4)
   resolutionClock: SlaClock;
+  // Cadence-ready: optional per-severity update cadence (Sev1/Sev2 in practice).
+  // NOT consumed by evaluateCompliance yet — structure only, for the what-if slider.
+  cadence?: { updateEveryS: number; clock: SlaClock };
 };
+
+// Injectable target set. Defaults to SLA_TARGETS everywhere; a what-if surface
+// can pass a modified copy to recompute compliance WITHOUT duplicating rules.
+export type SlaTargets = Record<Severity, SlaTarget>;
+
 
 // Single source of truth for proposed SLA targets — edit HERE if the numbers change.
 export const SLA_TARGETS: Record<Severity, SlaTarget> = {
