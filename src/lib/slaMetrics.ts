@@ -1257,7 +1257,7 @@ export function evaluateTriage(sla: SlaResult, triageTargetS: number): boolean |
 // MEASURED. Sev1 is wall-clock (an active Sev1 does not stop overnight); Sev2
 // is business hours. Sev3/Sev4 have no cadence commitment.
 export const CADENCE_TARGETS: Record<Severity, { maxGapS: number; clock: SlaClock } | null> = {
-  1: { maxGapS: 3600, clock: "wall" }, // 1h wall-clock
+  1: { maxGapS: 3600, clock: "calendar" }, // 1h wall-clock
   2: { maxGapS: 14400, clock: "business" }, // 4h business hours
   3: null,
   4: null,
