@@ -1075,7 +1075,7 @@ export type SlaTargets = Record<Severity, SlaTarget>;
 
 
 // Single source of truth for proposed SLA targets — edit HERE if the numbers change.
-export const SLA_TARGETS: Record<Severity, SlaTarget> = {
+export const SLA_TARGETS: SlaTargets = {
   // Sev 1 runs on wall-clock 24/7 (pending Development off-hours-coverage buy-in).
   1: { firstResponseS: 30 * 60,             firstResponseClock: "calendar", resolutionS: 8 * 3600,                 resolutionClock: "calendar" },
   2: { firstResponseS: 4 * 3600,            firstResponseClock: "business", resolutionS: 2 * BUSINESS_DAY_SECONDS, resolutionClock: "business" },
@@ -1116,8 +1116,12 @@ export type SlaCompliance = {
   resolution: ComplianceVerdict;
 };
 
-export function evaluateCompliance(sla: SlaResult, severity: Severity): SlaCompliance {
-  const target = SLA_TARGETS[severity];
+export function evaluateCompliance(
+  sla: SlaResult,
+  severity: Severity,
+  targets: SlaTargets = SLA_TARGETS,
+): SlaCompliance {
+  const target = targets[severity];
 
   // First Response = first PUBLIC reply by a SUPPORT-roster teammate (Sam and
   // bots excluded), measured from the SLA clock-start (Enterprise Inbox
@@ -1158,3 +1162,11 @@ export function evaluateCompliance(sla: SlaResult, severity: Severity): SlaCompl
   return { severity, firstResponse, resolution };
 }
 
+// Triage compliance against an INJECTABLE target (business-hours basis, matching
+// the triage headline). null = NOT EVALUABLE (no Severity event / no anchor) —
+// absence of data is never scored as a miss.
+export function evaluateTriage(sla: SlaResult, triageTargetS: number): boolean | null {
+  if (!sla.hasSeverityEvent) return null;
+  if (sla.timeToTriageBusinessHoursS == null) return null;
+  return sla.timeToTriageBusinessHoursS <= triageTargetS;
+}
