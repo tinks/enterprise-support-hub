@@ -8,6 +8,8 @@ import { useSlaBatch, type SlaBatchEnriched, type SlaOverrideMetric } from "@/ho
 
 import {
   aggregate,
+  CADENCE_TARGETS,
+  evaluateCadence,
   evaluateCompliance,
   formatDuration,
   parseSeverity,
@@ -16,6 +18,7 @@ import {
   type Severity,
   type SlaCompliance,
 } from "@/lib/slaMetrics";
+
 import { rowClosedAtMs } from "@/lib/slaWindow";
 
 // ---------------------------------------------------------------------------
