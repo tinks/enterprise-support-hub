@@ -10,10 +10,12 @@ import {
   aggregate,
   evaluateCompliance,
   evaluateTriage,
+  evaluateCadence,
   formatDuration,
   parseSeverity,
   SLA_TARGETS,
   TRIAGE_TARGET_S,
+  CADENCE_TARGETS,
   BUSINESS_DAY_SECONDS,
   type Severity,
   type SlaTargets,
@@ -65,8 +67,14 @@ function targetLabel(seconds: number, clock: "calendar" | "business"): string {
 
 type Knob = { min: number; max: number; step: number };
 
-function knobFor(metric: Metric | "triage", sev: Severity | null): Knob {
+function knobFor(metric: Metric | "triage" | "cadence", sev: Severity | null): Knob {
   if (metric === "triage") return { min: 5 * 60, max: 4 * 3600, step: 5 * 60 };
+  if (metric === "cadence") {
+    // Sev1 is wall-clock (15min–8h); Sev2 is business hours (1h–2 business days).
+    return sev === 1
+      ? { min: 15 * 60, max: 8 * 3600, step: 15 * 60 }
+      : { min: 3600, max: 2 * BUSINESS_DAY_SECONDS, step: 3600 };
+  }
   if (metric === "first_response") {
     if (sev === 1) return { min: 5 * 60, max: 4 * 3600, step: 5 * 60 };
     if (sev === 2) return { min: 15 * 60, max: 2 * BUSINESS_DAY_SECONDS, step: 15 * 60 };
@@ -229,6 +237,11 @@ export default function SlaWhatIf() {
   // LOCAL, in-memory targets only. Never written back to SLA_TARGETS.
   const [whatIf, setWhatIf] = useState<SlaTargets>(() => structuredClone(SLA_TARGETS));
   const [whatIfTriage, setWhatIfTriage] = useState<number>(TRIAGE_TARGET_S);
+  // Cadence targets are Sev1/Sev2 only — Sev3/Sev4 carry no cadence commitment.
+  const [whatIfCadence, setWhatIfCadence] = useState<Record<1 | 2, number>>(() => ({
+    1: CADENCE_TARGETS[1]!.maxGapS,
+    2: CADENCE_TARGETS[2]!.maxGapS,
+  }));
 
   const batch = useSlaBatch();
   const { loading, error, inScope } = batch;
@@ -297,6 +310,34 @@ export default function SlaWhatIf() {
     };
   }, [population, whatIfTriage]);
 
+  // Cadence: %met over rows of that severity, nulls (no comms / no close)
+  // dropped as NOT-EVALUABLE. Sev1 reads the wall-clock max gap, Sev2 the
+  // business-hours one — matching each severity's clock in CADENCE_TARGETS.
+  const cadenceCompare = useMemo<Record<1 | 2, Comparison>>(() => {
+    const run = (sev: 1 | 2): Comparison => {
+      let evaluable = 0, currentMet = 0, proposedMet = 0, flipped = 0;
+      const values: Array<number | null> = [];
+      for (const r of bySev[sev]) {
+        values.push(sev === 1 ? r.sla.cadenceMaxGapS : r.sla.cadenceMaxGapBusinessHoursS);
+        const cur = evaluateCadence(r.sla, sev);
+        const pro = evaluateCadence(r.sla, sev, whatIfCadence[sev]);
+        if (cur == null && pro == null) continue;
+        evaluable++;
+        if (cur) currentMet++;
+        if (pro) proposedMet++;
+        if (cur !== pro) flipped++;
+      }
+      const agg = aggregate(values);
+      return {
+        evaluable, currentMet, proposedMet,
+        currentPct: evaluable ? (currentMet / evaluable) * 100 : null,
+        proposedPct: evaluable ? (proposedMet / evaluable) * 100 : null,
+        flipped, median: agg.median, p90: agg.p90,
+      };
+    };
+    return { 1: run(1), 2: run(2) };
+  }, [bySev, whatIfCadence]);
+
   const setFr = (sev: Severity, v: number) =>
     setWhatIf((prev) => ({ ...prev, [sev]: { ...prev[sev], firstResponseS: v } }));
   const setRes = (sev: Severity, v: number) =>
@@ -304,6 +345,7 @@ export default function SlaWhatIf() {
   const reset = () => {
     setWhatIf(structuredClone(SLA_TARGETS));
     setWhatIfTriage(TRIAGE_TARGET_S);
+    setWhatIfCadence({ 1: CADENCE_TARGETS[1]!.maxGapS, 2: CADENCE_TARGETS[2]!.maxGapS });
   };
 
   const sevs: Severity[] = [1, 2, 3, 4];
@@ -431,22 +473,29 @@ export default function SlaWhatIf() {
               <CardHeader>
                 <CardTitle className="text-base">Communication cadence</CardTitle>
                 <CardDescription>
-                  Pending — the cadence metric is not built yet. The shape exists on SlaTargets, but
-                  nothing measures it, so these knobs stay disabled.
+                  Largest gap between our public human updates, from the first update through close
+                  (tail gap included). Sev 3 / Sev 4 carry no cadence target. Tickets with no human
+                  update or no close are NOT-EVALUABLE and never counted as a miss.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3 opacity-60">
-                {([1, 2] as Severity[]).map((sev) => (
+              <CardContent className="space-y-3">
+                {([1, 2] as Array<1 | 2>).map((sev) => (
                   <KnobCard
                     key={sev}
                     title={`Sev ${sev} — update cadence`}
-                    clock={sev === 1 ? "calendar" : "business"}
-                    value={0}
-                    currentValue={null}
-                    knob={{ min: 0, max: 1, step: 1 }}
-                    disabledNote="Pending — metric in build. No measurement exists to score against."
+                    clock={CADENCE_TARGETS[sev]!.clock}
+                    value={whatIfCadence[sev]}
+                    currentValue={CADENCE_TARGETS[sev]!.maxGapS}
+                    knob={knobFor("cadence", sev)}
+                    onChange={(v) => setWhatIfCadence((prev) => ({ ...prev, [sev]: v }))}
+                    comparison={cadenceCompare[sev]}
                   />
                 ))}
+                <p className="text-xs text-muted-foreground">
+                  Phase-1 <strong>drumbeat</strong>: customer replies do <strong>not</strong> pause
+                  the cadence clock. These targets are <strong>provisional</strong>, same as every
+                  other target on this page.
+                </p>
               </CardContent>
             </Card>
           </>
