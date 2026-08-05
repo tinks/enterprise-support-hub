@@ -395,6 +395,77 @@ export function computeTriage(
   };
 }
 
+// ============================================================================
+// Communication cadence (Phase-1 DRUMBEAT)
+// ============================================================================
+// "Did we keep the customer updated often enough while the ticket was open."
+// A "comm" is a PUBLIC reply by a `human_admin`. Sam (`sam_ai`), the shared
+// relay inbox (`shared_inbox`), the customer, bots and notes are all EXCLUDED.
+// Window = [first comm -> close]. Gaps = each consecutive comm pair, PLUS the
+// tail gap (last comm -> close).
+// SEMANTIC CHOICE TO CONFIRM AT HAND-WALK: the tail gap is included, so
+// "went dark, then closed" counts against cadence.
+// PHASE-1 DRUMBEAT: customer replies do NOT reset or pause the gap. The
+// `cadenceMaxGapOverlappedCustomerWait` flag exists purely for
+// interpretability — it says part of the biggest silence was customer-side.
+export type CadenceResult = {
+  cadenceUpdateCount: number;
+  cadenceMaxGapS: number | null;
+  cadenceMaxGapBusinessHoursS: number | null;
+  cadenceMaxGapOverlappedCustomerWait: boolean;
+  hasCadence: boolean;
+};
+
+export function computeCadence(
+  timeline: TimelinePart[],
+  closeAtS: number | null,
+): CadenceResult {
+  const comms = timeline
+    .filter((p) => p.isPublicReply && p.actor === "human_admin")
+    .sort((a, b) => a.ts - b.ts);
+
+  const notEvaluable: CadenceResult = {
+    cadenceUpdateCount: comms.length,
+    cadenceMaxGapS: null,
+    cadenceMaxGapBusinessHoursS: null,
+    cadenceMaxGapOverlappedCustomerWait: false,
+    hasCadence: false,
+  };
+  if (comms.length === 0 || closeAtS == null) return notEvaluable;
+
+  // Gap intervals inside [first comm -> close].
+  const intervals: Array<[number, number]> = [];
+  for (let i = 1; i < comms.length; i++) intervals.push([comms[i - 1].ts, comms[i].ts]);
+  const lastComm = comms[comms.length - 1].ts;
+  if (closeAtS > lastComm) intervals.push([lastComm, closeAtS]);
+
+  let maxStart = lastComm;
+  let maxEnd = lastComm;
+  let maxGap = 0;
+  for (const [a, b] of intervals) {
+    const g = Math.max(0, b - a);
+    if (g > maxGap) {
+      maxGap = g;
+      maxStart = a;
+      maxEnd = b;
+    }
+  }
+
+  const overlappedCustomerWait = timeline.some(
+    (p) => p.isPublicReply && p.actor === "customer" && p.ts > maxStart && p.ts < maxEnd,
+  );
+
+  return {
+    cadenceUpdateCount: comms.length,
+    cadenceMaxGapS: maxGap,
+    cadenceMaxGapBusinessHoursS: Math.max(0, businessHoursBetween(maxStart, maxEnd)),
+    cadenceMaxGapOverlappedCustomerWait: overlappedCustomerWait,
+    hasCadence: true,
+  };
+}
+
+
+
 export type SlaResult = {
   createdAtS: number | null;
   // SLA clock-start: the ts of the first assignment to the Enterprise Inbox
