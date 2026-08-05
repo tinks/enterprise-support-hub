@@ -93,11 +93,19 @@ type Comparison = {
   flipped: number;
   median: number | null;
   p90: number | null;
+  max: number | null;
 };
+
+// Largest non-null actual — shows where the slider would have to sit to catch
+// the worst case.
+function maxOf(values: Array<number | null>): number | null {
+  const nums = values.filter((v): v is number => v != null);
+  return nums.length ? Math.max(...nums) : null;
+}
 
 const EMPTY: Comparison = {
   evaluable: 0, currentMet: 0, proposedMet: 0,
-  currentPct: null, proposedPct: null, flipped: 0, median: null, p90: null,
+  currentPct: null, proposedPct: null, flipped: 0, median: null, p90: null, max: null,
 };
 
 function compare(
