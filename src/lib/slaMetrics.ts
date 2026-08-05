@@ -859,6 +859,9 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
     triage.firstSeverityAtS <= closeAt &&
     closeAt - triage.firstSeverityAtS <= SEVERITY_AT_CLOSE_WINDOW_S;
 
+  // ---- Communication cadence (Phase-1 drumbeat) ---------------------------
+  const cadence = computeCadence(timeline, closeAt);
+
 
   return {
     createdAtS: createdAt,
