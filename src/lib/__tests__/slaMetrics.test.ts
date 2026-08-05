@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeSla, businessHoursBetween, formatBusinessDuration, extractTimeline, extractSeverityEvents, type SlaResult } from "@/lib/slaMetrics";
+import { computeSla, businessHoursBetween, formatBusinessDuration, extractTimeline, extractSeverityEvents, computeCadence, evaluateCadence, CADENCE_TARGETS, type TimelinePart, type SlaResult } from "@/lib/slaMetrics";
 
 describe("formatBusinessDuration", () => {
   it("null → '—'", () => expect(formatBusinessDuration(null)).toBe("—"));
@@ -1286,5 +1286,105 @@ describe("evaluateTriage", () => {
   it("no anchor / no triage measurement → null", () => {
     const sla = mkSla({ hasSeverityEvent: true, timeToTriageBusinessHoursS: null });
     expect(evaluateTriage(sla, 1800)).toBeNull();
+  });
+});
+
+// ============================================================================
+// Communication cadence (Phase-1 drumbeat)
+// ============================================================================
+function tp(over: Partial<TimelinePart>): TimelinePart {
+  return {
+    ts: 0,
+    actor: "human_admin",
+    authorName: null,
+    authorId: null,
+    authorEmail: null,
+    partType: "comment",
+    body: "",
+    isPublicReply: true,
+    isNote: false,
+    assignedToType: null,
+    assignedToId: null,
+    eventDetails: null,
+    ...over,
+  };
+}
+const H = 3600;
+
+describe("computeCadence (drumbeat)", () => {
+  it("comms at 0/2h/5h, close at 6h → max gap 3h; customer reply does NOT reset", () => {
+    const timeline = [
+      tp({ ts: 0 }),
+      tp({ ts: 1 * H, actor: "customer" }),
+      tp({ ts: 2 * H }),
+      tp({ ts: 5 * H }),
+    ];
+    const r = computeCadence(timeline, 6 * H);
+    expect(r.hasCadence).toBe(true);
+    expect(r.cadenceUpdateCount).toBe(3);
+    // gaps: 0→2h (2h), 2h→5h (3h), tail 5h→6h (1h)
+    expect(r.cadenceMaxGapS).toBe(3 * H);
+  });
+
+  it("customer reply inside the largest gap → overlappedCustomerWait true", () => {
+    const timeline = [tp({ ts: 0 }), tp({ ts: 5 * H }), tp({ ts: 3 * H, actor: "customer" })];
+    const r = computeCadence(timeline, 5 * H);
+    expect(r.cadenceMaxGapS).toBe(5 * H);
+    expect(r.cadenceMaxGapOverlappedCustomerWait).toBe(true);
+  });
+
+  it("customer reply OUTSIDE the largest gap → overlappedCustomerWait false", () => {
+    const timeline = [
+      tp({ ts: 0 }),
+      tp({ ts: 1 * H, actor: "customer" }),
+      tp({ ts: 2 * H }),
+      tp({ ts: 8 * H }),
+    ];
+    const r = computeCadence(timeline, 8 * H);
+    expect(r.cadenceMaxGapS).toBe(6 * H);
+    expect(r.cadenceMaxGapOverlappedCustomerWait).toBe(false);
+  });
+
+  it("sam_ai / shared_inbox / notes are not comms → not evaluable", () => {
+    const timeline = [
+      tp({ ts: 0, actor: "sam_ai" }),
+      tp({ ts: 1 * H, actor: "shared_inbox" }),
+      tp({ ts: 2 * H, isPublicReply: false, isNote: true }),
+      tp({ ts: 3 * H, actor: "customer" }),
+    ];
+    const r = computeCadence(timeline, 4 * H);
+    expect(r.hasCadence).toBe(false);
+    expect(r.cadenceUpdateCount).toBe(0);
+    expect(r.cadenceMaxGapS).toBeNull();
+  });
+
+  it("no close → not evaluable", () => {
+    const r = computeCadence([tp({ ts: 0 })], null);
+    expect(r.hasCadence).toBe(false);
+    expect(r.cadenceMaxGapS).toBeNull();
+  });
+
+  it("single comm, tail gap to close is the max gap", () => {
+    const r = computeCadence([tp({ ts: 0 })], 2 * H);
+    expect(r.cadenceUpdateCount).toBe(1);
+    expect(r.cadenceMaxGapS).toBe(2 * H);
+  });
+});
+
+describe("evaluateCadence", () => {
+  it("Sev1 uses WALL clock (1h target)", () => {
+    expect(evaluateCadence(mkSla({ hasCadence: true, cadenceMaxGapS: 3000, cadenceMaxGapBusinessHoursS: 99999 }), 1)).toBe(true);
+    expect(evaluateCadence(mkSla({ hasCadence: true, cadenceMaxGapS: 3601, cadenceMaxGapBusinessHoursS: 0 }), 1)).toBe(false);
+  });
+  it("Sev2 uses BUSINESS clock (4h target)", () => {
+    expect(evaluateCadence(mkSla({ hasCadence: true, cadenceMaxGapS: 99999, cadenceMaxGapBusinessHoursS: 14400 }), 2)).toBe(true);
+    expect(evaluateCadence(mkSla({ hasCadence: true, cadenceMaxGapS: 0, cadenceMaxGapBusinessHoursS: 14401 }), 2)).toBe(false);
+  });
+  it("Sev3 / Sev4 have no cadence target → null", () => {
+    expect(evaluateCadence(mkSla({ hasCadence: true, cadenceMaxGapS: 99999 }), 3)).toBeNull();
+    expect(evaluateCadence(mkSla({ hasCadence: true, cadenceMaxGapS: 99999 }), 4)).toBeNull();
+  });
+  it("no cadence (no comms / no close) → null", () => {
+    expect(evaluateCadence(mkSla({ hasCadence: false, cadenceMaxGapS: null }), 1)).toBeNull();
   });
 });
