@@ -1265,11 +1265,19 @@ export const CADENCE_TARGETS: Record<Severity, { maxGapS: number; clock: SlaCloc
 
 // Cadence compliance. null = NOT EVALUABLE (no target for the severity, or no
 // comms / no close) — absence of data is never scored as a miss.
-export function evaluateCadence(sla: SlaResult, severity: Severity): boolean | null {
+export function evaluateCadence(
+  sla: SlaResult,
+  severity: Severity,
+  overrideTargetS?: number,
+): boolean | null {
   const target = CADENCE_TARGETS[severity];
-  if (!target) return null;
+  // With an override the severity keeps its CLOCK (Sev1 wall / Sev2 business),
+  // defaulting to business for severities that carry no committed target.
+  const clock: SlaClock = target?.clock ?? "business";
+  const maxGapS = overrideTargetS ?? target?.maxGapS ?? null;
+  if (maxGapS == null) return null;
   if (!sla.hasCadence) return null;
-  const value = target.clock === "business" ? sla.cadenceMaxGapBusinessHoursS : sla.cadenceMaxGapS;
+  const value = clock === "business" ? sla.cadenceMaxGapBusinessHoursS : sla.cadenceMaxGapS;
   if (value == null) return null;
-  return value <= target.maxGapS;
+  return value <= maxGapS;
 }
