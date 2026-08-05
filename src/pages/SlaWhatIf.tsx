@@ -93,11 +93,19 @@ type Comparison = {
   flipped: number;
   median: number | null;
   p90: number | null;
+  max: number | null;
 };
+
+// Largest non-null actual — shows where the slider would have to sit to catch
+// the worst case.
+function maxOf(values: Array<number | null>): number | null {
+  const nums = values.filter((v): v is number => v != null);
+  return nums.length ? Math.max(...nums) : null;
+}
 
 const EMPTY: Comparison = {
   evaluable: 0, currentMet: 0, proposedMet: 0,
-  currentPct: null, proposedPct: null, flipped: 0, median: null, p90: null,
+  currentPct: null, proposedPct: null, flipped: 0, median: null, p90: null, max: null,
 };
 
 function compare(
@@ -140,6 +148,7 @@ function compare(
     flipped,
     median: agg.median,
     p90: agg.p90,
+    max: maxOf(values),
   };
 }
 
@@ -163,11 +172,12 @@ function DeltaRow({ c }: { c: Comparison }) {
   );
 }
 
-function DistRef({ median, p90, clock }: { median: number | null; p90: number | null; clock: string }) {
+function DistRef({ median, p90, max, clock }: { median: number | null; p90: number | null; max: number | null; clock: string }) {
   return (
     <div className="text-xs text-muted-foreground">
       Actuals ({clock}): median <span className="tabular-nums">{formatDuration(median)}</span> · p90{" "}
-      <span className="tabular-nums">{formatDuration(p90)}</span>
+      <span className="tabular-nums">{formatDuration(p90)}</span> · longest{" "}
+      <span className="tabular-nums">{formatDuration(max)}</span>
     </div>
   );
 }
@@ -221,7 +231,7 @@ function KnobCard({
             </div>
           </div>
           {comparison && <DeltaRow c={comparison} />}
-          {comparison && <DistRef median={comparison.median} p90={comparison.p90} clock={clock === "business" ? "business hours" : "wall-clock"} />}
+          {comparison && <DistRef median={comparison.median} p90={comparison.p90} max={comparison.max} clock={clock === "business" ? "business hours" : "wall-clock"} />}
         </>
       )}
     </div>
@@ -306,7 +316,7 @@ export default function SlaWhatIf() {
       evaluable, currentMet, proposedMet,
       currentPct: evaluable ? (currentMet / evaluable) * 100 : null,
       proposedPct: evaluable ? (proposedMet / evaluable) * 100 : null,
-      flipped, median: agg.median, p90: agg.p90,
+      flipped, median: agg.median, p90: agg.p90, max: maxOf(values),
     };
   }, [population, whatIfTriage]);
 
@@ -332,7 +342,7 @@ export default function SlaWhatIf() {
         evaluable, currentMet, proposedMet,
         currentPct: evaluable ? (currentMet / evaluable) * 100 : null,
         proposedPct: evaluable ? (proposedMet / evaluable) * 100 : null,
-        flipped, median: agg.median, p90: agg.p90,
+        flipped, median: agg.median, p90: agg.p90, max: maxOf(values),
       };
     };
     return { 1: run(1), 2: run(2) };
@@ -404,6 +414,27 @@ export default function SlaWhatIf() {
 
             <Card>
               <CardHeader>
+                <CardTitle className="text-base">Triage</CardTitle>
+                <CardDescription>
+                  Single global target, business-hours basis (matches the report headline). Tickets
+                  with no Severity event are NOT-EVALUABLE and never counted as a miss.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <KnobCard
+                  title="Time to first Severity assignment"
+                  clock="business"
+                  value={whatIfTriage}
+                  currentValue={TRIAGE_TARGET_S}
+                  knob={knobFor("triage", null)}
+                  onChange={setWhatIfTriage}
+                  comparison={triageCompare}
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
                 <CardTitle className="text-base">First response</CardTitle>
                 <CardDescription>
                   Customer-initiated tickets only, same basis as the monthly report.
@@ -445,27 +476,6 @@ export default function SlaWhatIf() {
                     comparison={resCompare[sev]}
                   />
                 ))}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Triage</CardTitle>
-                <CardDescription>
-                  Single global target, business-hours basis (matches the report headline). Tickets
-                  with no Severity event are NOT-EVALUABLE and never counted as a miss.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <KnobCard
-                  title="Time to first Severity assignment"
-                  clock="business"
-                  value={whatIfTriage}
-                  currentValue={TRIAGE_TARGET_S}
-                  knob={knobFor("triage", null)}
-                  onChange={setWhatIfTriage}
-                  comparison={triageCompare}
-                />
               </CardContent>
             </Card>
 
