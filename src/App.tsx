@@ -30,6 +30,7 @@ import Customers from "./pages/Customers";
 import CustomerReport from "./pages/CustomerReport";
 import Backlog from "./pages/Backlog";
 import Prospects from "./pages/Prospects";
+import SlaWhatIf from "./pages/SlaWhatIf";
 
 
 const queryClient = new QueryClient();
@@ -60,6 +61,7 @@ const App = () => (
           <Route path="/settings" element={<ProtectedRoute><Index /></ProtectedRoute>} />
           <Route path="/backlog" element={<ProtectedRoute><Backlog /></ProtectedRoute>} />
           <Route path="/prospects" element={<ProtectedRoute><Prospects /></ProtectedRoute>} />
+          <Route path="/sla-what-if" element={<ProtectedRoute><SlaWhatIf /></ProtectedRoute>} />
           <Route path="/flow" element={<ProtectedRoute><FlowDiagram /></ProtectedRoute>} />
           <Route path="/knowledge" element={<ProtectedRoute><ProjectKnowledge /></ProtectedRoute>} />
           <Route path="/changelog" element={<ProtectedRoute><Changelog /></ProtectedRoute>} />
