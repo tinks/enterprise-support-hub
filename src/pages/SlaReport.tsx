@@ -198,6 +198,51 @@ export default function SlaReport() {
 
   }, [population]);
 
+  // --- Communication cadence (PROVISIONAL, drumbeat) ------------------------
+  // Proactive-update frequency during an active incident. Bound to Sev1/Sev2
+  // ONLY (CADENCE_TARGETS) — Sev3/Sev4 carry no cadence commitment and must
+  // render as "no target", never 0%. Evaluable = the ticket has a cadence
+  // window (at least one Lovable public update before close); rows without one
+  // are excluded from the denominator, never defaulted to met or breached.
+  const cadence = useMemo(() => {
+    return ([1, 2, 3, 4] as Severity[]).map((sev) => {
+      const target = CADENCE_TARGETS[sev];
+      const rows = bySev[sev].map((s) => s.row);
+      if (!target) {
+        return {
+          sev, target, m: rows.length, n: 0, met: 0, breach: 0,
+          pct: null as number | null, median: null as number | null,
+          p90: null as number | null, longest: null as number | null, overlapped: 0,
+        };
+      }
+      const evaluable = rows.filter((r) => r.sla.hasCadence);
+      const values = evaluable.map((r) =>
+        target.clock === "business" ? r.sla.cadenceMaxGapBusinessHoursS : r.sla.cadenceMaxGapS,
+      );
+      const agg = aggregate(values);
+      const nums = values.filter((v): v is number => v != null);
+      let met = 0, breach = 0, overlapped = 0;
+      for (const r of evaluable) {
+        const v = evaluateCadence(r.sla, sev);
+        if (v === true) met++;
+        else if (v === false) {
+          breach++;
+          if (r.sla.cadenceMaxGapOverlappedCustomerWait) overlapped++;
+        }
+      }
+      const denom = met + breach;
+      return {
+        sev, target, m: rows.length, n: denom, met, breach,
+        pct: denom ? (met / denom) * 100 : null,
+        median: agg.median, p90: agg.p90,
+        longest: nums.length ? Math.max(...nums) : null,
+        overlapped,
+      };
+    });
+  }, [bySev]);
+
+
+
   const monthLabel = months.find((m) => m.value === month)?.label ?? month;
 
 
