@@ -19,6 +19,8 @@ import {
 import { Loader2, Gauge, Info, RefreshCw } from "lucide-react";
 import {
   evaluateCompliance,
+  evaluateCadence,
+  CADENCE_TARGETS,
   formatBusinessDuration,
   formatDuration,
   parseSeverity,
@@ -127,7 +129,18 @@ export default function SlaDashboard() {
     return ([1, 2, 3, 4] as const).map((sev) => {
       const rows = buckets[sev];
       let frMet = 0, frBreach = 0, frExcused = 0, resMet = 0, resBreach = 0, resExcused = 0;
+      let cadMet = 0, cadBreach = 0, cadExcused = 0, cadNotEval = 0;
+      const cadTarget = CADENCE_TARGETS[sev];
       for (const { row, compliance } of rows) {
+        // Cadence: Sev1/Sev2 only, evaluable only — non-evaluable never scores.
+        if (cadTarget) {
+          const cad = evaluateCadence(row.sla, sev);
+          if (cad === true) cadMet++;
+          else if (cad === false) {
+            if (isExcused(row.intercom_conversation_id, "cadence")) cadExcused++;
+            else cadBreach++;
+          } else cadNotEval++;
+        }
         if (row.sla.initiatedBy === "customer") {
           if (compliance.firstResponse.met === true) frMet++;
           else if (compliance.firstResponse.met === false) {
@@ -143,6 +156,7 @@ export default function SlaDashboard() {
       }
       const frDenom = frMet + frBreach;
       const resDenom = resMet + resBreach;
+      const cadDenom = cadMet + cadBreach + cadExcused;
       return {
         sev,
         n: rows.length,
@@ -153,6 +167,12 @@ export default function SlaDashboard() {
         resPct: resDenom ? (resMet / resDenom) * 100 : null,
         resBreach,
         resExcused,
+        cadTarget,
+        cadPct: cadDenom ? (cadMet / cadDenom) * 100 : null,
+        cadBreach,
+        cadExcused,
+        cadEvaluable: cadDenom,
+        cadNotEval,
       };
     });
   }, [buckets, isExcused]);
@@ -264,6 +284,9 @@ export default function SlaDashboard() {
                     <th className="text-right px-4 py-2 font-medium">n</th>
                     <th className="text-left px-4 py-2 font-medium">First response</th>
                     <th className="text-left px-4 py-2 font-medium">Resolution</th>
+                    <th className="text-left px-4 py-2 font-medium">
+                      Cadence <span className="normal-case font-normal text-muted-foreground/80">(provisional)</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -322,6 +345,37 @@ export default function SlaDashboard() {
                             )}
                           </div>
                         </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {r.cadTarget == null ? (
+                              <span className="inline-flex items-center rounded px-2 py-0.5 text-sm text-muted-foreground italic bg-muted/40">
+                                no target
+                              </span>
+                            ) : (
+                              <>
+                                <span className={`inline-flex items-center rounded px-2 py-0.5 text-sm font-semibold tabular-nums ${toneFor(r.cadPct).bg} ${toneFor(r.cadPct).text}`}>
+                                  {r.cadPct == null ? "—" : `${r.cadPct.toFixed(0)}%`}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  · target {formatTarget(r.cadTarget.maxGapS, r.cadTarget.clock)} between updates
+                                </span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  · {r.cadEvaluable} of {r.n} evaluable
+                                </span>
+                                {r.cadBreach > 0 && (
+                                  <Link to="/sla-workbench" title="View cadence violation detail in the Workbench">
+                                    <Badge variant="destructive" className="text-[10px] px-1.5 py-0 cursor-pointer hover:opacity-80">
+                                      {r.cadBreach} breach{r.cadBreach === 1 ? "" : "es"}
+                                    </Badge>
+                                  </Link>
+                                )}
+                                {r.cadExcused > 0 && (
+                                  <span className="text-[10px] text-muted-foreground">· {r.cadExcused} excused</span>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -331,12 +385,20 @@ export default function SlaDashboard() {
                       <td className="px-4 py-3 text-right tabular-nums">{unclassified.length}</td>
                       <td className="px-4 py-3 text-xs">—</td>
                       <td className="px-4 py-3 text-xs">—</td>
+                      <td className="px-4 py-3 text-xs">—</td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
             )}
+            <p className="px-4 py-3 text-[11px] text-muted-foreground leading-relaxed border-t border-border">
+              Communication cadence is PROVISIONAL — targets are not ratified; it is measured, not yet scored against a
+              commitment. Drumbeat model including the tail gap (last update → close): the worst gap between proactive
+              updates must stay under target. Bound to Sev 1 (1h wall-clock) and Sev 2 (4h business hours) only —
+              Sev 3/4 carry no cadence target and show "no target", never 0%. Tickets with no measurable cadence are
+              excluded from the denominator (see "N of M evaluable"), never counted as met or breached.
+            </p>
           </CardContent>
         </Card>
 
@@ -381,6 +443,13 @@ function MeasurementInfoPopover() {
           <div className="font-semibold text-foreground">Business hours</div>
           <p className="text-xs text-muted-foreground">
             Europe/Berlin, Mon–Fri 09:00–24:00, DST-aware. 1 business day = 15h. Company holidays not yet modeled.
+          </p>
+        </div>
+        <div>
+          <div className="font-semibold text-foreground">Communication cadence (provisional)</div>
+          <p className="text-xs text-muted-foreground">
+            Worst gap between proactive updates during an active incident, including the tail gap to close.
+            Sev 1 = 1h wall-clock, Sev 2 = 4h business hours. Sev 3/4 have no cadence target.
           </p>
         </div>
         <div>
