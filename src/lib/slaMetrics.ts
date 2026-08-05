@@ -898,6 +898,7 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
     triageViolation,
     answeredBeforeClassified,
     severityRecordedAtClose,
+    ...cadence,
 
     flags: {
       isTicket: !!conversation?.ticket,
