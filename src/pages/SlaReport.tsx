@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
+import { PolicyFallbackBanner } from "@/components/sla/PolicyFallbackBanner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TestDataToggle, TestDataBanner } from "@/pages/SlaWorkbench";
@@ -8,12 +9,11 @@ import { useSlaBatch, type SlaBatchEnriched, type SlaOverrideMetric } from "@/ho
 
 import {
   aggregate,
-  CADENCE_TARGETS,
   evaluateCadence,
   evaluateCompliance,
   formatDuration,
   parseSeverity,
-  SLA_TARGETS,
+  type SlaPolicy,
   type ComplianceVerdict,
   type Severity,
   type SlaCompliance,
@@ -111,7 +111,7 @@ export default function SlaReport() {
   const [month, setMonth] = useState(months[0].value);
 
   const batch = useSlaBatch({ showTestData });
-  const { loading, error, inScope, excluded, noCustomer, manuallyLogged, isExcused, getOverride, customerLabels } = batch;
+  const { loading, error, inScope, excluded, noCustomer, manuallyLogged, isExcused, getOverride, customerLabels, activePolicy, policyFallback, policyError } = batch;
 
   const { start, end } = useMemo(() => monthRange(month), [month]);
   const inMonth = <T extends { intercom_closed_at?: string | null; raw_payload?: any }>(r: T) => {
@@ -132,7 +132,7 @@ export default function SlaReport() {
     for (const r of population) {
       const sev = parseSeverity(r.raw_payload?.custom_attributes?.["Severity"]);
       if (sev == null) { unclassified.push(r); continue; }
-      const s: Scored = { row: r, comp: evaluateCompliance(r.sla, sev) };
+      const s: Scored = { row: r, comp: evaluateCompliance(r.sla, sev, r.policy.targets) };
       bySev[sev].push(s);
       scored.push(s);
     }
@@ -206,7 +206,7 @@ export default function SlaReport() {
   // are excluded from the denominator, never defaulted to met or breached.
   const cadence = useMemo(() => {
     return ([1, 2, 3, 4] as Severity[]).map((sev) => {
-      const target = CADENCE_TARGETS[sev];
+      const target = activePolicy.cadence?.[sev] ?? null;
       const rows = bySev[sev].map((s) => s.row);
       if (!target) {
         return {
@@ -223,7 +223,7 @@ export default function SlaReport() {
       const nums = values.filter((v): v is number => v != null);
       let met = 0, breach = 0, overlapped = 0;
       for (const r of evaluable) {
-        const v = evaluateCadence(r.sla, sev);
+        const v = evaluateCadence(r.sla, sev, r.policy.cadence?.[sev]?.maxGapS);
         if (v === true) met++;
         else if (v === false) {
           breach++;
@@ -239,7 +239,7 @@ export default function SlaReport() {
         overlapped,
       };
     });
-  }, [bySev]);
+  }, [bySev, activePolicy]);
 
 
 
@@ -249,6 +249,7 @@ export default function SlaReport() {
   return (
     <AppLayout>
       <div className="max-w-[1200px] mx-auto p-6 space-y-6">
+        <PolicyFallbackBanner show={policyFallback} error={policyError} />
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Monthly SLA Report</h1>
@@ -470,13 +471,13 @@ export default function SlaReport() {
 
 
 
-        <SeverityTable
+        <SeverityTable activePolicy={activePolicy}
           title="§3a First Response by Severity"
           metric="first_response"
           bySev={bySev}
           isExcused={isExcused}
         />
-        <SeverityTable
+        <SeverityTable activePolicy={activePolicy}
           title="§3b Resolution by Severity"
           metric="resolution"
           bySev={bySev}
@@ -649,12 +650,13 @@ export default function SlaReport() {
 }
 
 function SeverityTable({
-  title, metric, bySev, isExcused,
+  title, metric, bySev, isExcused, activePolicy,
 }: {
   title: string;
   metric: Metric;
   bySev: Record<Severity, Scored[]>;
   isExcused: (cid: string, m: Metric) => boolean;
+  activePolicy: SlaPolicy;
 }) {
   return (
     <Card>
@@ -682,7 +684,7 @@ function SeverityTable({
           <tbody className="tabular-nums">
             {([1, 2, 3, 4] as Severity[]).map((sev) => {
               const st = computeStats(bySev[sev], metric, isExcused);
-              const t = SLA_TARGETS[sev];
+              const t = activePolicy.targets[sev];
               const targetS = metric === "first_response" ? t.firstResponseS : t.resolutionS;
               const clock = metric === "first_response" ? t.firstResponseClock : t.resolutionClock;
               const noTarget = targetS == null;

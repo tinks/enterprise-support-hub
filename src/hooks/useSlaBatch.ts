@@ -3,9 +3,41 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   computeSla,
   detectOrigin,
+  DEFAULT_BUSINESS_HOURS,
+  SLA_TARGETS,
+  CADENCE_TARGETS,
+  TRIAGE_TARGET_S,
+  type SlaPolicy,
   type SlaResult,
   type Origin,
 } from "@/lib/slaMetrics";
+import { useSlaPolicy } from "@/hooks/useSlaPolicy";
+import type { BusinessHoursConfig } from "@/lib/slaMetrics";
+
+const sameBusinessHours = (a: BusinessHoursConfig, b: BusinessHoursConfig) =>
+  a === b ||
+  (a.tz === b.tz &&
+    a.dayStartHour === b.dayStartHour &&
+    a.dayEndHour === b.dayEndHour &&
+    a.workDays.join(",") === b.workDays.join(",") &&
+    a.holidays.join(",") === b.holidays.join(","));
+
+/**
+ * Built-in fallback policy: exactly today's hardcoded engine constants.
+ * Used ONLY when the policy config fails to load / is empty, or a ticket
+ * arrived before every version. Never silent — `policyFallback` goes true and
+ * the surfaces render a visible banner (charter: surface anomalies loudly).
+ */
+export const BUILTIN_POLICY: SlaPolicy = {
+  id: "builtin",
+  label: "Built-in defaults (engine constants)",
+  effectiveFromMs: 0,
+  status: "provisional",
+  businessHours: DEFAULT_BUSINESS_HOURS,
+  targets: SLA_TARGETS,
+  cadence: CADENCE_TARGETS,
+  triageTargetS: TRIAGE_TARGET_S,
+};
 
 // ---- Shared row/enrichment types (previously local to SlaTest.tsx) ----------
 export type SlaBatchRow = {
@@ -32,6 +64,10 @@ export type SlaBatchEnriched = SlaBatchRow & {
   sla: SlaResult;
   origin: Origin;
   bucket: SlaBatchBucket;
+  /** Effective-dated policy resolved by the ticket's inbound anchor. */
+  policy: SlaPolicy;
+  /** True when this row fell back to the built-in constants (loud, not silent). */
+  policyFallback: boolean;
 };
 
 export type ClassifyOpts = {
@@ -112,6 +148,15 @@ export type UseSlaBatch = {
   isTestAccount: (key: string | null | undefined) => boolean;
   refresh: () => void;
   refreshOverrides: () => void;
+  /** Policy version in force right now — use for target LABELS/columns. */
+  activePolicy: SlaPolicy;
+  /** True when the policy config failed to load / is empty / a row predates it. */
+  policyFallback: boolean;
+  policyError: string | null;
+  /** Resolve the policy in force at an anchor (ms). Null before every version. */
+  resolveForAnchor: (anchorMs: number) => SlaPolicy | null;
+  /** True when the policy config loaded cleanly (>=1 version, no error). */
+  policyConfigLoaded: boolean;
 };
 
 export type UseSlaBatchOptions = {
@@ -131,6 +176,7 @@ export type UseSlaBatchOptions = {
  */
 export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
   const showTestData = !!options?.showTestData;
+  const { policies, loading: policyLoading, error: policyError, resolveForAnchor } = useSlaPolicy();
   const [rows, setRows] = useState<SlaBatchRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -208,14 +254,38 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
     return () => { cancelled = true; };
   }, [refreshKey]);
 
+  const configLoaded = policies.length > 0 && !policyError;
+
   const enriched = useMemo<SlaBatchEnriched[]>(
-    () => (rosterLoaded ? rows : []).map((r) => {
-      const sla = computeSla(r.raw_payload, { supportEmails, supportAdminIds });
+    () => (rosterLoaded && !policyLoading ? rows : []).map((r) => {
+      const opts = { supportEmails, supportAdminIds };
+      // Pass 1 with the built-in calendar to derive the ticket's inbound anchor
+      // (Enterprise-Inbox assignment, else created_at) — the anchor itself is a
+      // wall-clock timestamp, so it does not depend on business hours.
+      const base = computeSla(r.raw_payload, opts);
+      const anchorS = base.slaClockStartS ?? base.createdAtS;
+      const resolved = configLoaded && anchorS != null ? resolveForAnchor(anchorS * 1000) : null;
+      const policy = resolved ?? BUILTIN_POLICY;
+      const policyFallback = resolved == null;
+      // Pass 2 only when the resolved calendar actually differs from the default.
+      const sla =
+        sameBusinessHours(policy.businessHours, DEFAULT_BUSINESS_HOURS)
+          ? base
+          : computeSla(r.raw_payload, opts, policy.businessHours);
       const origin = detectOrigin(r.raw_payload);
       const bucket = classifySlaBatchRow(r, sla, { testAccountKeys, showTestData });
-      return { ...r, sla, origin, bucket };
+      return { ...r, sla, origin, bucket, policy, policyFallback };
     }),
-    [rows, testAccountKeys, showTestData, rosterLoaded, supportEmails, supportAdminIds],
+    [rows, testAccountKeys, showTestData, rosterLoaded, supportEmails, supportAdminIds, configLoaded, policyLoading, resolveForAnchor],
+  );
+
+  const activePolicy = useMemo(
+    () => (configLoaded ? resolveForAnchor(Date.now()) : null) ?? BUILTIN_POLICY,
+    [configLoaded, resolveForAnchor],
+  );
+  const policyFallback = useMemo(
+    () => !configLoaded || enriched.some((r) => r.policyFallback),
+    [configLoaded, enriched],
   );
 
 
@@ -285,8 +355,10 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
   );
 
   return {
-    loading: loading || !rosterLoaded, error, rows, enriched, inScope, excluded, noCustomer, manuallyLogged,
+    loading: loading || !rosterLoaded || policyLoading, error, rows, enriched, inScope, excluded, noCustomer, manuallyLogged,
     overrides, isExcused, getOverride, customerLabels,
     testAccountKeys, isTestAccount, refresh, refreshOverrides,
+    activePolicy, policyFallback, policyError,
+    resolveForAnchor, policyConfigLoaded: configLoaded,
   };
 }

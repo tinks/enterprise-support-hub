@@ -19,9 +19,10 @@ import {
   parseSeverity,
   evaluateCompliance,
   evaluateCadence,
-  CADENCE_TARGETS,
-  SLA_TARGETS,
-  TRIAGE_TARGET_S,
+  evaluateTriage,
+  businessDaySeconds,
+  DEFAULT_BUSINESS_HOURS,
+  type SlaPolicy,
   type TicketSla,
   type SlaResult,
   type TimelinePart,
@@ -38,7 +39,12 @@ import {
   type SlaOverride,
   type SlaOverrideMetric,
   type SlaOverrideReason,
+  BUILTIN_POLICY,
 } from "@/hooks/useSlaBatch";
+
+/** Business-day length for the given policy's calendar — drives "Nbd" rendering. */
+const bizDay = (p: SlaPolicy) => businessDaySeconds(p.businessHours);
+import { PolicyFallbackBanner } from "@/components/sla/PolicyFallbackBanner";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -640,7 +646,7 @@ type BatchMode = "corrected" | "legacy";
 
 function BatchStoredTab({ showTestData }: { showTestData: boolean }) {
   const [mode, setMode] = useState<BatchMode>("corrected");
-  const { rows, loading, error, refresh, isExcused, getOverride, refreshOverrides, customerLabels, testAccountKeys } = useSlaBatch({ showTestData });
+  const { rows, loading, error, refresh, isExcused, getOverride, refreshOverrides, customerLabels, testAccountKeys, activePolicy, policyError, resolveForAnchor, policyConfigLoaded } = useSlaBatch({ showTestData });
 
   return (
     <div className="space-y-6">
@@ -669,7 +675,7 @@ function BatchStoredTab({ showTestData }: { showTestData: boolean }) {
       )}
 
       {mode === "corrected"
-        ? <CorrectedBatch rows={rows} loading={loading} isExcused={isExcused} getOverride={getOverride} refreshOverrides={refreshOverrides} customerLabels={customerLabels} testAccountKeys={testAccountKeys} showTestData={showTestData} />
+        ? <CorrectedBatch rows={rows} loading={loading} isExcused={isExcused} getOverride={getOverride} refreshOverrides={refreshOverrides} customerLabels={customerLabels} testAccountKeys={testAccountKeys} showTestData={showTestData} activePolicy={activePolicy} policyError={policyError} resolveForAnchor={resolveForAnchor} policyConfigLoaded={policyConfigLoaded} />
         : <LegacyBatch rows={rows} loading={loading} />}
     </div>
   );
@@ -681,7 +687,7 @@ function BatchStoredTab({ showTestData }: { showTestData: boolean }) {
 const UNATTRIBUTED = "__unattributed__";
 const ALL_CUSTOMERS = "__all__";
 
-function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverrides, customerLabels, testAccountKeys, showTestData }: { rows: Row[]; loading: boolean; isExcused: (cid: string, metric: SlaOverrideMetric) => boolean; getOverride: (cid: string, metric: SlaOverrideMetric) => SlaOverride | undefined; refreshOverrides: () => void; customerLabels: Map<string, string>; testAccountKeys: Set<string>; showTestData: boolean }) {
+function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverrides, customerLabels, testAccountKeys, showTestData, activePolicy, policyError, resolveForAnchor, policyConfigLoaded }: { rows: Row[]; loading: boolean; isExcused: (cid: string, metric: SlaOverrideMetric) => boolean; getOverride: (cid: string, metric: SlaOverrideMetric) => SlaOverride | undefined; refreshOverrides: () => void; customerLabels: Map<string, string>; testAccountKeys: Set<string>; showTestData: boolean; activePolicy: SlaPolicy; policyError: string | null; resolveForAnchor: (anchorMs: number) => SlaPolicy | null; policyConfigLoaded: boolean }) {
   const [sortKey, setSortKey] = useState<CorrectedSortKey>("closed");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [dateWindow, setDateWindow] = useState<DateWindow>("month");
@@ -689,12 +695,21 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
 
   const enriched: CorrectedEnriched[] = useMemo(
     () => rows.map((r) => {
-      const sla = computeSla(r.raw_payload);
+      // Two-pass policy resolution, mirroring useSlaBatch: pass 1 derives the
+      // wall-clock inbound anchor, pass 2 re-scores with that policy's calendar.
+      const base = computeSla(r.raw_payload);
+      const anchorS = base.slaClockStartS ?? base.createdAtS;
+      const resolved = policyConfigLoaded && anchorS != null ? resolveForAnchor(anchorS * 1000) : null;
+      const policy = resolved ?? BUILTIN_POLICY;
+      const policyFallback = resolved == null;
+      const sla = policy.businessHours === DEFAULT_BUSINESS_HOURS
+        ? base
+        : computeSla(r.raw_payload, { businessHours: policy.businessHours });
       const origin = detectOrigin(r.raw_payload);
       const bucket = classifyRow(r, sla, { testAccountKeys, showTestData });
-      return { ...r, sla, origin, bucket };
+      return { ...r, sla, origin, bucket, policy, policyFallback };
     }),
-    [rows, testAccountKeys, showTestData],
+    [rows, testAccountKeys, showTestData, policyConfigLoaded, resolveForAnchor],
   );
 
   const inScope = useMemo(() => enriched.filter((r) => r.bucket === "inScope"), [enriched]);
@@ -823,6 +838,11 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
 
   return (
     <div className="space-y-4">
+      <PolicyFallbackBanner
+        show={!policyConfigLoaded || enriched.some((r) => r.policyFallback)}
+        error={policyError}
+      />
+
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs uppercase tracking-wide text-muted-foreground">Window</span>
         <Select value={dateWindow} onValueChange={(v) => setDateWindow(v as DateWindow)}>
@@ -866,10 +886,11 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
         Total loaded: {enriched.length}
       </div>
 
-      <ComplianceSection inScope={filteredInScope} manuallyLoggedCount={manuallyLogged.length} isExcused={isExcused} />
+      <ComplianceSection inScope={filteredInScope} manuallyLoggedCount={manuallyLogged.length} isExcused={isExcused} activePolicy={activePolicy} />
 
       <ViolationsSection
         inScope={filteredInScope}
+        activePolicy={activePolicy}
         customerLabels={customerLabels}
         isExcused={isExcused}
         getOverride={getOverride}
@@ -1231,10 +1252,12 @@ function ComplianceSection({
   inScope,
   manuallyLoggedCount,
   isExcused,
+  activePolicy,
 }: {
   inScope: CorrectedEnriched[];
   manuallyLoggedCount: number;
   isExcused: (cid: string, metric: SlaOverrideMetric) => boolean;
+  activePolicy: SlaPolicy;
 }) {
   const [bySourceOpen, setBySourceOpen] = useState(false);
   const [frBasis, setFrBasis] = useState<"customer" | "all">("customer");
@@ -1257,7 +1280,7 @@ function ComplianceSection({
         continue;
       }
       classifiedCount++;
-      buckets[sev].rows.push({ row: r, compliance: evaluateCompliance(r.sla, sev) });
+      buckets[sev].rows.push({ row: r, compliance: evaluateCompliance(r.sla, sev, r.policy.targets) });
     }
     return { buckets, unclassified, classifiedCount };
   }, [inScope]);
@@ -1435,7 +1458,7 @@ function ComplianceSection({
             <tbody>
               {([1, 2, 3, 4] as const).map((sev) => {
                 const s = rowSummary(buckets[sev]);
-                const t = SLA_TARGETS[sev];
+                const t = activePolicy.targets[sev];
                 return (
                   <tr key={sev} className="border-t border-border">
                     <td className="px-3 py-2 font-medium">Sev {sev}</td>
@@ -1726,12 +1749,14 @@ type ViolationRow = {
 
 function ViolationsSection({
   inScope,
+  activePolicy,
   customerLabels,
   isExcused,
   getOverride,
   refreshOverrides,
 }: {
   inScope: CorrectedEnriched[];
+  activePolicy: SlaPolicy;
   customerLabels: Map<string, string>;
   isExcused: (cid: string, metric: SlaOverrideMetric) => boolean;
   getOverride: (cid: string, metric: SlaOverrideMetric) => SlaOverride | undefined;
@@ -1746,12 +1771,12 @@ function ViolationsSection({
     const out: ViolationRow[] = [];
     for (const r of inScope) {
       const severity = parseSeverity(r.raw_payload?.custom_attributes?.Severity);
-      const compliance = severity == null ? null : evaluateCompliance(r.sla, severity);
-      const triageMiss = r.sla.triageViolation === true;
+      const compliance = severity == null ? null : evaluateCompliance(r.sla, severity, r.policy.targets);
+      const triageMiss = evaluateTriage(r.sla, r.policy.triageTargetS) === false;
       const frMiss = compliance?.firstResponse.met === false && r.sla.initiatedBy === "customer";
       const resMiss = compliance?.resolution.met === false;
       // Cadence: Sev1/Sev2 only, evaluable tickets only — never default to a miss.
-      const cadenceMiss = severity == null ? false : evaluateCadence(r.sla, severity) === false;
+      const cadenceMiss = severity == null ? false : evaluateCadence(r.sla, severity, r.policy.cadence?.[severity]?.maxGapS) === false;
       if (!triageMiss && !frMiss && !resMiss && !cadenceMiss) continue;
       out.push({ row: r, severity, compliance, triageMiss, frMiss: !!frMiss, resMiss: !!resMiss, cadenceMiss });
     }
@@ -1869,7 +1894,7 @@ function ViolationsSection({
                   const customer = key ? (customerLabels.get(key) ?? key) : "—";
                   const openExcuse = (metric: ViolMetric, suggestedReason?: SlaOverrideReason) =>
                     setExcuseTarget({ cid, metric, subject: row.subject, suggestedReason });
-                  const cadTarget = v.severity == null ? null : CADENCE_TARGETS[v.severity];
+                  const cadTarget = v.severity == null ? null : (row.policy.cadence?.[v.severity] ?? null);
                   const cadBusiness = cadTarget?.clock === "business";
                   const cadFmt = cadBusiness ? formatBusinessDuration : formatDuration;
                   const cadValue = cadBusiness ? row.sla.cadenceMaxGapBusinessHoursS : row.sla.cadenceMaxGapS;
@@ -1913,7 +1938,7 @@ function ViolationsSection({
                         miss={v.triageMiss}
                         measured={formatBusinessDuration(row.sla.timeToTriageBusinessHoursS)}
                         secondary={`${formatDuration(row.sla.timeToTriageS)} cal`}
-                        target={formatBusinessDuration(TRIAGE_TARGET_S)}
+                        target={formatBusinessDuration(row.policy.triageTargetS, bizDay(row.policy))}
                         clock="business hrs"
                         notEvaluable={row.sla.timeToTriageBusinessHoursS == null}
                         excused={isExcused(cid, "triage")}
@@ -1958,7 +1983,7 @@ function ViolationsSection({
                           secondary={`${row.sla.cadenceUpdateCount} update${row.sla.cadenceUpdateCount === 1 ? "" : "s"}${cadOverlap ? " · overlapped customer-wait" : ""}`}
                           target={cadFmt(cadTarget.maxGapS)}
                           clock={cadBusiness ? "business hrs" : "calendar"}
-                          notEvaluable={evaluateCadence(row.sla, v.severity!) == null}
+                          notEvaluable={evaluateCadence(row.sla, v.severity!, cadTarget.maxGapS) == null}
                           excused={isExcused(cid, "cadence")}
                           override={getOverride(cid, "cadence")}
                           isAdmin={isAdmin}
