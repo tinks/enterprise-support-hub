@@ -1030,6 +1030,83 @@ export type Database = {
         }
         Relationships: []
       }
+      sla_policy_targets: {
+        Row: {
+          clock: string
+          created_at: string
+          id: string
+          metric: string
+          severity: number | null
+          target_seconds: number | null
+          updated_at: string
+          version_id: string
+        }
+        Insert: {
+          clock: string
+          created_at?: string
+          id?: string
+          metric: string
+          severity?: number | null
+          target_seconds?: number | null
+          updated_at?: string
+          version_id: string
+        }
+        Update: {
+          clock?: string
+          created_at?: string
+          id?: string
+          metric?: string
+          severity?: number | null
+          target_seconds?: number | null
+          updated_at?: string
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sla_policy_targets_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "sla_policy_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sla_policy_versions: {
+        Row: {
+          business_hours: Json
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          id: string
+          label: string | null
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          business_hours: Json
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          id?: string
+          label?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          business_hours?: Json
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          id?: string
+          label?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       sla_violation_overrides: {
         Row: {
           created_at: string
