@@ -208,24 +208,15 @@ const SlaPolicyAdmin = () => {
     const { data: sess } = await supabase.auth.getSession();
     const uid = sess.session?.user?.id ?? null;
 
-    const rows = [
-      ...GRID_METRICS.flatMap((m) =>
-        SEVERITIES.map((sev) => ({
-          version_id: version.id,
-          metric: m.key,
-          severity: sev,
-          target_seconds: cellToSeconds(cells[cellKey(m.key, sev)]),
-          clock: cells[cellKey(m.key, sev)].clock,
-        })),
-      ),
-      {
+    const rows = GRID_METRICS.flatMap((m) =>
+      SEVERITIES.map((sev) => ({
         version_id: version.id,
-        metric: "triage",
-        severity: null,
-        target_seconds: cellToSeconds(cells[cellKey("triage", null)]),
-        clock: cells[cellKey("triage", null)].clock,
-      },
-    ];
+        metric: m.key,
+        severity: sev,
+        target_seconds: cellToSeconds(cells[cellKey(m.key, sev)]),
+        clock: cells[cellKey(m.key, sev)].clock,
+      })),
+    );
 
     const { error: tErr } = await supabase
       .from("sla_policy_targets" as any)
@@ -235,6 +226,37 @@ const SlaPolicyAdmin = () => {
       setSaving(false);
       return;
     }
+
+    // Triage has severity NULL: Postgres treats NULLs as distinct in the
+    // UNIQUE(version_id, metric, severity) constraint, so upsert would
+    // duplicate. Match the row explicitly instead.
+    const triageCell = cells[cellKey("triage", null)];
+    const triagePayload = {
+      version_id: version.id,
+      metric: "triage",
+      severity: null,
+      target_seconds: cellToSeconds(triageCell),
+      clock: triageCell.clock,
+    };
+    const { data: existingTriage } = await supabase
+      .from("sla_policy_targets" as any)
+      .select("id")
+      .eq("version_id", version.id)
+      .eq("metric", "triage")
+      .is("severity", null)
+      .maybeSingle();
+    const triageRes = existingTriage
+      ? await supabase
+          .from("sla_policy_targets" as any)
+          .update(triagePayload as any)
+          .eq("id", (existingTriage as any).id)
+      : await supabase.from("sla_policy_targets" as any).insert(triagePayload as any);
+    if (triageRes.error) {
+      toast.error("Saving triage target failed: " + triageRes.error.message);
+      setSaving(false);
+      return;
+    }
+
 
     const { error: vErr } = await supabase
       .from("sla_policy_versions" as any)
