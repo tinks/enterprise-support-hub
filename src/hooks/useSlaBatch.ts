@@ -153,6 +153,10 @@ export type UseSlaBatch = {
   /** True when the policy config failed to load / is empty / a row predates it. */
   policyFallback: boolean;
   policyError: string | null;
+  /** Resolve the policy in force at an anchor (ms). Null before every version. */
+  resolveForAnchor: (anchorMs: number) => SlaPolicy | null;
+  /** True when the policy config loaded cleanly (>=1 version, no error). */
+  policyConfigLoaded: boolean;
 };
 
 export type UseSlaBatchOptions = {
@@ -355,5 +359,6 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
     overrides, isExcused, getOverride, customerLabels,
     testAccountKeys, isTestAccount, refresh, refreshOverrides,
     activePolicy, policyFallback, policyError,
+    resolveForAnchor, policyConfigLoaded: configLoaded,
   };
 }
