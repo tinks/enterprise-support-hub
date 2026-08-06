@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
+import { PolicyFallbackBanner } from "@/components/sla/PolicyFallbackBanner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TestDataToggle, TestDataBanner } from "@/pages/SlaWorkbench";
@@ -248,6 +249,7 @@ export default function SlaReport() {
   return (
     <AppLayout>
       <div className="max-w-[1200px] mx-auto p-6 space-y-6">
+        <PolicyFallbackBanner show={policyFallback} error={policyError} />
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Monthly SLA Report</h1>
@@ -648,7 +650,7 @@ export default function SlaReport() {
 }
 
 function SeverityTable({
-  title, metric, bySev, isExcused,
+  title, metric, bySev, isExcused, activePolicy,
 }: {
   title: string;
   metric: Metric;

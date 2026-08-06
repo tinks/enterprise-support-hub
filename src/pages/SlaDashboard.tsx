@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
+import { PolicyFallbackBanner } from "@/components/sla/PolicyFallbackBanner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,11 +21,9 @@ import { Loader2, Gauge, Info, RefreshCw } from "lucide-react";
 import {
   evaluateCompliance,
   evaluateCadence,
-  CADENCE_TARGETS,
   formatBusinessDuration,
   formatDuration,
   parseSeverity,
-  SLA_TARGETS,
   type Severity,
   type SlaCompliance,
 } from "@/lib/slaMetrics";
@@ -57,7 +56,7 @@ const ALL_CUSTOMERS = "__all__";
 
 export default function SlaDashboard() {
   const [showTestData, setShowTestData] = useState(false);
-  const { loading, error, inScope, excluded, noCustomer, manuallyLogged, refresh, isExcused, customerLabels } = useSlaBatch({ showTestData });
+  const { loading, error, inScope, excluded, noCustomer, manuallyLogged, refresh, isExcused, customerLabels, activePolicy, policyFallback, policyError } = useSlaBatch({ showTestData });
   const [dateWindow, setDateWindow] = useState<DateWindow>("month");
   const [customerFilter, setCustomerFilter] = useState<string>(ALL_CUSTOMERS);
 
@@ -116,7 +115,7 @@ export default function SlaDashboard() {
       const sev = parseSeverity(r.raw_payload?.custom_attributes?.Severity);
       if (sev == null) { unclassified.push(r); continue; }
       classifiedCount++;
-      buckets[sev].push({ row: r, compliance: evaluateCompliance(r.sla, sev) });
+      buckets[sev].push({ row: r, compliance: evaluateCompliance(r.sla, sev, r.policy.targets) });
     }
     return { buckets, unclassified, classifiedCount };
   }, [windowedInScope]);
@@ -130,11 +129,11 @@ export default function SlaDashboard() {
       const rows = buckets[sev];
       let frMet = 0, frBreach = 0, frExcused = 0, resMet = 0, resBreach = 0, resExcused = 0;
       let cadMet = 0, cadBreach = 0, cadExcused = 0, cadNotEval = 0;
-      const cadTarget = CADENCE_TARGETS[sev];
+      const cadTarget = activePolicy.cadence?.[sev] ?? null;
       for (const { row, compliance } of rows) {
         // Cadence: Sev1/Sev2 only, evaluable only — non-evaluable never scores.
         if (cadTarget) {
-          const cad = evaluateCadence(row.sla, sev);
+          const cad = evaluateCadence(row.sla, sev, row.policy.cadence?.[sev]?.maxGapS);
           if (cad === true) cadMet++;
           else if (cad === false) {
             if (isExcused(row.intercom_conversation_id, "cadence")) cadExcused++;
@@ -160,7 +159,7 @@ export default function SlaDashboard() {
       return {
         sev,
         n: rows.length,
-        target: SLA_TARGETS[sev],
+        target: activePolicy.targets[sev],
         frPct: frDenom ? (frMet / frDenom) * 100 : null,
         frBreach,
         frExcused,
