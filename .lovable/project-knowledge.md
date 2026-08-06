@@ -1378,8 +1378,9 @@ A per-customer SLA + volume view for CSM-style consumption. Route in `App.tsx`, 
 
 
 - **OPEN tickets (~10 %) are excluded** from Batch — the snapshot doesn't store `conversation_parts` for them, so `computeSla` can't run. Resolution numbers are therefore **optimistically biased**: worst / longest-tail cases are missing.
-- **Holidays not modeled** — Berlin business-hours treats every Mon–Fri as a full 15 h workday.
-- **Targets are provisional / unratified** — plumbing, not policy.
+- **Holidays not modeled** — the policy version carries a `holidays` list, but it is empty and the engine does not consume it yet; business hours treat every configured workday as a full day (currently Berlin Mon–Fri, 15 h).
+- **Targets are provisional / unratified** — the single live policy version is `status='provisional'`, so it may be edited and history re-scores freely. Ratification = a `committed` version. Plumbing (now admin-editable data), not yet policy.
+
 - **Pre-inbox time mixes Sam handling with pre-ticket Slack work** — future split noted.
 - **Forwarded customer emails from our shared `@lovable.dev` inbox** misclassify as agent-initiated. Accepted; will be corrected by manual override.
 
@@ -1389,7 +1390,9 @@ A per-customer SLA + volume view for CSM-style consumption. Route in `App.tsx`, 
 - **No-customer / CSM-in-the-middle tickets**: whether these belong in their own pool with a count-KPI (currently just bucketed as `noCustomer` and excluded from compliance).
 - **Stored-payload completeness for Slack**: for Slack-originated tickets the stored `raw_payload` may be less complete than a live Intercom fetch — the live tab remains authoritative per-ticket.
 - **Manual initiation-override** to correct forwarded-email misclassification.
-- **Holiday-aware business-hours calendar**.
+- **Holiday-aware business-hours calendar** — holidays are already stored on the policy version; the engine needs to consume them.
+- **Commit / go-live flow for policy versions** — creating a future-dated version and freezing `committed` ones once their effective date passes (schema supports it; UI/enforcement pending).
+- **`/sla-what-if` still baselines on the engine constants**, not the live policy version.
 - **TECH DEBT — rollup logic is duplicated per page.** Each of the three SLA pages carries its own `computeStats`/scorecard code over the same `useSlaBatch` spine, and Dashboard vs Report overlap heavily. Until a shared rollup module exists, **any counting-rule change must be applied to all three pages in lockstep** — the FR-basis drift fixed in `91ae443` is exactly the failure mode this duplication produces.
 - **Retire `settings.admin_owner_map`** and repoint its 7 legacy readers at `public.teammates`.
 - **Aggregate dashboard + SLA compliance slider** — plumbing is in place; UI wiring TBD after target ratification.
