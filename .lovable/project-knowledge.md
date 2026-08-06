@@ -1063,21 +1063,28 @@ Pure, source-agnostic TypeScript. No network, DB, or Intercom client access. Sam
 
 **Aggregate** (`aggregate`): `{ avg, median, p90, p95, n, nNull }` over nullable numbers.
 
-### Compliance evaluation — `SLA_TARGETS`, `parseSeverity`, `evaluateCompliance`
+### Compliance evaluation — policy targets (DATA), `parseSeverity`, `evaluateCompliance`
 
-Provisional per-severity targets (single source of truth in `SLA_TARGETS`, editable in one place):
+**Targets are no longer hardcoded.** Since the SLA-policy-config build (see *"SLA policy config — admin-editable, effective-dated targets"* below), every SLA target and the business-hours calendar live in `sla_policy_versions` / `sla_policy_targets` and are resolved **per ticket** by its inbound anchor. `SLA_TARGETS`, `CADENCE_TARGETS`, `TRIAGE_TARGET_S` and `DEFAULT_BUSINESS_HOURS` in `src/lib/slaMetrics.ts` are **retained as the built-in fallback/default only** — used when the config fails to load, is empty, or a ticket predates every version, and always with a loud `PolicyFallbackBanner`.
 
-| Severity | First Response | FR clock | Resolution | Res clock |
-|---|---|---|---|---|
-| Sev 1 | 30 min | **wall-clock 24/7** (pending Development off-hours-coverage buy-in) | 8 h | wall-clock 24/7 |
-| Sev 2 | 4 h | business hours | 2 business days | business hours |
-| Sev 3 | 1 business day | business hours | 5 business days | business hours |
-| Sev 4 | 3 business days | business hours | none (best-effort) | — |
+**Live values in the active (only) version — `Seed from code constants (provisional)`, `effective_from 2026-01-01T00:00:00Z`, `status='provisional'`** (queried from `sla_policy_targets`, 6 Aug 2026):
 
-`parseSeverity(raw)` reads `raw_payload.custom_attributes.Severity`. Returns `null` for missing / unknown; **never** defaulted to a severity — a missing mapping surfaces loudly in a visible "Unclassified" bucket rather than hiding in Sev 3 (surface-errors-loudly). `evaluateCompliance(sla, severity)` returns `{ severity, firstResponse, resolution }` each with `{ value, target, clock, met }` where `met` is `null` when unmeasurable.
+| Severity | First Response | FR clock | Resolution | Res clock | Cadence max gap | Cadence clock |
+|---|---|---|---|---|---|---|
+| Sev 1 | 30 min (1800 s) | **business** | 8 h (28 800 s) | business | 1 h (3 600 s) | **business** |
+| Sev 2 | 4 h (14 400 s) | business | 30 h (108 000 s = 2 business days) | business | 4 h (14 400 s) | business |
+| Sev 3 | 15 h (54 000 s = 1 business day) | business | 75 h (270 000 s = 5 business days) | business | no target (`NULL`) | — |
+| Sev 4 | 45 h (162 000 s = 3 business days) | business | no target (`NULL`, best-effort) | business | no target (`NULL`) | — |
+
+Triage: single row, `severity IS NULL`, **30 min (1800 s), business** clock. Business hours for this version: **Europe/Berlin, Mon–Fri (`work_days [1,2,3,4,5]`), 09:00–24:00, `holidays: []`**.
+
+> **Drifted from the code constants on purpose:** leadership judged Sev 1 wall-clock 24/7 too aggressive without off-hours coverage, so **Sev 1 First Response and Sev 1 Cadence were moved to the business clock in the policy data**. The engine constants still say `calendar` for those two — that is expected: the constants are only the fallback, the DB is what the surfaces score against.
+
+`parseSeverity(raw)` reads `raw_payload.custom_attributes.Severity`. Returns `null` for missing / unknown; **never** defaulted to a severity — a missing mapping surfaces loudly in a visible "Unclassified" bucket rather than hiding in Sev 3 (surface-errors-loudly). `evaluateCompliance(sla, severity, targets = SLA_TARGETS)` returns `{ severity, firstResponse, resolution }` each with `{ value, target, clock, met }` where `met` is `null` when unmeasurable; the surfaces pass the **row's resolved policy targets** in, never the constants.
 
 - **First Response** picks the clock (`business` vs `calendar`) per severity and reads **`firstSupportReplyFromInbox*`** (SUPPORT roster, clamped) — nothing else. `escalationBasis` branching is gone.
 - **Resolution** reads **`resolutionActive*`** (also inbox-anchored). Raw `ttr*` is never used by compliance. Sev 4 returns `met: null` (no committed target).
+
 
 ### Read-only fetch — `supabase/functions/sla-ticket-analyze`
 
@@ -1240,6 +1247,46 @@ Surfaced as the Report §2b **"Triage discipline (provisional 30-min target)"** 
 
 `SlaOverrideMetric` in `src/hooks/useSlaBatch.ts` includes `"cadence"`, so `isExcused(cid, "cadence")` works identically to the other metrics.
 
+
+
+#### SLA policy config — admin-editable, effective-dated targets (schema + engine + `/sla-policy`)
+
+**WHY (design intent, not mechanics).** Leadership's verdict that **Sev 1 wall-clock 24/7 was too aggressive** exposed the real problem: SLA targets lived in `slaMetrics.ts`, so changing a number meant a code change, and every historical figure silently re-scored against the new value with no record of what the commitment *was* at the time. Targets and business hours therefore moved **out of hardcoded engine constants and into ADMIN-EDITABLE, EFFECTIVE-DATED DATA**.
+
+- A **policy version** is an **immutable snapshot**: all targets + business hours + `effective_from` + `status`.
+- A ticket is scored against the **version in force at its INBOUND ANCHOR** (`slaClockStartS`, else `created_at`) — *the SLA that was in force when it arrived*. **One version per ticket, no mid-ticket switching.**
+- **`provisional`** versions may be edited and re-score history freely — that is calibration, and **that is where we are today**.
+- **`committed`** versions are intended to become immutable once their effective date passes (contractual — you cannot retroactively move goalposts). This is the mechanism by which the previously-provisional targets get **ratified**.
+
+**Schema (migration; RLS: `SELECT` for `authenticated`, all writes `has_role(auth.uid(),'admin')`).**
+
+- **`public.sla_policy_versions`** — `id`, `effective_from timestamptz`, `status text CHECK IN ('provisional','committed')`, `business_hours jsonb` (`{ tz, work_days[], day_start_hour, day_end_hour, holidays[] }`), `label`, plus audit (`created_by`, `created_at`, `updated_by`, `updated_at`).
+- **`public.sla_policy_targets`** — `version_id → sla_policy_versions.id`, `metric text CHECK IN ('first_response','resolution','cadence','triage')`, `severity` (1–4; **`NULL` for triage**, which is severity-agnostic), `target_seconds` (**`NULL` is meaningful: an explicit "no target"**, never "unset"), `clock text CHECK IN ('business','wall')`. Uniqueness: `UNIQUE (version_id, metric, severity)` plus a **partial unique index** on `(version_id, metric) WHERE severity IS NULL` — Postgres treats `NULL` severities as distinct, so the triage row needs its own guard (and is upserted match-then-write, not via `onConflict`).
+- **Vocabulary mapping:** the DB clock vocab is **`'business' | 'wall'`**; the engine's is **`'business' | 'calendar'`**. `policyToEngine` translates `wall → calendar`.
+
+**Current live state** — exactly one version, `provisional`, `effective_from 2026-01-01T00:00:00Z`, label *"Seed from code constants (provisional)"*. Its target values and business hours are documented in the table under *"Compliance evaluation — policy targets (DATA)"* above (Sev 1 FR and Sev 1 cadence are now **business** clock, deliberately drifted from the code constants).
+
+**Engine (`src/lib/slaMetrics.ts`).**
+
+- **`policyToEngine(versionRow, targetRows)`** maps DB rows to the engine shapes (`SlaTargets`, `CADENCE_TARGETS`-shaped map, `triageTargetS`, `BusinessHoursConfig`), translating `wall → calendar`. **`resolvePolicy(anchorMs, policies)`** returns the latest version whose `effective_from <= anchorMs`, or `null` if the anchor precedes every version.
+- **Business hours are injectable**: `businessHoursBetween`, `businessDaySeconds` and `formatBusinessDuration` take an optional config / business-day length, **defaulting to `DEFAULT_BUSINESS_HOURS`** (built from the old constants — Berlin, Mon–Fri, 09:00–24:00, no holidays). Timezone handling is generic (`Intl.DateTimeFormat`, one cached formatter per tz), so a policy can name any tz.
+- **`computeSla(conversation, opts?, businessHours = DEFAULT_BUSINESS_HOURS)`** threads the calendar down into `computeTriage` and `computeCadence`, so every business-hours figure honours the resolved policy.
+
+**Hooks + surfaces.**
+
+- **`src/hooks/useSlaPolicy.ts`** — read-only loader for both config tables; exposes `policies`, `loading`, `error`, `resolveForAnchor(anchorMs)`. It never writes.
+- **`src/hooks/useSlaBatch.ts`** — **two-pass** per row: pass 1 computes with the default calendar purely to derive the ticket's **inbound anchor** (a wall-clock timestamp, so it cannot depend on business hours); the anchor resolves the policy; pass 2 **re-computes only when the resolved calendar actually differs** from `DEFAULT_BUSINESS_HOURS`. Each enriched row carries **`policy`** and **`policyFallback`**; the hook also returns `activePolicy` (the version in force *now*, used for target **labels/columns**), `policyFallback`, `policyError`, `resolveForAnchor` and `policyConfigLoaded`.
+- **`SlaReport` / `SlaDashboard` / `SlaWorkbench`** score every row against **`row.policy`** (`evaluateCompliance(sla, sev, row.policy.targets)`, `evaluateTriage(sla, row.policy.triageTargetS)`, `evaluateCadence(sla, sev, row.policy.cadence[sev]?.maxGapS)`), and label columns from `activePolicy`.
+- **`src/components/sla/PolicyFallbackBanner.tsx`** — **LOUD** banner rendered on all three surfaces whenever the config failed to load, is empty, or a ticket predates every version, stating plainly that the numbers came from the built-in engine constants. Charter rule: never silently default.
+- **`/sla-what-if` still reads the constants** — the sandbox baseline has not been cut over yet.
+
+**Admin panel — `/sla-policy` (`src/pages/SlaPolicyAdmin.tsx`, Admin flyout).** Admin-gated in three places: nav (`adminOnly` on the `NavChild`, filtered by `useIsAdmin`), route (non-admins get a "Not authorized" card), and save controls (only rendered for admins) — with **RLS as the authoritative gate**. v1 editing model: **edit the single provisional version IN PLACE** (no new-version creation yet). Target grid = Sev 1–4 rows × First Response / Resolution / Cadence columns, plus a single Triage row; each cell takes a duration and a clock, and an empty value means the explicit **"no target" `NULL`**. Business-hours editor covers timezone, working days, day start/end hour and a holidays list. Validation is loud and blocking (bad durations, start ≥ end, malformed holiday dates).
+
+**Known-not-yet (documented so nobody assumes otherwise).**
+
+- **Holidays are stored but the engine does not consume them** — `businessHoursBetween` reads `config.holidays`, and the live version's list is empty; the UI says so.
+- **`/sla-what-if` baseline is still the constants**, not the policy.
+- **"Commit / go-live" enforcement and future-dated versions are a later addition.** The schema already supports both (`status`, `effective_from`, per-anchor resolution); nothing yet blocks editing a `committed` version or creating a second version from the UI.
 
 
 #### Monthly SLA Report — `/sla-report` (`src/pages/SlaReport.tsx`) — target PROPOSAL
