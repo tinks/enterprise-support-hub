@@ -21,8 +21,9 @@ import {
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 
-type NavChild = { to: string; label: string; end?: boolean };
+type NavChild = { to: string; label: string; end?: boolean; adminOnly?: boolean };
 type NavLinkItem = { kind: "link"; to: string; icon: LucideIcon; label: string; end?: boolean };
 type NavGroupItem = { kind: "group"; label: string; icon: LucideIcon; items: NavChild[] };
 type NavEntry = NavLinkItem | NavGroupItem;
@@ -84,6 +85,7 @@ const navEntries: NavEntry[] = [
       { to: "/knowledge", label: "Knowledge" },
       { to: "/flow", label: "Flow" },
       { to: "/changelog", label: "Changelog" },
+      { to: "/sla-policy", label: "SLA Policy", adminOnly: true },
     ],
   },
 ];
@@ -98,6 +100,12 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const location = useLocation();
   const navigate = useNavigate();
+  const { isAdmin } = useIsAdmin();
+
+  // Admin-only nav children are hidden for non-admins (routes + RLS enforce too)
+  const visibleEntries: NavEntry[] = navEntries.map((e) =>
+    e.kind === "group" ? { ...e, items: e.items.filter((i) => !i.adminOnly || isAdmin) } : e,
+  );
 
   // Sidebar stays expanded if hovering sidebar OR the portalled menu
   const expanded = sidebarHovered || menuHovered;
@@ -128,7 +136,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const isPathActive = (to: string, end?: boolean) =>
     end ? location.pathname === to : location.pathname === to || location.pathname.startsWith(to + "/");
 
-  const openGroupEntry = navEntries.find(
+  const openGroupEntry = visibleEntries.find(
     (e): e is NavGroupItem => e.kind === "group" && e.label === openGroup,
   );
 
@@ -184,7 +192,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
         {/* Nav links */}
         <nav className="flex-1 flex flex-col justify-between">
           <div className="flex-1 flex flex-col gap-1 p-2 overflow-y-auto overflow-x-hidden">
-            {navEntries.map((entry) => {
+            {visibleEntries.map((entry) => {
               if (entry.kind === "link") {
                 return renderLink(entry.to, entry.icon, entry.label, entry.end);
               }
