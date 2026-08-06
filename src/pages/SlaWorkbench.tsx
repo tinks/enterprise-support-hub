@@ -44,6 +44,7 @@ import {
 
 /** Business-day length for the given policy's calendar — drives "Nbd" rendering. */
 const bizDay = (p: SlaPolicy) => businessDaySeconds(p.businessHours);
+import { PolicyFallbackBanner } from "@/components/sla/PolicyFallbackBanner";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -837,6 +838,11 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
 
   return (
     <div className="space-y-4">
+      <PolicyFallbackBanner
+        show={!policyConfigLoaded || enriched.some((r) => r.policyFallback)}
+        error={policyError}
+      />
+
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs uppercase tracking-wide text-muted-foreground">Window</span>
         <Select value={dateWindow} onValueChange={(v) => setDateWindow(v as DateWindow)}>
