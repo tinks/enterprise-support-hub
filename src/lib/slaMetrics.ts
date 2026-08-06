@@ -433,6 +433,7 @@ export type TriageResult = {
 export function computeTriage(
   timeline: TimelinePart[],
   slaClockStartS: number | null,
+  businessHours: BusinessHoursConfig = DEFAULT_BUSINESS_HOURS,
 ): TriageResult {
   const events = extractSeverityEvents(timeline);
   const first = events.length ? events[0] : null;
@@ -445,7 +446,7 @@ export function computeTriage(
     timeToTriageBusinessHoursS: evaluable
       ? firstSeverityAtS! <= slaClockStartS!
         ? 0
-        : Math.max(0, businessHoursBetween(slaClockStartS!, firstSeverityAtS!))
+        : Math.max(0, businessHoursBetween(slaClockStartS!, firstSeverityAtS!, businessHours))
       : null,
     severityEventCount: events.length,
     hasSeverityEvent: events.length > 0,
@@ -476,6 +477,7 @@ export type CadenceResult = {
 export function computeCadence(
   timeline: TimelinePart[],
   closeAtS: number | null,
+  businessHours: BusinessHoursConfig = DEFAULT_BUSINESS_HOURS,
 ): CadenceResult {
   const comms = timeline
     .filter((p) => p.isPublicReply && p.actor === "human_admin")
@@ -515,7 +517,7 @@ export function computeCadence(
   return {
     cadenceUpdateCount: comms.length,
     cadenceMaxGapS: maxGap,
-    cadenceMaxGapBusinessHoursS: Math.max(0, businessHoursBetween(maxStart, maxEnd)),
+    cadenceMaxGapBusinessHoursS: Math.max(0, businessHoursBetween(maxStart, maxEnd, businessHours)),
     cadenceMaxGapOverlappedCustomerWait: overlappedCustomerWait,
     hasCadence: true,
   };
@@ -695,7 +697,15 @@ export type SlaComputeOptions = {
   supportAdminIds?: Set<string>;
 };
 
-export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResult {
+export function computeSla(
+  conversation: any,
+  opts?: SlaComputeOptions,
+  businessHours: BusinessHoursConfig = DEFAULT_BUSINESS_HOURS,
+): SlaResult {
+  // All business-hours clipping inside computeSla goes through this closure so
+  // the resolved policy's calendar/holidays apply consistently. With no arg the
+  // config is DEFAULT_BUSINESS_HOURS → output is bit-identical to before.
+  const bhBetween = (a: number, b: number) => businessHoursBetween(a, b, businessHours);
 
   const timeline = extractTimeline(conversation);
   const createdAt: number | null =
@@ -734,7 +744,7 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
       : null;
   const firstHumanReplyFromInboxBusinessHoursS =
     firstHumanReplyAfterInbox && slaClockStartS != null
-      ? businessHoursBetween(slaClockStartS, firstHumanReplyAfterInbox.ts)
+      ? bhBetween(slaClockStartS, firstHumanReplyAfterInbox.ts)
       : null;
 
   // ---- SUPPORT-based FRT (commit 2) ----------------------------------------
@@ -763,7 +773,7 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
     firstSupportReply && slaClockStartS != null
       ? firstSupportReply.ts <= slaClockStartS
         ? 0
-        : businessHoursBetween(slaClockStartS, firstSupportReply.ts)
+        : bhBetween(slaClockStartS, firstSupportReply.ts)
       : null;
 
   // Work-Before-Ticket — mirror of the clamped FRT above.
@@ -775,7 +785,7 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
     firstSupportReplyS != null && slaClockStartS != null
       ? firstSupportReplyS >= slaClockStartS
         ? 0
-        : businessHoursBetween(firstSupportReplyS, slaClockStartS)
+        : bhBetween(firstSupportReplyS, slaClockStartS)
       : null;
 
 
@@ -796,14 +806,14 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
 
   // Business-hours parallels — same guards as calendar counterparts.
   const firstResponseAnyAgentBusinessHoursS =
-    firstAnyAgentReply && createdAt != null ? businessHoursBetween(createdAt, firstAnyAgentReply.ts) : null;
+    firstAnyAgentReply && createdAt != null ? bhBetween(createdAt, firstAnyAgentReply.ts) : null;
   const firstHumanReplyFromOpenBusinessHoursS =
-    firstHumanReply && createdAt != null ? businessHoursBetween(createdAt, firstHumanReply.ts) : null;
+    firstHumanReply && createdAt != null ? bhBetween(createdAt, firstHumanReply.ts) : null;
   const timeToEscalationBusinessHoursS =
-    escalation && createdAt != null ? businessHoursBetween(createdAt, escalation.ts) : null;
+    escalation && createdAt != null ? bhBetween(createdAt, escalation.ts) : null;
   const firstHumanReplyFromEscalationBusinessHoursS =
     escalation && firstHumanReply && firstHumanReply.ts >= escalation.ts
-      ? businessHoursBetween(escalation.ts, firstHumanReply.ts)
+      ? bhBetween(escalation.ts, firstHumanReply.ts)
       : null;
 
   const stats = conversation?.statistics ?? {};
@@ -820,10 +830,10 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
         ? stats.first_close_at
         : null;
   const ttrBusinessHoursS =
-    closeAt != null && createdAt != null ? businessHoursBetween(createdAt, closeAt) : null;
+    closeAt != null && createdAt != null ? bhBetween(createdAt, closeAt) : null;
 
   const handlingTimeS = sumCustomerWaitGaps(timeline, (a, b) => Math.max(0, b - a));
-  const handlingTimeBusinessHoursS = sumCustomerWaitGaps(timeline, (a, b) => businessHoursBetween(a, b));
+  const handlingTimeBusinessHoursS = sumCustomerWaitGaps(timeline, (a, b) => bhBetween(a, b));
 
   // Stop-the-clock resolution — active in-our-court time from the SLA
   // clock-start (Enterprise Inbox anchor, else createdAt) to last close.
@@ -871,7 +881,7 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
     return total;
   }
   const resolutionActiveS = computeResolutionActive((a, b) => Math.max(0, b - a));
-  const resolutionActiveBusinessHoursS = computeResolutionActive((a, b) => businessHoursBetween(a, b));
+  const resolutionActiveBusinessHoursS = computeResolutionActive((a, b) => bhBetween(a, b));
 
   const samParticipated = timeline.some((p) => p.isPublicReply && p.actor === "sam_ai");
   const noHumanReply = !firstHumanReply;
@@ -897,7 +907,7 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
   const initiatedBy: "customer" | "agent" =
     sourceActor === "human_admin" || sourceActor === "sam_ai" ? "agent" : "customer";
 
-  const triage = computeTriage(timeline, slaClockStartS);
+  const triage = computeTriage(timeline, slaClockStartS, businessHours);
 
   // ---- Triage discipline flags (provisional targets) -----------------------
   const triageViolation =
@@ -917,7 +927,7 @@ export function computeSla(conversation: any, opts?: SlaComputeOptions): SlaResu
     closeAt - triage.firstSeverityAtS <= SEVERITY_AT_CLOSE_WINDOW_S;
 
   // ---- Communication cadence (Phase-1 drumbeat) ---------------------------
-  const cadence = computeCadence(timeline, closeAt);
+  const cadence = computeCadence(timeline, closeAt, businessHours);
 
 
   return {
