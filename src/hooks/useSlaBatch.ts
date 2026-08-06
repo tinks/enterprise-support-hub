@@ -12,6 +12,15 @@ import {
   type Origin,
 } from "@/lib/slaMetrics";
 import { useSlaPolicy } from "@/hooks/useSlaPolicy";
+import type { BusinessHoursConfig } from "@/lib/slaMetrics";
+
+const sameBusinessHours = (a: BusinessHoursConfig, b: BusinessHoursConfig) =>
+  a === b ||
+  (a.tz === b.tz &&
+    a.dayStartHour === b.dayStartHour &&
+    a.dayEndHour === b.dayEndHour &&
+    a.workDays.join(",") === b.workDays.join(",") &&
+    a.holidays.join(",") === b.holidays.join(","));
 
 /**
  * Built-in fallback policy: exactly today's hardcoded engine constants.
@@ -20,8 +29,10 @@ import { useSlaPolicy } from "@/hooks/useSlaPolicy";
  * the surfaces render a visible banner (charter: surface anomalies loudly).
  */
 export const BUILTIN_POLICY: SlaPolicy = {
+  id: "builtin",
+  label: "Built-in defaults (engine constants)",
   effectiveFromMs: 0,
-  status: "active",
+  status: "provisional",
   businessHours: DEFAULT_BUSINESS_HOURS,
   targets: SLA_TARGETS,
   cadence: CADENCE_TARGETS,
@@ -254,7 +265,7 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
       const policyFallback = resolved == null;
       // Pass 2 only when the resolved calendar actually differs from the default.
       const sla =
-        policy.businessHours === DEFAULT_BUSINESS_HOURS
+        sameBusinessHours(policy.businessHours, DEFAULT_BUSINESS_HOURS)
           ? base
           : computeSla(r.raw_payload, opts, policy.businessHours);
       const origin = detectOrigin(r.raw_payload);
