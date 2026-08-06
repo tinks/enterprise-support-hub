@@ -203,6 +203,8 @@ export default function SlaDashboard() {
           </div>
         </div>
 
+        <PolicyFallbackBanner show={policyFallback} error={policyError} />
+
         {showTestData && <TestDataBanner />}
 
         {error && (
