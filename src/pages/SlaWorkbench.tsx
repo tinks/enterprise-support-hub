@@ -704,7 +704,7 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
       const policyFallback = resolved == null;
       const sla = policy.businessHours === DEFAULT_BUSINESS_HOURS
         ? base
-        : computeSla(r.raw_payload, { businessHours: policy.businessHours });
+        : computeSla(r.raw_payload, undefined, policy.businessHours);
       const origin = detectOrigin(r.raw_payload);
       const bucket = classifyRow(r, sla, { testAccountKeys, showTestData });
       return { ...r, sla, origin, bucket, policy, policyFallback };
