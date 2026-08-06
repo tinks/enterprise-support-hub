@@ -174,7 +174,7 @@ export default function SlaDashboard() {
         cadNotEval,
       };
     });
-  }, [buckets, isExcused]);
+  }, [buckets, isExcused, activePolicy]);
 
 
 
