@@ -221,19 +221,56 @@ export const BUSINESS_HOURS_TIMEZONE = "Europe/Berlin";
 export const BUSINESS_HOURS_START_HOUR = 9;
 export const BUSINESS_HOURS_END_HOUR = 24; // exclusive upper = 23:59:59.999
 
-const berlinPartsFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: BUSINESS_HOURS_TIMEZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  hourCycle: "h23",
-});
+/**
+ * Injectable business-hours definition. Batch 2a: capability only — every call
+ * site still uses DEFAULT_BUSINESS_HOURS, which is built from the hardcoded
+ * constants above, so behavior is bit-identical to before.
+ *
+ * `workDays` uses JS getUTCDay() numbering (0 = Sunday … 6 = Saturday).
+ * `holidays` are local-calendar dates "YYYY-MM-DD" in `tz`; the engine has no
+ * holiday calendar today, so the default is empty.
+ */
+export type BusinessHoursConfig = {
+  tz: string;
+  workDays: number[];
+  dayStartHour: number;
+  dayEndHour: number;
+  holidays: string[];
+};
 
-function berlinYMDH(ms: number): { y: number; m: number; d: number; hour: number; minute: number; second: number; dow: number } {
-  const parts = berlinPartsFmt.formatToParts(new Date(ms));
+export const DEFAULT_BUSINESS_HOURS: BusinessHoursConfig = {
+  tz: BUSINESS_HOURS_TIMEZONE,
+  workDays: [1, 2, 3, 4, 5],
+  dayStartHour: BUSINESS_HOURS_START_HOUR,
+  dayEndHour: BUSINESS_HOURS_END_HOUR,
+  holidays: [],
+};
+
+// Intl formatters are expensive to construct — cache one per timezone.
+const tzFmtCache = new Map<string, Intl.DateTimeFormat>();
+function tzFmt(tz: string): Intl.DateTimeFormat {
+  let f = tzFmtCache.get(tz);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    });
+    tzFmtCache.set(tz, f);
+  }
+  return f;
+}
+
+function localYMDH(
+  ms: number,
+  tz: string,
+): { y: number; m: number; d: number; hour: number; minute: number; second: number; dow: number } {
+  const parts = tzFmt(tz).formatToParts(new Date(ms));
   const map: Record<string, string> = {};
   for (const p of parts) if (p.type !== "literal") map[p.type] = p.value;
   const y = Number(map.year);
@@ -242,23 +279,23 @@ function berlinYMDH(ms: number): { y: number; m: number; d: number; hour: number
   const hour = Number(map.hour) % 24; // h23 gives 00..23
   const minute = Number(map.minute);
   const second = Number(map.second);
-  // Compute day-of-week from the Berlin-local Y-M-D (treat as UTC to avoid host tz drift).
+  // Compute day-of-week from the local Y-M-D (treat as UTC to avoid host tz drift).
   const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
   return { y, m, d, hour, minute, second, dow };
 }
 
-// Find the UTC ms corresponding to a given Berlin local hour on the same
-// Berlin-local calendar date as `refMs`. Handles DST by iterative correction.
-function berlinLocalHourToUtcMs(refMs: number, targetHour: number): number {
-  const { y, m, d } = berlinYMDH(refMs);
-  // First guess: pretend Berlin == UTC.
+// Find the UTC ms corresponding to a given local hour on the same
+// local calendar date as `refMs`. Handles DST by iterative correction.
+function localHourToUtcMs(refMs: number, targetHour: number, tz: string): number {
+  const { y, m, d } = localYMDH(refMs, tz);
+  // First guess: pretend local == UTC.
   let guess = Date.UTC(y, m - 1, d, targetHour, 0, 0, 0);
   for (let i = 0; i < 3; i++) {
-    const parts = berlinYMDH(guess);
-    // Delta between what Berlin thinks the wall-clock is and what we wanted.
+    const parts = localYMDH(guess, tz);
+    // Delta between what local wall-clock is and what we wanted.
     const wantMinutes = targetHour * 60;
     const gotMinutes = parts.hour * 60 + parts.minute;
-    // Also account for date drift (if guess landed on prev/next Berlin day).
+    // Also account for date drift (if guess landed on prev/next local day).
     const dateDeltaDays =
       (Date.UTC(parts.y, parts.m - 1, parts.d) - Date.UTC(y, m - 1, d)) / 86_400_000;
     const deltaMin = (dateDeltaDays * 24 * 60) + (gotMinutes - wantMinutes);
@@ -268,32 +305,52 @@ function berlinLocalHourToUtcMs(refMs: number, targetHour: number): number {
   return guess;
 }
 
-export function businessHoursBetween(startSec: number, endSec: number): number {
+function ymdKey(y: number, m: number, d: number): string {
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+export function businessHoursBetween(
+  startSec: number,
+  endSec: number,
+  config: BusinessHoursConfig = DEFAULT_BUSINESS_HOURS,
+): number {
   if (endSec <= startSec) return 0;
+  const { tz, workDays, dayStartHour, dayEndHour, holidays } = config;
+  const workDaySet = new Set(workDays);
+  const holidaySet = holidays && holidays.length ? new Set(holidays) : null;
   const startMs = startSec * 1000;
   const endMs = endSec * 1000;
   let total = 0;
 
-  // Walk day-by-day in Berlin local time. Cursor = the UTC ms for 00:00
-  // Berlin-local of the current day.
-  let cursorMs = berlinLocalHourToUtcMs(startMs, 0);
+  // Walk day-by-day in local time. Cursor = the UTC ms for 00:00 local
+  // of the current day.
+  let cursorMs = localHourToUtcMs(startMs, 0, tz);
   // Safety cap — should never engage in practice.
   const MAX_ITER = 400;
   for (let i = 0; i < MAX_ITER && cursorMs < endMs; i++) {
-    const { dow } = berlinYMDH(cursorMs);
-    const windowStart = berlinLocalHourToUtcMs(cursorMs, BUSINESS_HOURS_START_HOUR);
-    const windowEnd = berlinLocalHourToUtcMs(cursorMs, BUSINESS_HOURS_END_HOUR);
-    if (dow !== 0 && dow !== 6) {
+    const { y, m, d, dow } = localYMDH(cursorMs, tz);
+    const windowStart = localHourToUtcMs(cursorMs, dayStartHour, tz);
+    const windowEnd = localHourToUtcMs(cursorMs, dayEndHour, tz);
+    const isHoliday = holidaySet ? holidaySet.has(ymdKey(y, m, d)) : false;
+    if (workDaySet.has(dow) && !isHoliday) {
       const overlapStart = Math.max(startMs, windowStart);
       const overlapEnd = Math.min(endMs, windowEnd);
       if (overlapEnd > overlapStart) total += (overlapEnd - overlapStart) / 1000;
     }
-    // Advance to next Berlin-local day. Use 25h then snap back to 00:00, to
+    // Advance to next local day. Use 25h then snap back to 00:00, to
     // absorb DST forward/back transitions.
-    cursorMs = berlinLocalHourToUtcMs(cursorMs + 25 * 3600 * 1000, 0);
+    cursorMs = localHourToUtcMs(cursorMs + 25 * 3600 * 1000, 0, tz);
   }
   return Math.min(total, endSec - startSec);
 }
+
+/** Business-day length implied by a config (default = BUSINESS_DAY_SECONDS = 54000). */
+export function businessDaySeconds(
+  config: BusinessHoursConfig = DEFAULT_BUSINESS_HOURS,
+): number {
+  return (config.dayEndHour - config.dayStartHour) * 3600;
+}
+
 
 // ============================================================================
 // SLA computation
@@ -1280,4 +1337,127 @@ export function evaluateCadence(
   const value = clock === "business" ? sla.cadenceMaxGapBusinessHoursS : sla.cadenceMaxGapS;
   if (value == null) return null;
   return value <= maxGapS;
+}
+
+// ============================================================================
+// SLA policy config (batch 2a — CAPABILITY ONLY, nothing reads this yet)
+// ============================================================================
+//
+// Effective-dated, admin-editable policy stored in `sla_policy_versions` +
+// `sla_policy_targets`. This layer only MAPS DB rows into engine shapes; the
+// hardcoded SLA_TARGETS / CADENCE_TARGETS / TRIAGE_TARGET_S remain the default
+// used by every surface until batch 2b cuts them over.
+//
+// DB clock vocabulary is 'business' | 'wall'; the engine's SlaClock is
+// 'business' | 'calendar'. 'wall' maps to 'calendar'.
+
+export type PolicyStatus = "provisional" | "committed";
+export type DbClock = "business" | "wall";
+
+export type SlaPolicyVersionRow = {
+  id: string;
+  effective_from: string;
+  status: string;
+  business_hours: any;
+  label?: string | null;
+};
+
+export type SlaPolicyTargetRow = {
+  version_id?: string;
+  metric: string;
+  severity: number | null;
+  target_seconds: number | null;
+  clock: string;
+};
+
+export type SlaPolicy = {
+  id: string;
+  label: string | null;
+  effectiveFromMs: number;
+  status: PolicyStatus;
+  businessHours: BusinessHoursConfig;
+  targets: SlaTargets;
+  cadence: Record<Severity, { maxGapS: number; clock: SlaClock } | null>;
+  triageTargetS: number | null;
+};
+
+export function dbClockToEngine(clock: string | null | undefined): SlaClock {
+  return clock === "wall" ? "calendar" : "business";
+}
+
+function parseBusinessHours(json: any): BusinessHoursConfig {
+  const j = json ?? {};
+  return {
+    tz: typeof j.tz === "string" ? j.tz : DEFAULT_BUSINESS_HOURS.tz,
+    workDays: Array.isArray(j.work_days) ? j.work_days.map(Number) : [...DEFAULT_BUSINESS_HOURS.workDays],
+    dayStartHour: Number.isFinite(j.day_start_hour) ? Number(j.day_start_hour) : DEFAULT_BUSINESS_HOURS.dayStartHour,
+    dayEndHour: Number.isFinite(j.day_end_hour) ? Number(j.day_end_hour) : DEFAULT_BUSINESS_HOURS.dayEndHour,
+    holidays: Array.isArray(j.holidays) ? j.holidays.map(String) : [],
+  };
+}
+
+const SEVERITIES: Severity[] = [1, 2, 3, 4];
+
+/**
+ * Build engine-shaped policy objects from DB rows.
+ * A missing row OR a null `target_seconds` means "no target" (null) — never a
+ * silent fallback to a hardcoded default.
+ */
+export function policyToEngine(
+  version: SlaPolicyVersionRow,
+  targetRows: SlaPolicyTargetRow[],
+): SlaPolicy {
+  const rows = targetRows.filter((r) => !r.version_id || r.version_id === version.id);
+  const find = (metric: string, severity: number | null) =>
+    rows.find((r) => r.metric === metric && (r.severity ?? null) === severity);
+
+  const targets = {} as SlaTargets;
+  for (const sev of SEVERITIES) {
+    const fr = find("first_response", sev);
+    const res = find("resolution", sev);
+    targets[sev] = {
+      // firstResponseS is non-nullable in SlaTarget; a missing/null FR row is a
+      // config gap, surfaced as Infinity (never met by accident, never 0).
+      firstResponseS: fr?.target_seconds ?? Number.POSITIVE_INFINITY,
+      firstResponseClock: dbClockToEngine(fr?.clock),
+      resolutionS: res?.target_seconds ?? null,
+      resolutionClock: dbClockToEngine(res?.clock),
+    };
+  }
+
+  const cadence = {} as Record<Severity, { maxGapS: number; clock: SlaClock } | null>;
+  for (const sev of SEVERITIES) {
+    const row = find("cadence", sev);
+    cadence[sev] =
+      row && row.target_seconds != null
+        ? { maxGapS: row.target_seconds, clock: dbClockToEngine(row.clock) }
+        : null;
+  }
+
+  const triageRow = find("triage", null);
+
+  return {
+    id: version.id,
+    label: version.label ?? null,
+    effectiveFromMs: Date.parse(version.effective_from),
+    status: version.status === "committed" ? "committed" : "provisional",
+    businessHours: parseBusinessHours(version.business_hours),
+    targets,
+    cadence,
+    triageTargetS: triageRow?.target_seconds ?? null,
+  };
+}
+
+/**
+ * The policy in force at `anchorMs` — the version with the greatest
+ * effectiveFromMs <= anchorMs. Returns null when the ticket arrived before any
+ * configured version (never falls back silently).
+ */
+export function resolvePolicy(anchorMs: number, versions: SlaPolicy[]): SlaPolicy | null {
+  let best: SlaPolicy | null = null;
+  for (const v of versions) {
+    if (!Number.isFinite(v.effectiveFromMs) || v.effectiveFromMs > anchorMs) continue;
+    if (!best || v.effectiveFromMs > best.effectiveFromMs) best = v;
+  }
+  return best;
 }
