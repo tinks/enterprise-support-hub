@@ -19,9 +19,10 @@ import {
   parseSeverity,
   evaluateCompliance,
   evaluateCadence,
-  CADENCE_TARGETS,
-  SLA_TARGETS,
-  TRIAGE_TARGET_S,
+  evaluateTriage,
+  businessDaySeconds,
+  DEFAULT_BUSINESS_HOURS,
+  type SlaPolicy,
   type TicketSla,
   type SlaResult,
   type TimelinePart,
@@ -38,7 +39,11 @@ import {
   type SlaOverride,
   type SlaOverrideMetric,
   type SlaOverrideReason,
+  BUILTIN_POLICY,
 } from "@/hooks/useSlaBatch";
+
+/** Business-day length for the given policy's calendar — drives "Nbd" rendering. */
+const bizDay = (p: SlaPolicy) => businessDaySeconds(p.businessHours);
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";

@@ -1069,14 +1069,14 @@ export function formatDuration(seconds: number | null): string {
 // Same as formatDuration for sub-day values, but renders the day unit as
 // BUSINESS DAYS (BUSINESS_DAY_SECONDS = 15h) so business-hours targets like
 // "2 business days" don't display as "1d 6h" via 24h days.
-export function formatBusinessDuration(seconds: number | null): string {
+export function formatBusinessDuration(seconds: number | null, businessDayS: number = BUSINESS_DAY_SECONDS): string {
   if (seconds == null) return "—";
   if (seconds < 60) return `${Math.round(seconds)}s`;
   const m = Math.round(seconds / 60);
   if (m < 60) return `${m}m`;
   const h = Math.floor(m / 60);
   const rem = m % 60;
-  const businessDayHours = BUSINESS_DAY_SECONDS / 3600; // 15
+  const businessDayHours = businessDayS / 3600; // 15 with the default calendar
   if (h < businessDayHours) return `${h}h ${rem}m`;
   const bd = Math.floor(h / businessDayHours);
   const remH = h % businessDayHours;
