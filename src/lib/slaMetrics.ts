@@ -1338,3 +1338,126 @@ export function evaluateCadence(
   if (value == null) return null;
   return value <= maxGapS;
 }
+
+// ============================================================================
+// SLA policy config (batch 2a — CAPABILITY ONLY, nothing reads this yet)
+// ============================================================================
+//
+// Effective-dated, admin-editable policy stored in `sla_policy_versions` +
+// `sla_policy_targets`. This layer only MAPS DB rows into engine shapes; the
+// hardcoded SLA_TARGETS / CADENCE_TARGETS / TRIAGE_TARGET_S remain the default
+// used by every surface until batch 2b cuts them over.
+//
+// DB clock vocabulary is 'business' | 'wall'; the engine's SlaClock is
+// 'business' | 'calendar'. 'wall' maps to 'calendar'.
+
+export type PolicyStatus = "provisional" | "committed";
+export type DbClock = "business" | "wall";
+
+export type SlaPolicyVersionRow = {
+  id: string;
+  effective_from: string;
+  status: string;
+  business_hours: any;
+  label?: string | null;
+};
+
+export type SlaPolicyTargetRow = {
+  version_id?: string;
+  metric: string;
+  severity: number | null;
+  target_seconds: number | null;
+  clock: string;
+};
+
+export type SlaPolicy = {
+  id: string;
+  label: string | null;
+  effectiveFromMs: number;
+  status: PolicyStatus;
+  businessHours: BusinessHoursConfig;
+  targets: SlaTargets;
+  cadence: Record<Severity, { maxGapS: number; clock: SlaClock } | null>;
+  triageTargetS: number | null;
+};
+
+export function dbClockToEngine(clock: string | null | undefined): SlaClock {
+  return clock === "wall" ? "calendar" : "business";
+}
+
+function parseBusinessHours(json: any): BusinessHoursConfig {
+  const j = json ?? {};
+  return {
+    tz: typeof j.tz === "string" ? j.tz : DEFAULT_BUSINESS_HOURS.tz,
+    workDays: Array.isArray(j.work_days) ? j.work_days.map(Number) : [...DEFAULT_BUSINESS_HOURS.workDays],
+    dayStartHour: Number.isFinite(j.day_start_hour) ? Number(j.day_start_hour) : DEFAULT_BUSINESS_HOURS.dayStartHour,
+    dayEndHour: Number.isFinite(j.day_end_hour) ? Number(j.day_end_hour) : DEFAULT_BUSINESS_HOURS.dayEndHour,
+    holidays: Array.isArray(j.holidays) ? j.holidays.map(String) : [],
+  };
+}
+
+const SEVERITIES: Severity[] = [1, 2, 3, 4];
+
+/**
+ * Build engine-shaped policy objects from DB rows.
+ * A missing row OR a null `target_seconds` means "no target" (null) — never a
+ * silent fallback to a hardcoded default.
+ */
+export function policyToEngine(
+  version: SlaPolicyVersionRow,
+  targetRows: SlaPolicyTargetRow[],
+): SlaPolicy {
+  const rows = targetRows.filter((r) => !r.version_id || r.version_id === version.id);
+  const find = (metric: string, severity: number | null) =>
+    rows.find((r) => r.metric === metric && (r.severity ?? null) === severity);
+
+  const targets = {} as SlaTargets;
+  for (const sev of SEVERITIES) {
+    const fr = find("first_response", sev);
+    const res = find("resolution", sev);
+    targets[sev] = {
+      // firstResponseS is non-nullable in SlaTarget; a missing/null FR row is a
+      // config gap, surfaced as Infinity (never met by accident, never 0).
+      firstResponseS: fr?.target_seconds ?? Number.POSITIVE_INFINITY,
+      firstResponseClock: dbClockToEngine(fr?.clock),
+      resolutionS: res?.target_seconds ?? null,
+      resolutionClock: dbClockToEngine(res?.clock),
+    };
+  }
+
+  const cadence = {} as Record<Severity, { maxGapS: number; clock: SlaClock } | null>;
+  for (const sev of SEVERITIES) {
+    const row = find("cadence", sev);
+    cadence[sev] =
+      row && row.target_seconds != null
+        ? { maxGapS: row.target_seconds, clock: dbClockToEngine(row.clock) }
+        : null;
+  }
+
+  const triageRow = find("triage", null);
+
+  return {
+    id: version.id,
+    label: version.label ?? null,
+    effectiveFromMs: Date.parse(version.effective_from),
+    status: version.status === "committed" ? "committed" : "provisional",
+    businessHours: parseBusinessHours(version.business_hours),
+    targets,
+    cadence,
+    triageTargetS: triageRow?.target_seconds ?? null,
+  };
+}
+
+/**
+ * The policy in force at `anchorMs` — the version with the greatest
+ * effectiveFromMs <= anchorMs. Returns null when the ticket arrived before any
+ * configured version (never falls back silently).
+ */
+export function resolvePolicy(anchorMs: number, versions: SlaPolicy[]): SlaPolicy | null {
+  let best: SlaPolicy | null = null;
+  for (const v of versions) {
+    if (!Number.isFinite(v.effectiveFromMs) || v.effectiveFromMs > anchorMs) continue;
+    if (!best || v.effectiveFromMs > best.effectiveFromMs) best = v;
+  }
+  return best;
+}
