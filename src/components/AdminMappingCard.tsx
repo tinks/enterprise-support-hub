@@ -270,6 +270,12 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
                   disabled={!isAdmin || busyId === row.id}
                   onCheckedChange={(v) => toggleActive(row, v)}
                 />
+                <Switch
+                  checked={row.show_dashboard}
+                  disabled={!isAdmin || busyId === row.id || row.role === "ai"}
+                  onCheckedChange={(v) => toggleDashboard(row, v)}
+                  aria-label={`Show ${row.name} in Dashboards menu`}
+                />
                 {isAdmin && (
                   <div className="flex items-center gap-1">
                     <Button
