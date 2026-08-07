@@ -19,7 +19,9 @@ import IntegrationHealthCard from "@/components/IntegrationHealthCard";
 import InboxV3SyncCard from "@/components/InboxV3SyncCard";
 import TicketChannelTestCard from "@/components/TicketChannelTestCard";
 import RolesCard from "@/components/RolesCard";
-import CustomerAccountsCard from "@/components/CustomerAccountsCard";
+// CustomerAccountsCard retired from Settings (7 Aug 2026) — customer accounts are now
+// edited only in Admin → Customers → Registry. Component intentionally kept on disk as rollback.
+import { Building2, ArrowRight } from "lucide-react";
 import lovableLogo from "@/assets/lovable-logo.png";
 
 interface SettingsData {
@@ -402,7 +404,23 @@ const Index = () => {
 
         <RolesCard />
 
-        <CustomerAccountsCard />
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Building2 className="h-4 w-4" /> Customer accounts
+              </CardTitle>
+              <CardDescription>
+                Customer accounts have moved to Admin → Customers → Registry, the single place to manage them.
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <a href="/customers?tab=registry">
+                Open Registry <ArrowRight className="h-3 w-3 ml-1" />
+              </a>
+            </Button>
+          </CardHeader>
+        </Card>
 
 
 
