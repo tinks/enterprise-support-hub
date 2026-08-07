@@ -222,6 +222,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
               <span>Name</span>
               <span>Role</span>
               <span>Active</span>
+              <span>Dashboard</span>
               <span />
             </div>
             {rows.map((row) => (
