@@ -216,32 +216,36 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
           <span className="text-sm text-muted-foreground">No teammates configured</span>
         ) : (
           <div className="space-y-2">
-            <div className="hidden md:grid grid-cols-[140px_1fr_160px_130px_80px_90px_auto] gap-2 text-xs text-muted-foreground px-1">
-              <span>Intercom admin ID</span>
-              <span>Email</span>
-              <span>Name</span>
-              <span>Role</span>
-              <span>Active</span>
-              <span>Dashboard</span>
+            <div className="hidden md:grid grid-cols-[140px_minmax(180px,1fr)_160px_130px_72px_96px_150px] gap-2 text-xs text-muted-foreground px-2 border border-transparent">
+              <span className="truncate">Intercom admin ID</span>
+              <span className="truncate">Email</span>
+              <span className="truncate">Name</span>
+              <span className="truncate">Role</span>
+              <span className="text-center">Active</span>
+              <span className="text-center">Dashboard</span>
               <span />
             </div>
             {rows.map((row) => (
               <div
                 key={row.id}
-                className="grid grid-cols-1 md:grid-cols-[140px_1fr_160px_130px_80px_90px_auto] gap-2 items-center rounded-md border p-2"
+                className="grid grid-cols-1 md:grid-cols-[140px_minmax(180px,1fr)_160px_130px_72px_96px_150px] gap-2 items-center rounded-md border p-2"
               >
+
                 <Input
+                  className="min-w-0"
                   value={row.intercom_admin_id}
                   disabled={!isAdmin}
                   onChange={(e) => patchLocal(row.id, { intercom_admin_id: e.target.value })}
                 />
                 <Input
+                  className="min-w-0"
                   value={row.email ?? ""}
                   placeholder="—"
                   disabled={!isAdmin}
                   onChange={(e) => patchLocal(row.id, { email: e.target.value })}
                 />
                 <Input
+                  className="min-w-0"
                   value={row.name}
                   disabled={!isAdmin}
                   onChange={(e) => patchLocal(row.id, { name: e.target.value })}
@@ -251,7 +255,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
                     value={row.role}
                     onValueChange={(v) => patchLocal(row.id, { role: v as TeammateRole })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="min-w-0">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -263,20 +267,28 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Badge variant="secondary">{row.role}</Badge>
+                  <Badge variant="secondary" className="justify-self-start">
+                    {row.role}
+                  </Badge>
                 )}
-                <Switch
-                  checked={row.active}
-                  disabled={!isAdmin || busyId === row.id}
-                  onCheckedChange={(v) => toggleActive(row, v)}
-                />
-                <Switch
-                  checked={row.show_dashboard}
-                  disabled={!isAdmin || busyId === row.id || row.role === "ai"}
-                  onCheckedChange={(v) => toggleDashboard(row, v)}
-                  aria-label={`Show ${row.name} in Dashboards menu`}
-                />
+                <div className="flex justify-center">
+                  <Switch
+                    checked={row.active}
+                    disabled={!isAdmin || busyId === row.id}
+                    onCheckedChange={(v) => toggleActive(row, v)}
+                    aria-label={`Active roster status for ${row.name}`}
+                  />
+                </div>
+                <div className="flex justify-center">
+                  <Switch
+                    checked={row.show_dashboard}
+                    disabled={!isAdmin || busyId === row.id || row.role === "ai"}
+                    onCheckedChange={(v) => toggleDashboard(row, v)}
+                    aria-label={`Show ${row.name} in Dashboards menu`}
+                  />
+                </div>
                 {isAdmin && (
+
                   <div className="flex items-center gap-1">
                     <Button
                       variant="outline"
@@ -308,7 +320,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
         )}
 
         {isAdmin && (
-          <div className="grid grid-cols-1 md:grid-cols-[140px_1fr_160px_130px_auto] gap-2 items-end border-t pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-[140px_minmax(180px,1fr)_160px_130px_168px_150px] gap-2 items-end border-t pt-4 px-2">
             <div className="space-y-1">
               <Label className="text-xs">Admin ID</Label>
               <Input placeholder="9985999" value={newAdminId} onChange={(e) => setNewAdminId(e.target.value)} />
