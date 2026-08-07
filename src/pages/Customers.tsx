@@ -39,6 +39,7 @@ type Coverage = {
   excluded_not_enterprise?: number;
   excluded_prospect_personal?: number;
   excluded_prospect_unmapped?: number;
+  excluded_transferred_out?: number;
   population?: number;
 };
 
