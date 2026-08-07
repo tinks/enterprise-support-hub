@@ -1176,6 +1176,7 @@ export type Database = {
           intercom_admin_id: string
           name: string
           role: string
+          show_dashboard: boolean
           updated_at: string
         }
         Insert: {
@@ -1186,6 +1187,7 @@ export type Database = {
           intercom_admin_id: string
           name: string
           role: string
+          show_dashboard?: boolean
           updated_at?: string
         }
         Update: {
@@ -1196,6 +1198,7 @@ export type Database = {
           intercom_admin_id?: string
           name?: string
           role?: string
+          show_dashboard?: boolean
           updated_at?: string
         }
         Relationships: []

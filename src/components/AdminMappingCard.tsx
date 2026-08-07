@@ -20,6 +20,7 @@ interface Teammate {
   name: string;
   role: TeammateRole;
   active: boolean;
+  show_dashboard: boolean;
 }
 
 interface SettingsData {
@@ -56,7 +57,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
   const load = async () => {
     const { data, error } = await supabase
       .from("teammates")
-      .select("id, intercom_admin_id, email, name, role, active")
+      .select("id, intercom_admin_id, email, name, role, active, show_dashboard")
       .order("name");
     if (error) {
       toast.error("Failed to load teammates: " + error.message);
@@ -105,7 +106,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
     const { data, error } = await supabase
       .from("teammates")
       .insert({ intercom_admin_id, email: newEmail.trim() || null, name, role: newRole })
-      .select("id, intercom_admin_id, email, name, role, active")
+      .select("id, intercom_admin_id, email, name, role, active, show_dashboard")
       .single();
     setBusyId(null);
     if (error) {
@@ -162,6 +163,23 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
     }
   };
 
+  /** Controls whether this person gets an entry in the Dashboards nav flyout. */
+  const toggleDashboard = async (row: Teammate, show_dashboard: boolean) => {
+    patchLocal(row.id, { show_dashboard });
+    setBusyId(row.id);
+    const { error } = await supabase
+      .from("teammates")
+      .update({ show_dashboard } as any)
+      .eq("id", row.id);
+    setBusyId(null);
+    if (error) {
+      patchLocal(row.id, { show_dashboard: row.show_dashboard });
+      toast.error("Failed to update: " + error.message);
+    }
+  };
+
+
+
   const removeRow = async (row: Teammate) => {
     setBusyId(row.id);
     const { error } = await supabase.from("teammates").delete().eq("id", row.id);
@@ -198,18 +216,19 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
           <span className="text-sm text-muted-foreground">No teammates configured</span>
         ) : (
           <div className="space-y-2">
-            <div className="hidden md:grid grid-cols-[140px_1fr_160px_130px_80px_auto] gap-2 text-xs text-muted-foreground px-1">
+            <div className="hidden md:grid grid-cols-[140px_1fr_160px_130px_80px_90px_auto] gap-2 text-xs text-muted-foreground px-1">
               <span>Intercom admin ID</span>
               <span>Email</span>
               <span>Name</span>
               <span>Role</span>
               <span>Active</span>
+              <span>Dashboard</span>
               <span />
             </div>
             {rows.map((row) => (
               <div
                 key={row.id}
-                className="grid grid-cols-1 md:grid-cols-[140px_1fr_160px_130px_80px_auto] gap-2 items-center rounded-md border p-2"
+                className="grid grid-cols-1 md:grid-cols-[140px_1fr_160px_130px_80px_90px_auto] gap-2 items-center rounded-md border p-2"
               >
                 <Input
                   value={row.intercom_admin_id}
@@ -250,6 +269,12 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
                   checked={row.active}
                   disabled={!isAdmin || busyId === row.id}
                   onCheckedChange={(v) => toggleActive(row, v)}
+                />
+                <Switch
+                  checked={row.show_dashboard}
+                  disabled={!isAdmin || busyId === row.id || row.role === "ai"}
+                  onCheckedChange={(v) => toggleDashboard(row, v)}
+                  aria-label={`Show ${row.name} in Dashboards menu`}
                 />
                 {isAdmin && (
                   <div className="flex items-center gap-1">

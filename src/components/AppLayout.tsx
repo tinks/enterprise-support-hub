@@ -22,6 +22,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useDashboardTeammates } from "@/hooks/useDashboardTeammates";
 
 type NavChild = { to: string; label: string; end?: boolean; adminOnly?: boolean };
 type NavLinkItem = { kind: "link"; to: string; icon: LucideIcon; label: string; end?: boolean };
@@ -54,14 +55,7 @@ const navEntries: NavEntry[] = [
     kind: "group",
     label: "Dashboards",
     icon: Users,
-    items: [
-      { to: "/sla", label: "SLA Dashboard" },
-      { to: "/my/joel", label: "Joel" },
-      { to: "/my/kristina", label: "Kristina" },
-      { to: "/my/tine", label: "Tine" },
-      { to: "/my/eren", label: "Eren" },
-      { to: "/my/matt", label: "Matt" },
-    ],
+    items: [{ to: "/sla", label: "SLA Dashboard" }],
   },
   {
     kind: "group",
@@ -101,11 +95,18 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAdmin } = useIsAdmin();
+  const { items: dashboardTeammates } = useDashboardTeammates();
 
-  // Admin-only nav children are hidden for non-admins (routes + RLS enforce too)
-  const visibleEntries: NavEntry[] = navEntries.map((e) =>
-    e.kind === "group" ? { ...e, items: e.items.filter((i) => !i.adminOnly || isAdmin) } : e,
-  );
+  // Admin-only nav children are hidden for non-admins (routes + RLS enforce too).
+  // The Dashboards group appends the per-owner entries driven by the teammates roster.
+  const visibleEntries: NavEntry[] = navEntries.map((e) => {
+    if (e.kind !== "group") return e;
+    const items = e.items.filter((i) => !i.adminOnly || isAdmin);
+    return {
+      ...e,
+      items: e.label === "Dashboards" ? [...items, ...dashboardTeammates] : items,
+    };
+  });
 
   // Sidebar stays expanded if hovering sidebar OR the portalled menu
   const expanded = sidebarHovered || menuHovered;
