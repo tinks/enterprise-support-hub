@@ -39,6 +39,7 @@ type Coverage = {
   excluded_not_enterprise?: number;
   excluded_prospect_personal?: number;
   excluded_prospect_unmapped?: number;
+  excluded_transferred_out?: number;
   population?: number;
 };
 
@@ -311,6 +312,7 @@ function CoverageTab({ isAdmin }: { isAdmin: boolean }) {
   const excludedNotEnterprise = cov.excluded_not_enterprise ?? 0;
   const excludedProspectPersonal = cov.excluded_prospect_personal ?? 0;
   const excludedProspectUnmapped = cov.excluded_prospect_unmapped ?? 0;
+  const excludedTransferredOut = cov.excluded_transferred_out ?? 0;
   const population =
     cov.population ??
     Math.max(
@@ -318,12 +320,14 @@ function CoverageTab({ isAdmin }: { isAdmin: boolean }) {
       cov.total_tickets -
         excludedNotEnterprise -
         excludedProspectPersonal -
-        excludedProspectUnmapped,
+        excludedProspectUnmapped -
+        excludedTransferredOut,
     );
+
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Verified attributed</CardDescription>
@@ -380,6 +384,17 @@ function CoverageTab({ isAdmin }: { isAdmin: boolean }) {
           <CardHeader className="pb-2">
             <CardDescription>Prospects (unmapped)</CardDescription>
             <CardTitle className="text-3xl">{excludedProspectUnmapped}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Excluded from attribution denominator
+          </CardContent>
+        </Card>
+        <Card
+          title="Tickets whose lifecycle_status is `transferred_out` — they left the Enterprise inbox and are no longer ours to attribute. Excluded from the denominator and from the Unattributed queue (which already filtered them), so the two surfaces now agree."
+        >
+          <CardHeader className="pb-2">
+            <CardDescription>Transferred out (excluded)</CardDescription>
+            <CardTitle className="text-3xl">{excludedTransferredOut}</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
             Excluded from attribution denominator

@@ -1304,6 +1304,7 @@ export type Database = {
           excluded_not_enterprise: number
           excluded_prospect_personal: number
           excluded_prospect_unmapped: number
+          excluded_transferred_out: number
           m_domain: number
           m_orphan_override: number
           m_override: number
@@ -1322,6 +1323,7 @@ export type Database = {
           excluded_not_enterprise?: number
           excluded_prospect_personal?: number
           excluded_prospect_unmapped?: number
+          excluded_transferred_out?: number
           m_domain?: number
           m_orphan_override?: number
           m_override?: number
@@ -1340,6 +1342,7 @@ export type Database = {
           excluded_not_enterprise?: number
           excluded_prospect_personal?: number
           excluded_prospect_unmapped?: number
+          excluded_transferred_out?: number
           m_domain?: number
           m_orphan_override?: number
           m_override?: number
@@ -1578,6 +1581,7 @@ export type Database = {
           excluded_not_enterprise: number
           excluded_prospect_personal: number
           excluded_prospect_unmapped: number
+          excluded_transferred_out: number
           m_domain: number
           m_orphan_override: number
           m_override: number
@@ -1627,6 +1631,7 @@ export type Database = {
           excluded_not_enterprise: number
           excluded_prospect_personal: number
           excluded_prospect_unmapped: number
+          excluded_transferred_out: number
           m_domain: number
           m_orphan_override: number
           m_override: number
