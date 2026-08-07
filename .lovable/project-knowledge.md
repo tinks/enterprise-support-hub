@@ -512,13 +512,25 @@ Empty/missing values are omitted so existing values are never overwritten with b
   - **Reports** ▸ Analytics (`/`) · Analytics v3 · Insights · SLA Report
   - **Customer report** — standalone top-level link (kept there because CSMs were already told it's there; moves under Reports later)
   - **Issues** ▸ Inbox (`/conversations`) · Inbox v3
-  - **Dashboards** ▸ SLA Dashboard (`/sla`) · Joel · Kristina · Tine · Eren · Matt
-  - **Tools** ▸ Import · SLA Workbench
-  - **Admin** ▸ Customers · Settings · Knowledge · Flow · Changelog
+  - **Dashboards** ▸ SLA Dashboard (`/sla`) + one entry **per teammate**, data-driven (see below)
+  - **Tools** ▸ Import · SLA Workbench · Backlog · Prospects · SLA What-if
+  - **Admin** ▸ Customers · Settings · Knowledge · Flow · Changelog · SLA Policy (admin-only)
 - **Why by use, not by name:** you navigate by intent ("report", "work the queue", "configure"), and the flat list overflowed a 13" screen.
 - **Deliberate tradeoff:** a feature family is **split across use-groups** — SLA Report → Reports, SLA Dashboard → Dashboards, SLA Workbench → Tools. Mitigated by keeping the family name in the **child label** ("SLA Report" / "SLA Dashboard" / "SLA Workbench") so it stays findable by reading.
 - **Mechanic:** one **generic per-row hover flyout** (generalized from the old single hardcoded Dashboards flyout), positioned at each group row via `getBoundingClientRect().top`, rendered outside the sidebar so it isn't clipped, with the same ~150ms close debounce so the mouse can cross into it. A group that shrinks to exactly **one item degrades to a plain link** — future-proofing as legacy/v2 options fall off.
 - **De-nav'd, not deleted:** only the v2 NAV ENTRIES were removed; the `/analytics-v2` and `/inbox-v2` ROUTES still exist and are reachable by URL. Data cleanup is a separate later task.
+
+### Dashboards group is roster-driven (`show_dashboard`)
+
+The per-owner `/my/*` children are **no longer hardcoded**. `src/hooks/useDashboardTeammates.ts` loads `public.teammates WHERE active AND show_dashboard AND role <> 'ai'` ordered by name and maps each row to `{ to: "/my/" + name.toLowerCase(), label: name }`; the static SLA Dashboard entry stays pinned first.
+
+- `teammates.show_dashboard` is a `boolean NOT NULL DEFAULT false` column, backfilled `true` for the five names that were previously hardcoded (Joel, Kristina, Tine, Eren, Matt).
+- Toggled per row from the **Teammates panel** in Settings (`AdminMappingCard.tsx`), next to the existing Active switch. Admin-gated; the switch is **disabled for `role = 'ai'`** so Sam can never be given a dashboard.
+- **Both gates apply.** An inactive teammate drops out of the flyout even with `show_dashboard = true`. This is a live behavior change: **Joel** is `active = false` on the roster, so he no longer appears in the flyout even though his flag is on. Flip `active` back on (or accept the removal) — the data was not changed to paper over it.
+- **Fallback:** if the query errors the hook returns the previous hardcoded five, so the nav never renders empty.
+- **Scope fence — this is nav curation, not access control.** `/my/:owner` remains reachable by URL for any owner name. `OWNER_OPTIONS` (`Conversations.tsx`, `ConversationDetail.tsx`, `TestChannelReview.tsx`) and `OWNER_MAP` (`BulkImportReview.tsx`) stay hardcoded — they include non-teammate owners (`CSM`, `Sam`) and drive filtering of historical data, so repointing them at the roster is a separate pass.
+
+
 
 ---
 
