@@ -57,7 +57,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
   const load = async () => {
     const { data, error } = await supabase
       .from("teammates")
-      .select("id, intercom_admin_id, email, name, role, active")
+      .select("id, intercom_admin_id, email, name, role, active, show_dashboard")
       .order("name");
     if (error) {
       toast.error("Failed to load teammates: " + error.message);
@@ -106,7 +106,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
     const { data, error } = await supabase
       .from("teammates")
       .insert({ intercom_admin_id, email: newEmail.trim() || null, name, role: newRole })
-      .select("id, intercom_admin_id, email, name, role, active")
+      .select("id, intercom_admin_id, email, name, role, active, show_dashboard")
       .single();
     setBusyId(null);
     if (error) {
