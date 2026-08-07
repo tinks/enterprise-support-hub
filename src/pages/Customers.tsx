@@ -389,6 +389,17 @@ function CoverageTab({ isAdmin }: { isAdmin: boolean }) {
             Excluded from attribution denominator
           </CardContent>
         </Card>
+        <Card
+          title="Tickets whose lifecycle_status is `transferred_out` — they left the Enterprise inbox and are no longer ours to attribute. Excluded from the denominator and from the Unattributed queue (which already filtered them), so the two surfaces now agree."
+        >
+          <CardHeader className="pb-2">
+            <CardDescription>Transferred out (excluded)</CardDescription>
+            <CardTitle className="text-3xl">{excludedTransferredOut}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Excluded from attribution denominator
+          </CardContent>
+        </Card>
         <Card>
           <CardHeader className="pb-2"><CardDescription>Actions</CardDescription></CardHeader>
           <CardContent className="space-y-2">
