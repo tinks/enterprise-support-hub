@@ -50,8 +50,9 @@ const ROW_H = 380;
 /*  Navigation: Left sidebar (AppLayout) — collapsed to 56px icons,    */
 /*  auto-expands to 200px on hover, collapses on mouse leave.          */
 /*  Vertical gradient accent bar on the left edge.                     */
-/*  "Dashboards" flyout group: Joel & Kristina are under a single      */
-/*  Dashboards nav item with a hover flyout submenu (no extra clicks). */
+/*  "Dashboards" flyout group: per-owner entries are driven by          */
+/*  public.teammates (active AND show_dashboard AND role <> 'ai'),      */
+/*  toggled from the Teammates panel in Settings.                       */
 /* ------------------------------------------------------------------ */
 /*  Gmail resolve & toggleTest: optimistic UI update with error        */
 /*  handling — reverts state and shows toast on failure. No `as any`.  */
