@@ -22,6 +22,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useDashboardTeammates } from "@/hooks/useDashboardTeammates";
 
 type NavChild = { to: string; label: string; end?: boolean; adminOnly?: boolean };
 type NavLinkItem = { kind: "link"; to: string; icon: LucideIcon; label: string; end?: boolean };
