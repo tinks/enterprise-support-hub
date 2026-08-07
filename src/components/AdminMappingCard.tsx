@@ -163,6 +163,23 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
     }
   };
 
+  /** Controls whether this person gets an entry in the Dashboards nav flyout. */
+  const toggleDashboard = async (row: Teammate, show_dashboard: boolean) => {
+    patchLocal(row.id, { show_dashboard });
+    setBusyId(row.id);
+    const { error } = await supabase
+      .from("teammates")
+      .update({ show_dashboard } as any)
+      .eq("id", row.id);
+    setBusyId(null);
+    if (error) {
+      patchLocal(row.id, { show_dashboard: row.show_dashboard });
+      toast.error("Failed to update: " + error.message);
+    }
+  };
+
+
+
   const removeRow = async (row: Teammate) => {
     setBusyId(row.id);
     const { error } = await supabase.from("teammates").delete().eq("id", row.id);
