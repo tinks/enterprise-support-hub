@@ -27,7 +27,7 @@ Retire the Settings card and make the Registry the single place.
 
 1. Remove `<CustomerAccountsCard />` from the Settings page (`src/pages/Index.tsx`).
 2. In its place, add a one-line pointer card: "Customer accounts have moved to Admin → Customers → Registry" with a link to `/customers?tab=registry`, so anyone with the old muscle memory lands in the right spot instead of finding nothing.
-3. Delete `src/components/CustomerAccountsCard.tsx` (no other importer).
+3. Keep `src/components/CustomerAccountsCard.tsx` on disk, unrendered — not deleted. It stays available as an instant rollback if anything turns out to depend on it.
 4. Confirm the Registry tab is reachable via a `tab` query param; if it isn't, add that param handling so the pointer link opens directly on Registry.
 
 No migration, no schema change, no resolver change, no edge-function change. Data is untouched.
