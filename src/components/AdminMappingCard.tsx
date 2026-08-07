@@ -216,7 +216,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
           <span className="text-sm text-muted-foreground">No teammates configured</span>
         ) : (
           <div className="space-y-2">
-            <div className="hidden md:grid grid-cols-[140px_1fr_160px_130px_80px_auto] gap-2 text-xs text-muted-foreground px-1">
+            <div className="hidden md:grid grid-cols-[140px_1fr_160px_130px_80px_90px_auto] gap-2 text-xs text-muted-foreground px-1">
               <span>Intercom admin ID</span>
               <span>Email</span>
               <span>Name</span>
@@ -227,7 +227,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
             {rows.map((row) => (
               <div
                 key={row.id}
-                className="grid grid-cols-1 md:grid-cols-[140px_1fr_160px_130px_80px_auto] gap-2 items-center rounded-md border p-2"
+                className="grid grid-cols-1 md:grid-cols-[140px_1fr_160px_130px_80px_90px_auto] gap-2 items-center rounded-md border p-2"
               >
                 <Input
                   value={row.intercom_admin_id}
