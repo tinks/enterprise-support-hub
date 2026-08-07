@@ -312,6 +312,7 @@ function CoverageTab({ isAdmin }: { isAdmin: boolean }) {
   const excludedNotEnterprise = cov.excluded_not_enterprise ?? 0;
   const excludedProspectPersonal = cov.excluded_prospect_personal ?? 0;
   const excludedProspectUnmapped = cov.excluded_prospect_unmapped ?? 0;
+  const excludedTransferredOut = cov.excluded_transferred_out ?? 0;
   const population =
     cov.population ??
     Math.max(
@@ -319,8 +320,10 @@ function CoverageTab({ isAdmin }: { isAdmin: boolean }) {
       cov.total_tickets -
         excludedNotEnterprise -
         excludedProspectPersonal -
-        excludedProspectUnmapped,
+        excludedProspectUnmapped -
+        excludedTransferredOut,
     );
+
 
   return (
     <div className="space-y-4">
