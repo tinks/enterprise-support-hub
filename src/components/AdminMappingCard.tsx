@@ -20,6 +20,7 @@ interface Teammate {
   name: string;
   role: TeammateRole;
   active: boolean;
+  show_dashboard: boolean;
 }
 
 interface SettingsData {
