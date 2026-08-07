@@ -94,11 +94,18 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAdmin } = useIsAdmin();
+  const { items: dashboardTeammates } = useDashboardTeammates();
 
-  // Admin-only nav children are hidden for non-admins (routes + RLS enforce too)
-  const visibleEntries: NavEntry[] = navEntries.map((e) =>
-    e.kind === "group" ? { ...e, items: e.items.filter((i) => !i.adminOnly || isAdmin) } : e,
-  );
+  // Admin-only nav children are hidden for non-admins (routes + RLS enforce too).
+  // The Dashboards group appends the per-owner entries driven by the teammates roster.
+  const visibleEntries: NavEntry[] = navEntries.map((e) => {
+    if (e.kind !== "group") return e;
+    const items = e.items.filter((i) => !i.adminOnly || isAdmin);
+    return {
+      ...e,
+      items: e.label === "Dashboards" ? [...items, ...dashboardTeammates] : items,
+    };
+  });
 
   // Sidebar stays expanded if hovering sidebar OR the portalled menu
   const expanded = sidebarHovered || menuHovered;
