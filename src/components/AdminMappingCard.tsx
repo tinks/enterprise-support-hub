@@ -320,7 +320,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
         )}
 
         {isAdmin && (
-          <div className="grid grid-cols-1 md:grid-cols-[140px_1fr_160px_130px_auto] gap-2 items-end border-t pt-4">
+          <div className="grid grid-cols-1 md:grid-cols-[140px_minmax(180px,1fr)_160px_130px_168px_150px] gap-2 items-end border-t pt-4 px-2">
             <div className="space-y-1">
               <Label className="text-xs">Admin ID</Label>
               <Input placeholder="9985999" value={newAdminId} onChange={(e) => setNewAdminId(e.target.value)} />
