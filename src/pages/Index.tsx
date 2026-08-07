@@ -19,7 +19,9 @@ import IntegrationHealthCard from "@/components/IntegrationHealthCard";
 import InboxV3SyncCard from "@/components/InboxV3SyncCard";
 import TicketChannelTestCard from "@/components/TicketChannelTestCard";
 import RolesCard from "@/components/RolesCard";
-import CustomerAccountsCard from "@/components/CustomerAccountsCard";
+// CustomerAccountsCard retired from Settings (7 Aug 2026) — customer accounts are now
+// edited only in Admin → Customers → Registry. Component intentionally kept on disk as rollback.
+import { Building2, ArrowRight } from "lucide-react";
 import lovableLogo from "@/assets/lovable-logo.png";
 
 interface SettingsData {
