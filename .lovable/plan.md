@@ -36,7 +36,7 @@ No migration, no schema change, no resolver change, no edge-function change. Dat
 
 - Settings renders without the accounts table and with the pointer link.
 - `/customers?tab=registry` opens on the Registry tab and lists the same accounts (same count as before).
-- `tsgo --noEmit` clean; no dangling imports.
+- `tsgo --noEmit` clean; the orphaned component file still compiles (kept intentionally, no importer).
 
 ## Docs
 
