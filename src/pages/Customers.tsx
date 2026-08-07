@@ -241,9 +241,17 @@ function EvidenceTickets({
   );
 }
 
+type CustomersTab = "coverage" | "unattributed" | "channels" | "registry";
+const CUSTOMER_TABS: CustomersTab[] = ["coverage", "unattributed", "channels", "registry"];
+
 export default function Customers() {
   const { isAdmin } = useIsAdmin();
-  const [tab, setTab] = useState<"coverage" | "unattributed" | "channels" | "registry">("coverage");
+  // Deep-linkable: /customers?tab=registry (e.g. the Settings pointer card).
+  const initialTab = ((): CustomersTab => {
+    const t = new URLSearchParams(window.location.search).get("tab") as CustomersTab | null;
+    return t && CUSTOMER_TABS.includes(t) ? t : "coverage";
+  })();
+  const [tab, setTab] = useState<CustomersTab>(initialTab);
 
   return (
     <AppLayout>
