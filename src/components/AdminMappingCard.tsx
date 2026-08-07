@@ -232,17 +232,20 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
               >
 
                 <Input
+                  className="min-w-0"
                   value={row.intercom_admin_id}
                   disabled={!isAdmin}
                   onChange={(e) => patchLocal(row.id, { intercom_admin_id: e.target.value })}
                 />
                 <Input
+                  className="min-w-0"
                   value={row.email ?? ""}
                   placeholder="—"
                   disabled={!isAdmin}
                   onChange={(e) => patchLocal(row.id, { email: e.target.value })}
                 />
                 <Input
+                  className="min-w-0"
                   value={row.name}
                   disabled={!isAdmin}
                   onChange={(e) => patchLocal(row.id, { name: e.target.value })}
@@ -252,7 +255,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
                     value={row.role}
                     onValueChange={(v) => patchLocal(row.id, { role: v as TeammateRole })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="min-w-0">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -264,20 +267,28 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Badge variant="secondary">{row.role}</Badge>
+                  <Badge variant="secondary" className="justify-self-start">
+                    {row.role}
+                  </Badge>
                 )}
-                <Switch
-                  checked={row.active}
-                  disabled={!isAdmin || busyId === row.id}
-                  onCheckedChange={(v) => toggleActive(row, v)}
-                />
-                <Switch
-                  checked={row.show_dashboard}
-                  disabled={!isAdmin || busyId === row.id || row.role === "ai"}
-                  onCheckedChange={(v) => toggleDashboard(row, v)}
-                  aria-label={`Show ${row.name} in Dashboards menu`}
-                />
+                <div className="flex justify-center">
+                  <Switch
+                    checked={row.active}
+                    disabled={!isAdmin || busyId === row.id}
+                    onCheckedChange={(v) => toggleActive(row, v)}
+                    aria-label={`Active roster status for ${row.name}`}
+                  />
+                </div>
+                <div className="flex justify-center">
+                  <Switch
+                    checked={row.show_dashboard}
+                    disabled={!isAdmin || busyId === row.id || row.role === "ai"}
+                    onCheckedChange={(v) => toggleDashboard(row, v)}
+                    aria-label={`Show ${row.name} in Dashboards menu`}
+                  />
+                </div>
                 {isAdmin && (
+
                   <div className="flex items-center gap-1">
                     <Button
                       variant="outline"
