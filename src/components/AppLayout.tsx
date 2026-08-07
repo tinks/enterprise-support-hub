@@ -54,14 +54,7 @@ const navEntries: NavEntry[] = [
     kind: "group",
     label: "Dashboards",
     icon: Users,
-    items: [
-      { to: "/sla", label: "SLA Dashboard" },
-      { to: "/my/joel", label: "Joel" },
-      { to: "/my/kristina", label: "Kristina" },
-      { to: "/my/tine", label: "Tine" },
-      { to: "/my/eren", label: "Eren" },
-      { to: "/my/matt", label: "Matt" },
-    ],
+    items: [{ to: "/sla", label: "SLA Dashboard" }],
   },
   {
     kind: "group",
