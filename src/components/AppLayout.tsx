@@ -76,10 +76,17 @@ const navEntries: NavEntry[] = [
     items: [
       { to: "/customers", label: "Customers" },
       { to: "/settings", label: "Settings" },
+      { to: "/sla-policy", label: "SLA Policy", adminOnly: true },
+    ],
+  },
+  {
+    kind: "group",
+    label: "Docs",
+    icon: BookOpen,
+    items: [
       { to: "/knowledge", label: "Knowledge" },
       { to: "/flow", label: "Flow" },
       { to: "/changelog", label: "Changelog" },
-      { to: "/sla-policy", label: "SLA Policy", adminOnly: true },
     ],
   },
 ];
