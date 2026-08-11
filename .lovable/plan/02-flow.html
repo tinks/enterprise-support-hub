@@ -1,0 +1,60 @@
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: var(--font-sans); fill: hsl(var(--foreground)); }
+    .lbl { font-size: 14px; font-weight: 480; }
+    .sm { font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .mono { font-family: var(--font-mono); font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .box { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .wire { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+    .zone { fill: none; stroke: hsl(var(--border)); stroke-width: 1; stroke-dasharray: 4 3; }
+  </style>
+  <defs>
+    <marker id="cv" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8" fill="none" stroke="hsl(var(--muted-foreground))" stroke-width="1"/>
+    </marker>
+  </defs>
+
+  <rect class="box" x="8" y="30" width="150" height="56" rx="8"/>
+  <text class="lbl" x="83" y="53" text-anchor="middle">Intercom</text>
+  <text class="sm" x="83" y="71" text-anchor="middle">Enterprise Inbox</text>
+
+  <line class="wire" x1="158" y1="58" x2="212" y2="58" marker-end="url(#cv)"/>
+  <text class="mono" x="185" y="48" text-anchor="middle" style="paint-order:stroke;stroke:hsl(var(--background));stroke-width:3px">5 min</text>
+
+  <rect class="box" x="214" y="30" width="170" height="56" rx="8"/>
+  <text class="lbl" x="299" y="53" text-anchor="middle">sync-v3-open</text>
+  <text class="mono" x="299" y="71" text-anchor="middle">*/5 * * * *</text>
+
+  <line class="wire" x1="384" y1="58" x2="438" y2="58" marker-end="url(#cv)"/>
+
+  <rect class="box" x="440" y="30" width="192" height="56" rx="8"/>
+  <text class="lbl" x="536" y="53" text-anchor="middle">intercom_tickets_v3</text>
+  <text class="mono" x="536" y="71" text-anchor="middle">custom_attributes.Severity</text>
+
+  <line class="wire" x1="536" y1="86" x2="536" y2="122" marker-end="url(#cv)"/>
+
+  <rect class="zone" x="20" y="118" width="612" height="164" rx="8"/>
+  <text class="sm" x="34" y="138">/triage — read-only</text>
+
+  <rect class="box" x="404" y="122" width="212" height="46" rx="8"/>
+  <text class="lbl" x="510" y="150" text-anchor="middle">filter: open + no Severity</text>
+
+  <line class="wire" x1="404" y1="145" x2="330" y2="145" marker-end="url(#cv)"/>
+
+  <rect class="box" x="150" y="122" width="178" height="46" rx="8"/>
+  <text class="lbl" x="239" y="143" text-anchor="middle">business-hours age</text>
+  <text class="sm" x="239" y="160" text-anchor="middle">anchor = SLA clock start</text>
+
+  <line class="wire" x1="239" y1="168" x2="239" y2="196" marker-end="url(#cv)"/>
+
+  <rect class="box" x="40" y="198" width="560" height="70" rx="8"/>
+  <text class="lbl" x="60" y="222">Sorted oldest first, graded vs 30-min target</text>
+  <rect x="60" y="236" width="86" height="18" rx="9" fill="hsl(var(--muted))"/>
+  <text class="sm" x="103" y="249" text-anchor="middle">OK &lt;15m</text>
+  <rect x="154" y="236" width="110" height="18" rx="9" fill="hsl(var(--muted))"/>
+  <text class="sm" x="209" y="249" text-anchor="middle">approaching 15-24m</text>
+  <rect x="272" y="236" width="94" height="18" rx="9" fill="hsl(var(--muted))"/>
+  <text class="sm" x="319" y="249" text-anchor="middle">at risk 24-30m</text>
+  <rect x="374" y="236" width="92" height="18" rx="9" fill="hsl(var(--accent))"/>
+  <text class="sm" x="420" y="249" text-anchor="middle" fill="hsl(var(--accent-foreground))">breached 30m+</text>
+</svg>
