@@ -32,6 +32,7 @@ import Backlog from "./pages/Backlog";
 import Prospects from "./pages/Prospects";
 import SlaWhatIf from "./pages/SlaWhatIf";
 import SlaPolicyAdmin from "./pages/SlaPolicyAdmin";
+import Triage from "./pages/Triage";
 
 
 const queryClient = new QueryClient();

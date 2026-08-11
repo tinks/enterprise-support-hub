@@ -47,6 +47,7 @@ const navEntries: NavEntry[] = [
     label: "Issues",
     icon: MessageSquare,
     items: [
+      { to: "/triage", label: "Triage" },
       { to: "/conversations", label: "Inbox" },
       { to: "/inbox-v3", label: "Inbox v3" },
     ],
