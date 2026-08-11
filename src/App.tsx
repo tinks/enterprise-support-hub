@@ -33,6 +33,7 @@ import Prospects from "./pages/Prospects";
 import SlaWhatIf from "./pages/SlaWhatIf";
 import SlaPolicyAdmin from "./pages/SlaPolicyAdmin";
 import Triage from "./pages/Triage";
+import Escalations from "./pages/Escalations";
 
 
 const queryClient = new QueryClient();
