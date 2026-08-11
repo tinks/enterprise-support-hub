@@ -86,10 +86,11 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  // The Slack connector secret is named SLACK_API_KEY; older deployments used
-  // the SLACK_API_KEY_1 alias. Read the current name first, fall back to the
-  // legacy one so a connector rename can't silently stop the daily poll.
-  const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY") ?? Deno.env.get("SLACK_API_KEY_1");
+  // The linked Slack connection injects SLACK_API_KEY_1; SLACK_API_KEY is a
+  // stale secret left behind by an earlier connection whose credential no
+  // longer exists in the gateway. Prefer the live one, fall back to the other
+  // so a future relink under either name can't silently stop the daily poll.
+  const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY_1") ?? Deno.env.get("SLACK_API_KEY");
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
   const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
