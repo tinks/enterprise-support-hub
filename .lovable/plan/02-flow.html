@@ -1,0 +1,66 @@
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" style="font-family: var(--font-sans)">
+  <style>
+    .box { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .lbl { fill: hsl(var(--foreground)); font-size: 13px; font-weight: 480; }
+    .sub { fill: hsl(var(--muted-foreground)); font-size: 11px; }
+    .wire { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+    .dash { stroke-dasharray: 4 3; }
+    .zone { fill: none; stroke: hsl(var(--border)); stroke-width: 1; stroke-dasharray: 4 3; }
+    .tag { fill: hsl(var(--border)); font-size: 10px; }
+    .acc { fill: none; stroke: hsl(var(--accent)); stroke-width: 1; }
+    .acctxt { fill: hsl(var(--accent-foreground)); font-size: 13px; font-weight: 480; }
+  </style>
+  <defs>
+    <marker id="ch" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6" fill="none" stroke="hsl(var(--muted-foreground))" stroke-width="1"/>
+    </marker>
+  </defs>
+
+  <!-- sources -->
+  <rect class="box" x="8" y="20" width="170" height="56" rx="8"/>
+  <text class="lbl" x="20" y="42">intercom_tickets_v3</text>
+  <text class="sub" x="20" y="60">Ticket type = Bug | Feature Request</text>
+
+  <rect class="box" x="8" y="96" width="170" height="56" rx="8"/>
+  <text class="lbl" x="20" y="118">custom_attributes</text>
+  <text class="sub" x="20" y="136">Linear Issue / Escalated Issue</text>
+
+  <!-- join -->
+  <rect class="box" x="238" y="52" width="150" height="68" rx="8"/>
+  <text class="lbl" x="252" y="80">Board query</text>
+  <text class="sub" x="252" y="98">candidates LEFT JOIN</text>
+  <text class="sub" x="252" y="112">dev_escalations</text>
+
+  <rect class="box" x="238" y="164" width="150" height="60" rx="8"/>
+  <text class="lbl" x="252" y="188">dev_escalations</text>
+  <text class="sub" x="252" y="206">hub state · link · notes</text>
+
+  <!-- linear later -->
+  <rect class="box dash" x="8" y="176" width="170" height="56" rx="8"/>
+  <text class="lbl" x="20" y="198">Linear connector</text>
+  <text class="sub" x="20" y="216">phase 2 — state, assignee</text>
+
+  <!-- board -->
+  <rect class="acc" x="448" y="52" width="180" height="68" rx="8"/>
+  <text class="acctxt" x="462" y="80">/escalations table</text>
+  <text class="sub" x="462" y="98">grouped by hub state,</text>
+  <text class="sub" x="462" y="112">oldest first</text>
+
+  <path class="wire" d="M178,48 H208 V86 H236" marker-end="url(#ch)"/>
+  <path class="wire" d="M178,124 H208 V86" />
+  <path class="wire" d="M313,164 V122" marker-end="url(#ch)"/>
+  <path class="wire" d="M388,86 H446" marker-end="url(#ch)"/>
+  <path class="wire dash" d="M178,204 H313" marker-end="url(#ch)"/>
+
+  <!-- lifecycle rail -->
+  <rect class="zone" x="8" y="250" width="620" height="42" rx="8"/>
+  <text class="tag" x="18" y="266">hub lifecycle — independent of Intercom state</text>
+  <text class="lbl" x="18" y="284">open</text>
+  <text class="sub" x="70" y="284">→</text>
+  <text class="lbl" x="90" y="284">in progress</text>
+  <text class="sub" x="176" y="284">→</text>
+  <text class="lbl" x="196" y="284">fix shipped</text>
+  <text class="sub" x="282" y="284">→</text>
+  <text class="acctxt" x="302" y="284">customer notified</text>
+  <text class="sub" x="432" y="284">·  wont do (terminal)</text>
+</svg>
