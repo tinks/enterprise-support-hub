@@ -122,7 +122,9 @@ Deno.serve(async (req) => {
       if (unresolvedIds.length > 0) {
         console.log(`Tier 3: attempting connector gateway for ${unresolvedIds.length} unresolved IDs:`, unresolvedIds);
         const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-        const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY");
+        // The linked Slack connection injects SLACK_API_KEY_1; SLACK_API_KEY is a
+        // stale legacy secret kept only as a fallback.
+        const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY_1") ?? Deno.env.get("SLACK_API_KEY");
 
         if (LOVABLE_API_KEY && SLACK_API_KEY) {
           const fallbackChannels = await Promise.all(
