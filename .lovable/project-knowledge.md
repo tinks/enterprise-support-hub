@@ -511,7 +511,7 @@ Empty/missing values are omitted so existing values are never overwritten with b
 - Structure:
   - **Reports** ▸ Analytics (`/`) · Analytics v3 · Insights · SLA Report
   - **Customer report** — standalone top-level link (kept there because CSMs were already told it's there; moves under Reports later)
-  - **Issues** ▸ Triage (`/triage`) · Inbox (`/conversations`) · Inbox v3
+  - **Issues** ▸ Triage (`/triage`) · Dev escalations (`/escalations`) · Inbox (`/conversations`) · Inbox v3
   - **Dashboards** ▸ SLA Dashboard (`/sla`) + one entry **per teammate**, data-driven (see below)
   - **Tools** ▸ Import · SLA Workbench · Backlog · Prospects · SLA What-if
   - **Admin** ▸ Customers · Settings · Knowledge · Flow · Changelog · SLA Policy (admin-only)
@@ -1270,6 +1270,22 @@ Surfaced as the Report §2b **"Triage discipline (provisional 30-min target)"** 
 - **Bands** (% of target): OK <50% · Approaching 50–80% · At risk 80–100% · Breached >100%. Row tint + pill, plus per-band counters above the table.
 - **Freshness:** no live Intercom feed. `sync-v3-open-frequent` runs `*/5 * * * *`, so a newly-triaged ticket leaves the queue within ~5 min. The header shows "Data as of {max(last_synced_at)} · syncs every 5 min" with a manual refresh; a 30s local tick advances ages/bands without refetching.
 - **Read-only by design** — no writes, no override table, no Severity assignment. Assigning triage from this view is a deliberate later step.
+
+### Dev escalation board — `/escalations` (`src/pages/Escalations.tsx`) — HUB-OWNED lifecycle
+**Purpose:** track Intercom tickets typed as a **Bug** or **Feature Request** alongside their **Linear** escalation issue, under a lifecycle **the Hub owns**, so an item stays visible until the *customer has actually been told* — long after Intercom has closed the conversation.
+
+- **Population (automatic, no sync job):** `intercom_tickets_v3` where `custom_attributes->>'Ticket type' ∈ {Bug, Feature Request}`, excluding `lifecycle_status = 'transferred_out'` and `customer_resolution_method = 'not_enterprise'` (same exclusions as the other v3 surfaces). **Intercom state is deliberately NOT a filter** — it is shown as an informational column only. 22 tickets qualified at build time (9 Bug / 13 Feature Request).
+- **Hub state:** `open → in_progress → fix_shipped → customer_notified`, plus terminal `wont_do`. The board defaults to *active only* (hides the two terminal states).
+- **VIRTUAL open rows.** A qualifying ticket renders at `open` with **no row written**. `public.dev_escalations` is only inserted on the first human decision (state change, Linear link, or note) — so the table holds decisions, never a mirror of Intercom. Nothing to backfill, nothing to drift.
+- **Linear (phase 1 = LINK ONLY).** The link is resolved in priority order: Hub `linear_url_override` → `custom_attributes."Linear Issue"` → `custom_attributes."Escalated Issue"`. Full `linear.app` URLs and bare `KEY-123` issue keys both resolve; anything else (some `Escalated Issue` values are Slack permalinks) is shown **verbatim and unlinked** rather than guessed at. The override is editable inline per row.
+- **Phase-2 ready, deliberately blank.** `linear_key / linear_title / linear_state / linear_assignee / linear_synced_at` exist from day one and render as `—` until a `sync-linear-escalations` edge function is added against the Linear connector gateway. Adding it is one function + one cron — **no migration, no UI rewrite**. They are never faked in the meantime.
+- **Schema — `public.dev_escalations`:** `intercom_conversation_id` **UNIQUE** (the join key, upsert target), `hub_state` (CHECK over the five states), `linear_url_override`, `note`, `owner`, `state_changed_at`, `notified_at`, the five phase-2 Linear columns, `created_by`, `created_at`, `updated_at` (shared `update_updated_at_column` trigger). RLS mirrors `esh_backlog_items`: **any authenticated** user selects/inserts/updates; **DELETE admin-only**. `state_changed_at` is stamped on every state write, `notified_at` additionally when moving to `customer_notified`.
+- **Table:** Type · Subject+contact · Customer · Owner · Intercom state · Linear · Hub state (inline select) · Age (days since `intercom_created_at`) · Note. Sorted **oldest first**. Filters: hub state / type / owner / customer + free-text search across subject, contact, Linear ref and note. Per-state counters above the table.
+
+
+
+
+
 
 
 
