@@ -511,7 +511,7 @@ Empty/missing values are omitted so existing values are never overwritten with b
 - Structure:
   - **Reports** ▸ Analytics (`/`) · Analytics v3 · Insights · SLA Report
   - **Customer report** — standalone top-level link (kept there because CSMs were already told it's there; moves under Reports later)
-  - **Issues** ▸ Inbox (`/conversations`) · Inbox v3
+  - **Issues** ▸ Triage (`/triage`) · Inbox (`/conversations`) · Inbox v3
   - **Dashboards** ▸ SLA Dashboard (`/sla`) + one entry **per teammate**, data-driven (see below)
   - **Tools** ▸ Import · SLA Workbench · Backlog · Prospects · SLA What-if
   - **Admin** ▸ Customers · Settings · Knowledge · Flow · Changelog · SLA Policy (admin-only)
