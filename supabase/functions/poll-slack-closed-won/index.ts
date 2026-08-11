@@ -86,13 +86,35 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY_1");
+  // The Slack connector secret is named SLACK_API_KEY; older deployments used
+  // the SLACK_API_KEY_1 alias. Read the current name first, fall back to the
+  // legacy one so a connector rename can't silently stop the daily poll.
+  const SLACK_API_KEY = Deno.env.get("SLACK_API_KEY") ?? Deno.env.get("SLACK_API_KEY_1");
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
   const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
   if (!LOVABLE_API_KEY || !SLACK_API_KEY || !SUPABASE_URL || !SERVICE_ROLE) {
+    const missing = [
+      !LOVABLE_API_KEY && "LOVABLE_API_KEY",
+      !SLACK_API_KEY && "SLACK_API_KEY",
+      !SUPABASE_URL && "SUPABASE_URL",
+      !SERVICE_ROLE && "SUPABASE_SERVICE_ROLE_KEY",
+    ].filter(Boolean).join(", ");
+    console.error("poll-slack-closed-won missing env:", missing);
+    // Record health when possible so a config break surfaces in Settings →
+    // Integration health instead of freezing the card on the last good run.
+    if (SUPABASE_URL && SERVICE_ROLE) {
+      try {
+        await recordIntegrationHealth(
+          createClient(SUPABASE_URL, SERVICE_ROLE),
+          "slack_closed_won_poll",
+          "auth_error",
+          `Missing required environment variables: ${missing}`,
+        );
+      } catch { /* best effort */ }
+    }
     return new Response(
-      JSON.stringify({ error: "Missing required environment variables" }),
+      JSON.stringify({ error: "Missing required environment variables", missing }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
