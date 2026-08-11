@@ -1260,6 +1260,19 @@ Surfaced as the Report §2b **"Triage discipline (provisional 30-min target)"** 
 
 `SlaOverrideMetric` in `src/hooks/useSlaBatch.ts` includes `"cadence"`, so `isExcused(cid, "cadence")` works identically to the other metrics.
 
+### Triage queue — `/triage` (`src/pages/Triage.tsx`) — READ-ONLY live queue
+**Purpose:** show every OPEN Enterprise-Inbox ticket that still has **no `Severity`** custom attribute, oldest first, colour-graded against the triage target — the operational counterpart to the retrospective triage numbers on the Report/Workbench (which only cover closed tickets).
+
+- **Population:** `intercom_tickets_v3` where `lifecycle_status ∈ {open, reopened_after_finalize}` and `custom_attributes.Severity` is absent/blank. Closed tickets are out by construction (Severity is required before close).
+- **Age clock:** business-hours elapsed via `businessHoursBetween`, using the **policy-resolved** `businessHours` from `useSlaPolicy` (active version, falling back loudly to the engine defaults through `PolicyFallbackBanner`). Wall-clock elapsed is shown as a muted secondary column — never as the graded number.
+- **Anchor:** `computeSla().slaClockStartS` (first Enterprise-Inbox team assignment) else `createdAtS`; the row labels which anchor was used ("inbox assignment" / "ticket created") so the number is never unexplained.
+- **Target:** `activePolicy.triageTargetS` (currently 1800s / 30 min, provisional) — read from the config tables, not a constant.
+- **Bands** (% of target): OK <50% · Approaching 50–80% · At risk 80–100% · Breached >100%. Row tint + pill, plus per-band counters above the table.
+- **Freshness:** no live Intercom feed. `sync-v3-open-frequent` runs `*/5 * * * *`, so a newly-triaged ticket leaves the queue within ~5 min. The header shows "Data as of {max(last_synced_at)} · syncs every 5 min" with a manual refresh; a 30s local tick advances ages/bands without refetching.
+- **Read-only by design** — no writes, no override table, no Severity assignment. Assigning triage from this view is a deliberate later step.
+
+
+
 
 
 #### SLA policy config — admin-editable, effective-dated targets (schema + engine + `/sla-policy`)
