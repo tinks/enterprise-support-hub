@@ -227,6 +227,63 @@ export type Database = {
         }
         Relationships: []
       }
+      dev_escalations: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          hub_state: string
+          id: string
+          intercom_conversation_id: string
+          linear_assignee: string | null
+          linear_key: string | null
+          linear_state: string | null
+          linear_synced_at: string | null
+          linear_title: string | null
+          linear_url_override: string | null
+          note: string | null
+          notified_at: string | null
+          owner: string | null
+          state_changed_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          hub_state?: string
+          id?: string
+          intercom_conversation_id: string
+          linear_assignee?: string | null
+          linear_key?: string | null
+          linear_state?: string | null
+          linear_synced_at?: string | null
+          linear_title?: string | null
+          linear_url_override?: string | null
+          note?: string | null
+          notified_at?: string | null
+          owner?: string | null
+          state_changed_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          hub_state?: string
+          id?: string
+          intercom_conversation_id?: string
+          linear_assignee?: string | null
+          linear_key?: string | null
+          linear_state?: string | null
+          linear_synced_at?: string | null
+          linear_title?: string | null
+          linear_url_override?: string | null
+          note?: string | null
+          notified_at?: string | null
+          owner?: string | null
+          state_changed_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       esh_backlog_items: {
         Row: {
           area: string | null
