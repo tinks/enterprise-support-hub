@@ -365,7 +365,7 @@ Deno.serve(async (req) => {
   return json({
     ok: true, windowHours, fetched: conversations.length,
     inserted, updated, skipped, failed, reopened, silent_nudges: silentNudges, tickets_finalized: ticketsFinalized,
-    attr_refreshed: attrRefreshed,
+    attr_refreshed: attrRefreshed, alerted,
 
     stateCounts,
     elapsed_ms: Date.now() - startedAt,
