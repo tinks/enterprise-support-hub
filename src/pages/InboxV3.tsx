@@ -63,9 +63,7 @@ function formatDuration(seconds: number | null): string {
   return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
-function intercomUrl(id: string) {
-  return `https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${id}?view=List`;
-}
+import { intercomUrl } from "@/lib/intercom";
 
 export default function InboxV3() {
   const [tab, setTab] = useState<"finalized" | "active" | "transferred">("active");
