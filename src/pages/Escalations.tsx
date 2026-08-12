@@ -5,10 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, RefreshCw, ExternalLink, Info, Check, X } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
+import { idColumn, subjectColumn, contactColumn, customerColumn, ownerColumn, ageColumn } from "@/components/issues/issueColumns";
+import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 
 type Ticket = {
   id: string;
