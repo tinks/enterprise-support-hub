@@ -207,13 +207,13 @@ export default function Prospects() {
           <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {rows.length}</span>
         </div>
 
-        <IssueTable
+        <IssueTable<Ticket>
           rows={filtered}
           columns={columns}
           getRowKey={(r) => r.id}
           loading={loading}
           emptyMessage="No prospect-tagged tickets match these filters."
-          onRowClick={setSelected}
+          onRowClick={(r) => setSelected(r)}
         />
       </div>
 
