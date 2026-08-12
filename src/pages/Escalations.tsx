@@ -239,6 +239,146 @@ export default function Escalations() {
     });
   };
 
+  const columns: IssueColumn<EscalationRow>[] = [
+    idColumn<EscalationRow>((r) => r.ticket.intercom_conversation_id),
+    subjectColumn<EscalationRow>((r) => r.ticket.subject),
+    contactColumn<EscalationRow>((r) => r.ticket.contact_name, (r) => r.ticket.contact_email),
+    customerColumn<EscalationRow>((r) => r.ticket.customer_key, accountLabel),
+    ownerColumn<EscalationRow>((r) => r.ticket.owner),
+    {
+      key: "type",
+      header: "Type",
+      width: "w-[120px]",
+      cell: (r) => (
+        <Badge variant={r.type === "Bug" ? "destructive" : "secondary"} className="text-[10px]">{r.type}</Badge>
+      ),
+    },
+    {
+      key: "intercom_state",
+      header: "Intercom",
+      width: "w-[110px]",
+      cellClassName: "text-xs text-muted-foreground",
+      cell: (r) =>
+        r.ticket.lifecycle_status === "finalized" ? "Closed" : r.ticket.state || r.ticket.lifecycle_status || "—",
+    },
+    {
+      key: "linear",
+      header: "Linear",
+      width: "w-[190px]",
+      cellClassName: "text-xs",
+      cell: (r) => {
+        const cid = r.ticket.intercom_conversation_id;
+        const isSaving = saving === cid;
+        if (editing?.id === cid && editing.field === "link") {
+          return (
+            <div className="flex items-center gap-1">
+              <Input
+                autoFocus
+                className="h-7 text-xs"
+                placeholder="Linear URL or KEY-123"
+                value={linkDraft[cid] ?? r.esc?.linear_url_override ?? ""}
+                onChange={(e) => setLinkDraft((d) => ({ ...d, [cid]: e.target.value }))}
+              />
+              <Button size="icon" variant="ghost" className="h-7 w-7" disabled={isSaving}
+                onClick={async () => {
+                  await upsert(cid, { linear_url_override: (linkDraft[cid] ?? "").trim() || null });
+                  setEditing(null);
+                }}
+              ><Check className="h-3.5 w-3.5" /></Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(null)}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          );
+        }
+        return (
+          <>
+            <button
+              className="text-left hover:underline"
+              onClick={() => { setLinkDraft((d) => ({ ...d, [cid]: r.esc?.linear_url_override ?? "" })); setEditing({ id: cid, field: "link" }); }}
+            >
+              {r.linear.url ? (
+                <span className="text-foreground">{r.linear.key ?? "Linear issue"}</span>
+              ) : r.linear.raw ? (
+                <span className="text-muted-foreground truncate block max-w-[170px]">{r.linear.raw}</span>
+              ) : (
+                <span className="text-muted-foreground">— link</span>
+              )}
+            </button>
+            {r.linear.url && (
+              <a href={r.linear.url} target="_blank" rel="noreferrer" className="ml-1 inline-flex text-muted-foreground hover:text-foreground align-middle">
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+          </>
+        );
+      },
+    },
+    {
+      key: "hub_state",
+      header: "Hub state",
+      width: "w-[180px]",
+      cell: (r) => {
+        const cid = r.ticket.intercom_conversation_id;
+        return (
+          <Select
+            value={r.hubState}
+            onValueChange={(v) => upsert(cid, { hub_state: v as HubState })}
+            disabled={saving === cid}
+          >
+            <SelectTrigger className={`h-7 text-xs border ${HUB_META[r.hubState].pill}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {HUB_STATES.map((s) => <SelectItem key={s} value={s}>{HUB_META[s].label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        );
+      },
+    },
+    {
+      key: "note",
+      header: "Note",
+      width: "w-[220px]",
+      cellClassName: "text-xs",
+      cell: (r) => {
+        const cid = r.ticket.intercom_conversation_id;
+        const isSaving = saving === cid;
+        if (editing?.id === cid && editing.field === "note") {
+          return (
+            <div className="flex items-center gap-1">
+              <Input
+                autoFocus
+                className="h-7 text-xs"
+                value={noteDraft[cid] ?? r.esc?.note ?? ""}
+                onChange={(e) => setNoteDraft((d) => ({ ...d, [cid]: e.target.value }))}
+              />
+              <Button size="icon" variant="ghost" className="h-7 w-7" disabled={isSaving}
+                onClick={async () => {
+                  await upsert(cid, { note: (noteDraft[cid] ?? "").trim() || null });
+                  setEditing(null);
+                }}
+              ><Check className="h-3.5 w-3.5" /></Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(null)}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          );
+        }
+        return (
+          <button
+            className="text-left w-full truncate hover:underline text-muted-foreground"
+            onClick={() => { setNoteDraft((d) => ({ ...d, [cid]: r.esc?.note ?? "" })); setEditing({ id: cid, field: "note" }); }}
+          >
+            {r.esc?.note || "— add note"}
+          </button>
+        );
+      },
+    },
+    ageColumn<EscalationRow>((r) => r.createdMs),
+  ];
+
+
   return (
     <AppLayout>
       <div className="p-6 space-y-4">
