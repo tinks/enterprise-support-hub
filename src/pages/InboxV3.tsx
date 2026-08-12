@@ -13,6 +13,8 @@ import { format, formatDistanceToNow, differenceInDays } from "date-fns";
 import { CLEAN_DATA_START_LABEL } from "@/pages/inbox-v3/constants";
 import { effectiveRsa } from "@/pages/inbox-v3/rsa";
 import { toast } from "@/hooks/use-toast";
+import { intercomUrl } from "@/lib/intercom";
+import { IntercomIdChip } from "@/components/issues/IssueTable";
 
 type Ticket = {
   id: string;
