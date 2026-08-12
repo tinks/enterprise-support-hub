@@ -65,7 +65,6 @@ function formatDuration(seconds: number | null): string {
   return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
-import { intercomUrl } from "@/lib/intercom";
 
 export default function InboxV3() {
   const [tab, setTab] = useState<"finalized" | "active" | "transferred">("active");
