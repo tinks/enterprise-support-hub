@@ -107,7 +107,13 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
     setBusyId("new");
     const { data, error } = await supabase
       .from("teammates")
-      .insert({ intercom_admin_id, email: newEmail.trim() || null, name, role: newRole })
+      .insert({
+        intercom_admin_id,
+        email: newEmail.trim() || null,
+        name,
+        slack_user_id: newSlackId.trim() || null,
+        role: newRole,
+      })
       .select("id, intercom_admin_id, email, name, slack_user_id, role, active, show_dashboard")
       .single();
     setBusyId(null);
