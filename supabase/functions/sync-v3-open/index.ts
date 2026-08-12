@@ -27,6 +27,8 @@ import {
 import { finalizeConversation } from "../_shared/v3-finalize.ts";
 import { syncTicketAttributes } from "../_shared/v3-attributes.ts";
 import { writeV3Signals } from "../_shared/v3-signals.ts";
+import { notifyNewTicket } from "../_shared/new-ticket-alert.ts";
+
 
 
 Deno.serve(async (req) => {
@@ -142,7 +144,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  let inserted = 0, updated = 0, skipped = 0, failed = 0, reopened = 0, silentNudges = 0, ticketsFinalized = 0, attrRefreshed = 0;
+  let inserted = 0, updated = 0, skipped = 0, failed = 0, reopened = 0, silentNudges = 0, ticketsFinalized = 0, attrRefreshed = 0, alerted = 0;
 
 
   for (const conv of conversations) {
@@ -241,6 +243,22 @@ Deno.serve(async (req) => {
         last_synced_at: new Date().toISOString(),
       };
 
+      // Alert on tickets that are new to our store AND genuinely recent, so a
+      // wide backfill sweep can't spam the channel with historical tickets.
+      const maybeAlert = async () => {
+        const createdMs = createdIso ? new Date(createdIso).getTime() : 0;
+        if (Date.now() - createdMs > 24 * 3600 * 1000) return;
+        const r = await notifyNewTicket(supabase, {
+          convId,
+          subject,
+          contactName,
+          contactEmail,
+          owner,
+          createdIso,
+        });
+        if (r === "sent") alerted++;
+      };
+
       // Minimal, search-payload-only upsert (NO GET /conversations/{id}).
       const minimalUpsert = async (): Promise<string | null> => {
         const { error, data: upserted } = await supabase
@@ -250,12 +268,13 @@ Deno.serve(async (req) => {
         if (error) { failed++; return null; }
         if (upserted && upserted[0]) {
           const isNew = Date.now() - new Date(upserted[0].created_at).getTime() < 5000;
-          if (isNew) inserted++; else updated++;
+          if (isNew) { inserted++; await maybeAlert(); } else updated++;
           return upserted[0].id as string;
         }
         updated++;
         return null;
       };
+
 
       // Delta check: open tickets carry stale `custom_attributes` (Severity →
       // SLA target) because the minimal path never refreshes them. Spend a
@@ -310,7 +329,8 @@ Deno.serve(async (req) => {
       if (error) { failed++; continue; }
       if (upserted && upserted[0]) {
         const isNew = Date.now() - new Date(upserted[0].created_at).getTime() < 5000;
-        if (isNew) inserted++; else updated++;
+        if (isNew) { inserted++; await maybeAlert(); } else updated++;
+
         const ticketId = upserted[0].id;
         try { await syncTicketAttributes(supabase, ticketId, icData, { convId }); }
         catch (e) { console.error(`[sync-v3-open] attr sync (open) ${convId}: ${(e as Error).message}`); }
@@ -345,7 +365,7 @@ Deno.serve(async (req) => {
   return json({
     ok: true, windowHours, fetched: conversations.length,
     inserted, updated, skipped, failed, reopened, silent_nudges: silentNudges, tickets_finalized: ticketsFinalized,
-    attr_refreshed: attrRefreshed,
+    attr_refreshed: attrRefreshed, alerted,
 
     stateCounts,
     elapsed_ms: Date.now() - startedAt,

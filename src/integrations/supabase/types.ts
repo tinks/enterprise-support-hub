@@ -958,6 +958,27 @@ export type Database = {
         }
         Relationships: []
       }
+      new_ticket_alerts: {
+        Row: {
+          created_at: string
+          intercom_conversation_id: string
+          slack_channel_id: string
+          slack_ts: string | null
+        }
+        Insert: {
+          created_at?: string
+          intercom_conversation_id: string
+          slack_channel_id: string
+          slack_ts?: string | null
+        }
+        Update: {
+          created_at?: string
+          intercom_conversation_id?: string
+          slack_channel_id?: string
+          slack_ts?: string | null
+        }
+        Relationships: []
+      }
       pending_intercom_links: {
         Row: {
           attempts: number
