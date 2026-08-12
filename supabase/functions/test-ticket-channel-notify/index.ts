@@ -1,76 +1,41 @@
-// One-shot test: posts a clearly-labeled test message to the ticket
-// notifications Slack channel (C0BDZAY8R8A) using SLACK_BOT_TOKEN to verify
-// the bot can post there. No tickets, no DMs, no DB writes.
+// One-shot test harness for the new-ticket Slack alert.
+// ---------------------------------------------------------------------------
+// Calls the REAL notifyNewTicket() with a synthetic conversation id so the
+// message we see in Slack is byte-identical in shape to a production alert
+// (same formatter, same mention lookup from settings.new_ticket_alert_mentions).
+// Cleans up its own `new_ticket_alerts` claim row afterwards so the test id can
+// be reused; no ticket rows are touched.
+// ---------------------------------------------------------------------------
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { notifyNewTicket } from "../_shared/new-ticket-alert.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SLACK_API_URL = "https://slack.com/api";
-const DEFAULT_TICKET_NOTIFY_CHANNEL_ID = "C0BDZAY8R8A";
-
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
-  const TICKET_NOTIFY_CHANNEL_ID =
-    new URL(req.url).searchParams.get("channel") || DEFAULT_TICKET_NOTIFY_CHANNEL_ID;
-  const token = Deno.env.get("SLACK_BOT_TOKEN");
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
 
-  if (!token) {
-    return new Response(
-      JSON.stringify({ ok: false, error: "SLACK_BOT_TOKEN not configured" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
-  }
+  const convId = `test-${Date.now()}`;
+  const result = await notifyNewTicket(supabase, {
+    convId,
+    subject: "TEST — please ignore (new-ticket alert format check)",
+    contactName: "Jane Example",
+    contactEmail: "jane@example.com",
+    owner: "Matt",
+    createdIso: new Date().toISOString(),
+  });
 
-  const text = `🧪 *Test* — Ticket channel notification check from \`slack-interactions\` config. Safe to ignore. (${new Date().toISOString()})`;
+  // Drop the synthetic claim row so the test leaves no trace.
+  await supabase.from("new_ticket_alerts").delete().eq("intercom_conversation_id", convId);
 
-  try {
-    const res = await fetch(`${SLACK_API_URL}/chat.postMessage`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        channel: TICKET_NOTIFY_CHANNEL_ID,
-        text,
-        username: "Ask Lovable",
-        icon_url:
-          "https://dzwcgqyznzrntkbobejo.supabase.co/storage/v1/object/public/public-assets/bot-avatar/lovable-logo.png",
-      }),
-    });
-    const data = await res.json();
-
-    let diagnosis: string;
-    if (data.ok) {
-      diagnosis = `✅ Channel ${TICKET_NOTIFY_CHANNEL_ID} is configured correctly. Posted ts=${data.ts}.`;
-    } else if (data.error === "not_in_channel") {
-      diagnosis = `❌ Bot is not a member of ${TICKET_NOTIFY_CHANNEL_ID}. Run "/invite @<botname>" in that channel.`;
-    } else if (data.error === "channel_not_found") {
-      diagnosis = `❌ Channel ${TICKET_NOTIFY_CHANNEL_ID} not found. Verify the ID is correct and accessible to the bot.`;
-    } else if (data.error === "is_archived") {
-      diagnosis = `❌ Channel ${TICKET_NOTIFY_CHANNEL_ID} is archived.`;
-    } else if (data.error === "missing_scope") {
-      diagnosis = `❌ Bot token is missing required scope (likely chat:write). Slack needed scopes: ${data.needed ?? "unknown"}.`;
-    } else {
-      diagnosis = `❌ Slack returned error: ${data.error ?? "unknown"}`;
-    }
-
-    return new Response(
-      JSON.stringify({ diagnosis, slack: data, channel: TICKET_NOTIFY_CHANNEL_ID }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
-  } catch (err) {
-    return new Response(
-      JSON.stringify({
-        ok: false,
-        error: err instanceof Error ? err.message : String(err),
-        diagnosis: `❌ Network/throw before Slack responded.`,
-      }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
-  }
+  return new Response(JSON.stringify({ result, convId }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 });
