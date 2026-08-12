@@ -67,9 +67,6 @@ function bandFor(elapsedS: number, targetS: number): Band {
   return "ok";
 }
 
-function intercomUrl(id: string) {
-  return `https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${id}?view=List`;
-}
 
 function hasSeverity(attrs: any): boolean {
   const v = attrs?.["Severity"];
