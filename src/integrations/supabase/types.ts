@@ -332,6 +332,54 @@ export type Database = {
         }
         Relationships: []
       }
+      float_coverage_shifts: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          display_name: string
+          end_time: string
+          ends_on: string
+          id: string
+          note: string | null
+          slack_user_id: string
+          start_time: string
+          starts_on: string
+          time_zone: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          display_name: string
+          end_time: string
+          ends_on: string
+          id?: string
+          note?: string | null
+          slack_user_id: string
+          start_time: string
+          starts_on: string
+          time_zone?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          display_name?: string
+          end_time?: string
+          ends_on?: string
+          id?: string
+          note?: string | null
+          slack_user_id?: string
+          start_time?: string
+          starts_on?: string
+          time_zone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       flow_node_positions: {
         Row: {
           id: string
@@ -1258,6 +1306,7 @@ export type Database = {
           name: string
           role: string
           show_dashboard: boolean
+          slack_user_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1269,6 +1318,7 @@ export type Database = {
           name: string
           role: string
           show_dashboard?: boolean
+          slack_user_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1280,6 +1330,7 @@ export type Database = {
           name?: string
           role?: string
           show_dashboard?: boolean
+          slack_user_id?: string | null
           updated_at?: string
         }
         Relationships: []

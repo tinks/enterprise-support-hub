@@ -18,6 +18,8 @@ interface Teammate {
   intercom_admin_id: string;
   email: string | null;
   name: string;
+  /** Slack member ID (U…), used to @-mention on float coverage shifts. */
+  slack_user_id: string | null;
   role: TeammateRole;
   active: boolean;
   show_dashboard: boolean;
@@ -52,12 +54,13 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
   const [newAdminId, setNewAdminId] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newName, setNewName] = useState("");
+  const [newSlackId, setNewSlackId] = useState("");
   const [newRole, setNewRole] = useState<TeammateRole>("support");
 
   const load = async () => {
     const { data, error } = await supabase
       .from("teammates")
-      .select("id, intercom_admin_id, email, name, role, active, show_dashboard")
+      .select("id, intercom_admin_id, email, name, slack_user_id, role, active, show_dashboard")
       .order("name");
     if (error) {
       toast.error("Failed to load teammates: " + error.message);
@@ -105,8 +108,14 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
     setBusyId("new");
     const { data, error } = await supabase
       .from("teammates")
-      .insert({ intercom_admin_id, email: newEmail.trim() || null, name, role: newRole })
-      .select("id, intercom_admin_id, email, name, role, active, show_dashboard")
+      .insert({
+        intercom_admin_id,
+        email: newEmail.trim() || null,
+        name,
+        slack_user_id: newSlackId.trim() || null,
+        role: newRole,
+      })
+      .select("id, intercom_admin_id, email, name, slack_user_id, role, active, show_dashboard")
       .single();
     setBusyId(null);
     if (error) {
@@ -118,6 +127,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
     setNewAdminId("");
     setNewEmail("");
     setNewName("");
+    setNewSlackId("");
     setNewRole("support");
     await syncBlob(next);
     toast.success(`${name} added`);
@@ -139,6 +149,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
         intercom_admin_id: row.intercom_admin_id.trim(),
         email: row.email?.trim() || null,
         name: row.name.trim(),
+        slack_user_id: row.slack_user_id?.trim() || null,
         role: row.role,
         active: row.active,
       })
@@ -216,10 +227,11 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
           <span className="text-sm text-muted-foreground">No teammates configured</span>
         ) : (
           <div className="space-y-2">
-            <div className="hidden lg:grid grid-cols-[110px_minmax(0,1.4fr)_minmax(90px,1fr)_100px_56px_74px_120px] gap-2 text-xs text-muted-foreground px-2 border border-transparent">
+            <div className="hidden lg:grid grid-cols-[110px_minmax(0,1.3fr)_minmax(90px,1fr)_110px_100px_56px_74px_120px] gap-2 text-xs text-muted-foreground px-2 border border-transparent">
               <span className="truncate">Intercom admin ID</span>
               <span className="truncate">Email</span>
               <span className="truncate">Name</span>
+              <span className="truncate">Slack ID</span>
               <span className="truncate">Role</span>
               <span className="text-center">Active</span>
               <span className="text-center">Dashboard</span>
@@ -228,7 +240,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
             {rows.map((row) => (
               <div
                 key={row.id}
-                className="grid grid-cols-1 lg:grid-cols-[110px_minmax(0,1.4fr)_minmax(90px,1fr)_100px_56px_74px_120px] gap-2 items-center rounded-md border p-2"
+                className="grid grid-cols-1 lg:grid-cols-[110px_minmax(0,1.3fr)_minmax(90px,1fr)_110px_100px_56px_74px_120px] gap-2 items-center rounded-md border p-2"
               >
 
                 <Input
@@ -249,6 +261,13 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
                   value={row.name}
                   disabled={!isAdmin}
                   onChange={(e) => patchLocal(row.id, { name: e.target.value })}
+                />
+                <Input
+                  className="min-w-0"
+                  value={row.slack_user_id ?? ""}
+                  placeholder="U…"
+                  disabled={!isAdmin}
+                  onChange={(e) => patchLocal(row.id, { slack_user_id: e.target.value })}
                 />
                 {isAdmin ? (
                   <Select
@@ -320,7 +339,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
         )}
 
         {isAdmin && (
-           <div className="grid grid-cols-1 lg:grid-cols-[110px_minmax(0,1.4fr)_minmax(90px,1fr)_100px_202px] gap-2 items-end border-t pt-4 px-2">
+           <div className="grid grid-cols-1 lg:grid-cols-[110px_minmax(0,1.3fr)_minmax(90px,1fr)_110px_100px_202px] gap-2 items-end border-t pt-4 px-2">
             <div className="space-y-1">
               <Label className="text-xs">Admin ID</Label>
               <Input placeholder="9985999" value={newAdminId} onChange={(e) => setNewAdminId(e.target.value)} />
@@ -336,6 +355,14 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
             <div className="space-y-1">
               <Label className="text-xs">Name</Label>
               <Input placeholder="Kristina" value={newName} onChange={(e) => setNewName(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Slack ID</Label>
+              <Input
+                placeholder="U0B7TCDJRTQ"
+                value={newSlackId}
+                onChange={(e) => setNewSlackId(e.target.value)}
+              />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Role</Label>
