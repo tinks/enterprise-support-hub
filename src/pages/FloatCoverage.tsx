@@ -72,7 +72,7 @@ function formatRange(startsOn: string, endsOn: string) {
 }
 
 export default function FloatCoverage() {
-  const { isAdmin, loading: adminLoading } = useIsAdmin();
+  const { isAdmin, isLoading: adminLoading } = useIsAdmin();
   const [shifts, setShifts] = useState<ShiftRow[]>([]);
   const [teammates, setTeammates] = useState<Teammate[]>([]);
   const [alwaysOn, setAlwaysOn] = useState("");
