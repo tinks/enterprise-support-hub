@@ -1,0 +1,45 @@
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .l { font-family: var(--font-sans); font-size: 14px; font-weight: 480; fill: hsl(var(--foreground)); }
+    .s { font-family: var(--font-sans); font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .m { font-family: var(--font-mono); font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .box { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .wire { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+    .halo { paint-order: stroke; stroke: hsl(var(--background)); stroke-width: 3px; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8" fill="none" stroke="hsl(var(--muted-foreground))" stroke-width="1"/>
+    </marker>
+  </defs>
+
+  <rect class="box" x="8" y="118" width="120" height="46" rx="8"/>
+  <text class="l" x="68" y="139" text-anchor="middle">New ticket</text>
+  <text class="s" x="68" y="155" text-anchor="middle">synced by cron</text>
+
+  <line class="wire" x1="128" y1="141" x2="172" y2="141" marker-end="url(#a)"/>
+
+  <rect class="box" x="172" y="110" width="132" height="62" rx="8"/>
+  <text class="l" x="238" y="133" text-anchor="middle">Match shifts</text>
+  <text class="s" x="238" y="149" text-anchor="middle">now, per shift</text>
+  <text class="m" x="238" y="164" text-anchor="middle">timezone-aware</text>
+
+  <path class="wire" d="M304 128 L352 128 L352 62 L392 62" marker-end="url(#a)"/>
+  <path class="wire" d="M304 154 L352 154 L352 232 L392 232" marker-end="url(#a)"/>
+
+  <text class="s halo" x="358" y="96">covered</text>
+  <text class="s halo" x="358" y="204">no match</text>
+
+  <rect class="box" x="392" y="36" width="240" height="52" rx="8" fill="hsl(var(--accent))" fill-opacity="0.12" stroke="hsl(var(--accent))"/>
+  <text class="l" x="512" y="58" text-anchor="middle">Ping everyone on shift</text>
+  <text class="s" x="512" y="75" text-anchor="middle">overlaps allowed — all get mentioned</text>
+
+  <rect class="box" x="392" y="206" width="240" height="52" rx="8"/>
+  <text class="l" x="512" y="228" text-anchor="middle">Post with no mention</text>
+  <text class="s" x="512" y="245" text-anchor="middle">alert still lands in the channel</text>
+
+  <rect class="box" x="392" y="120" width="240" height="52" rx="8" stroke-dasharray="4 3"/>
+  <text class="l" x="512" y="142" text-anchor="middle">Always-on list</text>
+  <text class="s" x="512" y="159" text-anchor="middle">added to either path; blank by default</text>
+  <path class="wire" d="M304 141 L392 146" stroke-dasharray="4 3" marker-end="url(#a)"/>
+</svg>
