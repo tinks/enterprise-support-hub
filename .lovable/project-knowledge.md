@@ -1280,7 +1280,20 @@ Surfaced as the Report §2b **"Triage discipline (provisional 30-min target)"** 
 - **Linear (phase 1 = LINK ONLY).** The link is resolved in priority order: Hub `linear_url_override` → `custom_attributes."Linear Issue"` → `custom_attributes."Escalated Issue"`. Full `linear.app` URLs and bare `KEY-123` issue keys both resolve; anything else (some `Escalated Issue` values are Slack permalinks) is shown **verbatim and unlinked** rather than guessed at. The override is editable inline per row.
 - **Phase-2 ready, deliberately blank.** `linear_key / linear_title / linear_state / linear_assignee / linear_synced_at` exist from day one and render as `—` until a `sync-linear-escalations` edge function is added against the Linear connector gateway. Adding it is one function + one cron — **no migration, no UI rewrite**. They are never faked in the meantime.
 - **Schema — `public.dev_escalations`:** `intercom_conversation_id` **UNIQUE** (the join key, upsert target), `hub_state` (CHECK over the five states), `linear_url_override`, `note`, `owner`, `state_changed_at`, `notified_at`, the five phase-2 Linear columns, `created_by`, `created_at`, `updated_at` (shared `update_updated_at_column` trigger). RLS mirrors `esh_backlog_items`: **any authenticated** user selects/inserts/updates; **DELETE admin-only**. `state_changed_at` is stamped on every state write, `notified_at` additionally when moving to `customer_notified`.
-- **Table:** Type · Subject+contact · Customer · Owner · Intercom state · Linear · Hub state (inline select) · Age (days since `intercom_created_at`) · Note. Sorted **oldest first**. Filters: hub state / type / owner / customer + free-text search across subject, contact, Linear ref and note. Per-state counters above the table.
+- **Table:** built on the shared issue-view template (below) — Intercom ID · Subject · Contact · Customer · Owner · Type · Intercom state · Linear · Hub state (inline select) · Note · Age. Sorted **oldest first**. Filters: hub state / type / owner / customer + free-text search across subject, contact, Linear ref and note. Per-state counters above the table.
+
+### Shared issue-view template — `src/components/issues/*` (PRESENTATION ONLY)
+**Why:** the v3 ticket views had drifted. Inbox v3 already used a clickable Intercom ID chip plus a row-click detail sheet, while Prospects / Triage / Escalations used a trailing `ExternalLink` icon, had no row interaction, and each page carried its **own** copy of the Intercom deep-link helper and its **own** `accountLabel` map — so the same `customer_key` could render differently depending on which page you were on.
+
+- **`src/lib/intercom.ts`** — `intercomUrl(id)`, the single canonical Enterprise-inbox deep link.
+- **`src/hooks/useCustomerLabels.ts`** — one `customer_key → label` resolver (handles `prospect_unmapped`, `prospect_personal`, `domain:*`, unattributed), replacing the per-page maps.
+- **`src/components/issues/IssueTable.tsx`** — generic `IssueTable<T>` + `IntercomIdChip` + row-click support.
+- **`src/components/issues/issueColumns.tsx`** — column factories: `idColumn`, `subjectColumn`, `contactColumn`, `customerColumn`, `ownerColumn`, `ageColumn`.
+- **`src/components/issues/IssueDetailSheet.tsx`** — the standard read-only detail overlay.
+- **Canonical column order:** Intercom ID (chip; click opens Intercom, `stopPropagation` so it never fires the row) · Subject · Contact · Customer · Owner · page-specific columns · **Age last**.
+- **Applied to:** `/prospects` and `/triage` (fully migrated — Triage gained a detail sheet it never had), `/escalations` (migrated with its inline Hub-state select, Linear override input and note editor living inside the shared cells), and **Inbox v3** (keeps its own table blocks but uses the shared `intercomUrl` + `IntercomIdChip`; the Transferred table's ID column moved to first position).
+- **SCOPE FENCE:** presentation only — no query, population, engine, policy or write-path change on any page. Row sets and numbers are unchanged.
+
 
 
 
