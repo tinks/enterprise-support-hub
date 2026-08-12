@@ -853,8 +853,8 @@ function TransferredTable({ rows, loading, onSelect, accountLabel }: { rows: Tic
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-[150px]">Intercom ID</TableHead>
             <TableHead className="w-[320px]">Subject</TableHead>
-            <TableHead className="w-[140px]">Intercom ID</TableHead>
             <TableHead className="w-[160px]">Customer</TableHead>
             <TableHead className="w-[140px]">Time in inbox</TableHead>
             <TableHead className="w-[160px]">Reassigned to</TableHead>
