@@ -701,15 +701,7 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, 
           )}
           {!loading && rows.map((r) => (
             <TableRow key={r.id} className="cursor-pointer" onClick={() => onSelect(r)}>
-              <TableCell className="font-mono text-xs">
-                <a
-                  href={intercomUrl(r.intercom_conversation_id)} target="_blank" rel="noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="inline-flex items-center gap-1 hover:underline"
-                >
-                  {r.intercom_conversation_id}<ExternalLink className="h-3 w-3" />
-                </a>
-              </TableCell>
+              <TableCell><IntercomIdChip id={r.intercom_conversation_id} /></TableCell>
               <TableCell className="truncate max-w-[320px]">{r.subject || "—"}</TableCell>
               <TableCell className="truncate max-w-[180px]">
                 <div className="text-sm">{r.contact_name || "—"}</div>
