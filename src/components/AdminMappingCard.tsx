@@ -127,6 +127,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
     setNewAdminId("");
     setNewEmail("");
     setNewName("");
+    setNewSlackId("");
     setNewRole("support");
     await syncBlob(next);
     toast.success(`${name} added`);
