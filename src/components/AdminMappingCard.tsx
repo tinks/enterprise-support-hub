@@ -54,6 +54,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
   const [newAdminId, setNewAdminId] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newName, setNewName] = useState("");
+  const [newSlackId, setNewSlackId] = useState("");
   const [newRole, setNewRole] = useState<TeammateRole>("support");
 
   const load = async () => {
