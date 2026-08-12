@@ -262,6 +262,13 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
                   disabled={!isAdmin}
                   onChange={(e) => patchLocal(row.id, { name: e.target.value })}
                 />
+                <Input
+                  className="min-w-0"
+                  value={row.slack_user_id ?? ""}
+                  placeholder="U…"
+                  disabled={!isAdmin}
+                  onChange={(e) => patchLocal(row.id, { slack_user_id: e.target.value })}
+                />
                 {isAdmin ? (
                   <Select
                     value={row.role}
