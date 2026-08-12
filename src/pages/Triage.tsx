@@ -5,11 +5,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, RefreshCw, ExternalLink, Info } from "lucide-react";
+import { Loader2, RefreshCw, Info } from "lucide-react";
 import { format } from "date-fns";
 import { useSlaPolicy } from "@/hooks/useSlaPolicy";
 import { PolicyFallbackBanner } from "@/components/sla/PolicyFallbackBanner";
+import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
+import { IssueDetailSheet, IssueField } from "@/components/issues/IssueDetailSheet";
+import { idColumn, subjectColumn, contactColumn, customerColumn, ownerColumn } from "@/components/issues/issueColumns";
+import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 import {
   computeSla,
   businessHoursBetween,
