@@ -249,73 +249,48 @@ export default function Triage() {
           </Select>
         </div>
 
-        <div className="rounded-md border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-left w-[150px]">Age (business)</TableHead>
-                <TableHead className="text-left w-[120px]">Elapsed (wall)</TableHead>
-                <TableHead className="text-left">Subject</TableHead>
-                <TableHead className="text-left w-[200px]">Contact</TableHead>
-                <TableHead className="text-left w-[170px]">Customer</TableHead>
-                <TableHead className="text-left w-[110px]">Owner</TableHead>
-                <TableHead className="text-left w-[170px]">Anchor</TableHead>
-                <TableHead className="w-[40px]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading || policyLoading ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
-                </TableCell></TableRow>
-              ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-sm text-muted-foreground">
-                  Nothing awaiting triage.
-                </TableCell></TableRow>
-              ) : filtered.map((r) => (
-                <TableRow key={r.id} className={BAND_META[r.band].row}>
-                  <TableCell className="text-left">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium tabular-nums">
-                        {r.businessS == null ? "—" : formatDuration(r.businessS)}
-                      </span>
-                      <span className={`rounded-full border px-1.5 py-0.5 text-[10px] ${BAND_META[r.band].pill}`}>
-                        {BAND_META[r.band].label}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-left text-xs text-muted-foreground tabular-nums">
-                    {r.wallS == null ? "—" : formatDuration(r.wallS)}
-                  </TableCell>
-                  <TableCell className="text-left max-w-[360px] truncate">{r.subject || "Untitled"}</TableCell>
-                  <TableCell className="text-left text-xs">
-                    <div className="truncate">{r.contact_name || "—"}</div>
-                    <div className="text-muted-foreground truncate">{r.contact_email || "—"}</div>
-                  </TableCell>
-                  <TableCell className="text-left">
-                    <Badge variant="secondary" className="text-[10px]">{accountLabel(r.customer_key)}</Badge>
-                  </TableCell>
-                  <TableCell className="text-left text-xs">{r.owner || "—"}</TableCell>
-                  <TableCell className="text-left text-xs">
-                    <div>{r.anchorS ? format(new Date(r.anchorS * 1000), "d MMM HH:mm") : "—"}</div>
-                    <div className="text-muted-foreground text-[10px]">
-                      {r.fromAssignment ? "inbox assignment" : "ticket created"}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <a
-                      href={intercomUrl(r.intercom_conversation_id)} target="_blank" rel="noreferrer"
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <IssueTable<TriageRow>
+          rows={filtered}
+          columns={columns}
+          getRowKey={(r) => r.id}
+          loading={loading || policyLoading}
+          emptyMessage="Nothing awaiting triage."
+          rowClassName={(r) => BAND_META[r.band].row}
+          onRowClick={(r) => setSelected(r)}
+        />
       </div>
+
+      <IssueDetailSheet
+        open={!!selected}
+        onOpenChange={(o) => !o && setSelected(null)}
+        title={selected?.subject || "Untitled"}
+        conversationId={selected?.intercom_conversation_id ?? null}
+      >
+        {selected && (
+          <>
+            <IssueField label="Intercom ID" value={selected.intercom_conversation_id} mono />
+            <IssueField label="Age (business)" value={selected.businessS == null ? "—" : formatDuration(selected.businessS)} />
+            <IssueField label="Elapsed (wall)" value={selected.wallS == null ? "—" : formatDuration(selected.wallS)} />
+            <IssueField label="Band" value={BAND_META[selected.band].label} />
+            <IssueField label="Target" value={formatDuration(targetS)} />
+            <IssueField
+              label="Anchor"
+              value={
+                selected.anchorS
+                  ? `${format(new Date(selected.anchorS * 1000), "PPpp")} · ${selected.fromAssignment ? "inbox assignment" : "ticket created"}`
+                  : "—"
+              }
+            />
+            <IssueField label="Contact" value={`${selected.contact_name ?? "—"} · ${selected.contact_email ?? "—"}`} />
+            <IssueField label="Customer" value={accountLabel(selected.customer_key)} />
+            <IssueField label="Owner" value={selected.owner} />
+            <IssueField
+              label="Created"
+              value={selected.intercom_created_at ? format(new Date(selected.intercom_created_at), "PPpp") : "—"}
+            />
+          </>
+        )}
+      </IssueDetailSheet>
     </AppLayout>
   );
 }
