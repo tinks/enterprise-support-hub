@@ -171,6 +171,49 @@ export default function Triage() {
     });
   }, [untriaged, search, owner, customer]);
 
+  const columns: IssueColumn<TriageRow>[] = useMemo(() => [
+    idColumn<TriageRow>((r) => r.intercom_conversation_id),
+    subjectColumn<TriageRow>((r) => r.subject),
+    contactColumn<TriageRow>((r) => r.contact_name, (r) => r.contact_email),
+    customerColumn<TriageRow>((r) => r.customer_key, accountLabel),
+    ownerColumn<TriageRow>((r) => r.owner),
+    {
+      key: "age_business",
+      header: "Age (business)",
+      width: "w-[170px]",
+      cell: (r) => (
+        <div className="flex items-center gap-2">
+          <span className="font-medium tabular-nums">{r.businessS == null ? "—" : formatDuration(r.businessS)}</span>
+          <span className={`rounded-full border px-1.5 py-0.5 text-[10px] ${BAND_META[r.band].pill}`}>
+            {BAND_META[r.band].label}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: "age_wall",
+      header: "Elapsed (wall)",
+      width: "w-[120px]",
+      cellClassName: "text-xs text-muted-foreground tabular-nums",
+      cell: (r) => (r.wallS == null ? "—" : formatDuration(r.wallS)),
+    },
+    {
+      key: "anchor",
+      header: "Anchor",
+      width: "w-[170px]",
+      cellClassName: "text-xs",
+      cell: (r) => (
+        <div>
+          <div>{r.anchorS ? format(new Date(r.anchorS * 1000), "d MMM HH:mm") : "—"}</div>
+          <div className="text-muted-foreground text-[10px]">
+            {r.fromAssignment ? "inbox assignment" : "ticket created"}
+          </div>
+        </div>
+      ),
+    },
+  ], [accountLabel]);
+
+
   const counts = useMemo(() => {
     const c: Record<Band, number> = { breached: 0, at_risk: 0, approaching: 0, ok: 0 };
     for (const r of filtered) c[r.band] += 1;
