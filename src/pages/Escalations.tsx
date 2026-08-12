@@ -44,6 +44,17 @@ type Escalation = {
   linear_synced_at: string | null;
 };
 
+type EscalationRow = {
+  ticket: Ticket;
+  esc: Escalation | null;
+  hubState: "open" | "in_progress" | "fix_shipped" | "customer_notified" | "wont_do";
+  linear: { url: string | null; key: string | null; raw: string | null };
+  type: "Bug" | "Feature Request";
+  createdMs: number | null;
+  ageDays: number | null;
+};
+
+
 const ANY = "__any__";
 
 const HUB_STATES = ["open", "in_progress", "fix_shipped", "customer_notified", "wont_do"] as const;
