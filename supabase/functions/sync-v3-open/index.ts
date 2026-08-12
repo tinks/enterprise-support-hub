@@ -241,6 +241,22 @@ Deno.serve(async (req) => {
         last_synced_at: new Date().toISOString(),
       };
 
+      // Alert on tickets that are new to our store AND genuinely recent, so a
+      // wide backfill sweep can't spam the channel with historical tickets.
+      const maybeAlert = async () => {
+        const createdMs = createdIso ? new Date(createdIso).getTime() : 0;
+        if (Date.now() - createdMs > 24 * 3600 * 1000) return;
+        const r = await notifyNewTicket(supabase, {
+          convId,
+          subject,
+          contactName,
+          contactEmail,
+          owner,
+          createdIso,
+        });
+        if (r === "sent") alerted++;
+      };
+
       // Minimal, search-payload-only upsert (NO GET /conversations/{id}).
       const minimalUpsert = async (): Promise<string | null> => {
         const { error, data: upserted } = await supabase
@@ -250,12 +266,13 @@ Deno.serve(async (req) => {
         if (error) { failed++; return null; }
         if (upserted && upserted[0]) {
           const isNew = Date.now() - new Date(upserted[0].created_at).getTime() < 5000;
-          if (isNew) inserted++; else updated++;
+          if (isNew) { inserted++; await maybeAlert(); } else updated++;
           return upserted[0].id as string;
         }
         updated++;
         return null;
       };
+
 
       // Delta check: open tickets carry stale `custom_attributes` (Severity →
       // SLA target) because the minimal path never refreshes them. Spend a
