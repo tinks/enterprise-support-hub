@@ -227,7 +227,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
           <span className="text-sm text-muted-foreground">No teammates configured</span>
         ) : (
           <div className="space-y-2">
-            <div className="hidden lg:grid grid-cols-[110px_minmax(0,1.4fr)_minmax(90px,1fr)_100px_56px_74px_120px] gap-2 text-xs text-muted-foreground px-2 border border-transparent">
+            <div className="hidden lg:grid grid-cols-[110px_minmax(0,1.3fr)_minmax(90px,1fr)_110px_100px_56px_74px_120px] gap-2 text-xs text-muted-foreground px-2 border border-transparent">
               <span className="truncate">Intercom admin ID</span>
               <span className="truncate">Email</span>
               <span className="truncate">Name</span>
@@ -239,7 +239,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
             {rows.map((row) => (
               <div
                 key={row.id}
-                className="grid grid-cols-1 lg:grid-cols-[110px_minmax(0,1.4fr)_minmax(90px,1fr)_100px_56px_74px_120px] gap-2 items-center rounded-md border p-2"
+                className="grid grid-cols-1 lg:grid-cols-[110px_minmax(0,1.3fr)_minmax(90px,1fr)_110px_100px_56px_74px_120px] gap-2 items-center rounded-md border p-2"
               >
 
                 <Input
@@ -331,7 +331,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
         )}
 
         {isAdmin && (
-           <div className="grid grid-cols-1 lg:grid-cols-[110px_minmax(0,1.4fr)_minmax(90px,1fr)_100px_202px] gap-2 items-end border-t pt-4 px-2">
+           <div className="grid grid-cols-1 lg:grid-cols-[110px_minmax(0,1.3fr)_minmax(90px,1fr)_110px_100px_202px] gap-2 items-end border-t pt-4 px-2">
             <div className="space-y-1">
               <Label className="text-xs">Admin ID</Label>
               <Input placeholder="9985999" value={newAdminId} onChange={(e) => setNewAdminId(e.target.value)} />
