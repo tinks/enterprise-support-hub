@@ -329,7 +329,8 @@ Deno.serve(async (req) => {
       if (error) { failed++; continue; }
       if (upserted && upserted[0]) {
         const isNew = Date.now() - new Date(upserted[0].created_at).getTime() < 5000;
-        if (isNew) inserted++; else updated++;
+        if (isNew) { inserted++; await maybeAlert(); } else updated++;
+
         const ticketId = upserted[0].id;
         try { await syncTicketAttributes(supabase, ticketId, icData, { convId }); }
         catch (e) { console.error(`[sync-v3-open] attr sync (open) ${convId}: ${(e as Error).message}`); }
