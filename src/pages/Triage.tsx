@@ -89,21 +89,8 @@ export default function Triage() {
     return () => clearInterval(t);
   }, []);
 
-  const [labels, setLabels] = useState<Map<string, string>>(new Map());
-  useEffect(() => {
-    supabase
-      .from("v3_customer_accounts")
-      .select("account_key,label")
-      .then(({ data }) => {
-        const m = new Map<string, string>();
-        for (const a of (data ?? []) as Array<{ account_key: string; label: string }>) m.set(a.account_key, a.label);
-        setLabels(m);
-      });
-  }, []);
-  const accountLabel = (key: string | null) => {
-    if (!key || key === "unattributed" || key === "unknown") return "Unattributed";
-    return labels.get(key) ?? key;
-  };
+  const { accountLabel } = useCustomerLabels();
+  const [selected, setSelected] = useState<TriageRow | null>(null);
 
   const load = async () => {
     setLoading(true);
