@@ -480,7 +480,26 @@ const Index = () => {
                   The Bot User ID from your Slack app. Use "Check Identity" below to find it. When set, edge functions will block posting if the token doesn't match.
                 </p>
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="new-ticket-mentions">New-ticket alert mentions (float coverage)</Label>
+                <Input
+                  id="new-ticket-mentions"
+                  placeholder="U0B7TCDJRTQ, U09..."
+                  value={settings?.new_ticket_alert_mentions || ""}
+                  onChange={(e) =>
+                    setSettings((s) =>
+                      s ? { ...s, new_ticket_alert_mentions: e.target.value } : s
+                    )
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  Slack user IDs (comma-separated) @-pinged on every new-ticket alert in
+                  #enterprise-support-tickets. Leave blank for no ping. Change here to rotate float
+                  coverage — no deploy needed.
+                </p>
+              </div>
             </div>
+
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
