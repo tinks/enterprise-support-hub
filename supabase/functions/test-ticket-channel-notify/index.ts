@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 const SLACK_API_URL = "https://slack.com/api";
-const TICKET_NOTIFY_CHANNEL_ID = "C0BDZAY8R8A";
+const DEFAULT_TICKET_NOTIFY_CHANNEL_ID = "C0BDZAY8R8A";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
