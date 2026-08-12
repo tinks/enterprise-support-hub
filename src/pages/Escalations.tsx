@@ -102,18 +102,7 @@ export default function Escalations() {
   const [linkDraft, setLinkDraft] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<{ id: string; field: "note" | "link" } | null>(null);
 
-  const [labels, setLabels] = useState<Map<string, string>>(new Map());
-  useEffect(() => {
-    supabase.from("v3_customer_accounts").select("account_key,label").then(({ data }) => {
-      const m = new Map<string, string>();
-      for (const a of (data ?? []) as Array<{ account_key: string; label: string }>) m.set(a.account_key, a.label);
-      setLabels(m);
-    });
-  }, []);
-  const accountLabel = (key: string | null) => {
-    if (!key || key === "unattributed" || key === "unknown") return "Unattributed";
-    return labels.get(key) ?? key;
-  };
+  const { accountLabel } = useCustomerLabels();
 
   const load = async () => {
     setLoading(true);
