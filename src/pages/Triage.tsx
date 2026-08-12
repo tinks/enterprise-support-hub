@@ -38,6 +38,14 @@ type Row = {
 
 type Band = "breached" | "at_risk" | "approaching" | "ok";
 
+type TriageRow = Row & {
+  anchorS: number | null;
+  fromAssignment: boolean;
+  businessS: number | null;
+  wallS: number | null;
+  band: Band;
+};
+
 const ANY = "__any__";
 
 const BAND_META: Record<Band, { label: string; row: string; pill: string }> = {
