@@ -7,7 +7,7 @@
 // ---------------------------------------------------------------------------
 
 const SLACK_API_URL = "https://slack.com/api";
-const DEFAULT_CHANNEL = "C0BPDU4JH71"; // #enterprise-support-west-coast-float
+const DEFAULT_CHANNEL = "C0BPDU4JH71"; // #enterprise-support-tickets
 
 export type NewTicketAlertInput = {
   convId: string;
