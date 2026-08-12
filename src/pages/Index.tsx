@@ -34,7 +34,9 @@ interface SettingsData {
   test_intercom_inbox_id: string;
   auto_mark_employee_test: boolean;
   product_areas: string;
+  new_ticket_alert_mentions: string;
 }
+
 
 
 interface SlackChannel {
