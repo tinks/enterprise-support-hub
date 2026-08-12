@@ -14,7 +14,10 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  const TICKET_NOTIFY_CHANNEL_ID =
+    new URL(req.url).searchParams.get("channel") || DEFAULT_TICKET_NOTIFY_CHANNEL_ID;
   const token = Deno.env.get("SLACK_BOT_TOKEN");
+
   if (!token) {
     return new Response(
       JSON.stringify({ ok: false, error: "SLACK_BOT_TOKEN not configured" }),
