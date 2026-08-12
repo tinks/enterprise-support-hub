@@ -5,11 +5,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, RefreshCw, ExternalLink, Info } from "lucide-react";
+import { Loader2, RefreshCw, Info } from "lucide-react";
 import { format } from "date-fns";
 import { useSlaPolicy } from "@/hooks/useSlaPolicy";
 import { PolicyFallbackBanner } from "@/components/sla/PolicyFallbackBanner";
+import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
+import { IssueDetailSheet, IssueField } from "@/components/issues/IssueDetailSheet";
+import { idColumn, subjectColumn, contactColumn, customerColumn, ownerColumn } from "@/components/issues/issueColumns";
+import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 import {
   computeSla,
   businessHoursBetween,
@@ -34,6 +37,14 @@ type Row = {
 };
 
 type Band = "breached" | "at_risk" | "approaching" | "ok";
+
+type TriageRow = Row & {
+  anchorS: number | null;
+  fromAssignment: boolean;
+  businessS: number | null;
+  wallS: number | null;
+  band: Band;
+};
 
 const ANY = "__any__";
 
@@ -64,9 +75,6 @@ function bandFor(elapsedS: number, targetS: number): Band {
   return "ok";
 }
 
-function intercomUrl(id: string) {
-  return `https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${id}?view=List`;
-}
 
 function hasSeverity(attrs: any): boolean {
   const v = attrs?.["Severity"];
@@ -89,21 +97,8 @@ export default function Triage() {
     return () => clearInterval(t);
   }, []);
 
-  const [labels, setLabels] = useState<Map<string, string>>(new Map());
-  useEffect(() => {
-    supabase
-      .from("v3_customer_accounts")
-      .select("account_key,label")
-      .then(({ data }) => {
-        const m = new Map<string, string>();
-        for (const a of (data ?? []) as Array<{ account_key: string; label: string }>) m.set(a.account_key, a.label);
-        setLabels(m);
-      });
-  }, []);
-  const accountLabel = (key: string | null) => {
-    if (!key || key === "unattributed" || key === "unknown") return "Unattributed";
-    return labels.get(key) ?? key;
-  };
+  const { accountLabel } = useCustomerLabels();
+  const [selected, setSelected] = useState<TriageRow | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -175,6 +170,49 @@ export default function Triage() {
       return true;
     });
   }, [untriaged, search, owner, customer]);
+
+  const columns: IssueColumn<TriageRow>[] = useMemo(() => [
+    idColumn<TriageRow>((r) => r.intercom_conversation_id),
+    subjectColumn<TriageRow>((r) => r.subject),
+    contactColumn<TriageRow>((r) => r.contact_name, (r) => r.contact_email),
+    customerColumn<TriageRow>((r) => r.customer_key, accountLabel),
+    ownerColumn<TriageRow>((r) => r.owner),
+    {
+      key: "age_business",
+      header: "Age (business)",
+      width: "w-[170px]",
+      cell: (r) => (
+        <div className="flex items-center gap-2">
+          <span className="font-medium tabular-nums">{r.businessS == null ? "—" : formatDuration(r.businessS)}</span>
+          <span className={`rounded-full border px-1.5 py-0.5 text-[10px] ${BAND_META[r.band].pill}`}>
+            {BAND_META[r.band].label}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: "age_wall",
+      header: "Elapsed (wall)",
+      width: "w-[120px]",
+      cellClassName: "text-xs text-muted-foreground tabular-nums",
+      cell: (r) => (r.wallS == null ? "—" : formatDuration(r.wallS)),
+    },
+    {
+      key: "anchor",
+      header: "Anchor",
+      width: "w-[170px]",
+      cellClassName: "text-xs",
+      cell: (r) => (
+        <div>
+          <div>{r.anchorS ? format(new Date(r.anchorS * 1000), "d MMM HH:mm") : "—"}</div>
+          <div className="text-muted-foreground text-[10px]">
+            {r.fromAssignment ? "inbox assignment" : "ticket created"}
+          </div>
+        </div>
+      ),
+    },
+  ], [accountLabel]);
+
 
   const counts = useMemo(() => {
     const c: Record<Band, number> = { breached: 0, at_risk: 0, approaching: 0, ok: 0 };
@@ -262,73 +300,48 @@ export default function Triage() {
           </Select>
         </div>
 
-        <div className="rounded-md border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-left w-[150px]">Age (business)</TableHead>
-                <TableHead className="text-left w-[120px]">Elapsed (wall)</TableHead>
-                <TableHead className="text-left">Subject</TableHead>
-                <TableHead className="text-left w-[200px]">Contact</TableHead>
-                <TableHead className="text-left w-[170px]">Customer</TableHead>
-                <TableHead className="text-left w-[110px]">Owner</TableHead>
-                <TableHead className="text-left w-[170px]">Anchor</TableHead>
-                <TableHead className="w-[40px]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading || policyLoading ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
-                </TableCell></TableRow>
-              ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={8} className="text-center py-8 text-sm text-muted-foreground">
-                  Nothing awaiting triage.
-                </TableCell></TableRow>
-              ) : filtered.map((r) => (
-                <TableRow key={r.id} className={BAND_META[r.band].row}>
-                  <TableCell className="text-left">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium tabular-nums">
-                        {r.businessS == null ? "—" : formatDuration(r.businessS)}
-                      </span>
-                      <span className={`rounded-full border px-1.5 py-0.5 text-[10px] ${BAND_META[r.band].pill}`}>
-                        {BAND_META[r.band].label}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-left text-xs text-muted-foreground tabular-nums">
-                    {r.wallS == null ? "—" : formatDuration(r.wallS)}
-                  </TableCell>
-                  <TableCell className="text-left max-w-[360px] truncate">{r.subject || "Untitled"}</TableCell>
-                  <TableCell className="text-left text-xs">
-                    <div className="truncate">{r.contact_name || "—"}</div>
-                    <div className="text-muted-foreground truncate">{r.contact_email || "—"}</div>
-                  </TableCell>
-                  <TableCell className="text-left">
-                    <Badge variant="secondary" className="text-[10px]">{accountLabel(r.customer_key)}</Badge>
-                  </TableCell>
-                  <TableCell className="text-left text-xs">{r.owner || "—"}</TableCell>
-                  <TableCell className="text-left text-xs">
-                    <div>{r.anchorS ? format(new Date(r.anchorS * 1000), "d MMM HH:mm") : "—"}</div>
-                    <div className="text-muted-foreground text-[10px]">
-                      {r.fromAssignment ? "inbox assignment" : "ticket created"}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <a
-                      href={intercomUrl(r.intercom_conversation_id)} target="_blank" rel="noreferrer"
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <IssueTable<TriageRow>
+          rows={filtered}
+          columns={columns}
+          getRowKey={(r) => r.id}
+          loading={loading || policyLoading}
+          emptyMessage="Nothing awaiting triage."
+          rowClassName={(r) => BAND_META[r.band].row}
+          onRowClick={(r) => setSelected(r)}
+        />
       </div>
+
+      <IssueDetailSheet
+        open={!!selected}
+        onOpenChange={(o) => !o && setSelected(null)}
+        title={selected?.subject || "Untitled"}
+        conversationId={selected?.intercom_conversation_id ?? null}
+      >
+        {selected && (
+          <>
+            <IssueField label="Intercom ID" value={selected.intercom_conversation_id} mono />
+            <IssueField label="Age (business)" value={selected.businessS == null ? "—" : formatDuration(selected.businessS)} />
+            <IssueField label="Elapsed (wall)" value={selected.wallS == null ? "—" : formatDuration(selected.wallS)} />
+            <IssueField label="Band" value={BAND_META[selected.band].label} />
+            <IssueField label="Target" value={formatDuration(targetS)} />
+            <IssueField
+              label="Anchor"
+              value={
+                selected.anchorS
+                  ? `${format(new Date(selected.anchorS * 1000), "PPpp")} · ${selected.fromAssignment ? "inbox assignment" : "ticket created"}`
+                  : "—"
+              }
+            />
+            <IssueField label="Contact" value={`${selected.contact_name ?? "—"} · ${selected.contact_email ?? "—"}`} />
+            <IssueField label="Customer" value={accountLabel(selected.customer_key)} />
+            <IssueField label="Owner" value={selected.owner} />
+            <IssueField
+              label="Created"
+              value={selected.intercom_created_at ? format(new Date(selected.intercom_created_at), "PPpp") : "—"}
+            />
+          </>
+        )}
+      </IssueDetailSheet>
     </AppLayout>
   );
 }

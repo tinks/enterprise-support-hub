@@ -5,10 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, RefreshCw, ExternalLink, Info, Check, X } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
+import { idColumn, subjectColumn, contactColumn, customerColumn, ownerColumn, ageColumn } from "@/components/issues/issueColumns";
+import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 
 type Ticket = {
   id: string;
@@ -42,6 +44,17 @@ type Escalation = {
   linear_synced_at: string | null;
 };
 
+type EscalationRow = {
+  ticket: Ticket;
+  esc: Escalation | null;
+  hubState: "open" | "in_progress" | "fix_shipped" | "customer_notified" | "wont_do";
+  linear: { url: string | null; key: string | null; raw: string | null };
+  type: "Bug" | "Feature Request";
+  createdMs: number | null;
+  ageDays: number | null;
+};
+
+
 const ANY = "__any__";
 
 const HUB_STATES = ["open", "in_progress", "fix_shipped", "customer_notified", "wont_do"] as const;
@@ -56,10 +69,6 @@ const HUB_META: Record<HubState, { label: string; pill: string }> = {
 };
 
 const TERMINAL: HubState[] = ["customer_notified", "wont_do"];
-
-function intercomUrl(id: string) {
-  return `https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${id}?view=List`;
-}
 
 /** Resolve a Linear link from the Hub override first, then the Intercom attributes. */
 function resolveLinear(attrs: any, override: string | null): { url: string | null; key: string | null; raw: string | null } {
@@ -104,18 +113,7 @@ export default function Escalations() {
   const [linkDraft, setLinkDraft] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<{ id: string; field: "note" | "link" } | null>(null);
 
-  const [labels, setLabels] = useState<Map<string, string>>(new Map());
-  useEffect(() => {
-    supabase.from("v3_customer_accounts").select("account_key,label").then(({ data }) => {
-      const m = new Map<string, string>();
-      for (const a of (data ?? []) as Array<{ account_key: string; label: string }>) m.set(a.account_key, a.label);
-      setLabels(m);
-    });
-  }, []);
-  const accountLabel = (key: string | null) => {
-    if (!key || key === "unattributed" || key === "unknown") return "Unattributed";
-    return labels.get(key) ?? key;
-  };
+  const { accountLabel } = useCustomerLabels();
 
   const load = async () => {
     setLoading(true);
@@ -241,6 +239,146 @@ export default function Escalations() {
     });
   };
 
+  const columns: IssueColumn<EscalationRow>[] = [
+    idColumn<EscalationRow>((r) => r.ticket.intercom_conversation_id),
+    subjectColumn<EscalationRow>((r) => r.ticket.subject),
+    contactColumn<EscalationRow>((r) => r.ticket.contact_name, (r) => r.ticket.contact_email),
+    customerColumn<EscalationRow>((r) => r.ticket.customer_key, accountLabel),
+    ownerColumn<EscalationRow>((r) => r.ticket.owner),
+    {
+      key: "type",
+      header: "Type",
+      width: "w-[120px]",
+      cell: (r) => (
+        <Badge variant={r.type === "Bug" ? "destructive" : "secondary"} className="text-[10px]">{r.type}</Badge>
+      ),
+    },
+    {
+      key: "intercom_state",
+      header: "Intercom",
+      width: "w-[110px]",
+      cellClassName: "text-xs text-muted-foreground",
+      cell: (r) =>
+        r.ticket.lifecycle_status === "finalized" ? "Closed" : r.ticket.state || r.ticket.lifecycle_status || "—",
+    },
+    {
+      key: "linear",
+      header: "Linear",
+      width: "w-[190px]",
+      cellClassName: "text-xs",
+      cell: (r) => {
+        const cid = r.ticket.intercom_conversation_id;
+        const isSaving = saving === cid;
+        if (editing?.id === cid && editing.field === "link") {
+          return (
+            <div className="flex items-center gap-1">
+              <Input
+                autoFocus
+                className="h-7 text-xs"
+                placeholder="Linear URL or KEY-123"
+                value={linkDraft[cid] ?? r.esc?.linear_url_override ?? ""}
+                onChange={(e) => setLinkDraft((d) => ({ ...d, [cid]: e.target.value }))}
+              />
+              <Button size="icon" variant="ghost" className="h-7 w-7" disabled={isSaving}
+                onClick={async () => {
+                  await upsert(cid, { linear_url_override: (linkDraft[cid] ?? "").trim() || null });
+                  setEditing(null);
+                }}
+              ><Check className="h-3.5 w-3.5" /></Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(null)}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          );
+        }
+        return (
+          <>
+            <button
+              className="text-left hover:underline"
+              onClick={() => { setLinkDraft((d) => ({ ...d, [cid]: r.esc?.linear_url_override ?? "" })); setEditing({ id: cid, field: "link" }); }}
+            >
+              {r.linear.url ? (
+                <span className="text-foreground">{r.linear.key ?? "Linear issue"}</span>
+              ) : r.linear.raw ? (
+                <span className="text-muted-foreground truncate block max-w-[170px]">{r.linear.raw}</span>
+              ) : (
+                <span className="text-muted-foreground">— link</span>
+              )}
+            </button>
+            {r.linear.url && (
+              <a href={r.linear.url} target="_blank" rel="noreferrer" className="ml-1 inline-flex text-muted-foreground hover:text-foreground align-middle">
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+          </>
+        );
+      },
+    },
+    {
+      key: "hub_state",
+      header: "Hub state",
+      width: "w-[180px]",
+      cell: (r) => {
+        const cid = r.ticket.intercom_conversation_id;
+        return (
+          <Select
+            value={r.hubState}
+            onValueChange={(v) => upsert(cid, { hub_state: v as HubState })}
+            disabled={saving === cid}
+          >
+            <SelectTrigger className={`h-7 text-xs border ${HUB_META[r.hubState].pill}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {HUB_STATES.map((s) => <SelectItem key={s} value={s}>{HUB_META[s].label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        );
+      },
+    },
+    {
+      key: "note",
+      header: "Note",
+      width: "w-[220px]",
+      cellClassName: "text-xs",
+      cell: (r) => {
+        const cid = r.ticket.intercom_conversation_id;
+        const isSaving = saving === cid;
+        if (editing?.id === cid && editing.field === "note") {
+          return (
+            <div className="flex items-center gap-1">
+              <Input
+                autoFocus
+                className="h-7 text-xs"
+                value={noteDraft[cid] ?? r.esc?.note ?? ""}
+                onChange={(e) => setNoteDraft((d) => ({ ...d, [cid]: e.target.value }))}
+              />
+              <Button size="icon" variant="ghost" className="h-7 w-7" disabled={isSaving}
+                onClick={async () => {
+                  await upsert(cid, { note: (noteDraft[cid] ?? "").trim() || null });
+                  setEditing(null);
+                }}
+              ><Check className="h-3.5 w-3.5" /></Button>
+              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(null)}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          );
+        }
+        return (
+          <button
+            className="text-left w-full truncate hover:underline text-muted-foreground"
+            onClick={() => { setNoteDraft((d) => ({ ...d, [cid]: r.esc?.note ?? "" })); setEditing({ id: cid, field: "note" }); }}
+          >
+            {r.esc?.note || "— add note"}
+          </button>
+        );
+      },
+    },
+    ageColumn<EscalationRow>((r) => r.createdMs),
+  ];
+
+
   return (
     <AppLayout>
       <div className="p-6 space-y-4">
@@ -326,153 +464,13 @@ export default function Escalations() {
           </Select>
         </div>
 
-        <div className="rounded-md border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-left w-[120px]">Type</TableHead>
-                <TableHead className="text-left">Subject</TableHead>
-                <TableHead className="text-left w-[170px]">Customer</TableHead>
-                <TableHead className="text-left w-[110px]">Owner</TableHead>
-                <TableHead className="text-left w-[110px]">Intercom</TableHead>
-                <TableHead className="text-left w-[190px]">Linear</TableHead>
-                <TableHead className="text-left w-[180px]">Hub state</TableHead>
-                <TableHead className="text-left w-[110px]">Age</TableHead>
-                <TableHead className="text-left w-[220px]">Note</TableHead>
-                <TableHead className="w-[40px]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow><TableCell colSpan={10} className="text-center py-8 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
-                </TableCell></TableRow>
-              ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={10} className="text-center py-8 text-sm text-muted-foreground">
-                  No escalations match these filters.
-                </TableCell></TableRow>
-              ) : filtered.map((r) => {
-                const cid = r.ticket.intercom_conversation_id;
-                const isSaving = saving === cid;
-                return (
-                  <TableRow key={r.ticket.id}>
-                    <TableCell className="text-left">
-                      <Badge variant={r.type === "Bug" ? "destructive" : "secondary"} className="text-[10px]">
-                        {r.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-left max-w-[340px] truncate">
-                      <div className="truncate">{r.ticket.subject || "Untitled"}</div>
-                      <div className="text-[10px] text-muted-foreground truncate">
-                        {r.ticket.contact_name || r.ticket.contact_email || "—"}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-left">
-                      <Badge variant="secondary" className="text-[10px]">{accountLabel(r.ticket.customer_key)}</Badge>
-                    </TableCell>
-                    <TableCell className="text-left text-xs">{r.ticket.owner || "—"}</TableCell>
-                    <TableCell className="text-left text-xs text-muted-foreground">
-                      {r.ticket.lifecycle_status === "finalized" ? "Closed" : r.ticket.state || r.ticket.lifecycle_status || "—"}
-                    </TableCell>
-                    <TableCell className="text-left text-xs">
-                      {editing?.id === cid && editing.field === "link" ? (
-                        <div className="flex items-center gap-1">
-                          <Input
-                            autoFocus
-                            className="h-7 text-xs"
-                            placeholder="Linear URL or KEY-123"
-                            value={linkDraft[cid] ?? r.esc?.linear_url_override ?? ""}
-                            onChange={(e) => setLinkDraft((d) => ({ ...d, [cid]: e.target.value }))}
-                          />
-                          <Button size="icon" variant="ghost" className="h-7 w-7" disabled={isSaving}
-                            onClick={async () => {
-                              await upsert(cid, { linear_url_override: (linkDraft[cid] ?? "").trim() || null });
-                              setEditing(null);
-                            }}
-                          ><Check className="h-3.5 w-3.5" /></Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(null)}>
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <button
-                          className="text-left hover:underline"
-                          onClick={() => { setLinkDraft((d) => ({ ...d, [cid]: r.esc?.linear_url_override ?? "" })); setEditing({ id: cid, field: "link" }); }}
-                        >
-                          {r.linear.url ? (
-                            <span className="text-foreground">{r.linear.key ?? "Linear issue"}</span>
-                          ) : r.linear.raw ? (
-                            <span className="text-muted-foreground truncate block max-w-[170px]">{r.linear.raw}</span>
-                          ) : (
-                            <span className="text-muted-foreground">— link</span>
-                          )}
-                        </button>
-                      )}
-                      {r.linear.url && editing?.id !== cid && (
-                        <a href={r.linear.url} target="_blank" rel="noreferrer" className="ml-1 inline-flex text-muted-foreground hover:text-foreground align-middle">
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-left">
-                      <Select
-                        value={r.hubState}
-                        onValueChange={(v) => upsert(cid, { hub_state: v as HubState })}
-                        disabled={isSaving}
-                      >
-                        <SelectTrigger className={`h-7 text-xs border ${HUB_META[r.hubState].pill}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {HUB_STATES.map((s) => <SelectItem key={s} value={s}>{HUB_META[s].label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell className="text-left text-xs tabular-nums">
-                      {r.ageDays == null ? "—" : `${r.ageDays}d`}
-                      <div className="text-[10px] text-muted-foreground">
-                        {r.createdMs ? format(new Date(r.createdMs), "d MMM") : ""}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-left text-xs">
-                      {editing?.id === cid && editing.field === "note" ? (
-                        <div className="flex items-center gap-1">
-                          <Input
-                            autoFocus
-                            className="h-7 text-xs"
-                            value={noteDraft[cid] ?? r.esc?.note ?? ""}
-                            onChange={(e) => setNoteDraft((d) => ({ ...d, [cid]: e.target.value }))}
-                          />
-                          <Button size="icon" variant="ghost" className="h-7 w-7" disabled={isSaving}
-                            onClick={async () => {
-                              await upsert(cid, { note: (noteDraft[cid] ?? "").trim() || null });
-                              setEditing(null);
-                            }}
-                          ><Check className="h-3.5 w-3.5" /></Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(null)}>
-                            <X className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <button
-                          className="text-left w-full truncate hover:underline text-muted-foreground"
-                          onClick={() => { setNoteDraft((d) => ({ ...d, [cid]: r.esc?.note ?? "" })); setEditing({ id: cid, field: "note" }); }}
-                        >
-                          {r.esc?.note || "— add note"}
-                        </button>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <a href={intercomUrl(cid)} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground">
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
+        <IssueTable<EscalationRow>
+          rows={filtered}
+          columns={columns}
+          getRowKey={(r) => r.ticket.id}
+          loading={loading}
+          emptyMessage="No escalations match these filters."
+        />
       </div>
     </AppLayout>
   );

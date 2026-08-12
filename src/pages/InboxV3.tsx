@@ -13,6 +13,8 @@ import { format, formatDistanceToNow, differenceInDays } from "date-fns";
 import { CLEAN_DATA_START_LABEL } from "@/pages/inbox-v3/constants";
 import { effectiveRsa } from "@/pages/inbox-v3/rsa";
 import { toast } from "@/hooks/use-toast";
+import { intercomUrl } from "@/lib/intercom";
+import { IntercomIdChip } from "@/components/issues/IssueTable";
 
 type Ticket = {
   id: string;
@@ -63,9 +65,6 @@ function formatDuration(seconds: number | null): string {
   return `${Math.floor(h / 24)}d ${h % 24}h`;
 }
 
-function intercomUrl(id: string) {
-  return `https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${id}?view=List`;
-}
 
 export default function InboxV3() {
   const [tab, setTab] = useState<"finalized" | "active" | "transferred">("active");
@@ -702,15 +701,7 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, 
           )}
           {!loading && rows.map((r) => (
             <TableRow key={r.id} className="cursor-pointer" onClick={() => onSelect(r)}>
-              <TableCell className="font-mono text-xs">
-                <a
-                  href={intercomUrl(r.intercom_conversation_id)} target="_blank" rel="noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="inline-flex items-center gap-1 hover:underline"
-                >
-                  {r.intercom_conversation_id}<ExternalLink className="h-3 w-3" />
-                </a>
-              </TableCell>
+              <TableCell><IntercomIdChip id={r.intercom_conversation_id} /></TableCell>
               <TableCell className="truncate max-w-[320px]">{r.subject || "—"}</TableCell>
               <TableCell className="truncate max-w-[180px]">
                 <div className="text-sm">{r.contact_name || "—"}</div>
@@ -802,15 +793,7 @@ function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, acc
               : null;
             return (
               <TableRow key={r.id} className="cursor-pointer" onClick={() => onSelect(r)}>
-                <TableCell className="font-mono text-xs">
-                  <a
-                    href={intercomUrl(r.intercom_conversation_id)} target="_blank" rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="inline-flex items-center gap-1 hover:underline"
-                  >
-                    {r.intercom_conversation_id}<ExternalLink className="h-3 w-3" />
-                  </a>
-                </TableCell>
+                <TableCell><IntercomIdChip id={r.intercom_conversation_id} /></TableCell>
                 <TableCell className="truncate max-w-[360px]">{r.subject || "—"}</TableCell>
                 <TableCell className="truncate max-w-[200px]">
                   <div className="text-sm">{r.contact_name || "—"}</div>
@@ -870,8 +853,8 @@ function TransferredTable({ rows, loading, onSelect, accountLabel }: { rows: Tic
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-[150px]">Intercom ID</TableHead>
             <TableHead className="w-[320px]">Subject</TableHead>
-            <TableHead className="w-[140px]">Intercom ID</TableHead>
             <TableHead className="w-[160px]">Customer</TableHead>
             <TableHead className="w-[140px]">Time in inbox</TableHead>
             <TableHead className="w-[160px]">Reassigned to</TableHead>
@@ -897,13 +880,8 @@ function TransferredTable({ rows, loading, onSelect, accountLabel }: { rows: Tic
                 : null;
             return (
               <TableRow key={r.id} className="cursor-pointer" onClick={() => onSelect(r)}>
+                <TableCell><IntercomIdChip id={r.intercom_conversation_id} /></TableCell>
                 <TableCell className="truncate max-w-[320px]">{r.subject || "—"}</TableCell>
-                <TableCell
-                  className="font-mono text-xs select-text"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {r.intercom_conversation_id}
-                </TableCell>
                 <TableCell className="truncate max-w-[160px]">
                   <Badge variant="secondary" className="text-xs">
                     {r.customer_key ? accountLabel(r.customer_key) : (r.contact_domain || "—")}
