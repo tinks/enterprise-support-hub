@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, RefreshCw, ExternalLink, Info, Download } from "lucide-react";
+import { Loader2, RefreshCw, Info, Download } from "lucide-react";
 import { format } from "date-fns";
+import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
+import { IssueDetailSheet, IssueField } from "@/components/issues/IssueDetailSheet";
+import { idColumn, subjectColumn, contactColumn, customerColumn, ownerColumn, ageColumn } from "@/components/issues/issueColumns";
+import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 
 type Ticket = {
   id: string;
@@ -29,15 +30,9 @@ type Ticket = {
   intercom_closed_at: string | null;
 };
 
-type AccountOpt = { account_key: string; label: string };
-
 const ANY = "__any__";
 const TAG_PROSPECT = "enterprise-prospect";
 const TAG_PERSONAL = "enterprise-prospect-personal-acct";
-
-function intercomUrl(id: string) {
-  return `https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${id}?view=List`;
-}
 
 function fmtDate(v: string | null) {
   return v ? format(new Date(v), "d MMM yyyy") : "—";
@@ -58,27 +53,7 @@ export default function Prospects() {
   const [lifecycle, setLifecycle] = useState<"all" | "open" | "finalized">("all");
   const [selected, setSelected] = useState<Ticket | null>(null);
 
-  const [accounts, setAccounts] = useState<AccountOpt[]>([]);
-  useEffect(() => {
-    supabase
-      .from("v3_customer_accounts")
-      .select("account_key,label")
-      .order("label")
-      .then(({ data }) => setAccounts((data ?? []) as AccountOpt[]));
-  }, []);
-  const accountLabel = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const a of accounts) m.set(a.account_key, a.label);
-    return (key: string | null) => {
-      if (!key) return "—";
-      if (key === "unknown") return "Unknown";
-      if (key === "prospect_unmapped") return "Prospect (unmapped)";
-      if (key === "prospect_personal") return "Prospect (personal)";
-      if (key === "domain:_personal") return "Personal email";
-      if (key.startsWith("domain:")) return key.slice(7);
-      return m.get(key) ?? key;
-    };
-  }, [accounts]);
+  const { accountLabel } = useCustomerLabels();
 
   const load = async () => {
     setLoading(true);
@@ -121,6 +96,29 @@ export default function Prospects() {
       return true;
     });
   }, [rows, search, owner, pa, lifecycle]);
+
+  const columns: IssueColumn<Ticket>[] = useMemo(() => [
+    idColumn<Ticket>((r) => r.intercom_conversation_id),
+    subjectColumn<Ticket>((r) => r.subject),
+    contactColumn<Ticket>((r) => r.contact_name, (r) => r.contact_email),
+    customerColumn<Ticket>((r) => r.customer_key, accountLabel),
+    ownerColumn<Ticket>((r) => r.owner),
+    { key: "domain", header: "Domain", width: "w-[160px]", cellClassName: "text-xs truncate", cell: (r) => r.contact_domain || "—" },
+    { key: "product_area", header: "Product area", width: "w-[140px]", cellClassName: "text-xs", cell: (r) => r.product_area || "—" },
+    {
+      key: "status",
+      header: "Status",
+      width: "w-[120px]",
+      cellClassName: "text-xs",
+      cell: (r) => (
+        <>
+          {r.lifecycle_status}
+          {r.state ? <span className="text-muted-foreground"> · {r.state}</span> : null}
+        </>
+      ),
+    },
+    ageColumn<Ticket>((r) => (r.intercom_created_at ? new Date(r.intercom_created_at).getTime() : null)),
+  ], [accountLabel]);
 
   const exportCsv = () => {
     const header = ["conversation_id", "subject", "contact_name", "contact_email", "contact_domain", "customer", "owner", "product_area", "classification", "state", "lifecycle_status", "tags", "created_at", "closed_at"];
@@ -209,106 +207,39 @@ export default function Prospects() {
           <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {rows.length}</span>
         </div>
 
-        <div className="rounded-md border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-left">Subject</TableHead>
-                <TableHead className="text-left w-[200px]">Contact</TableHead>
-                <TableHead className="text-left w-[160px]">Domain</TableHead>
-                <TableHead className="text-left w-[170px]">Customer</TableHead>
-                <TableHead className="text-left w-[110px]">Owner</TableHead>
-                <TableHead className="text-left w-[140px]">Product area</TableHead>
-                <TableHead className="text-left w-[120px]">Status</TableHead>
-                <TableHead className="text-left w-[110px]">Created</TableHead>
-                <TableHead className="w-[40px]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
-                </TableCell></TableRow>
-              ) : filtered.length === 0 ? (
-                <TableRow><TableCell colSpan={9} className="text-center py-8 text-sm text-muted-foreground">
-                  No prospect-tagged tickets match these filters.
-                </TableCell></TableRow>
-              ) : filtered.map((r) => (
-                <TableRow key={r.id} className="cursor-pointer" onClick={() => setSelected(r)}>
-                  <TableCell className="text-left max-w-[360px] truncate">{r.subject || "Untitled"}</TableCell>
-                  <TableCell className="text-left text-xs">
-                    <div className="truncate">{r.contact_name || "—"}</div>
-                    <div className="text-muted-foreground truncate">{r.contact_email || "—"}</div>
-                  </TableCell>
-                  <TableCell className="text-left text-xs truncate">{r.contact_domain || "—"}</TableCell>
-                  <TableCell className="text-left">
-                    <Badge variant="secondary" className="text-[10px]">{accountLabel(r.customer_key)}</Badge>
-                  </TableCell>
-                  <TableCell className="text-left text-xs">{r.owner || "—"}</TableCell>
-                  <TableCell className="text-left text-xs">{r.product_area || "—"}</TableCell>
-                  <TableCell className="text-left text-xs">
-                    {r.lifecycle_status}
-                    {r.state ? <span className="text-muted-foreground"> · {r.state}</span> : null}
-                  </TableCell>
-                  <TableCell className="text-left text-xs">{fmtDate(r.intercom_created_at)}</TableCell>
-                  <TableCell>
-                    <a
-                      href={intercomUrl(r.intercom_conversation_id)} target="_blank" rel="noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <IssueTable
+          rows={filtered}
+          columns={columns}
+          getRowKey={(r) => r.id}
+          loading={loading}
+          emptyMessage="No prospect-tagged tickets match these filters."
+          onRowClick={setSelected}
+        />
       </div>
 
-      <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-        <SheetContent className="w-[480px] sm:max-w-[480px] overflow-auto">
-          {selected && (
-            <>
-              <SheetHeader>
-                <SheetTitle className="truncate">{selected.subject || "Untitled"}</SheetTitle>
-                <SheetDescription>
-                  <a
-                    href={intercomUrl(selected.intercom_conversation_id)} target="_blank" rel="noreferrer"
-                    className="inline-flex items-center gap-1 hover:underline"
-                  >
-                    Open in Intercom <ExternalLink className="h-3 w-3" />
-                  </a>
-                </SheetDescription>
-              </SheetHeader>
-              <dl className="mt-6 space-y-3 text-sm">
-                <Field label="Intercom ID" value={selected.intercom_conversation_id} mono />
-                <Field label="Lifecycle" value={selected.lifecycle_status} />
-                <Field label="State" value={selected.state} />
-                <Field label="Contact" value={`${selected.contact_name ?? "—"} · ${selected.contact_email ?? "—"}`} />
-                <Field label="Domain" value={selected.contact_domain} />
-                <Field label="Customer" value={`${accountLabel(selected.customer_key)} (${selected.customer_source ?? "—"})`} />
-                <Field label="Owner" value={selected.owner} />
-                <Field label="Product area" value={selected.product_area} />
-                <Field label="Classification" value={selected.classification} />
-                <Field label="Tags" value={(selected.tags || []).join(", ") || "—"} />
-                <Field label="Created" value={fmtDate(selected.intercom_created_at)} />
-                <Field label="Closed" value={fmtDate(selected.intercom_closed_at)} />
-              </dl>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
+      <IssueDetailSheet
+        open={!!selected}
+        onOpenChange={(o) => !o && setSelected(null)}
+        title={selected?.subject || "Untitled"}
+        conversationId={selected?.intercom_conversation_id ?? null}
+      >
+        {selected && (
+          <>
+            <IssueField label="Intercom ID" value={selected.intercom_conversation_id} mono />
+            <IssueField label="Lifecycle" value={selected.lifecycle_status} />
+            <IssueField label="State" value={selected.state} />
+            <IssueField label="Contact" value={`${selected.contact_name ?? "—"} · ${selected.contact_email ?? "—"}`} />
+            <IssueField label="Domain" value={selected.contact_domain} />
+            <IssueField label="Customer" value={`${accountLabel(selected.customer_key)} (${selected.customer_source ?? "—"})`} />
+            <IssueField label="Owner" value={selected.owner} />
+            <IssueField label="Product area" value={selected.product_area} />
+            <IssueField label="Classification" value={selected.classification} />
+            <IssueField label="Tags" value={(selected.tags || []).join(", ") || "—"} />
+            <IssueField label="Created" value={fmtDate(selected.intercom_created_at)} />
+            <IssueField label="Closed" value={fmtDate(selected.intercom_closed_at)} />
+          </>
+        )}
+      </IssueDetailSheet>
     </AppLayout>
-  );
-}
-
-function Field({ label, value, mono }: { label: string; value: string | null; mono?: boolean }) {
-  return (
-    <div className="grid grid-cols-[140px_1fr] gap-3 items-start">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className={`text-sm break-words ${mono ? "font-mono text-xs" : ""}`}>{value || "—"}</dd>
-    </div>
   );
 }
