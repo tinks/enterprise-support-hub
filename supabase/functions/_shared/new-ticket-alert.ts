@@ -33,14 +33,38 @@ export async function notifyNewTicket(
       .insert({ intercom_conversation_id: t.convId, slack_channel_id: channel });
     if (claimErr) return "duplicate";
 
+    // Float-coverage ping. Read from settings.new_ticket_alert_mentions (comma/space
+    // separated Slack user IDs) so rotation needs no deploy; env var overrides for tests.
+    // A read failure or empty value simply means no mention — never blocks the alert.
+    let mentionIds: string[] = [];
+    const envMention = Deno.env.get("NEW_TICKET_ALERT_MENTION");
+    if (envMention) {
+      mentionIds = envMention.split(/[,\s]+/).filter(Boolean);
+    } else {
+      const { data: cfg } = await supabase
+        .from("settings")
+        .select("new_ticket_alert_mentions")
+        .limit(1)
+        .maybeSingle();
+      mentionIds = String(cfg?.new_ticket_alert_mentions ?? "")
+        .split(/[,\s]+/)
+        .filter(Boolean);
+    }
+    const mentions = mentionIds
+      .map((id) => (id.startsWith("<@") ? id : id.startsWith("!") ? `<${id}>` : `<@${id}>`))
+      .join(" ");
+
     const link = `https://app.intercom.com/a/inbox/_/inbox/conversation/${t.convId}`;
     const contact = [t.contactName, t.contactEmail].filter(Boolean).join(" · ") || "Unknown contact";
     const lines = [
       `:inbox_tray: *New Enterprise Inbox ticket* — <${link}|#${t.convId}>`,
       `*${t.subject || "Untitled"}*`,
       `${contact}${t.owner ? ` · owner: ${t.owner}` : ""}`,
-      `_Awaiting triage — set a Severity in Intercom._`,
+      mentions
+        ? `${mentions} — new ticket for float coverage. Awaiting triage; set a Severity in Intercom.`
+        : `_Awaiting triage — set a Severity in Intercom._`,
     ];
+
 
     const res = await fetch(`${SLACK_API_URL}/chat.postMessage`, {
       method: "POST",
