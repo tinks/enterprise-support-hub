@@ -231,6 +231,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
               <span className="truncate">Intercom admin ID</span>
               <span className="truncate">Email</span>
               <span className="truncate">Name</span>
+              <span className="truncate">Slack ID</span>
               <span className="truncate">Role</span>
               <span className="text-center">Active</span>
               <span className="text-center">Dashboard</span>
