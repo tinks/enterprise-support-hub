@@ -880,13 +880,8 @@ function TransferredTable({ rows, loading, onSelect, accountLabel }: { rows: Tic
                 : null;
             return (
               <TableRow key={r.id} className="cursor-pointer" onClick={() => onSelect(r)}>
+                <TableCell><IntercomIdChip id={r.intercom_conversation_id} /></TableCell>
                 <TableCell className="truncate max-w-[320px]">{r.subject || "—"}</TableCell>
-                <TableCell
-                  className="font-mono text-xs select-text"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {r.intercom_conversation_id}
-                </TableCell>
                 <TableCell className="truncate max-w-[160px]">
                   <Badge variant="secondary" className="text-xs">
                     {r.customer_key ? accountLabel(r.customer_key) : (r.contact_domain || "—")}
