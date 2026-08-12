@@ -793,15 +793,7 @@ function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, acc
               : null;
             return (
               <TableRow key={r.id} className="cursor-pointer" onClick={() => onSelect(r)}>
-                <TableCell className="font-mono text-xs">
-                  <a
-                    href={intercomUrl(r.intercom_conversation_id)} target="_blank" rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="inline-flex items-center gap-1 hover:underline"
-                  >
-                    {r.intercom_conversation_id}<ExternalLink className="h-3 w-3" />
-                  </a>
-                </TableCell>
+                <TableCell><IntercomIdChip id={r.intercom_conversation_id} /></TableCell>
                 <TableCell className="truncate max-w-[360px]">{r.subject || "—"}</TableCell>
                 <TableCell className="truncate max-w-[200px]">
                   <div className="text-sm">{r.contact_name || "—"}</div>
