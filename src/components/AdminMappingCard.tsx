@@ -18,6 +18,8 @@ interface Teammate {
   intercom_admin_id: string;
   email: string | null;
   name: string;
+  /** Slack member ID (U…), used to @-mention on float coverage shifts. */
+  slack_user_id: string | null;
   role: TeammateRole;
   active: boolean;
   show_dashboard: boolean;
