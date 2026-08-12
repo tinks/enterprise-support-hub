@@ -357,6 +357,14 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
               <Input placeholder="Kristina" value={newName} onChange={(e) => setNewName(e.target.value)} />
             </div>
             <div className="space-y-1">
+              <Label className="text-xs">Slack ID</Label>
+              <Input
+                placeholder="U0B7TCDJRTQ"
+                value={newSlackId}
+                onChange={(e) => setNewSlackId(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
               <Label className="text-xs">Role</Label>
               <Select value={newRole} onValueChange={(v) => setNewRole(v as TeammateRole)}>
                 <SelectTrigger>
