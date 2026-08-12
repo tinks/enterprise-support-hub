@@ -149,6 +149,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
         intercom_admin_id: row.intercom_admin_id.trim(),
         email: row.email?.trim() || null,
         name: row.name.trim(),
+        slack_user_id: row.slack_user_id?.trim() || null,
         role: row.role,
         active: row.active,
       })
