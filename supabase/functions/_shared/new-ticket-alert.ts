@@ -6,8 +6,11 @@
 // not break a sync run.
 // ---------------------------------------------------------------------------
 
+import { coveringSlackIds, type FloatShift } from "./float-coverage.ts";
+
 const SLACK_API_URL = "https://slack.com/api";
 const DEFAULT_CHANNEL = "C0BPDU4JH71"; // #enterprise-support-tickets
+
 
 export type NewTicketAlertInput = {
   convId: string;
