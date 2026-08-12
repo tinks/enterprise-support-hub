@@ -1036,6 +1036,7 @@ export type Database = {
           last_polled_intercom_at: string | null
           last_polled_ts: string
           monitored_channels: string
+          new_ticket_alert_mentions: string
           product_areas: string
           slack_bot_user_id: string
           test_intercom_inbox_id: string
@@ -1053,6 +1054,7 @@ export type Database = {
           last_polled_intercom_at?: string | null
           last_polled_ts?: string
           monitored_channels?: string
+          new_ticket_alert_mentions?: string
           product_areas?: string
           slack_bot_user_id?: string
           test_intercom_inbox_id?: string
@@ -1070,6 +1072,7 @@ export type Database = {
           last_polled_intercom_at?: string | null
           last_polled_ts?: string
           monitored_channels?: string
+          new_ticket_alert_mentions?: string
           product_areas?: string
           slack_bot_user_id?: string
           test_intercom_inbox_id?: string
