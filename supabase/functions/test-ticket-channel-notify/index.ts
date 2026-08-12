@@ -25,6 +25,12 @@ Deno.serve(async (req) => {
     );
   }
 
+  let TICKET_NOTIFY_CHANNEL_ID = DEFAULT_CHANNEL_ID;
+  try {
+    const body = await req.json();
+    if (body?.channel) TICKET_NOTIFY_CHANNEL_ID = String(body.channel);
+  } catch { /* no body */ }
+
   const text = `🧪 *Test* — Ticket channel notification check from \`slack-interactions\` config. Safe to ignore. (${new Date().toISOString()})`;
 
   try {
