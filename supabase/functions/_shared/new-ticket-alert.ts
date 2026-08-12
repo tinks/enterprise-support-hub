@@ -33,26 +33,47 @@ export async function notifyNewTicket(
       .insert({ intercom_conversation_id: t.convId, slack_channel_id: channel });
     if (claimErr) return "duplicate";
 
-    // Float-coverage ping. Read from settings.new_ticket_alert_mentions (comma/space
-    // separated Slack user IDs) so rotation needs no deploy; env var overrides for tests.
-    // A read failure or empty value simply means no mention — never blocks the alert.
+    // Float-coverage ping. Two independent sources, unioned:
+    //   1. The shift schedule (float_coverage_shifts) — whoever is on point at
+    //      this exact instant, in their own timezone. Nobody on shift (nights,
+    //      weekends, gaps) means no mention: the alert still posts, it just
+    //      doesn't buzz anyone.
+    //   2. settings.new_ticket_alert_mentions — an always-on list, pinged
+    //      regardless of the schedule. Normally blank.
+    // Env var NEW_TICKET_ALERT_MENTION overrides both, for tests.
+    // Any read failure degrades to fewer mentions — never a blocked alert.
     let mentionIds: string[] = [];
     const envMention = Deno.env.get("NEW_TICKET_ALERT_MENTION");
     if (envMention) {
       mentionIds = envMention.split(/[,\s]+/).filter(Boolean);
     } else {
+      const now = new Date();
+      let onShift: string[] = [];
+      try {
+        const { data: shifts } = await supabase
+          .from("float_coverage_shifts")
+          .select("slack_user_id, starts_on, ends_on, start_time, end_time, time_zone, active")
+          .eq("active", true);
+        onShift = coveringSlackIds((shifts ?? []) as FloatShift[], now);
+      } catch (e) {
+        console.error(`[new-ticket-alert] shift lookup failed: ${(e as Error).message}`);
+      }
+
       const { data: cfg } = await supabase
         .from("settings")
         .select("new_ticket_alert_mentions")
         .limit(1)
         .maybeSingle();
-      mentionIds = String(cfg?.new_ticket_alert_mentions ?? "")
+      const alwaysOn = String(cfg?.new_ticket_alert_mentions ?? "")
         .split(/[,\s]+/)
         .filter(Boolean);
+
+      mentionIds = Array.from(new Set([...onShift, ...alwaysOn]));
     }
     const mentions = mentionIds
       .map((id) => (id.startsWith("<@") ? id : id.startsWith("!") ? `<${id}>` : `<@${id}>`))
       .join(" ");
+
 
     const link = `https://app.intercom.com/a/inbox/_/inbox/conversation/${t.convId}`;
     const contact = [t.contactName, t.contactEmail].filter(Boolean).join(" · ") || "Unknown contact";
