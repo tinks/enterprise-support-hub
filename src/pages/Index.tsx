@@ -302,7 +302,9 @@ const Index = () => {
         test_intercom_inbox_id: settings.test_intercom_inbox_id,
         auto_mark_employee_test: settings.auto_mark_employee_test,
         product_areas: settings.product_areas,
+        new_ticket_alert_mentions: settings.new_ticket_alert_mentions ?? "",
         admin_owner_map: (settings as any).admin_owner_map,
+
       })
       .eq("id", settings.id);
 
