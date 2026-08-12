@@ -59,10 +59,6 @@ const HUB_META: Record<HubState, { label: string; pill: string }> = {
 
 const TERMINAL: HubState[] = ["customer_notified", "wont_do"];
 
-function intercomUrl(id: string) {
-  return `https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${id}?view=List`;
-}
-
 /** Resolve a Linear link from the Hub override first, then the Intercom attributes. */
 function resolveLinear(attrs: any, override: string | null): { url: string | null; key: string | null; raw: string | null } {
   const candidates = [override, attrs?.["Linear Issue"], attrs?.["Escalated Issue"]]
