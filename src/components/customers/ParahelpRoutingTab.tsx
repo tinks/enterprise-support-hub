@@ -9,9 +9,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { formatDistanceToNowStrict } from "date-fns";
-import { RefreshCw, Check, RotateCcw, MailCheck } from "lucide-react";
+import { RefreshCw, Check, RotateCcw, MailCheck, FileText } from "lucide-react";
 
 const sb = supabase as any;
 
@@ -266,3 +267,166 @@ export default function ParahelpRoutingTab({ isAdmin }: { isAdmin: boolean }) {
     </div>
   );
 }
+
+// --- Notion mirror -------------------------------------------------------
+// Parahelp has no routing API; their agent reads a Notion page and drafts the
+// edit for a human to approve. `publish-registry-notion` keeps that page an
+// exact mirror of the registry and only writes when the domain set changed.
+type NotionState = {
+  id: string;
+  notion_registry_page_id: string | null;
+  notion_registry_synced_at: string | null;
+  notion_registry_changed_at: string | null;
+  notion_registry_domain_count: number | null;
+};
+
+function NotionMirrorCard({ isAdmin }: { isAdmin: boolean }) {
+  const [state, setState] = useState<NotionState | null>(null);
+  const [pageId, setPageId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const { data, error } = await sb
+      .from("settings")
+      .select(
+        "id, notion_registry_page_id, notion_registry_synced_at, notion_registry_changed_at, notion_registry_domain_count",
+      )
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      toast.error(`Load failed: ${error.message}`);
+      return;
+    }
+    setState(data as NotionState);
+    setPageId((data as NotionState)?.notion_registry_page_id ?? "");
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function savePage() {
+    if (!isAdmin || !state) return;
+    setBusy(true);
+    const { error } = await sb
+      .from("settings")
+      .update({ notion_registry_page_id: pageId.trim() })
+      .eq("id", state.id);
+    setBusy(false);
+    if (error) {
+      toast.error(`Save failed: ${error.message}`);
+      return;
+    }
+    toast.success("Notion page saved");
+    void load();
+  }
+
+  async function run(dryRun: boolean) {
+    if (!isAdmin) return;
+    setBusy(true);
+    setResult(null);
+    const { data, error } = await supabase.functions.invoke("publish-registry-notion", {
+      body: { dryRun },
+    });
+    setBusy(false);
+    if (error) {
+      toast.error(`Sync failed: ${error.message}`);
+      setResult(error.message);
+      return;
+    }
+    const d = data as any;
+    if (d?.error) {
+      toast.error("Sync failed");
+      setResult(d.error);
+      return;
+    }
+    setResult(
+      dryRun
+        ? `Dry run — ${d.domains} domains, ${d.changed ? "page would be rewritten" : "no change since last sync"}.`
+        : `${d.domains} domains — ${d.changed ? "page rewritten" : "unchanged, Notion not touched"}.`,
+    );
+    toast.success(dryRun ? "Dry run complete" : "Notion sync complete");
+    void load();
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <FileText className="h-5 w-5" /> Notion domain page
+        </CardTitle>
+        <CardDescription>
+          The registry's domain list mirrored to a Notion page that Parahelp reads to update its
+          email routing. Excludes prospect accounts only. Runs daily at 05:00 UTC and writes only
+          when the domain set actually changed.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex gap-8 text-sm">
+          <div>
+            <div className="text-muted-foreground">Domains on page</div>
+            <div className="text-2xl font-semibold">
+              {state?.notion_registry_domain_count ?? "—"}
+            </div>
+          </div>
+          <div>
+            <div className="text-muted-foreground">Last sync</div>
+            <div className="text-2xl font-semibold">
+              {state?.notion_registry_synced_at
+                ? formatDistanceToNowStrict(new Date(state.notion_registry_synced_at), {
+                    addSuffix: true,
+                  })
+                : "never"}
+            </div>
+          </div>
+          <div>
+            <div className="text-muted-foreground">Last change written</div>
+            <div className="text-2xl font-semibold">
+              {state?.notion_registry_changed_at
+                ? formatDistanceToNowStrict(new Date(state.notion_registry_changed_at), {
+                    addSuffix: true,
+                  })
+                : "never"}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-end gap-2 max-w-2xl">
+          <div className="flex-1">
+            <label className="text-xs text-muted-foreground">Notion page id or URL</label>
+            <Input
+              value={pageId}
+              onChange={(e) => setPageId(e.target.value)}
+              disabled={!isAdmin}
+              className="font-mono text-xs"
+              placeholder="3bbe969ca5a280d298f3c0c43e51cf87"
+            />
+          </div>
+          <Button variant="outline" onClick={() => void savePage()} disabled={!isAdmin || busy}>
+            Save
+          </Button>
+        </div>
+
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => void run(true)} disabled={!isAdmin || busy}>
+            Dry run
+          </Button>
+          <Button onClick={() => void run(false)} disabled={!isAdmin || busy}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${busy ? "animate-spin" : ""}`} /> Sync to Notion
+          </Button>
+        </div>
+
+        {result && (
+          <p className="text-xs text-muted-foreground break-words whitespace-pre-wrap">{result}</p>
+        )}
+        {!isAdmin && (
+          <p className="text-xs text-muted-foreground">
+            Read-only — admin rights are required to sync or change the page.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
