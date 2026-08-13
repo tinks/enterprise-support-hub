@@ -29,7 +29,8 @@ type ShiftRow = FloatShift & {
   active: boolean;
 };
 
-type Teammate = { name: string; slack_user_id: string | null; active: boolean };
+/** Picker roster: active teammates with role = support (Admin → Settings → Teammates). */
+type Teammate = { name: string; slack_user_id: string | null; active: boolean; role: string };
 
 const TIMEZONES = [
   "America/Los_Angeles",
@@ -95,7 +96,12 @@ export default function FloatCoverage() {
         .select("*")
         .order("starts_on", { ascending: true })
         .order("start_time", { ascending: true }),
-      supabase.from("teammates").select("name, slack_user_id, active").eq("active", true).order("name"),
+      supabase
+        .from("teammates")
+        .select("name, slack_user_id, active, role")
+        .eq("active", true)
+        .eq("role", "support")
+        .order("name"),
       supabase.from("settings").select("new_ticket_alert_mentions").limit(1).maybeSingle(),
     ]);
     if (shiftRes.error) toast.error(`Could not load shifts: ${shiftRes.error.message}`);
@@ -289,8 +295,8 @@ export default function FloatCoverage() {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    Only teammates with a Slack user ID appear — add one under Admin → Settings →
-                    Teammates.
+                    Active teammates with role = support and a Slack user ID — managed under Admin →
+                    Settings → Teammates.
                   </p>
                 </div>
                 <div className="space-y-1.5">
