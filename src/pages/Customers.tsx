@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import ParahelpRoutingTab from "@/components/customers/ParahelpRoutingTab";
 import { format } from "date-fns";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip as RTooltip, CartesianGrid,
@@ -241,8 +242,8 @@ function EvidenceTickets({
   );
 }
 
-type CustomersTab = "coverage" | "unattributed" | "channels" | "registry";
-const CUSTOMER_TABS: CustomersTab[] = ["coverage", "unattributed", "channels", "registry"];
+type CustomersTab = "coverage" | "unattributed" | "channels" | "registry" | "parahelp";
+const CUSTOMER_TABS: CustomersTab[] = ["coverage", "unattributed", "channels", "registry", "parahelp"];
 
 export default function Customers() {
   const { isAdmin } = useIsAdmin();
@@ -269,11 +270,13 @@ export default function Customers() {
             <TabsTrigger value="unattributed">Unattributed queue</TabsTrigger>
             <TabsTrigger value="channels">Channels</TabsTrigger>
             <TabsTrigger value="registry">Registry</TabsTrigger>
+            <TabsTrigger value="parahelp">Parahelp routing</TabsTrigger>
           </TabsList>
           <TabsContent value="coverage" className="pt-4"><CoverageTab isAdmin={isAdmin} /></TabsContent>
           <TabsContent value="unattributed" className="pt-4"><UnattributedTab isAdmin={isAdmin} /></TabsContent>
           <TabsContent value="channels" className="pt-4"><ChannelsTab isAdmin={isAdmin} /></TabsContent>
           <TabsContent value="registry" className="pt-4"><RegistryTab isAdmin={isAdmin} /></TabsContent>
+          <TabsContent value="parahelp" className="pt-4"><ParahelpRoutingTab isAdmin={isAdmin} /></TabsContent>
         </Tabs>
       </div>
     </AppLayout>

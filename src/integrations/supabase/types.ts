@@ -1027,6 +1027,57 @@ export type Database = {
         }
         Relationships: []
       }
+      parahelp_routing_sync: {
+        Row: {
+          account_key: string | null
+          attempts: number
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          domain: string
+          id: string
+          last_attempt_at: string | null
+          last_error: string | null
+          note: string | null
+          pushed_at: string | null
+          source: string
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          account_key?: string | null
+          attempts?: number
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          domain: string
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          note?: string | null
+          pushed_at?: string | null
+          source?: string
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          account_key?: string | null
+          attempts?: number
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          domain?: string
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          note?: string | null
+          pushed_at?: string | null
+          source?: string
+          state?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pending_intercom_links: {
         Row: {
           attempts: number
