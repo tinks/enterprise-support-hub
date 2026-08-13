@@ -95,7 +95,12 @@ export default function FloatCoverage() {
         .select("*")
         .order("starts_on", { ascending: true })
         .order("start_time", { ascending: true }),
-      supabase.from("teammates").select("name, slack_user_id, active").eq("active", true).order("name"),
+      supabase
+        .from("teammates")
+        .select("name, slack_user_id, active, role")
+        .eq("active", true)
+        .eq("role", "support")
+        .order("name"),
       supabase.from("settings").select("new_ticket_alert_mentions").limit(1).maybeSingle(),
     ]);
     if (shiftRes.error) toast.error(`Could not load shifts: ${shiftRes.error.message}`);
