@@ -12,7 +12,8 @@ export type IntegrationKey =
   | "gmail_poll"
   | "inbox_v2_sync"
   | "slack_closed_won_poll"
-  | "reconcile-v3-open";
+  | "reconcile-v3-open"
+  | "parahelp_routing_sync";
 
 export type IntegrationStatus = "ok" | "auth_error" | "error";
 

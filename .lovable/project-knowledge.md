@@ -992,6 +992,22 @@ New customer accounts are seeded automatically from the Slack "closed-won" chann
 - **Diagnostics:** optional POST body `{ lookbackDays?: number (1–365), dryRun?: boolean }`. `dryRun` reports `would_insert[]` and writes nothing (and skips health recording). Responses always include `scanned`, `extracted`, `inserted`, `skipped_*`, `unparsed[]`, `malformed[]`, `missing_domain[]`, `missing_domain_handled[]`, `errors[]`.
 - **No silent failures:** every non-dry run records `integration_health.slack_closed_won_poll` — `ok` only when there were zero insert errors, zero malformed domains, and zero *unhandled* missing domains; `auth_error` on Slack 401/403; `error` on Slack API/non-JSON gateway responses, insert failures, malformed or unhandled-missing domains, or a fatal exception. Surfaced in Settings → Integration health (36h staleness window, i.e. one missed daily run) and alerted to `#enterprise-support-hub-alerts` by `integration-health-alert`.
 
+### Parahelp routing queue (step 2 of the closed-won chain)
+
+Registering the account is only half the job: mail from that domain to `enterprise-support@lovable.dev` also has to be routed into the Enterprise inbox in Parahelp. That second step is tracked as its own queue, deliberately decoupled from the registry writer.
+
+- **Table:** `public.parahelp_routing_sync` — one row per domain (`domain` UNIQUE), with `account_key`, `source`, `state` (`pending | pushed | manual_done | failed | skipped`), `attempts`, `last_error`, `pushed_at`, `completed_by`, `completed_at`, `note`. RLS: any authenticated user reads; only admins write; `service_role` full.
+- **Enqueue:** `AFTER INSERT OR UPDATE` trigger `parahelp_enqueue_new_domains_trg` on `v3_customer_accounts` inserts any *newly added* domain with `ON CONFLICT (domain) DO NOTHING`. This is why `poll-slack-closed-won` needed **no code change** — and why manual registry adds and backfills feed the same queue.
+- **Non-blocking by design:** the trigger is AFTER and conflict-tolerant, and the push worker never writes `v3_customer_accounts` and never runs inside the poller. A Parahelp outage can only leave rows `pending`; it can never block or corrupt a registry update.
+- **Seed (13 Aug 2026):** all 490 domains already in the registry at queue creation were inserted as `skipped` ("Pre-existing registry domain at queue creation"), so the queue starts clean and only tracks new arrivals.
+- **Push worker:** `sync-parahelp-routing` (edge function), `pg_cron` job `sync-parahelp-routing-daily` at `30 4 * * *` — half an hour after the poller. Reads up to 50 `pending`/`failed` rows with `attempts < 5`, oldest first.
+- **API leg is DORMANT.** There is no Parahelp connector in Lovable's catalog and no confirmed Parahelp routing endpoint. The push activates only when **both** `PARAHELP_API_KEY` and `PARAHELP_ROUTING_URL` secrets exist; the request shape in `pushDomain()` is a placeholder to be corrected once Parahelp confirms the endpoint. Enabling it is a change to that one function — no schema or UI work.
+- **Slack digest:** every non-dry, non-silent run posts the pending-domain list to `#enterprise-support-tickets` (`C0BPDU4JH71`, overridable via `NEW_TICKET_ALERT_CHANNEL`), stating whether the automatic push is on. Nothing sits silently pending.
+- **Health:** `integration_health.parahelp_routing_sync`. A dormant API leg is **not** a failure — pending rows are the expected steady state until credentials exist. Only real push failures (API leg on) or a queue-read/fatal error mark the run unhealthy.
+- **UI:** Admin → Customers → **Parahelp routing** tab (`src/components/customers/ParahelpRoutingTab.tsx`). Open rows oldest-first with age, account, state, last error; admin-only **Mark as routed** (records `completed_by` = user email) and **retry** on failed rows. Completed rows collapse into a second card. This is the working queue while the API path is unavailable.
+- **Diagnostics:** POST `{ dryRun?: boolean, silent?: boolean }` — `dryRun` writes nothing and skips health; `silent` suppresses the Slack digest.
+
+
 
 ---
 
