@@ -295,8 +295,8 @@ export default function FloatCoverage() {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    Only teammates with a Slack user ID appear — add one under Admin → Settings →
-                    Teammates.
+                    Active teammates with role = support and a Slack user ID — managed under Admin →
+                    Settings → Teammates.
                   </p>
                 </div>
                 <div className="space-y-1.5">
