@@ -31,8 +31,7 @@ Target page: **Enterprise Support Hub Domains** — `3bbe969ca5a280d298f3c0c43e5
 
 Connect Notion → settings field + UI → edge function with `dryRun` → verify the dry run output against a live `count(distinct domain)` query → first real write → confirm the page renders → cron → docs pass.
 
-## What I need from you
+## Open items
 
-1. Approval to link a Notion connection to this project.
-2. The Notion page (created and shared with Parahelp per their instructions) — or say the word and I'll have the function create the page under a parent page you name.
-3. Confirm the exclusion rules above, particularly the single `prospect` account.
+All three answered — Notion link approved, page id captured, prospects-only exclusion confirmed. The one thing I'll need from you mid-build is sharing the page with the Lovable Notion integration when the connect card appears; the first write fails with a 404 until that's done.
+
