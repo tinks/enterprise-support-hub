@@ -1136,6 +1136,11 @@ export type Database = {
           last_polled_ts: string
           monitored_channels: string
           new_ticket_alert_mentions: string
+          notion_registry_changed_at: string | null
+          notion_registry_domain_count: number | null
+          notion_registry_hash: string | null
+          notion_registry_page_id: string
+          notion_registry_synced_at: string | null
           product_areas: string
           slack_bot_user_id: string
           test_intercom_inbox_id: string
@@ -1154,6 +1159,11 @@ export type Database = {
           last_polled_ts?: string
           monitored_channels?: string
           new_ticket_alert_mentions?: string
+          notion_registry_changed_at?: string | null
+          notion_registry_domain_count?: number | null
+          notion_registry_hash?: string | null
+          notion_registry_page_id?: string
+          notion_registry_synced_at?: string | null
           product_areas?: string
           slack_bot_user_id?: string
           test_intercom_inbox_id?: string
@@ -1172,6 +1182,11 @@ export type Database = {
           last_polled_ts?: string
           monitored_channels?: string
           new_ticket_alert_mentions?: string
+          notion_registry_changed_at?: string | null
+          notion_registry_domain_count?: number | null
+          notion_registry_hash?: string | null
+          notion_registry_page_id?: string
+          notion_registry_synced_at?: string | null
           product_areas?: string
           slack_bot_user_id?: string
           test_intercom_inbox_id?: string
