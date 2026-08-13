@@ -1007,6 +1007,20 @@ Registering the account is only half the job: mail from that domain to `enterpri
 - **UI:** Admin → Customers → **Parahelp routing** tab (`src/components/customers/ParahelpRoutingTab.tsx`). Open rows oldest-first with age, account, state, last error; admin-only **Mark as routed** (records `completed_by` = user email) and **retry** on failed rows. Completed rows collapse into a second card. This is the working queue while the API path is unavailable.
 - **Diagnostics:** POST `{ dryRun?: boolean, silent?: boolean }` — `dryRun` writes nothing and skips health; `silent` suppresses the Slack digest.
 
+### Notion domain page (step 3 — the actual Parahelp hand-off, 13 Aug 2026)
+
+Parahelp confirmed they have **no routing API**. Their enterprise domain list lives in the agent's own memory file (`base.md`) and every edit goes through their human-approval queue. What their agent *can* do is read a Notion page on a schedule or page-change trigger, diff it against its memory, and draft the edit for approval. So the real hand-off is a Notion page the Hub keeps in sync — the `parahelp_routing_sync` queue above stays as the manual working list, and its API leg is now known to be dead-on-arrival.
+
+- **Function:** `publish-registry-notion`. Reads `v3_customer_accounts`, renders a `Domain | Account | Tier` table (one row per domain, sorted) preceded by a provenance line, and writes it to a Notion page through the connector gateway (`connector-gateway.lovable.dev/notion/v1`, `LOVABLE_API_KEY` + `NOTION_API_KEY`).
+- **Exclusion is exactly one rule:** `status = 'prospect'` accounts are dropped (unsigned — their mail must not route to the Enterprise inbox). **Test accounts and `inactive` accounts ARE published**, by explicit decision (Matt, 13 Aug). Domains are lower-cased and de-duplicated; `aliases` are not published (account-name variants, not mail domains).
+- **Idempotent:** the rendered row set is SHA-256 hashed and compared with `settings.notion_registry_hash`. Unchanged ⇒ **no Notion request at all**, so Parahelp's page-change trigger only fires on a real domain change. `{ force: true }` overrides.
+- **Full rewrite, never a partial diff:** on change, every existing child block on the page is deleted and the table re-appended (Notion caps children at 100/request, so rows go in chunks of 90). The page therefore cannot drift from the registry, and removals propagate. Approving a removal on Parahelp's side is their process, not ours.
+- **Settings:** `settings.notion_registry_page_id` (id or URL, normalized to a dashed uuid — never hardcoded), plus `notion_registry_hash`, `notion_registry_synced_at`, `notion_registry_changed_at`, `notion_registry_domain_count`. Target page: *Enterprise Support Hub Domains* (`3bbe969ca5a280d298f3c0c43e51cf87`).
+- **UI:** Admin → Customers → Parahelp routing → **Notion domain page** card — domains on page, last sync, last change written, editable page id, **Dry run** and **Sync to Notion** (admin-only).
+- **Health:** `integration_health.notion_registry_publish` (36h window); Notion 401/403 records `auth_error`.
+- **Diagnostics:** POST `{ dryRun?: boolean, force?: boolean }` — `dryRun` renders, reports the change verdict and a 10-row sample, and writes nothing.
+- **BLOCKED (13 Aug 2026):** the Notion connection is not yet linked to this project — Matt needs workspace permission to add the connector. Until then `NOTION_API_KEY` is absent and the function fails fast with that message. The daily `pg_cron` schedule (05:00 UTC, after the 04:00 poller and 04:30 routing worker) is **deliberately not created yet** so a missing credential does not alarm daily; it goes in with the first successful write.
+
 
 
 ---
