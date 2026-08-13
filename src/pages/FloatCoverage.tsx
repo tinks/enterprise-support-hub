@@ -29,7 +29,8 @@ type ShiftRow = FloatShift & {
   active: boolean;
 };
 
-type Teammate = { name: string; slack_user_id: string | null; active: boolean };
+/** Picker roster: active teammates with role = support (Admin → Settings → Teammates). */
+type Teammate = { name: string; slack_user_id: string | null; active: boolean; role: string };
 
 const TIMEZONES = [
   "America/Los_Angeles",
