@@ -1,0 +1,62 @@
+<svg viewBox="0 0 640 320" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: var(--font-sans); fill: hsl(var(--foreground)); font-size: 14px; font-weight: 480; }
+    .s { font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .m { font-size: 12px; fill: hsl(var(--muted-foreground)); font-family: var(--font-mono); }
+    .b { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; rx: 8; }
+    .acc { fill: none; stroke: hsl(var(--accent)); stroke-width: 1; rx: 8; }
+    .w { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+    .d { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; stroke-dasharray: 4 3; }
+    .z { fill: none; stroke: hsl(var(--border)); stroke-dasharray: 4 3; rx: 8; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8" fill="none" stroke="hsl(var(--muted-foreground))" stroke-width="1"/>
+    </marker>
+  </defs>
+
+  <rect class="b" x="12" y="30" width="150" height="54"/>
+  <text x="87" y="52" text-anchor="middle">Registry</text>
+  <text class="m" x="87" y="70" text-anchor="middle">v3_customer_accounts</text>
+
+  <rect class="acc" x="216" y="30" width="200" height="54"/>
+  <text x="316" y="52" text-anchor="middle">Notion publisher</text>
+  <text class="m" x="316" y="70" text-anchor="middle">publish-registry-notion</text>
+
+  <rect class="b" x="470" y="30" width="158" height="54"/>
+  <text x="549" y="52" text-anchor="middle">Notion page</text>
+  <text class="s" x="549" y="70" text-anchor="middle">domain table</text>
+
+  <line class="w" x1="162" y1="57" x2="212" y2="57" marker-end="url(#a)"/>
+  <line class="w" x1="416" y1="57" x2="466" y2="57" marker-end="url(#a)"/>
+  <text class="s" x="424" y="46">rewrite if changed</text>
+
+  <rect class="b" x="216" y="126" width="200" height="44"/>
+  <text x="316" y="153" text-anchor="middle">Daily cron + Sync now</text>
+  <line class="w" x1="316" y1="122" x2="316" y2="90" marker-end="url(#a)"/>
+
+  <rect class="z" x="440" y="112" width="188" height="150"/>
+  <text class="s" x="454" y="132">parahelp side</text>
+
+  <rect class="b" x="462" y="146" width="144" height="44"/>
+  <text x="534" y="173" text-anchor="middle">Reads page</text>
+
+  <rect class="b" x="462" y="206" width="144" height="44"/>
+  <text x="534" y="227" text-anchor="middle">Approval queue</text>
+  <text class="s" x="534" y="243" text-anchor="middle">human clicks approve</text>
+
+  <line class="d" x1="549" y1="90" x2="549" y2="142" marker-end="url(#a)"/>
+  <line class="d" x1="534" y1="192" x2="534" y2="202" marker-end="url(#a)"/>
+
+  <circle cx="30" cy="205" r="10" fill="hsl(var(--accent))"/>
+  <text x="30" y="210" text-anchor="middle" fill="hsl(var(--accent-foreground))" style="font-size:12px">1</text>
+  <text class="s" x="48" y="209">One-time: add Parahelp to the Notion page (Connections menu)</text>
+
+  <circle cx="30" cy="240" r="10" fill="hsl(var(--accent))"/>
+  <text x="30" y="245" text-anchor="middle" fill="hsl(var(--accent-foreground))" style="font-size:12px">2</text>
+  <text class="s" x="48" y="244">No write when the domain set is unchanged — no noise triggers</text>
+
+  <circle cx="30" cy="275" r="10" fill="hsl(var(--accent))"/>
+  <text x="30" y="280" text-anchor="middle" fill="hsl(var(--accent-foreground))" style="font-size:12px">3</text>
+  <text class="s" x="48" y="279">Hub never sees Parahelp's live list — the page is the only contract</text>
+</svg>
