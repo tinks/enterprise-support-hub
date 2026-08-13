@@ -13,7 +13,8 @@ export type IntegrationKey =
   | "inbox_v2_sync"
   | "slack_closed_won_poll"
   | "reconcile-v3-open"
-  | "parahelp_routing_sync";
+  | "parahelp_routing_sync"
+  | "notion_registry_publish";
 
 export type IntegrationStatus = "ok" | "auth_error" | "error";
 

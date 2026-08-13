@@ -29,6 +29,7 @@ const INTEGRATIONS: Array<{ key: string; label: string; description: string; max
   { key: "inbox_v2_sync", label: "Inbox V2 sync", description: "Mirrors Intercom into the Inbox V2 sandbox (every 15 min).", maxStaleMin: 30 },
   { key: "slack_closed_won_poll", label: "Closed-won account import", description: "Imports new customer accounts from Slack #closed-won (daily, 7-day lookback).", maxStaleMin: 36 * 60 },
   { key: "parahelp_routing_sync", label: "Parahelp routing queue", description: "Pushes new customer domains to Parahelp email routing (API leg dormant until credentials exist; posts a pending digest to Slack).", maxStaleMin: 36 * 60 },
+  { key: "notion_registry_publish", label: "Notion domain page", description: "Mirrors the customer registry domain list to the Notion page Parahelp reads. Writes only when the domain set changed.", maxStaleMin: 36 * 60 },
   { key: "reconcile-v3-open", label: "Transferred-out reconciliation", description: "Catches tickets that left the Enterprise Inbox and marks them transferred_out (hourly).", maxStaleMin: 180 },
 ];
 
