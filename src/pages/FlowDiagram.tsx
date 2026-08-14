@@ -31,6 +31,7 @@ import {
   ClipboardList,
   ScrollText,
   Bell,
+  ShieldCheck,
   Download,
 } from "lucide-react";
 import { toPng } from "html-to-image";
@@ -870,6 +871,26 @@ function buildNodes(
           "Layout: signals with count > 0 (and error cards) hoist into a 'Needs attention' block at the top; everything else stays grouped by family below with a 'clear' marker. All-clear renders an explicit empty state rather than a blank page.",
           "Wiring: ActionSignalsProvider wraps the router in App.tsx so AppLayout's badge and the page share ONE fetch; useActionSignals() returns a no-op zero state outside the provider rather than throwing.",
           "VERIFICATION STATE (14 Aug 2026): all 10 signals load and read 0, cross-checked against SQL (44 open tickets, 0 untriaged, 0 escalations, 0 Parahelp pending, 0 pending docs, 0 unhealthy integrations) — the zeros are real, not an over-filtered query. The non-zero path (amber card + rail badge) has NOT yet been observed against live data because every queue is currently empty.",
+        ],
+        accent: "default",
+      },
+    },
+    {
+      id: "auth-hardening",
+      type: "flowNode",
+      position: { x: COL_W * -3.0, y: ROW_H * 4.2 },
+      data: {
+        label: "Auth & endpoint hardening",
+        desc: "Batch 1 of the security-scan triage: who can create an account, what gets rendered as HTML, and which edge functions require a real session.",
+        icon: ShieldCheck,
+        details: [
+          "SELF-SIGNUP IS CLOSED. Public sign-up is disabled at the auth layer and the 'Create account' button is gone from /login. This matters because nearly every RLS policy is USING (true) for the authenticated role — the whole model assumes an authenticated user IS a vetted teammate, which was only true if account creation was restricted. New teammates must now be admin-provisioned. Leaked-password (HIBP) protection enabled in the same pass.",
+          "XSS — gmail-oauth-callback: the error query param, the token-exchange payload, the insert error, and the connected email address are HTML-escaped before being interpolated into the returned HTML. Previously a crafted ?error=<script> link would execute in the browser of whoever opened it.",
+          "XSS — ProjectKnowledge markdown renderer: renderMarkdown() now escapes raw text FIRST (escapeHtml) and applies inline `code`/**bold** formatting SECOND, via a shared inlineMd() helper used by headings, blockquotes, list items, paragraphs, and table cells; code blocks use escapeHtml directly. knowledge_documents.content is writable by any authenticated user, so unescaped rendering was a stored-XSS path into every teammate's browser.",
+          "READ-FUNCTION AUTH: new shared helper supabase/functions/_shared/require-user.ts validates the Authorization bearer token via auth.getClaims and rejects anything without a `sub` claim. The anon key is itself a valid JWT but carries no sub, so anon-key-only calls are rejected too — that is the important property.",
+          "Guarded (UI-only call sites, verified): search-intercom-by-email, list-slack-users, list-slack-channels, fetch-thread-messages, fetch-gmail-thread, intercom-month-stats, check-bot-identity.",
+          "DELIBERATELY NOT GUARDED YET: the ~32 mutation/sync/backfill functions. pg_cron invokes them with only the anon key as bearer, so dropping requireUser() on them would silently 401 every scheduled job (poll-gmail, poll-intercom-inbox, sync-v3-*, reconcile-v3-open, promote-pending-intercom-links, refresh-intercom-csat, sync-parahelp-routing, integration-health-alert, context-reminder, backfill-intercom-replies, poll-slack-closed-won). They need a two-path guard (user JWT OR cron secret) plus a rewrite of the cron commands — separate batch. Slack/Intercom webhook receivers stay unauthenticated by design and must be signature-verified instead.",
+          "VERIFICATION (14 Aug 2026): negative test — all 7 guarded endpoints return 401 with no Authorization header AND with the anon key alone. Positive test — list-slack-channels, list-slack-users, check-bot-identity all return 200 with a real user session token. gmail-oauth-callback?error=<script>alert(1)</script> renders escaped entities.",
         ],
         accent: "default",
       },
