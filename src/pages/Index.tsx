@@ -260,11 +260,11 @@ const Index = () => {
 
   const fetchChannelNames = async () => {
     try {
-      const res = await fetch(`${edgeFunctionBaseUrl}/list-slack-channels`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const { data, error } = await supabase.functions.invoke("list-slack-channels", {
+        body: {},
       });
-      const data = await res.json();
+      if (error) throw error;
+
       if (data.channels) {
         const map: Record<string, string> = {};
         for (const ch of data.channels) {
