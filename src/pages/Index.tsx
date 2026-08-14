@@ -322,12 +322,12 @@ const Index = () => {
     if (channels.length > 0) return; // already loaded
     setChannelsLoading(true);
     try {
-      const res = await fetch(`${edgeFunctionBaseUrl}/list-slack-channels`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const { data, error } = await supabase.functions.invoke("list-slack-channels", {
+        body: {},
       });
-      const data = await res.json();
-      if (data.error) {
+      if (error) throw error;
+      if (data?.error) {
+
         toast.error("Failed to load channels: " + data.error);
         setChannels([]);
       } else {
