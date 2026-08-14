@@ -1,3 +1,4 @@
+import { requireUser } from "../_shared/require-user.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 const corsHeaders = {
@@ -113,6 +114,9 @@ async function computeStatsForMonth(
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  const auth = await requireUser(req, corsHeaders);
+  if (!auth.ok) return auth.response;
 
   const token = Deno.env.get("INTERCOM_API_TOKEN");
   if (!token) {

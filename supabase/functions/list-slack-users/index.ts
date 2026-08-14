@@ -1,3 +1,4 @@
+import { requireUser } from "../_shared/require-user.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -10,6 +11,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const auth = await requireUser(req, corsHeaders);
+  if (!auth.ok) return auth.response;
 
   const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN");
   if (!SLACK_BOT_TOKEN) {
