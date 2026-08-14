@@ -17,12 +17,14 @@ import {
   Building2,
   Wrench,
   Cog,
+  Bell,
   LucideIcon,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useDashboardTeammates } from "@/hooks/useDashboardTeammates";
+import { useActionSignals } from "@/hooks/useActionSignals";
 
 type NavChild = { to: string; label: string; end?: boolean; adminOnly?: boolean };
 type NavLinkItem = { kind: "link"; to: string; icon: LucideIcon; label: string; end?: boolean };
@@ -30,6 +32,7 @@ type NavGroupItem = { kind: "group"; label: string; icon: LucideIcon; items: Nav
 type NavEntry = NavLinkItem | NavGroupItem;
 
 const navEntries: NavEntry[] = [
+  { kind: "link", to: "/action-center", icon: Bell, label: "Action center" },
   {
     kind: "group",
     label: "Reports",
@@ -106,6 +109,9 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const { isAdmin } = useIsAdmin();
   const { items: dashboardTeammates } = useDashboardTeammates();
+  const { attentionCount, errorCount } = useActionSignals();
+  // One aggregate disc on the rail: how many SIGNALS need attention (not items).
+  const railBadge = attentionCount + errorCount;
 
   // Admin-only nav children are hidden for non-admins (routes + RLS enforce too).
   // The Dashboards group appends the per-owner entries driven by the teammates roster.
@@ -153,6 +159,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
 
   const renderLink = (to: string, icon: LucideIcon, label: string, end?: boolean) => {
     const Icon = icon;
+    const badge = to === "/action-center" && railBadge > 0 ? railBadge : null;
     return (
       <TooltipProvider key={to} delayDuration={0}>
         <Tooltip open={!expanded && activeTooltip === label}>
@@ -164,9 +171,20 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
               }}
               onMouseLeave={() => setActiveTooltip(null)}
             >
-              <NavLink to={to} className={linkBase} activeClassName={activeClass} end={end}>
+              <NavLink to={to} className={`${linkBase} relative`} activeClassName={activeClass} end={end}>
                 <Icon className="h-4 w-4 shrink-0" />
                 <span className={labelClass}>{label}</span>
+                {badge != null && (
+                  <span
+                    className={
+                      expanded
+                        ? "ml-auto shrink-0 rounded-full bg-destructive text-destructive-foreground text-[10px] leading-none font-semibold px-1.5 py-1"
+                        : "absolute left-6 top-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] leading-none font-semibold px-1.5 py-1"
+                    }
+                  >
+                    {badge}
+                  </span>
+                )}
               </NavLink>
             </div>
           </TooltipTrigger>
