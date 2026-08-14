@@ -772,6 +772,28 @@ function buildNodes(
       },
     },
     {
+      id: "esh-write-action",
+      type: "flowNode",
+      position: { x: COL_W * 0.5, y: ROW_H * 2.9 },
+      data: {
+        label: "ESH write spine (Step 1)",
+        desc: "The single choke point for Hub-originated writes to a ticket. Shipped closed: kill switch off, allowlist empty, no surface wired to it yet.",
+        icon: ClipboardList,
+        edgeFunction: "esh-write-action",
+        details: [
+          "Write-through contract: authenticate caller → resolve to public.teammates → check kill switch + allowlist → call Intercom AS that teammate's intercom_admin_id → wait for 2xx → re-read GET /conversations/{id} → only then mirror the returned values into intercom_tickets_v3. The Hub is NOT the source of truth for Intercom-owned fields in this step.",
+          "Failure handling is deliberate: if Intercom rejects, the local row is left UNTOUCHED and the provider status + body are returned verbatim — we never record a value Intercom refused. If the write lands but the re-read or the local mirror update fails, the caller is told explicitly and the next sync reconciles.",
+          "Attribution uses the teammate's real intercom_admin_id, never a generic bot admin, so classifyActor in the SLA engine keeps reading these as human_admin and the measurement track stays honest. All five active support teammates already carry an intercom_admin_id (verified 14 Aug), so Step 0 needed no data work.",
+          "Two interlocks, both default-closed: settings.esh_write_enabled (global kill switch, false — flip it off to stop every Hub write instantly, no deploy) and settings.esh_write_allowed_actions (text[], empty). An action must be listed AND the switch on. Both refusals return 403 {blocked:true} and are LOGGED — a blocked call is a recorded event, not a silent no-op.",
+          "Actions are a closed set in code (KNOWN_ACTIONS); an unknown name is refused by name, not by shape. Step 1 registers exactly one: set_severity (custom_attributes.Severity, values 1–4), not callable until allowlisted.",
+          "public.esh_ticket_actions — append-only audit, one row per ATTEMPT whatever the outcome (succeeded | blocked | failed): conversation, action, actor (user id, email, teammate name, intercom admin id), payload, intercom_status, intercom_response, error. Authenticated read, service_role write, NO update/delete policies — the trail cannot be rewritten or trimmed from the app. This log is the evidence base for judging whether a write surface is safe to widen.",
+          "Not in this step: no UI writes anywhere. /triage's severity control (Step 2) is the first surface and lands only after this spine is exercised, including the NEGATIVE case (kill switch off ⇒ blocked and logged).",
+        ],
+        accent: "purple",
+      },
+    },
+    {
+
       id: "inbox-v3-gap-scan",
       type: "flowNode",
       position: { x: COL_W * -0.6, y: ROW_H * 3.2 },
