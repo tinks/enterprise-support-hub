@@ -789,7 +789,7 @@ function buildNodes(
           "public.esh_ticket_actions — append-only audit, one row per ATTEMPT whatever the outcome (succeeded | blocked | failed): conversation, action, actor (user id, email, teammate name, intercom admin id), payload, intercom_status, intercom_response, error. Authenticated read, service_role write, NO update/delete policies — the trail cannot be rewritten or trimmed from the app. This log is the evidence base for judging whether a write surface is safe to widen.",
           "Not in this step: no UI writes anywhere. /triage's severity control (Step 2) is the first surface and lands only after this spine is exercised, including the NEGATIVE case (kill switch off ⇒ blocked and logged).",
         ],
-        accent: "purple",
+        accent: "blue",
       },
     },
     {
