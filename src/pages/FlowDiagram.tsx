@@ -30,6 +30,7 @@ import {
   Beaker,
   ClipboardList,
   ScrollText,
+  Bell,
   Download,
 } from "lucide-react";
 import { toPng } from "html-to-image";
@@ -847,6 +848,30 @@ function buildNodes(
           "Constraint-bug footnote: the first migration's DROP CONSTRAINT IF EXISTS used a GUESSED name and missed the real pre-existing intercom_tickets_v3_lifecycle_chk, so a duplicate CHECK survived and silently rejected every transferred_out write (all 7 departed rows returned update_failed) until it was dropped in a follow-up migration. Lesson: look up a constraint's real name in pg_constraint before ALTER.",
         ],
         accent: "orange",
+      },
+    },
+    {
+      id: "action-center",
+      type: "flowNode",
+      position: { x: COL_W * -3.0, y: ROW_H * 3 },
+      data: {
+        label: "Action center",
+        desc: "Read-only landing surface at /action-center answering one question: is anything in the ESH waiting on a human right now? Top nav entry (bell icon) with an aggregate badge on the rail.",
+        icon: Bell,
+        details: [
+          "SINGLE REGISTRY: src/lib/actionSignals.ts exports ACTION_SIGNALS — one array that feeds BOTH the page and the sidebar badge, so the two can never disagree. Adding a signal is one entry (id, label, family, route, routeLabel, meaning, load()).",
+          "Ten signals in four families. Queues: unattributed customers (v3_unattributed_groups), untriaged tickets (open/reopened_after_finalize with no custom_attributes.Severity — same predicate as /triage), open dev escalations (hub_state NOT IN customer_notified, wont_do). SLA risk: first response past target. Pipeline health: integration failures (integration_health last_status='error' OR consecutive_failures>0), stale v3 sync, Parahelp routing pending (state pending|failed), registry not published (notion_registry_changed_at > notion_registry_synced_at). Review items: knowledge doc approvals (pending_content NOT NULL), channel→account proposals (v3_channel_proposals_pending).",
+          "First-response risk is POLICY-AWARE, not a hardcoded target: it loads sla_policy_versions + sla_policy_targets, resolves the effective policy per ticket by inbound date via resolvePolicy(), runs computeSla() with that version's business hours, and compares elapsed time on the target's own clock (business vs wall). Unclassified tickets are skipped (that is the Triage signal's job) and tickets with a first_response row in sla_breach_overrides are excluded.",
+          "Stale-sync thresholds are per job kind against the newest 'done' row in intercom_sync_jobs_v3: open_refresh 60 min, closed_backfill 60 min, gap_scan 48 h. A kind with NO completed run is treated as infinitely stale, not as healthy.",
+          "NO NEW TABLES, NO WRITES, NO CACHED COUNTERS. Every count is read live from the same source its destination page reads, so the card and the page it links to cannot drift apart.",
+          "A loader that throws renders an explicit ERROR card (destructive styling, message shown, counted separately as 'unreadable') — NEVER as 0. A failed query must never look like a clear queue. Errors are excluded from attentionCount and added to the rail badge separately.",
+          "v1 thresholds are deliberately absent: any count > 0 is attention. No age gates, no severity weighting, no mute/snooze — muting is the feature that makes an alert board lie, and it is not built until there is a real false-positive to mute.",
+          "Refetch: same lightweight pattern as /triage — window focus + document visibilitychange, debounced 300 ms, at most one fetch per 10 s. No polling interval, no realtime subscription.",
+          "Layout: signals with count > 0 (and error cards) hoist into a 'Needs attention' block at the top; everything else stays grouped by family below with a 'clear' marker. All-clear renders an explicit empty state rather than a blank page.",
+          "Wiring: ActionSignalsProvider wraps the router in App.tsx so AppLayout's badge and the page share ONE fetch; useActionSignals() returns a no-op zero state outside the provider rather than throwing.",
+          "VERIFICATION STATE (14 Aug 2026): all 10 signals load and read 0, cross-checked against SQL (44 open tickets, 0 untriaged, 0 escalations, 0 Parahelp pending, 0 pending docs, 0 unhealthy integrations) — the zeros are real, not an over-filtered query. The non-zero path (amber card + rail badge) has NOT yet been observed against live data because every queue is currently empty.",
+        ],
+        accent: "default",
       },
     },
     {
