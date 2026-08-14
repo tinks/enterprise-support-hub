@@ -984,6 +984,7 @@ function buildNodes(
 /*  Edges                                                              */
 /* ------------------------------------------------------------------ */
 const initialEdges: Edge[] = [
+  { id: "e-triage-sev-write", source: "triage-severity-write", target: "esh-write-action", label: "set_severity", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e1-2", source: "1", target: "2", animated: true, style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e2-3a", source: "2", target: "3a", label: "Add Details", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e2-3b", source: "2", target: "3b", label: "Proceed", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
