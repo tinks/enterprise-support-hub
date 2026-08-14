@@ -1530,6 +1530,45 @@ The table is currently **EMPTY** and the page renders its empty state. A ~38-ite
 - The INSERT/UPDATE policies are intentionally always-true (shared team backlog); the linter flags this as permissive. If authorship enforcement is wanted later, UPDATE can be narrowed to `created_by = auth.jwt()->>'email' OR has_role(...)`.
 
 
+## Working tickets in the ESH — write spine (Step 0/1, 14 Aug 2026)
+
+First step of the "work tickets in the ESH, not only report on them" track. **This step ships no user-visible write** — it is the plumbing plus its safety interlocks, landed and provable before any surface is wired to it.
+
+### Write-through contract (non-negotiable)
+
+The Hub is **not** the source of truth for Intercom-owned fields, and does not become one in this step. Every write follows the same order, and any failure stops it:
+
+1. authenticate the caller, resolve them to a row in `public.teammates`,
+2. check the global kill switch and the per-action allowlist,
+3. call Intercom **as that teammate's `intercom_admin_id`** and wait for a 2xx,
+4. re-read `GET /conversations/{id}`,
+5. only then mirror what Intercom actually returned into `intercom_tickets_v3`.
+
+If Intercom rejects, the local row is **left untouched** and the provider's status + body are returned verbatim — the Hub never records a value Intercom refused. If the write lands but the re-read or the local mirror update fails, the caller is told so explicitly and the next sync reconciles; the Hub does not guess.
+
+Attribution runs through the teammate's real Intercom admin id, never a generic bot admin, so `classifyActor` in the SLA engine keeps reading these as `human_admin` and the measurement track stays honest. All five active support teammates already carry an `intercom_admin_id` (verified 14 Aug), so Step 0 needed no data work.
+
+### `supabase/functions/esh-write-action`
+
+The **single** choke point. No other app or function code may call Intercom to mutate a ticket or write the Intercom-owned columns of `intercom_tickets_v3`. Request shape: `{ conversationId, action, payload }`. Actions are an explicit closed set in code (`KNOWN_ACTIONS`) — an unknown name is refused by name, not by shape. Step 1 registers exactly one action, `set_severity` (`custom_attributes.Severity`, values `1`–`4`), and it is **not** callable until it is added to the allowlist.
+
+Two independent interlocks, both defaulting to closed:
+
+- `settings.esh_write_enabled` — global kill switch, `false`. Flipping this off disables every Hub write instantly, no deploy.
+- `settings.esh_write_allowed_actions` — `text[]`, empty. An action must be listed here *and* the switch on.
+
+Both refusals log and return `403 {blocked:true}` — a blocked call is a recorded event, not a silent no-op.
+
+### `public.esh_ticket_actions` — append-only audit
+
+One row per **attempt**, whatever the outcome: `intercom_conversation_id`, `action`, `outcome ∈ succeeded|blocked|failed`, actor (`actor_user_id`, `actor_email`, `actor_teammate_name`, `actor_intercom_admin_id`), `payload`, `intercom_status`, `intercom_response`, `error`. Any authenticated user may read; only `service_role` writes; there are no UPDATE or DELETE policies, so the trail cannot be rewritten or trimmed from the app. This log is the evidence base for judging whether a write surface is safe to widen.
+
+### Deliberately not done in this step
+
+No UI writes anywhere — `/triage`'s severity control (Step 2) is the first surface and lands only after this spine is exercised, including the **negative** case (kill switch off ⇒ blocked and logged). No local-only writes to Intercom-owned fields. No authority flip.
+
+
+
 
 
 
