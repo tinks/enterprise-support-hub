@@ -1568,6 +1568,28 @@ One row per **attempt**, whatever the outcome: `intercom_conversation_id`, `acti
 No UI writes anywhere — `/triage`'s severity control (Step 2) is the first surface and lands only after this spine is exercised, including the **negative** case (kill switch off ⇒ blocked and logged). No local-only writes to Intercom-owned fields. No authority flip.
 
 
+## Triage severity control — first Hub write surface (Step 2, 14 Aug 2026)
+
+The first user-visible Hub-originated write, on the smallest possible field: one enum, on tickets that by definition hold no value yet, so there is nothing to overwrite.
+
+`src/components/issues/SeverityWriteControl.tsx`, rendered in the `/triage` detail sheet. It calls `esh-write-action` with `set_severity` and does **nothing** else — no direct Intercom call, no local write to an Intercom-owned column, no optimistic update.
+
+### Refusals are visible, by design
+
+The negative case is the point of this step. A refusal (kill switch off, `set_severity` not allowlisted, caller not mapped to an active teammate with an `intercom_admin_id`, invalid severity) renders inline in the sheet as "Write refused — nothing changed" plus the function's own message. A genuine failure (Intercom rejected, mirror update failed, transport error) renders as "Write failed — nothing changed". Neither is ever a silent no-op, and neither moves the local row.
+
+### Local mirror timing
+
+On success the function has already written Intercom, re-read the conversation, and updated `intercom_tickets_v3`. The page then patches its own in-memory row from the value the function reports Intercom holds, so the ticket leaves the untriaged list immediately instead of waiting up to 5 minutes for `sync-v3-open`. That patch is a *reflection* of a confirmed server state, not an optimistic guess — it only runs after a 2xx.
+
+The queue's own definition is unchanged: a ticket is untriaged when Intercom reports no `Severity`. The header badge changed from "Read-only" to "Severity writes enabled".
+
+### Verification for this step
+
+Positive: set severity from the sheet on a test-account ticket, then on one real triage ticket watched through close. Negative: kill switch off ⇒ inline refusal, no local change, `esh_ticket_actions` row with `outcome = blocked`. Both confirmed against Intercom by re-read before the step counts as done.
+
+
+
 
 
 
