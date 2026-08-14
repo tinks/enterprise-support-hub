@@ -27,17 +27,8 @@ const Login = () => {
     setLoading(false);
   };
 
-  const handleEmailSignup = async () => {
-    setLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) {
-      toast({ title: "Signup failed", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Account created", description: "You are now signed in." });
-      navigate("/", { replace: true });
-    }
-    setLoading(false);
-  };
+
+
 
   const handleGoogleLogin = async () => {
     setLoading(true);
