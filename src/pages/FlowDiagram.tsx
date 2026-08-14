@@ -793,6 +793,24 @@ function buildNodes(
       },
     },
     {
+      id: "triage-severity-write",
+      type: "flowNode",
+      position: { x: COL_W * 0.5, y: ROW_H * 3.5 },
+      data: {
+        label: "Triage severity control (Step 2)",
+        desc: "First user-visible Hub write. /triage detail sheet sets Severity through esh-write-action — never Intercom directly, never a local write to an Intercom-owned column.",
+        icon: ClipboardList,
+        details: [
+          "SeverityWriteControl (src/components/issues/SeverityWriteControl.tsx) renders in the /triage detail sheet and calls esh-write-action with action=set_severity. Smallest possible write: one enum, on tickets that by definition hold no Severity yet, so there is nothing to overwrite.",
+          "Refusals are VISIBLE — that is the point of this step. Kill switch off, action not allowlisted, caller not mapped to an active teammate with an intercom_admin_id, or an invalid severity all render inline as 'Write refused — nothing changed' with the function's own message. A genuine failure (Intercom rejected, mirror update failed, transport error) renders as 'Write failed — nothing changed'. Neither is ever a silent no-op and neither moves the local row.",
+          "On success the edge function has already written Intercom, re-read the conversation, and updated intercom_tickets_v3. The page then patches its in-memory row from the value the function reports Intercom holds, so the ticket leaves the untriaged list immediately rather than waiting up to 5 min for sync-v3-open. That patch reflects a confirmed server state — it only runs after a 2xx, it is not an optimistic update.",
+          "The queue definition is unchanged: untriaged = Intercom reports no Severity. Header badge moved from 'Read-only' to 'Severity writes enabled'.",
+          "Verification: positive on a test-account ticket then one real ticket watched through close; negative with the kill switch off (inline refusal, no local change, esh_ticket_actions row with outcome=blocked).",
+        ],
+        accent: "blue",
+      },
+    },
+    {
 
       id: "inbox-v3-gap-scan",
       type: "flowNode",
