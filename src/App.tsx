@@ -35,6 +35,8 @@ import SlaPolicyAdmin from "./pages/SlaPolicyAdmin";
 import FloatCoverage from "./pages/FloatCoverage";
 import Triage from "./pages/Triage";
 import Escalations from "./pages/Escalations";
+import ActionCenter from "./pages/ActionCenter";
+import { ActionSignalsProvider } from "./hooks/useActionSignals";
 
 
 const queryClient = new QueryClient();
@@ -45,9 +47,11 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <ActionSignalsProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<ProtectedRoute><Stats /></ProtectedRoute>} />
+          <Route path="/action-center" element={<ProtectedRoute><ActionCenter /></ProtectedRoute>} />
           <Route path="/conversations" element={<ProtectedRoute><Conversations /></ProtectedRoute>} />
           <Route path="/triage" element={<ProtectedRoute><Triage /></ProtectedRoute>} />
           <Route path="/escalations" element={<ProtectedRoute><Escalations /></ProtectedRoute>} />
@@ -82,6 +86,7 @@ const App = () => (
           <Route path="/sla-test" element={<Navigate to="/sla" replace />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </ActionSignalsProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
