@@ -1,12 +1,21 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+function escapeHtml(value: unknown): string {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 Deno.serve(async (req) => {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const error = url.searchParams.get("error");
 
   if (error) {
-    return new Response(`<html><body><h2>OAuth error</h2><p>${error}</p></body></html>`, {
+    return new Response(`<html><body><h2>OAuth error</h2><p>${escapeHtml(error)}</p></body></html>`, {
       status: 400,
       headers: { "Content-Type": "text/html" },
     });
@@ -43,7 +52,7 @@ Deno.serve(async (req) => {
   if (!tokenRes.ok) {
     console.error("Token exchange failed:", tokenData);
     return new Response(
-      `<html><body><h2>Token exchange failed</h2><pre>${JSON.stringify(tokenData, null, 2)}</pre></body></html>`,
+      `<html><body><h2>Token exchange failed</h2><pre>${escapeHtml(JSON.stringify(tokenData, null, 2))}</pre></body></html>`,
       { status: 400, headers: { "Content-Type": "text/html" } },
     );
   }
@@ -80,7 +89,7 @@ Deno.serve(async (req) => {
   if (insertError) {
     console.error("Failed to store tokens:", insertError);
     return new Response(
-      `<html><body><h2>Failed to store tokens</h2><pre>${insertError.message}</pre></body></html>`,
+      `<html><body><h2>Failed to store tokens</h2><pre>${escapeHtml(insertError.message)}</pre></body></html>`,
       { status: 500, headers: { "Content-Type": "text/html" } },
     );
   }
@@ -88,7 +97,7 @@ Deno.serve(async (req) => {
   return new Response(
     `<html><body style="font-family:system-ui;text-align:center;padding:60px">
       <h2>✅ Gmail connected successfully</h2>
-      <p>Connected as <strong>${emailAddress ?? "unknown"}</strong></p>
+      <p>Connected as <strong>${escapeHtml(emailAddress ?? "unknown")}</strong></p>
       <p>You can close this window and return to the app.</p>
     </body></html>`,
     { headers: { "Content-Type": "text/html" } },
