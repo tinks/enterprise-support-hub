@@ -1594,3 +1594,45 @@ Positive: set severity from the sheet on a test-account ticket, then on one real
 
 
 
+
+## Action center (`/action-center`, 14 Aug 2026)
+
+A read-only landing surface that answers one question: **is anything in the ESH waiting on a human right now?** It replaces the habit of opening five pages to find out that four of them are empty. Top-level nav entry (bell icon), with an aggregate badge on the collapsed rail.
+
+### One registry, two consumers
+
+`src/lib/actionSignals.ts` exports `ACTION_SIGNALS` — a single array that feeds **both** the page and the sidebar badge, so the badge and the page can never disagree. Each entry is `{ id, label, family, route, routeLabel, meaning, load() }`; adding a signal is one entry and nothing else. `src/hooks/useActionSignals.tsx` runs the loaders in parallel and shares the result through `ActionSignalsProvider` (wrapped around the router in `App.tsx`), so the layout badge and the page cost one fetch, not two. Called outside the provider, the hook returns a no-op zero state rather than throwing.
+
+### The ten signals
+
+| Family | Signal | Source |
+| --- | --- | --- |
+| Queues | Unattributed customers | `v3_unattributed_groups()` |
+| Queues | Untriaged tickets | `intercom_tickets_v3` open/reopened with no `custom_attributes.Severity` (same predicate as `/triage`) |
+| Queues | Open dev escalations | `dev_escalations` where `hub_state NOT IN (customer_notified, wont_do)` |
+| SLA risk | First response past target | policy-aware, see below |
+| Pipeline | Integration failures | `integration_health` `last_status='error'` OR `consecutive_failures > 0` |
+| Pipeline | Stale v3 sync | newest `done` row per kind in `intercom_sync_jobs_v3` |
+| Pipeline | Parahelp routing pending | `parahelp_routing_sync` state `pending`/`failed` |
+| Pipeline | Registry not published | `settings.notion_registry_changed_at > notion_registry_synced_at` |
+| Review | Knowledge doc approvals | `knowledge_documents.pending_content IS NOT NULL` |
+| Review | Channel → account proposals | `v3_channel_proposals_pending()` |
+
+**First-response risk is policy-aware, not a hardcoded target.** It loads `sla_policy_versions` + `sla_policy_targets`, resolves the effective policy per ticket by inbound date via `resolvePolicy()`, runs `computeSla()` on that version's business hours, and compares elapsed time on the target's own clock (business vs wall). Unclassified tickets are skipped — that is the Triage signal's job — and tickets carrying a `first_response` row in `sla_breach_overrides` are excluded.
+
+**Stale-sync thresholds** are per job kind: `open_refresh` 60 min, `closed_backfill` 60 min, `gap_scan` 48 h. A kind with *no* completed run at all is treated as infinitely stale, never as healthy.
+
+### Rules the surface is built on
+
+- **No new tables, no writes, no cached counters.** Every count is read live from the same source its destination page reads, so a card and the page it links to cannot drift.
+- **A failed loader is an error card, never a zero.** A loader that throws renders in destructive styling with the message shown and is counted separately as "unreadable". A broken query must never look like a clear queue.
+- **No thresholds and no mute in v1.** Any count > 0 is attention. No age gates, no severity weighting, no snooze — muting is the feature that makes an alert board lie, and it stays unbuilt until there is a real false positive to mute.
+- **Refetch is cheap.** Window `focus` + `visibilitychange`, debounced 300 ms, at most one fetch per 10 s — the same pattern as `/triage`. No interval, no realtime subscription.
+
+### Layout
+
+Signals with a non-zero count (and error cards) hoist into a "Needs attention" block at the top; the rest stay grouped by family below with a `clear` marker. All-clear renders an explicit empty state rather than a blank page.
+
+### Verification state (14 Aug 2026)
+
+All ten signals load and read 0, cross-checked against SQL — 44 open tickets, 0 untriaged, 0 escalations, 0 Parahelp pending, 0 pending docs, 0 unhealthy integrations. The zeros are real, not an over-filtered query. **Not yet observed:** the non-zero path (amber card + rail badge) against live data, because every watched queue is currently empty.
