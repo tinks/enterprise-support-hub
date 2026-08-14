@@ -332,6 +332,54 @@ export type Database = {
         }
         Relationships: []
       }
+      esh_ticket_actions: {
+        Row: {
+          action: string
+          actor_email: string | null
+          actor_intercom_admin_id: string | null
+          actor_teammate_name: string | null
+          actor_user_id: string | null
+          created_at: string
+          error: string | null
+          id: string
+          intercom_conversation_id: string
+          intercom_response: Json | null
+          intercom_status: number | null
+          outcome: string
+          payload: Json
+        }
+        Insert: {
+          action: string
+          actor_email?: string | null
+          actor_intercom_admin_id?: string | null
+          actor_teammate_name?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          intercom_conversation_id: string
+          intercom_response?: Json | null
+          intercom_status?: number | null
+          outcome: string
+          payload?: Json
+        }
+        Update: {
+          action?: string
+          actor_email?: string | null
+          actor_intercom_admin_id?: string | null
+          actor_teammate_name?: string | null
+          actor_user_id?: string | null
+          created_at?: string
+          error?: string | null
+          id?: string
+          intercom_conversation_id?: string
+          intercom_response?: Json | null
+          intercom_status?: number | null
+          outcome?: string
+          payload?: Json
+        }
+        Relationships: []
+      }
       float_coverage_shifts: {
         Row: {
           active: boolean
@@ -1128,6 +1176,8 @@ export type Database = {
           admin_owner_map: string
           auto_mark_employee_test: boolean
           created_at: string
+          esh_write_allowed_actions: string[]
+          esh_write_enabled: boolean
           gmail_last_polled_at: string | null
           id: string
           intercom_assignee_id: string
@@ -1151,6 +1201,8 @@ export type Database = {
           admin_owner_map?: string
           auto_mark_employee_test?: boolean
           created_at?: string
+          esh_write_allowed_actions?: string[]
+          esh_write_enabled?: boolean
           gmail_last_polled_at?: string | null
           id?: string
           intercom_assignee_id?: string
@@ -1174,6 +1226,8 @@ export type Database = {
           admin_owner_map?: string
           auto_mark_employee_test?: boolean
           created_at?: string
+          esh_write_allowed_actions?: string[]
+          esh_write_enabled?: boolean
           gmail_last_polled_at?: string | null
           id?: string
           intercom_assignee_id?: string
