@@ -1636,3 +1636,32 @@ Signals with a non-zero count (and error cards) hoist into a "Needs attention" b
 ### Verification state (14 Aug 2026)
 
 All ten signals load and read 0, cross-checked against SQL — 44 open tickets, 0 untriaged, 0 escalations, 0 Parahelp pending, 0 pending docs, 0 unhealthy integrations. The zeros are real, not an over-filtered query. **Not yet observed:** the non-zero path (amber card + rail badge) against live data, because every watched queue is currently empty.
+
+## Auth & endpoint hardening (batch 1)
+
+Batch 1 of the security-scan triage. Scope was deliberately limited to changes that cannot affect a cron job, a webhook, or an existing session.
+
+### Self-signup is closed
+
+Public sign-up is disabled at the auth layer and the "Create account" button is removed from `/login`. This is the load-bearing fix: nearly every RLS policy is `USING (true)` for the `authenticated` role, so the entire access model assumes *an authenticated user is a vetted teammate*. That was only true if account creation was restricted — and it wasn't. New teammates are now admin-provisioned. Leaked-password (HIBP) protection was enabled in the same pass. Existing sessions and Google sign-in for existing users are unaffected.
+
+### Two XSS paths closed
+
+- **`gmail-oauth-callback`** — the `error` query param, the token-exchange payload, the insert error, and the connected email address are HTML-escaped before interpolation. A crafted `?error=<script>` link previously executed in the browser of whoever opened it.
+- **ProjectKnowledge markdown renderer** — `renderMarkdown()` now escapes raw text **first** and applies inline `` `code` ``/`**bold**` formatting **second**, through a shared `inlineMd()` helper used by headings, blockquotes, list items, paragraphs, and table cells; fenced code blocks use `escapeHtml` directly. `knowledge_documents.content` is writable by any authenticated user, so unescaped rendering was a stored-XSS path into every teammate's browser.
+
+### Read-function auth
+
+`supabase/functions/_shared/require-user.ts` validates the `Authorization` bearer token via `auth.getClaims` and rejects anything without a `sub` claim. **The anon key is itself a valid JWT but carries no `sub`, so anon-key-only calls are rejected too** — that is the property that matters.
+
+Guarded (all UI-only call sites): `search-intercom-by-email`, `list-slack-users`, `list-slack-channels`, `fetch-thread-messages`, `fetch-gmail-thread`, `intercom-month-stats`, `check-bot-identity`.
+
+### What is deliberately still open
+
+The ~32 mutation/sync/backfill functions. `pg_cron` invokes them with only the **anon key** as bearer, so applying `requireUser()` to them would silently 401 every scheduled job — `poll-gmail`, `poll-intercom-inbox`, `sync-v3-*`, `reconcile-v3-open`, `promote-pending-intercom-links`, `refresh-intercom-csat`, `sync-parahelp-routing`, `integration-health-alert`, `context-reminder`, `backfill-intercom-replies`, `poll-slack-closed-won`. They need a two-path guard (user JWT **or** a cron secret) plus a rewrite of the cron commands, which is its own batch. Slack/Intercom webhook receivers stay unauthenticated by design and must be signature-verified instead.
+
+### Verification (14 Aug 2026)
+
+- **Negative:** all 7 guarded endpoints return `401` with no `Authorization` header **and** with the anon key alone.
+- **Positive:** `list-slack-channels`, `list-slack-users`, `check-bot-identity` all return `200` with a real user session token.
+- **XSS:** `gmail-oauth-callback?error=<script>alert(1)</script>` renders escaped entities.

@@ -1,3 +1,4 @@
+import { requireUser } from "../_shared/require-user.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -18,6 +19,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const auth = await requireUser(req, corsHeaders);
+  if (!auth.ok) return auth.response;
 
   try {
     const slackToken = Deno.env.get("SLACK_BOT_TOKEN");
