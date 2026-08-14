@@ -104,15 +104,11 @@ const Login = () => {
             <Button type="submit" className="w-full" disabled={loading}>
               Sign in
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full text-xs"
-              onClick={handleEmailSignup}
-              disabled={loading}
-            >
-              Create account
-            </Button>
+            <p className="text-center text-xs text-muted-foreground">
+              Accounts are provisioned by an admin. Contact the support hub owner
+              for access.
+            </p>
+
           </form>
         </CardContent>
       </Card>
