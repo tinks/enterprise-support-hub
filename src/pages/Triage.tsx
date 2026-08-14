@@ -13,6 +13,7 @@ import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
 import { IssueDetailSheet, IssueField } from "@/components/issues/IssueDetailSheet";
 import { idColumn, subjectColumn, contactColumn, customerColumn, ownerColumn } from "@/components/issues/issueColumns";
 import { useCustomerLabels } from "@/hooks/useCustomerLabels";
+import { SeverityWriteControl } from "@/components/issues/SeverityWriteControl";
 import {
   computeSla,
   businessHoursBetween,
@@ -237,7 +238,7 @@ export default function Triage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-semibold tracking-tight">Triage queue</h1>
-              <Badge variant="outline" className="text-[10px]">Read-only</Badge>
+              <Badge variant="outline" className="text-[10px]">Severity writes enabled</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
               Open Enterprise-Inbox tickets with no <code className="text-xs">Severity</code> assigned in Intercom,
@@ -339,6 +340,25 @@ export default function Triage() {
               label="Created"
               value={selected.intercom_created_at ? format(new Date(selected.intercom_created_at), "PPpp") : "—"}
             />
+            <div className="pt-2 border-t border-border">
+              <div className="text-xs text-muted-foreground mb-2">Set severity</div>
+              <SeverityWriteControl
+                conversationId={selected.intercom_conversation_id}
+                currentSeverity={null}
+                onWritten={(sev) => {
+                  // Mirror locally only after the write-through succeeded, so the
+                  // ticket drops out of the untriaged list without waiting on sync.
+                  setRows((prev) =>
+                    prev.map((r) =>
+                      r.intercom_conversation_id === selected.intercom_conversation_id
+                        ? { ...r, custom_attributes: { ...(r.custom_attributes ?? {}), Severity: sev } }
+                        : r,
+                    ),
+                  );
+                  setSelected(null);
+                }}
+              />
+            </div>
           </>
         )}
       </IssueDetailSheet>
