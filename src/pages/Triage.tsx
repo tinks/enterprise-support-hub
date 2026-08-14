@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -101,7 +101,11 @@ export default function Triage() {
   const { accountLabel } = useCustomerLabels();
   const [selected, setSelected] = useState<TriageRow | null>(null);
 
+  const lastFetchRef = useRef(0);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const load = async () => {
+    lastFetchRef.current = Date.now();
     setLoading(true);
     const { data, error } = await supabase
       .from("intercom_tickets_v3")
@@ -116,6 +120,27 @@ export default function Triage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Lightweight refetch when the tab regains focus/visibility.
+  // Debounced 300ms (alt-tab bursts fire both events) and guarded to at most one fetch per 10s.
+  useEffect(() => {
+    const maybeRefetch = () => {
+      if (document.visibilityState !== "visible") return;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        if (Date.now() - lastFetchRef.current < 10_000) return;
+        load();
+      }, 300);
+    };
+    window.addEventListener("focus", maybeRefetch);
+    document.addEventListener("visibilitychange", maybeRefetch);
+    return () => {
+      window.removeEventListener("focus", maybeRefetch);
+      document.removeEventListener("visibilitychange", maybeRefetch);
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
 
   const configLoaded = policies.length > 0 && !policyError;
   const activePolicy = useMemo(
