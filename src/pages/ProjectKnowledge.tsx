@@ -327,6 +327,23 @@ const ProjectKnowledge = () => {
     [diffLines]
   );
 
+  // Escape first, then apply inline markdown — never interpolate raw text.
+  const escapeHtml = (value: string) =>
+    value
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const inlineMd = (value: string) =>
+    escapeHtml(value)
+      .replace(
+        /`([^`]+)`/g,
+        '<code class="bg-muted px-1 py-0.5 rounded text-xs font-mono">$1</code>'
+      )
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+
   // Simple markdown renderer
   const renderMarkdown = (md: string) => {
     const lines = md.split("\n");
@@ -339,10 +356,7 @@ const ProjectKnowledge = () => {
       if (line.startsWith("```")) {
         if (inCode) {
           html.push(
-            `<pre class="bg-muted rounded-md p-3 text-xs overflow-x-auto my-2 font-mono"><code>${codeBlock
-              .join("\n")
-              .replace(/</g, "&lt;")
-              .replace(/>/g, "&gt;")}</code></pre>`
+            `<pre class="bg-muted rounded-md p-3 text-xs overflow-x-auto my-2 font-mono"><code>${escapeHtml(codeBlock.join("\n"))}</code></pre>`
           );
           codeBlock = [];
           inCode = false;
@@ -372,20 +386,14 @@ const ProjectKnowledge = () => {
           html.push("<thead><tr>");
           cells.forEach((c) =>
             html.push(
-              `<th class="border border-border px-3 py-1.5 text-left font-medium bg-muted/50">${c.trim()}</th>`
+              `<th class="border border-border px-3 py-1.5 text-left font-medium bg-muted/50">${inlineMd(c.trim())}</th>`
             )
           );
           html.push("</tr></thead><tbody>");
         } else {
           html.push("<tr>");
           cells.forEach((c) => {
-            const formatted = c
-              .trim()
-              .replace(
-                /`([^`]+)`/g,
-                '<code class="bg-muted px-1 py-0.5 rounded text-xs font-mono">$1</code>'
-              )
-              .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+            const formatted = inlineMd(c.trim());
             html.push(
               `<td class="border border-border px-3 py-1.5">${formatted}</td>`
             );
@@ -401,28 +409,22 @@ const ProjectKnowledge = () => {
 
       if (line.startsWith("### ")) {
         html.push(
-          `<h3 class="text-base font-semibold mt-6 mb-2 text-foreground">${line.slice(4)}</h3>`
+          `<h3 class="text-base font-semibold mt-6 mb-2 text-foreground">${inlineMd(line.slice(4))}</h3>`
         );
       } else if (line.startsWith("## ")) {
         html.push(
-          `<h2 class="text-lg font-bold mt-8 mb-3 text-foreground border-b border-border pb-1">${line.slice(3)}</h2>`
+          `<h2 class="text-lg font-bold mt-8 mb-3 text-foreground border-b border-border pb-1">${inlineMd(line.slice(3))}</h2>`
         );
       } else if (line.startsWith("# ")) {
         html.push(
-          `<h1 class="text-2xl font-bold mb-4 text-foreground">${line.slice(2)}</h1>`
+          `<h1 class="text-2xl font-bold mb-4 text-foreground">${inlineMd(line.slice(2))}</h1>`
         );
       } else if (line.startsWith("> ")) {
         html.push(
-          `<blockquote class="border-l-4 border-primary/30 pl-4 py-1 text-muted-foreground italic my-2">${line.slice(2)}</blockquote>`
+          `<blockquote class="border-l-4 border-primary/30 pl-4 py-1 text-muted-foreground italic my-2">${inlineMd(line.slice(2))}</blockquote>`
         );
       } else if (line.startsWith("- ") || line.startsWith("* ")) {
-        const formatted = line
-          .slice(2)
-          .replace(
-            /`([^`]+)`/g,
-            '<code class="bg-muted px-1 py-0.5 rounded text-xs font-mono">$1</code>'
-          )
-          .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+        const formatted = inlineMd(line.slice(2));
         html.push(
           `<li class="ml-4 list-disc text-sm leading-relaxed">${formatted}</li>`
         );
@@ -431,12 +433,7 @@ const ProjectKnowledge = () => {
       } else if (line.trim() === "") {
         html.push("<br />");
       } else {
-        const formatted = line
-          .replace(
-            /`([^`]+)`/g,
-            '<code class="bg-muted px-1 py-0.5 rounded text-xs font-mono">$1</code>'
-          )
-          .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+        const formatted = inlineMd(line);
         html.push(
           `<p class="text-sm leading-relaxed text-foreground/90">${formatted}</p>`
         );
