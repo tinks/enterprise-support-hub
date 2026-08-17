@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2, Loader2, ScrollText } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import AddEntryDialog, { tagMeta, type ChangelogEntry } from "@/components/changelog/AddEntryDialog";
 import {
   AlertDialog,
@@ -28,6 +29,7 @@ const Changelog = () => {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ChangelogEntry | null>(null);
+  const { canEdit } = useCanEdit();
   const [confirmDelete, setConfirmDelete] = useState<ChangelogEntry | null>(null);
 
   async function load() {
@@ -84,7 +86,7 @@ const Changelog = () => {
               What's shipped, newest first. Add an entry whenever something user-visible changes.
             </p>
           </div>
-          <Button onClick={() => { setEditing(null); setDialogOpen(true); }} className="gap-1">
+          {canEdit && <Button onClick={() => { setEditing(null); setDialogOpen(true); }} className="gap-1">
             <Plus className="h-4 w-4" /> Add entry
           </Button>
         </div>
