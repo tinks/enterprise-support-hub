@@ -72,13 +72,13 @@ const App = () => (
           <Route path="/import" element={<EditorRoute><ImportPage /></EditorRoute>} />
           <Route path="/import/bulk" element={<EditorRoute><BulkImportReview /></EditorRoute>} />
           <Route path="/test-review" element={<EditorRoute><TestChannelReview /></EditorRoute>} />
-          <Route path="/settings" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+          <Route path="/settings" element={<EditorRoute><Index /></EditorRoute>} />
           <Route path="/users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
           <Route path="/backlog" element={<EditorRoute><Backlog /></EditorRoute>} />
           <Route path="/prospects" element={<ProtectedRoute><Prospects /></ProtectedRoute>} />
           <Route path="/sla-what-if" element={<ProtectedRoute><SlaWhatIf /></ProtectedRoute>} />
           <Route path="/sla-policy" element={<ProtectedRoute><SlaPolicyAdmin /></ProtectedRoute>} />
-          <Route path="/float-coverage" element={<ProtectedRoute><FloatCoverage /></ProtectedRoute>} />
+          <Route path="/float-coverage" element={<EditorRoute><FloatCoverage /></EditorRoute>} />
           <Route path="/flow" element={<EditorRoute><FlowDiagram /></EditorRoute>} />
           <Route path="/knowledge" element={<EditorRoute><ProjectKnowledge /></EditorRoute>} />
           <Route path="/changelog" element={<ProtectedRoute><Changelog /></ProtectedRoute>} />
