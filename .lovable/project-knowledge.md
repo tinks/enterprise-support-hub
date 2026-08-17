@@ -1665,3 +1665,29 @@ The ~32 mutation/sync/backfill functions. `pg_cron` invokes them with only the *
 - **Negative:** all 7 guarded endpoints return `401` with no `Authorization` header **and** with the anon key alone.
 - **Positive:** `list-slack-channels`, `list-slack-users`, `check-bot-identity` all return `200` with a real user session token.
 - **XSS:** `gmail-oauth-callback?error=<script>alert(1)</script>` renders escaped entities.
+
+## Hub access roster (admin-managed sign-in)
+
+Adding a teammate used to mean a code/console step. It is now a Settings panel, with self-signup still closed.
+
+### Table
+
+`public.hub_members` — `email` (unique, lowercased), `user_id`, `status` (`pending` | `active` | `blocked`), `note`, `added_by`, `first_seen_at`, `last_seen_at`, `provisioned_at`, `blocked_at`, `blocked_by`. RLS: admins manage every row (`has_role`), a member may read only their own. A `BEFORE INSERT OR UPDATE` trigger lowercases the address and raises on any domain other than `lovable.dev`. The 10 pre-existing accounts were backfilled as `active`.
+
+### Edge function
+
+`hub-access-manage` (`verify_jwt = true`), actions `provision` / `block` / `unblock`. It runs `requireUser()` and then an explicit `has_role(caller, 'admin')` check before touching anything, so a signed-in non-admin is refused and cron/anon cannot reach it. `provision` creates the backend account with a random throwaway password; `block` deletes the account and marks the row blocked. Refusals: non-`lovable.dev` address, last remaining admin, blocking yourself, provisioning an already-active or blocked row.
+
+### Sign-in
+
+`/login` gained "Continue as Lovable workspace member", backed by `signInWithLovableWorkspace()` (managed OAuth provider `lovable`, added in `@lovable.dev/cloud-auth-js` 1.1.2 — the project was on 1.1.1). The returned tokens go through `supabase.auth.setSession`, so RLS still evaluates against a real user id. Google and email/password are unchanged.
+
+Provision stays a manual click because with self-signup disabled the auth layer rejects an unknown identity *before* any app code runs — there is no hook to auto-approve a first-time member.
+
+### UI
+
+Admin-only `AccessCard` in Settings, above `RolesCard`. Drift is surfaced rather than hidden: an auth account with no roster row shows as "untracked", an active row whose account is gone shows as "no backend account".
+
+### Verification (17 Aug 2026)
+
+Negative: 401 with no `Authorization` header and with the anon key alone; explicit refusals for a gmail.com address, self-block, unknown roster row, duplicate provision. Positive: test row `esh-access-test@lovable.dev` (mine) added and provisioned through the UI at 1900px, then blocked — `hub_members` shows `blocked` with `user_id` null and `auth.users` has 0 matching rows. Not yet proven: a real first-time workspace member completing the new sign-in path against a provisioned account.
