@@ -109,16 +109,20 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAdmin } = useIsAdmin();
+  const { canEdit } = useCanEdit();
   const { items: dashboardTeammates } = useDashboardTeammates();
   const { attentionCount, errorCount } = useActionSignals();
   // One aggregate disc on the rail: how many SIGNALS need attention (not items).
   const railBadge = attentionCount + errorCount;
 
-  // Admin-only nav children are hidden for non-admins (routes + RLS enforce too).
+  // Admin-only nav children are hidden for non-admins; editor-only children are
+  // hidden for read-only accounts (CSMs). Routes + RLS enforce too.
   // The Dashboards group appends the per-owner entries driven by the teammates roster.
   const visibleEntries: NavEntry[] = navEntries.map((e) => {
     if (e.kind !== "group") return e;
-    const items = e.items.filter((i) => !i.adminOnly || isAdmin);
+    const items = e.items.filter(
+      (i) => (!i.adminOnly || isAdmin) && (!i.editorOnly || canEdit),
+    );
     return {
       ...e,
       items: e.label === "Dashboards" ? [...items, ...dashboardTeammates] : items,
