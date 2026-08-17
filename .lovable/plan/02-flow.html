@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  html, body { margin:0; padding:0; background:transparent; }
+  svg { font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif); }
+  .lbl { font-size:14px; font-weight:480; fill:hsl(var(--foreground)); }
+  .sm  { font-size:12px; fill:hsl(var(--muted-foreground)); }
+  .mono{ font-size:12px; font-family: var(--font-mono, ui-monospace, monospace); fill:hsl(var(--muted-foreground)); }
+  .box { fill:none; stroke:hsl(var(--muted-foreground)); stroke-width:1; }
+  .zone{ fill:none; stroke:hsl(var(--border)); stroke-width:1; stroke-dasharray:4 3; }
+  .wire{ stroke:hsl(var(--muted-foreground)); stroke-width:1; fill:none; }
+  .acc { stroke:hsl(var(--accent)); }
+  .accf{ fill:hsl(var(--accent)); }
+  .halo{ paint-order:stroke; stroke:hsl(var(--background)); stroke-width:4px; }
+</style>
+</head>
+<body>
+<svg viewBox="0 0 640 330" width="100%" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="hsl(var(--muted-foreground))"/>
+    </marker>
+    <marker id="aa" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="hsl(var(--accent))"/>
+    </marker>
+  </defs>
+
+  <rect class="zone" x="8" y="12" width="150" height="150" rx="8"/>
+  <text class="sm" x="16" y="28">hub surfaces</text>
+  <rect class="box" x="24" y="40" width="118" height="44" rx="8"/>
+  <text class="lbl" x="83" y="61" text-anchor="middle">Triage sheet</text>
+  <text class="sm"  x="83" y="76" text-anchor="middle">owner · area</text>
+  <rect class="box" x="24" y="100" width="118" height="44" rx="8"/>
+  <text class="lbl" x="83" y="121" text-anchor="middle">Inbox v3 sheet</text>
+  <text class="sm"  x="83" y="136" text-anchor="middle">owner · area</text>
+
+  <path class="wire" d="M142,62 C170,62 172,92 196,92" marker-end="url(#a)"/>
+  <path class="wire" d="M142,122 C170,122 172,96 196,96" marker-end="url(#a)"/>
+
+  <rect class="box" x="200" y="60" width="150" height="72" rx="8"/>
+  <text class="lbl"  x="275" y="84" text-anchor="middle">esh-write-action</text>
+  <text class="mono" x="275" y="102" text-anchor="middle">set_owner</text>
+  <text class="mono" x="275" y="118" text-anchor="middle">set_product_area</text>
+
+  <rect class="box" x="200" y="152" width="150" height="34" rx="8"/>
+  <text class="sm" x="275" y="173" text-anchor="middle">kill switch · allowlist · teammate</text>
+
+  <circle class="accf" cx="212" cy="212" r="9"/>
+  <text x="212" y="216" text-anchor="middle" font-size="11" fill="hsl(var(--accent-foreground))">1</text>
+  <text class="sm" x="230" y="216">pre-read: does Intercom still hold the value you saw?</text>
+  <text class="sm" x="230" y="232">no → refuse, audit row, nothing changes</text>
+
+  <path class="wire acc" d="M350,80 L406,80" marker-end="url(#aa)"/>
+  <text class="sm halo" x="378" y="72" text-anchor="middle">write</text>
+  <path class="wire" d="M406,112 L350,112" marker-end="url(#a)"/>
+  <text class="sm halo" x="378" y="104" text-anchor="middle">re-read</text>
+
+  <rect class="box" x="410" y="52" width="120" height="88" rx="8"/>
+  <text class="lbl" x="470" y="80" text-anchor="middle">Intercom</text>
+  <text class="sm"  x="470" y="99" text-anchor="middle">assignment part</text>
+  <text class="sm"  x="470" y="115" text-anchor="middle">custom attribute</text>
+
+  <path class="wire" d="M350,124 C380,124 380,262 406,262" marker-end="url(#a)"/>
+  <text class="sm halo" x="372" y="252">only after 2xx</text>
+
+  <rect class="box" x="410" y="240" width="180" height="46" rx="8"/>
+  <text class="lbl" x="500" y="262" text-anchor="middle">intercom_tickets_v3</text>
+  <text class="sm"  x="500" y="277" text-anchor="middle">mirror of what Intercom returned</text>
+
+  <rect class="box" x="200" y="248" width="150" height="34" rx="8"/>
+  <text class="sm" x="275" y="269" text-anchor="middle">esh_ticket_actions (every attempt)</text>
+</svg>
+</body>
+</html>
