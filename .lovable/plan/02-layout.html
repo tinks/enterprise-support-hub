@@ -1,0 +1,52 @@
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" style="font-family: var(--font-sans)">
+  <style>
+    .lbl { fill: hsl(var(--foreground)); font-size: 14px; font-weight: 480; }
+    .sub { fill: hsl(var(--muted-foreground)); font-size: 12px; }
+    .box { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; rx: 8; }
+    .acc { fill: none; stroke: hsl(var(--accent)); stroke-width: 1; rx: 8; }
+    .accf { fill: hsl(var(--accent)); }
+    .wire { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+    .tag { fill: hsl(var(--border)); }
+  </style>
+  <defs>
+    <marker id="ch" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6" fill="none" stroke="hsl(var(--muted-foreground))"/>
+    </marker>
+  </defs>
+
+  <text x="20" y="24" class="sub">before</text>
+  <rect x="20" y="36" width="240" height="230" class="box"/>
+  <text x="36" y="60" class="lbl">Admin → Settings</text>
+  <rect x="36" y="74" width="208" height="30" class="acc"/>
+  <text x="48" y="93" class="lbl">Access</text>
+  <rect x="36" y="112" width="208" height="30" class="acc"/>
+  <text x="48" y="131" class="lbl">Roles &amp; permissions</text>
+  <rect x="36" y="150" width="208" height="26" class="box"/>
+  <text x="48" y="167" class="sub">Integration health / sync</text>
+  <rect x="36" y="184" width="208" height="26" class="box"/>
+  <text x="48" y="201" class="sub">Configuration</text>
+  <rect x="36" y="218" width="208" height="26" class="box"/>
+  <text x="48" y="235" class="sub">Product areas / admin map</text>
+
+  <line x1="278" y1="150" x2="330" y2="150" class="wire" marker-end="url(#ch)"/>
+
+  <text x="350" y="24" class="sub">after</text>
+  <rect x="350" y="36" width="270" height="104" class="acc"/>
+  <text x="366" y="60" class="lbl">Admin → Users</text>
+  <text x="366" y="76" class="sub">new route /users · admin only</text>
+  <rect x="366" y="86" width="238" height="18" class="acc"/>
+  <text x="374" y="99" class="sub">Access roster</text>
+  <rect x="366" y="110" width="238" height="18" class="acc"/>
+  <text x="374" y="123" class="sub">Roles &amp; permissions</text>
+
+  <rect x="350" y="156" width="270" height="110" class="box"/>
+  <text x="366" y="180" class="lbl">Admin → Settings</text>
+  <text x="366" y="196" class="sub">integrations only</text>
+  <rect x="366" y="206" width="238" height="18" class="box"/>
+  <text x="374" y="219" class="sub">Integration health / sync</text>
+  <rect x="366" y="230" width="238" height="18" class="box"/>
+  <text x="374" y="243" class="sub">Configuration, areas, mappings</text>
+
+  <circle cx="330" cy="150" r="9" class="accf"/>
+  <text x="330" y="154" text-anchor="middle" font-size="11" fill="hsl(var(--accent-foreground))">1</text>
+</svg>
