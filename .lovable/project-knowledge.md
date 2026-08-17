@@ -1716,7 +1716,7 @@ CSMs joining the Hub need every report and inbox view but must not change data. 
 
 `src/hooks/useCanEdit.ts` mirrors `useIsAdmin`. `EditorRoute` wraps the pages that exist purely to change data — Triage, Dev escalations, Import, Bulk import, Test review, Backlog, Settings, Float coverage, Flow, Knowledge — and renders a "Read-only access" card instead of a fully disabled surface; those nav children are `editorOnly` and hidden. `ReadOnlyBanner` appears on the view-and-edit surfaces (Inbox, Conversation detail, Inbox v3, Customers). `SeverityWriteControl` renders a static severity line for read-only accounts rather than a control that would refuse.
 
-`RolesCard` on `/users` gained **Grant editor** / **Make read-only** beside the admin controls; admins show "editor implied". The last-admin delete trigger is unchanged.
+Role controls (**Grant editor** / **Make read-only** / **Grant admin** / **Revoke admin**) sit in the actions cell of the single Users table on `/users` (`src/components/UsersCard.tsx`); admins show "editor implied". The last-admin delete trigger is unchanged.
 
 ### Verification (17 Aug 2026)
 
