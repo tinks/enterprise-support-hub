@@ -726,8 +726,10 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
                     {open && (
                       <TableRow>
                         <TableCell colSpan={5} className="bg-muted/30">
-                          {tickets.length === 0 ? (
+                          {ticketsLoading[gid] ? (
                             <p className="text-sm text-muted-foreground p-3">Loading…</p>
+                          ) : tickets.length === 0 ? (
+                            <p className="text-sm text-muted-foreground p-3">No tickets left in this group.</p>
                           ) : (
                             <div className="space-y-2 p-2">
                               {sel.size > 0 && (
