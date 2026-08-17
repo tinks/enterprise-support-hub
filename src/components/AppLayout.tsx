@@ -23,6 +23,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import { useDashboardTeammates } from "@/hooks/useDashboardTeammates";
 import { useActionSignals } from "@/hooks/useActionSignals";
 
