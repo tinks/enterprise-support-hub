@@ -896,6 +896,25 @@ function buildNodes(
       },
     },
     {
+      id: "role-permissions",
+      type: "flowNode",
+      position: { x: COL_W * -3.0, y: ROW_H * 6.6 },
+      data: {
+        label: "Editor vs read-only roles",
+        desc: "Deny-by-default write model: an authenticated account can READ everything it could before, but cannot CHANGE anything unless it holds `editor` (or `admin`). Added for CSMs joining the Hub.",
+        icon: ShieldCheck,
+        details: [
+          "ROLES: app_role gained `editor`. public.can_edit(_uid) returns true for editor OR admin (security definer, like has_role). All 11 pre-existing accounts were backfilled as editor in the same migration, so nobody lost a capability they already had.",
+          "RLS: the 32 write policies that were open to any authenticated user now require can_edit(auth.uid()) in USING/WITH CHECK. Read policies are unchanged — read-only accounts still see every report, inbox and customer surface.",
+          "EDGE FUNCTIONS: supabase/functions/_shared/require-editor.ts guards the 9 user-invoked mutators (esh-write-action, post-reply, delete-conversation-mapping, delete-slack-message, create-intercom-from-import, import-intercom-ticket, import-slack-thread, bulk-import-intercom, bulk-import-slack). Cron/webhook functions are untouched — they authenticate with the anon key and would 401.",
+          "UI GATING (never the enforcement, only the honesty layer): useCanEdit() mirrors useIsAdmin. EditorRoute wraps the pages that exist purely to change data (Triage, Dev escalations, Import, Bulk import, Test review, Backlog, Settings, Float coverage, Flow, Knowledge) and renders a 'Read-only access' card instead. Those nav children are editorOnly and hidden. ReadOnlyBanner appears on the view-and-edit surfaces (Inbox, Conversation detail, Inbox v3, Customers) so a blocked save is never the first hint. SeverityWriteControl renders a static severity line for read-only accounts rather than a control that would refuse.",
+          "ADMIN UI: Roles & permissions on /users gained Grant editor / Make read-only alongside Grant/Revoke admin. Admin implies edit, so admins show 'editor implied' instead of an editor toggle. The last-admin delete trigger is unchanged.",
+          "VERIFICATION (17 Aug 2026): positive path only — /users renders the editor controls, /triage and /changelog render for an editor+admin account, typecheck clean. The READ-ONLY branch (EditorRoute card, ReadOnlyBanner, RLS refusal) is UNVERIFIED — no account without `editor` exists yet.",
+        ],
+        accent: "default",
+      },
+    },
+    {
       id: "hub-access-roster",
       type: "flowNode",
       position: { x: COL_W * -3.0, y: ROW_H * 5.4 },
