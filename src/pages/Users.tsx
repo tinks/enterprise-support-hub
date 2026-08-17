@@ -1,6 +1,6 @@
 import AppLayout from "@/components/AppLayout";
-import AccessCard from "@/components/AccessCard";
-import RolesCard from "@/components/RolesCard";
+import UsersCard from "@/components/UsersCard";
+
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
@@ -11,7 +11,7 @@ const Users = () => {
   return (
     <AppLayout>
       <div className="bg-background p-6">
-        <div className="mx-auto max-w-4xl space-y-6">
+        <div className="mx-auto max-w-[1500px] space-y-6">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Users</h1>
             <p className="text-sm text-muted-foreground">
@@ -35,11 +35,9 @@ const Users = () => {
               </CardHeader>
             </Card>
           ) : (
-            <>
-              <AccessCard />
-              <RolesCard />
-            </>
+            <UsersCard />
           )}
+
         </div>
       </div>
     </AppLayout>

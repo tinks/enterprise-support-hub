@@ -116,7 +116,7 @@ A Slack-to-Intercom support bridge for enterprise customers. When a user @mentio
 - `BEFORE DELETE` trigger `user_roles_prevent_last_admin_delete` blocks removing the final admin row
 - Admin-only RPC `public.list_users_with_roles()` returns every `auth.users` row + their roles; raises if caller isn't admin (keeps `auth.users` off the client)
 - Client hook `useIsAdmin()` (`src/hooks/useIsAdmin.ts`) gates UI only — server enforcement is always RLS + `has_role()`
-- Managed via **Admin → Users → Roles & permissions** card (`src/components/RolesCard.tsx`); non-admins don't see the card
+- Managed from the single **Admin → Users** table (`src/components/UsersCard.tsx`); non-admins don't see it. `AccessCard` + `RolesCard` were merged into it on 17 Aug 2026 and both files deleted
 - First admin: `matt.niiro@lovable.dev`
 - All future admin-gated tables MUST use `public.has_role(auth.uid(), 'admin')` in policies rather than reimplementing the check
 
@@ -1686,11 +1686,18 @@ Provision stays a manual click because with self-signup disabled the auth layer 
 
 ### UI
 
-Admin-only `AccessCard` on **Admin → Users** (`/users`, `src/pages/Users.tsx`), above `RolesCard`. Moved off Settings on 17 Aug 2026; Settings keeps a pointer card only, and the nav entry is `adminOnly`. The page renders an "Admin access required" card for non-admins so the route is never blank. Drift is surfaced rather than hidden: an auth account with no roster row shows as "untracked", an active row whose account is gone shows as "no backend account".
+One admin-only table — `src/components/UsersCard.tsx` on **Admin → Users** (`/users`, `src/pages/Users.tsx`, nav entry `adminOnly`). Moved off Settings on 17 Aug 2026 (Settings keeps a pointer card only); on the same day `AccessCard` and `RolesCard` were merged into this one card and both files deleted — they were rendering the same two queries (`hub_members` + `list_users_with_roles`) twice, with the second table existing only to host the role buttons.
+
+Columns: Email · Status · Roles · Added · Provisioned · Actions. One row per person, keyed by email, sorted by email. The actions cell carries both jobs: access (Provision, Unblock, "Remove access" behind an AlertDialog confirm) and roles (Grant editor / Make read-only / Grant admin / Revoke admin). Role buttons need a backend account, so a `pending` or `blocked` row shows "no account yet" instead. The page renders an "Admin access required" card for non-admins so the route is never blank.
+
+Drift is surfaced rather than hidden: an auth account with no roster row becomes its own visible row with status `untracked`; an active row whose account is gone is named in the amber drift banner.
 
 ### Verification (17 Aug 2026)
 
-Negative: 401 with no `Authorization` header and with the anon key alone; explicit refusals for a gmail.com address, self-block, unknown roster row, duplicate provision. Positive: test row `esh-access-test@lovable.dev` (mine) added and provisioned through the UI at 1900px, then blocked — `hub_members` shows `blocked` with `user_id` null and `auth.users` has 0 matching rows. Not yet proven: a real first-time workspace member completing the new sign-in path against a provisioned account.
+Negative: 401 with no `Authorization` header and with the anon key alone; explicit refusals for a gmail.com address, self-block, unknown roster row, duplicate provision. Positive: test row `esh-access-test@lovable.dev` (mine) added and provisioned through the UI at 1900px, then blocked — `hub_members` shows `blocked` with `user_id` null and `auth.users` has 0 matching rows.
+
+Merge check (17 Aug 2026): `/users` at 1900px renders exactly one table with 11 rows, matching SQL (11 `hub_members` + 0 untracked accounts). A temporary `pending` row (`zz-verify-pending@lovable.dev`, mine, deleted afterwards) rendered Provision + Remove access with role buttons replaced by "no account yet". Still unproven: the `untracked` row branch (no such account exists) and the last-admin disabled tooltip (two admins exist; no real admin was revoked to force it). Also still unproven: a real first-time workspace member completing the sign-in path against a provisioned account.
+
 
 ## Editor vs read-only roles
 
