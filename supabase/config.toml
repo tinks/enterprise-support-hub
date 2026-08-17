@@ -93,3 +93,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.sla-ticket-analyze]
 verify_jwt = true
+[functions.hub-access-manage]
+verify_jwt = true
