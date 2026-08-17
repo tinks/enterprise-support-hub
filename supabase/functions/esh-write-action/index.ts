@@ -344,7 +344,9 @@ Deno.serve(async (req) => {
     const ownerMap: Record<string, string> = (() => {
       try { return JSON.parse(settings.admin_owner_map || "{}"); } catch { return {}; }
     })();
-    const liveAdminId = norm(conv?.admin_assignee_id) ?? (assignedAdminId ? null : null);
+    // Intercom reports 0 for "unassigned".
+    const rawAdminId = norm(conv?.admin_assignee_id);
+    const liveAdminId = rawAdminId && rawAdminId !== "0" ? rawAdminId : null;
     // Same derivation sync-v3-closed uses, so the next sync agrees with us.
     const liveOwner = liveAdminId ? (ownerMap[liveAdminId] ?? null) : null;
     const liveProductArea = norm(attrs[PRODUCT_AREA_ATTR]);
