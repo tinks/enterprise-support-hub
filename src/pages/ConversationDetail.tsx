@@ -674,7 +674,6 @@ const ConversationDetail = () => {
   if (loading) {
     return (
       <AppLayout>
-      <div className="px-6 pt-4"><ReadOnlyBanner /></div>
         <div className="bg-background p-6">
           <div className="mx-auto max-w-3xl">
             <p className="text-sm text-muted-foreground">Loading…</p>
@@ -1295,6 +1294,7 @@ const ConversationDetail = () => {
 
   return (
     <AppLayout>
+      <div className="px-6 pt-4"><ReadOnlyBanner /></div>
       <div className="bg-background p-6">
         {/* Back + Prev/Next */}
         <div className="mb-4 flex items-center justify-between gap-2">
