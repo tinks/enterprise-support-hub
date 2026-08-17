@@ -81,6 +81,15 @@ export function SeverityWriteControl({
     }
   };
 
+  if (readOnly) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Severity {currentSeverity ?? "not set"} — read-only account, editor role required to write
+        to Intercom.
+      </p>
+    );
+  }
+
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
