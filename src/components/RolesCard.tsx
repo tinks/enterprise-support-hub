@@ -74,7 +74,8 @@ const RolesCard = () => {
         <div>
           <CardTitle className="text-lg">Roles &amp; permissions</CardTitle>
           <CardDescription>
-            Grant or revoke the admin role. Admin unlocks role management and future admin-gated features.
+            Editor allows changing data (tickets, notes, registry, settings). Without it an account
+            is read-only — reports and inbox views only. Admin adds role and access management.
           </CardDescription>
         </div>
         <Button variant="outline" size="sm" onClick={load} disabled={loading}>
