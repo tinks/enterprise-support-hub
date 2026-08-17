@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { RefreshCw, ShieldCheck, ShieldOff } from "lucide-react";
+import { Pencil, PencilOff, RefreshCw, ShieldCheck, ShieldOff } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 interface UserRow {
