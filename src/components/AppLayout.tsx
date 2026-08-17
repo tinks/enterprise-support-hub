@@ -26,7 +26,7 @@ import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useDashboardTeammates } from "@/hooks/useDashboardTeammates";
 import { useActionSignals } from "@/hooks/useActionSignals";
 
-type NavChild = { to: string; label: string; end?: boolean; adminOnly?: boolean };
+type NavChild = { to: string; label: string; end?: boolean; adminOnly?: boolean; editorOnly?: boolean };
 type NavLinkItem = { kind: "link"; to: string; icon: LucideIcon; label: string; end?: boolean };
 type NavGroupItem = { kind: "group"; label: string; icon: LucideIcon; items: NavChild[] };
 type NavEntry = NavLinkItem | NavGroupItem;
