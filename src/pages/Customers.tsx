@@ -491,6 +491,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [expandedTickets, setExpandedTickets] = useState<Record<string, UnTicket[]>>({});
+  const [ticketsLoading, setTicketsLoading] = useState<Record<string, boolean>>({});
   const [selected, setSelected] = useState<Record<string, Set<string>>>({});
   const [dialog, setDialog] = useState<null | { kind: string; group?: GroupRow; ticketIds?: string[] }>(null);
 
@@ -506,33 +507,31 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
     if (e2) { console.error(e2); }
     if (e3) { console.error(e3); }
     if (e4) { console.error(e4); }
-    setGroups((g ?? []) as GroupRow[]);
+    const rows = (g ?? []) as GroupRow[];
+    setGroups(rows);
     setAccounts((a ?? []) as AccountOpt[]);
     const covRow = Array.isArray(cov) ? cov[0] : cov;
     setProspectPersonalCount(Number((covRow as { excluded_prospect_personal?: number } | null)?.excluded_prospect_personal ?? 0));
     const ssRow = Array.isArray(ss) ? ss[0] : ss;
     setSyncStatus((ssRow as { pending_open: number; pending_closed: number; next_full_fetch_at: string | null; schedule_desc: string | null } | null) ?? null);
     setLoading(false);
+    return rows;
   };
 
   useEffect(() => { load(); }, []);
 
   const groupId = (g: GroupRow) => `${g.group_kind}::${g.group_key}`;
 
-  const loadTickets = async (g: GroupRow) => {
-    const gid = groupId(g);
-    if (expandedTickets[gid]) return;
+  const fetchTickets = async (g: GroupRow): Promise<UnTicket[] | null> => {
     if (g.group_kind === "no_signal") {
       const { data, error } = await sb.rpc("v3_no_signal_tickets");
-      if (error) { console.error(error); toast.error("Failed to load tickets"); return; }
-      setExpandedTickets(prev => ({ ...prev, [gid]: (data ?? []) as UnTicket[] }));
-      return;
+      if (error) { console.error(error); toast.error("Failed to load tickets"); return null; }
+      return (data ?? []) as UnTicket[];
     }
     if (g.group_kind === "personal_unlabeled") {
       const { data, error } = await sb.rpc("v3_personal_unlabeled_tickets");
-      if (error) { console.error(error); toast.error("Failed to load tickets"); return; }
-      setExpandedTickets(prev => ({ ...prev, [gid]: (data ?? []) as UnTicket[] }));
-      return;
+      if (error) { console.error(error); toast.error("Failed to load tickets"); return null; }
+      return (data ?? []) as UnTicket[];
     }
     let q = sb.from("intercom_tickets_v3")
       .select("id,intercom_conversation_id,subject,contact_email,contact_domain,slack_channel_id_detected,workspace_id_detected,intercom_created_at,last_full_fetch_at")
@@ -544,8 +543,18 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
     else if (g.group_kind === "channel") q = q.eq("slack_channel_id_detected", g.group_key);
     else if (g.group_kind === "workspace") q = q.eq("workspace_id_detected", g.group_key);
     const { data, error } = await q;
-    if (error) { console.error(error); toast.error("Failed to load tickets"); return; }
-    setExpandedTickets(prev => ({ ...prev, [gid]: (data ?? []) as UnTicket[] }));
+    if (error) { console.error(error); toast.error("Failed to load tickets"); return null; }
+    return (data ?? []) as UnTicket[];
+  };
+
+  const loadTickets = async (g: GroupRow, force = false) => {
+    const gid = groupId(g);
+    if (!force && expandedTickets[gid]) return;
+    setTicketsLoading(prev => ({ ...prev, [gid]: true }));
+    const rows = await fetchTickets(g);
+    setTicketsLoading(prev => ({ ...prev, [gid]: false }));
+    if (rows === null) return;
+    setExpandedTickets(prev => ({ ...prev, [gid]: rows }));
   };
 
   const toggle = async (g: GroupRow) => {
@@ -554,6 +563,19 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
     setExpanded(gid);
     await loadTickets(g);
   };
+
+  // After a mutation: refresh the group list and re-fetch the open group's tickets.
+  const reloadAfterAction = async () => {
+    const openGid = expanded;
+    setExpandedTickets({});
+    const rows = await load();
+    if (!openGid) return;
+    const still = rows.find(row => groupId(row) === openGid);
+    if (!still) { setExpanded(null); return; }
+    await loadTickets(still, true);
+  };
+
+
 
   const toggleSelect = (gid: string, tid: string) => {
     setSelected(prev => {
@@ -704,8 +726,10 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
                     {open && (
                       <TableRow>
                         <TableCell colSpan={5} className="bg-muted/30">
-                          {tickets.length === 0 ? (
+                          {ticketsLoading[gid] ? (
                             <p className="text-sm text-muted-foreground p-3">Loading…</p>
+                          ) : tickets.length === 0 ? (
+                            <p className="text-sm text-muted-foreground p-3">No tickets left in this group.</p>
                           ) : (
                             <div className="space-y-2 p-2">
                               {sel.size > 0 && (
@@ -777,7 +801,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
         state={dialog}
         accounts={accounts}
         onClose={() => setDialog(null)}
-        onDone={() => { setDialog(null); setSelected({}); setExpandedTickets({}); load(); }}
+        onDone={() => { setDialog(null); setSelected({}); reloadAfterAction(); }}
       />
     </div>
   );
