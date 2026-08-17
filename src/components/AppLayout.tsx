@@ -50,8 +50,8 @@ const navEntries: NavEntry[] = [
     label: "Issues",
     icon: MessageSquare,
     items: [
-      { to: "/triage", label: "Triage" },
-      { to: "/escalations", label: "Dev escalations" },
+      { to: "/triage", label: "Triage", editorOnly: true },
+      { to: "/escalations", label: "Dev escalations", editorOnly: true },
       { to: "/conversations", label: "Inbox" },
       { to: "/inbox-v3", label: "Inbox v3" },
     ],
@@ -67,9 +67,9 @@ const navEntries: NavEntry[] = [
     label: "Tools",
     icon: Wrench,
     items: [
-      { to: "/import", label: "Import" },
+      { to: "/import", label: "Import", editorOnly: true },
       { to: "/sla-workbench", label: "SLA Workbench" },
-      { to: "/backlog", label: "Backlog" },
+      { to: "/backlog", label: "Backlog", editorOnly: true },
       { to: "/prospects", label: "Prospects" },
       { to: "/sla-what-if", label: "SLA What-if" },
     ],
@@ -91,8 +91,8 @@ const navEntries: NavEntry[] = [
     label: "Docs",
     icon: BookOpen,
     items: [
-      { to: "/knowledge", label: "Knowledge" },
-      { to: "/flow", label: "Flow" },
+      { to: "/knowledge", label: "Knowledge", editorOnly: true },
+      { to: "/flow", label: "Flow", editorOnly: true },
       { to: "/changelog", label: "Changelog" },
     ],
   },
