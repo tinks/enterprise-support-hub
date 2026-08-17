@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import ReadOnlyBanner from "@/components/ReadOnlyBanner";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -256,6 +257,7 @@ export default function Customers() {
 
   return (
     <AppLayout>
+      <div className="px-6 pt-4"><ReadOnlyBanner /></div>
       <div className="p-6 space-y-4 max-w-7xl mx-auto">
         <div className="flex items-center gap-3">
           <Users className="h-6 w-6" />

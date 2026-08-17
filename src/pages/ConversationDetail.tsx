@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Label } from "@/components/ui/label";
+import ReadOnlyBanner from "@/components/ReadOnlyBanner";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -673,6 +674,7 @@ const ConversationDetail = () => {
   if (loading) {
     return (
       <AppLayout>
+      <div className="px-6 pt-4"><ReadOnlyBanner /></div>
         <div className="bg-background p-6">
           <div className="mx-auto max-w-3xl">
             <p className="text-sm text-muted-foreground">Loading…</p>

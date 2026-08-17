@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, Fragment, type React
 import { toast } from "sonner";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import ReadOnlyBanner from "@/components/ReadOnlyBanner";
 import AppLayout from "@/components/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -1728,6 +1729,7 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
 
   return (
     <AppLayout>
+      <div className="px-6 pt-4"><ReadOnlyBanner /></div>
       <div className="h-full min-h-0 flex flex-col bg-background p-6">
         <div className="mx-auto max-w-7xl w-full min-h-0 flex flex-col flex-1">
           <div className="flex flex-col flex-1 min-h-0">
