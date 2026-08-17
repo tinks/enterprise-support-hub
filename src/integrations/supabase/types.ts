@@ -557,6 +557,54 @@ export type Database = {
         }
         Relationships: []
       }
+      hub_members: {
+        Row: {
+          added_by: string | null
+          blocked_at: string | null
+          blocked_by: string | null
+          created_at: string
+          email: string
+          first_seen_at: string | null
+          id: string
+          last_seen_at: string | null
+          note: string | null
+          provisioned_at: string | null
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          added_by?: string | null
+          blocked_at?: string | null
+          blocked_by?: string | null
+          created_at?: string
+          email: string
+          first_seen_at?: string | null
+          id?: string
+          last_seen_at?: string | null
+          note?: string | null
+          provisioned_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          added_by?: string | null
+          blocked_at?: string | null
+          blocked_by?: string | null
+          created_at?: string
+          email?: string
+          first_seen_at?: string | null
+          id?: string
+          last_seen_at?: string | null
+          note?: string | null
+          provisioned_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       inbox_v2_tickets: {
         Row: {
           classification: string | null

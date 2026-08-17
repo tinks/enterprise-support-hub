@@ -19,6 +19,7 @@ import IntegrationHealthCard from "@/components/IntegrationHealthCard";
 import InboxV3SyncCard from "@/components/InboxV3SyncCard";
 import TicketChannelTestCard from "@/components/TicketChannelTestCard";
 import RolesCard from "@/components/RolesCard";
+import AccessCard from "@/components/AccessCard";
 // CustomerAccountsCard retired from Settings (7 Aug 2026) — customer accounts are now
 // edited only in Admin → Customers → Registry. Component intentionally kept on disk as rollback.
 import { Building2, ArrowRight } from "lucide-react";
@@ -406,7 +407,10 @@ const Index = () => {
 
         <TicketChannelTestCard />
 
+        <AccessCard />
+
         <RolesCard />
+
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4">

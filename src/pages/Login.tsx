@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { signInWithGoogle } from "@/integrations/lovable";
+import { signInWithGoogle, signInWithLovableWorkspace } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +30,25 @@ const Login = () => {
 
 
 
+  const handleWorkspaceLogin = async () => {
+    setLoading(true);
+    try {
+      const result = await signInWithLovableWorkspace();
+      if (!result.redirected) {
+        navigate("/", { replace: true });
+      }
+    } catch (err: any) {
+      toast({
+        title: "Workspace sign-in failed",
+        description:
+          (err?.message ?? "Unknown error") +
+          " — if you have never signed in before, an admin must add you under Settings → Access.",
+        variant: "destructive",
+      });
+      setLoading(false);
+    }
+  };
+
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
@@ -54,6 +73,10 @@ const Login = () => {
           <CardDescription>Sign in to continue</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <Button className="w-full" onClick={handleWorkspaceLogin} disabled={loading}>
+            Continue as Lovable workspace member
+          </Button>
+
           <Button
             variant="outline"
             className="w-full"
@@ -105,8 +128,8 @@ const Login = () => {
               Sign in
             </Button>
             <p className="text-center text-xs text-muted-foreground">
-              Accounts are provisioned by an admin. Contact the support hub owner
-              for access.
+              Access is managed by a hub admin under Settings → Access. If sign-in
+              is refused, ask an admin to add your @lovable.dev address.
             </p>
 
           </form>
