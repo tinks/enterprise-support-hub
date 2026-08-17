@@ -45,31 +45,25 @@ const RolesCard = () => {
 
   const adminCount = users.filter((u) => u.roles.includes("admin")).length;
 
-  const grantAdmin = async (userId: string) => {
+  const setRole = async (
+    userId: string,
+    role: "admin" | "editor",
+    grant: boolean,
+  ) => {
     setBusyId(userId);
-    const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: "admin" });
-    if (error) toast.error("Grant failed: " + error.message);
+    const { error } = grant
+      ? await supabase.from("user_roles").insert({ user_id: userId, role })
+      : await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", role);
+    if (error) toast.error(`${grant ? "Grant" : "Revoke"} failed: ` + error.message);
     else {
-      toast.success("Admin granted");
+      toast.success(`${role === "admin" ? "Admin" : "Editor"} ${grant ? "granted" : "revoked"}`);
       await load();
     }
     setBusyId(null);
   };
 
-  const revokeAdmin = async (userId: string) => {
-    setBusyId(userId);
-    const { error } = await supabase
-      .from("user_roles")
-      .delete()
-      .eq("user_id", userId)
-      .eq("role", "admin");
-    if (error) toast.error("Revoke failed: " + error.message);
-    else {
-      toast.success("Admin revoked");
-      await load();
-    }
-    setBusyId(null);
-  };
+  const grantAdmin = (userId: string) => setRole(userId, "admin", true);
+  const revokeAdmin = (userId: string) => setRole(userId, "admin", false);
 
   if (adminLoading) return null;
   if (!isAdmin) return null;
