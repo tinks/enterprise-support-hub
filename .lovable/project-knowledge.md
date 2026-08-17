@@ -116,7 +116,7 @@ A Slack-to-Intercom support bridge for enterprise customers. When a user @mentio
 - `BEFORE DELETE` trigger `user_roles_prevent_last_admin_delete` blocks removing the final admin row
 - Admin-only RPC `public.list_users_with_roles()` returns every `auth.users` row + their roles; raises if caller isn't admin (keeps `auth.users` off the client)
 - Client hook `useIsAdmin()` (`src/hooks/useIsAdmin.ts`) gates UI only — server enforcement is always RLS + `has_role()`
-- Managed via **Settings → Roles & permissions** card (`src/components/RolesCard.tsx`); non-admins don't see the card
+- Managed via **Admin → Users → Roles & permissions** card (`src/components/RolesCard.tsx`); non-admins don't see the card
 - First admin: `matt.niiro@lovable.dev`
 - All future admin-gated tables MUST use `public.has_role(auth.uid(), 'admin')` in policies rather than reimplementing the check
 
@@ -1686,7 +1686,7 @@ Provision stays a manual click because with self-signup disabled the auth layer 
 
 ### UI
 
-Admin-only `AccessCard` in Settings, above `RolesCard`. Drift is surfaced rather than hidden: an auth account with no roster row shows as "untracked", an active row whose account is gone shows as "no backend account".
+Admin-only `AccessCard` on **Admin → Users** (`/users`, `src/pages/Users.tsx`), above `RolesCard`. Moved off Settings on 17 Aug 2026; Settings keeps a pointer card only, and the nav entry is `adminOnly`. The page renders an "Admin access required" card for non-admins so the route is never blank. Drift is surfaced rather than hidden: an auth account with no roster row shows as "untracked", an active row whose account is gone shows as "no backend account".
 
 ### Verification (17 Aug 2026)
 
