@@ -1838,6 +1838,7 @@ export type Database = {
           updated_count: number
         }[]
       }
+      can_edit: { Args: { _uid: string }; Returns: boolean }
       claim_intercom_part: {
         Args: { p_mapping_id: string; p_part_id: string }
         Returns: boolean
