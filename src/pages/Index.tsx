@@ -406,7 +406,10 @@ const Index = () => {
 
         <TicketChannelTestCard />
 
+        <AccessCard />
+
         <RolesCard />
+
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4">
