@@ -379,7 +379,14 @@ Deno.serve(async (req) => {
 
     await log("succeeded", {
       intercom_status: res.status,
-      intercom_response: { custom_attributes: attrs, state: conv?.state ?? null },
+      intercom_response: {
+        custom_attributes: attrs,
+        state: conv?.state ?? null,
+        admin_assignee_id: liveAdminId,
+        owner: liveOwner,
+        product_area: liveProductArea,
+        requested_assignee_id: assignedAdminId,
+      },
     });
 
     return json({
@@ -388,6 +395,9 @@ Deno.serve(async (req) => {
       conversationId,
       actor: teammate.name,
       custom_attributes: attrs,
+      owner: liveOwner,
+      admin_assignee_id: liveAdminId,
+      product_area: liveProductArea,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Internal server error";
