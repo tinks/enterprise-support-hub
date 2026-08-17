@@ -896,6 +896,27 @@ function buildNodes(
       },
     },
     {
+      id: "hub-access-roster",
+      type: "flowNode",
+      position: { x: COL_W * -3.0, y: ROW_H * 5.4 },
+      data: {
+        label: "Hub access roster",
+        desc: "Admin-managed list of who can sign in, replacing 'ask Matt to create the account'. Self-signup stays closed — the roster is the only way in.",
+        icon: ShieldCheck,
+        details: [
+          "TABLE public.hub_members (email UNIQUE lowercased, user_id, status pending|active|blocked, note, added_by, first_seen_at, last_seen_at, provisioned_at, blocked_at, blocked_by). RLS: admins manage all rows via has_role(); a member may SELECT only their own row. BEFORE INSERT/UPDATE trigger hub_members_validate() lowercases the email and RAISES on any domain other than lovable.dev. Backfilled with the 10 existing accounts as 'active' — nothing changed for current users.",
+          "EDGE FUNCTION hub-access-manage (verify_jwt = true) actions: provision (service-role createUser with a random throwaway password, email_confirm true, row -> active), block (delete the auth account, row -> blocked, user_id nulled), unblock (row -> pending; re-provision to restore). Guarded by requireUser() AND an explicit has_role(caller,'admin') check — so a signed-in non-admin cannot call it, and cron/anon cannot reach it at all.",
+          "GUARDS: refuses non-lovable.dev addresses, refuses blocking the last remaining admin, refuses blocking your own account, refuses provisioning a row that is already active or blocked.",
+          "SIGN-IN PATH: /login gains 'Continue as Lovable workspace member' -> signInWithLovableWorkspace() in src/integrations/lovable, which calls the managed OAuth provider 'lovable' (@lovable.dev/cloud-auth-js upgraded 1.1.1 -> 1.1.2, which is the version that added that provider) and hands the returned tokens to supabase.auth.setSession, so RLS keeps working against a real user id. Google and email/password sign-in are unchanged.",
+          "WHY PROVISION IS STILL A CLICK: with self-signup disabled the auth layer rejects an unknown identity before any app code runs, so there is no hook to auto-approve a first-time workspace member. The admin click creates the account ahead of time; the workspace identity then attaches to it.",
+          "UI: admin-only AccessCard in Settings above RolesCard — add-to-roster input, Provision, Unblock, and 'Remove access' behind an AlertDialog confirm. DRIFT IS SHOWN, NOT HIDDEN: an auth account with no roster row renders as 'untracked', and an active row whose account no longer exists renders as 'no backend account'.",
+          "VERIFICATION (17 Aug 2026): negative — 401 with no Authorization header and with the anon key alone; refusals returned for gmail.com address, self-block, unknown roster row, duplicate provision. Positive — test row esh-access-test@lovable.dev (mine) added + provisioned through the UI at 1900px, then blocked via the function: hub_members row status=blocked/user_id null and 0 rows left in auth.users. NOT YET PROVEN: an actual first-time workspace member completing the 'Continue as Lovable workspace member' sign-in against a provisioned account — needs a real person who has never signed in.",
+        ],
+        accent: "default",
+      },
+    },
+
+    {
       id: "changelog-page",
       type: "flowNode",
       position: { x: COL_W * -0.6, y: ROW_H * 3 },
