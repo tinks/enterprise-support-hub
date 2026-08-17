@@ -1,0 +1,43 @@
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Access panel flow">
+  <style>
+    text { font-family: var(--font-sans); fill: hsl(var(--foreground)); }
+    .lbl { font-size: 14px; font-weight: 480; }
+    .note { font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .box { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .acc { fill: none; stroke: hsl(var(--accent)); stroke-width: 1; }
+    .wire { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+    .zone { fill: none; stroke: hsl(var(--border)); stroke-width: 1; stroke-dasharray: 4 3; }
+  </style>
+  <defs>
+    <marker id="chev" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8" fill="none" stroke="hsl(var(--muted-foreground))" stroke-width="1"/>
+    </marker>
+  </defs>
+
+  <rect class="zone" x="16" y="16" width="608" height="120" rx="8"/>
+  <text class="note" x="28" y="36">admin panel (settings)</text>
+
+  <rect class="box" x="36" y="52" width="150" height="60" rx="8"/>
+  <text class="lbl" x="111" y="78" text-anchor="middle">Add email</text>
+  <text class="note" x="111" y="96" text-anchor="middle">@lovable.dev only</text>
+
+  <line class="wire" x1="186" y1="82" x2="240" y2="82" marker-end="url(#chev)"/>
+
+  <rect class="acc" x="244" y="52" width="150" height="60" rx="8"/>
+  <text class="lbl" x="319" y="78" text-anchor="middle">Provision</text>
+  <text class="note" x="319" y="96" text-anchor="middle">creates account</text>
+
+  <line class="wire" x1="394" y1="82" x2="448" y2="82" marker-end="url(#chev)"/>
+
+  <rect class="box" x="452" y="52" width="150" height="60" rx="8"/>
+  <text class="lbl" x="527" y="78" text-anchor="middle">Remove access</text>
+  <text class="note" x="527" y="96" text-anchor="middle">confirm → revoked</text>
+
+  <line class="wire" x1="319" y1="112" x2="319" y2="176" marker-end="url(#chev)"/>
+
+  <rect class="box" x="204" y="180" width="230" height="56" rx="8"/>
+  <text class="lbl" x="319" y="204" text-anchor="middle">Teammate signs in with Google</text>
+  <text class="note" x="319" y="222" text-anchor="middle">identity attaches to the account</text>
+
+  <text class="note" x="319" y="266" text-anchor="middle">self-signup stays closed — the allowlist is the only way in</text>
+</svg>
