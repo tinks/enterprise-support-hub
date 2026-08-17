@@ -1,0 +1,57 @@
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: var(--font-sans, ui-sans-serif, system-ui); fill: hsl(var(--foreground)); }
+    .lbl { font-size: 14px; font-weight: 480; }
+    .sm { font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .box { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; rx: 8; }
+    .zone { fill: none; stroke: hsl(var(--border)); stroke-width: 1; stroke-dasharray: 4 3; rx: 8; }
+    .rail { stroke: hsl(var(--border)); stroke-width: 1; }
+    .wire { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+    .acc { fill: hsl(var(--accent)); }
+    .accs { fill: none; stroke: hsl(var(--accent)); stroke-width: 1; rx: 8; }
+    .accT { fill: hsl(var(--accent-foreground)); font-size: 12px; }
+  </style>
+  <defs>
+    <marker id="ch" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8" fill="none" stroke="hsl(var(--muted-foreground))" stroke-width="1"/>
+    </marker>
+  </defs>
+
+  <text class="sm" x="8" y="14">today</text>
+  <rect class="zone" x="8" y="22" width="270" height="250"/>
+
+  <rect class="box" x="24" y="38" width="238" height="96"/>
+  <text class="lbl" x="36" y="58">Access card</text>
+  <text class="sm" x="36" y="76">hub_members + list_users_with_roles</text>
+  <text class="sm" x="36" y="94">email · status · roles · added · provisioned</text>
+  <text class="sm" x="36" y="112">provision / unblock / remove</text>
+
+  <rect class="box" x="24" y="152" width="238" height="96"/>
+  <text class="lbl" x="36" y="172">Roles card</text>
+  <text class="sm" x="36" y="190">list_users_with_roles (again)</text>
+  <text class="sm" x="36" y="208">email · roles · joined</text>
+  <text class="sm" x="36" y="226">editor / admin grant + revoke</text>
+
+  <line class="wire" x1="286" y1="148" x2="342" y2="148" marker-end="url(#ch)"/>
+
+  <text class="sm" x="352" y="14">merged</text>
+  <rect class="accs" x="352" y="22" width="280" height="250"/>
+  <text class="lbl" x="368" y="46">Users table — one row per person</text>
+
+  <line class="rail" x1="368" y1="58" x2="616" y2="58"/>
+  <text class="sm" x="368" y="76">Email · Status · Roles · Added · Provisioned · Actions</text>
+  <line class="rail" x1="368" y1="86" x2="616" y2="86"/>
+
+  <rect class="box" x="368" y="98" width="248" height="30"/>
+  <text class="sm" x="380" y="117">active · admin, editor · provision-set actions</text>
+  <rect class="box" x="368" y="136" width="248" height="30"/>
+  <text class="sm" x="380" y="155">pending · none · Provision (role acts disabled)</text>
+  <rect class="box" x="368" y="174" width="248" height="30"/>
+  <text class="sm" x="380" y="193">blocked · none · Unblock</text>
+  <rect class="accs" x="368" y="212" width="248" height="30"/>
+  <text class="sm" x="380" y="231" fill="hsl(var(--accent))">untracked · account with no roster row</text>
+
+  <circle class="acc" cx="360" cy="256" r="8"/>
+  <text class="accT" x="356.5" y="260">1</text>
+  <text class="sm" x="376" y="262">drift now appears as a row, not just a banner note</text>
+</svg>
