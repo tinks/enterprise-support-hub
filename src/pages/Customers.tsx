@@ -507,13 +507,15 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
     if (e2) { console.error(e2); }
     if (e3) { console.error(e3); }
     if (e4) { console.error(e4); }
-    setGroups((g ?? []) as GroupRow[]);
+    const rows = (g ?? []) as GroupRow[];
+    setGroups(rows);
     setAccounts((a ?? []) as AccountOpt[]);
     const covRow = Array.isArray(cov) ? cov[0] : cov;
     setProspectPersonalCount(Number((covRow as { excluded_prospect_personal?: number } | null)?.excluded_prospect_personal ?? 0));
     const ssRow = Array.isArray(ss) ? ss[0] : ss;
     setSyncStatus((ssRow as { pending_open: number; pending_closed: number; next_full_fetch_at: string | null; schedule_desc: string | null } | null) ?? null);
     setLoading(false);
+    return rows;
   };
 
   useEffect(() => { load(); }, []);
