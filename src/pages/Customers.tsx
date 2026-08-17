@@ -568,10 +568,9 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
   const reloadAfterAction = async () => {
     const openGid = expanded;
     setExpandedTickets({});
-    await load();
+    const rows = await load();
     if (!openGid) return;
-    const { data: g } = await sb.rpc("v3_unattributed_groups");
-    const still = ((g ?? []) as GroupRow[]).find(row => groupId(row) === openGid);
+    const still = rows.find(row => groupId(row) === openGid);
     if (!still) { setExpanded(null); return; }
     await loadTickets(still, true);
   };
