@@ -520,20 +520,16 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
 
   const groupId = (g: GroupRow) => `${g.group_kind}::${g.group_key}`;
 
-  const loadTickets = async (g: GroupRow) => {
-    const gid = groupId(g);
-    if (expandedTickets[gid]) return;
+  const fetchTickets = async (g: GroupRow): Promise<UnTicket[] | null> => {
     if (g.group_kind === "no_signal") {
       const { data, error } = await sb.rpc("v3_no_signal_tickets");
-      if (error) { console.error(error); toast.error("Failed to load tickets"); return; }
-      setExpandedTickets(prev => ({ ...prev, [gid]: (data ?? []) as UnTicket[] }));
-      return;
+      if (error) { console.error(error); toast.error("Failed to load tickets"); return null; }
+      return (data ?? []) as UnTicket[];
     }
     if (g.group_kind === "personal_unlabeled") {
       const { data, error } = await sb.rpc("v3_personal_unlabeled_tickets");
-      if (error) { console.error(error); toast.error("Failed to load tickets"); return; }
-      setExpandedTickets(prev => ({ ...prev, [gid]: (data ?? []) as UnTicket[] }));
-      return;
+      if (error) { console.error(error); toast.error("Failed to load tickets"); return null; }
+      return (data ?? []) as UnTicket[];
     }
     let q = sb.from("intercom_tickets_v3")
       .select("id,intercom_conversation_id,subject,contact_email,contact_domain,slack_channel_id_detected,workspace_id_detected,intercom_created_at,last_full_fetch_at")
@@ -545,8 +541,18 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
     else if (g.group_kind === "channel") q = q.eq("slack_channel_id_detected", g.group_key);
     else if (g.group_kind === "workspace") q = q.eq("workspace_id_detected", g.group_key);
     const { data, error } = await q;
-    if (error) { console.error(error); toast.error("Failed to load tickets"); return; }
-    setExpandedTickets(prev => ({ ...prev, [gid]: (data ?? []) as UnTicket[] }));
+    if (error) { console.error(error); toast.error("Failed to load tickets"); return null; }
+    return (data ?? []) as UnTicket[];
+  };
+
+  const loadTickets = async (g: GroupRow, force = false) => {
+    const gid = groupId(g);
+    if (!force && expandedTickets[gid]) return;
+    setTicketsLoading(prev => ({ ...prev, [gid]: true }));
+    const rows = await fetchTickets(g);
+    setTicketsLoading(prev => ({ ...prev, [gid]: false }));
+    if (rows === null) return;
+    setExpandedTickets(prev => ({ ...prev, [gid]: rows }));
   };
 
   const toggle = async (g: GroupRow) => {
@@ -555,6 +561,20 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
     setExpanded(gid);
     await loadTickets(g);
   };
+
+  // After a mutation: refresh the group list and re-fetch the open group's tickets.
+  const reloadAfterAction = async () => {
+    const openGid = expanded;
+    setExpandedTickets({});
+    await load();
+    if (!openGid) return;
+    const { data: g } = await sb.rpc("v3_unattributed_groups");
+    const still = ((g ?? []) as GroupRow[]).find(row => groupId(row) === openGid);
+    if (!still) { setExpanded(null); return; }
+    await loadTickets(still, true);
+  };
+
+
 
   const toggleSelect = (gid: string, tid: string) => {
     setSelected(prev => {
