@@ -80,6 +80,7 @@ const navEntries: NavEntry[] = [
     icon: Cog,
     items: [
       { to: "/customers", label: "Customers" },
+      { to: "/users", label: "Users", adminOnly: true },
       { to: "/settings", label: "Settings" },
       { to: "/float-coverage", label: "Float coverage" },
       { to: "/sla-policy", label: "SLA Policy", adminOnly: true },

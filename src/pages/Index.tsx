@@ -407,9 +407,22 @@ const Index = () => {
 
         <TicketChannelTestCard />
 
-        <AccessCard />
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-lg">User access</CardTitle>
+              <CardDescription>
+                Access roster and roles have moved to Admin → Users.
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <a href="/users">
+                Open Users <ArrowRight className="h-3 w-3 ml-1" />
+              </a>
+            </Button>
+          </CardHeader>
+        </Card>
 
-        <RolesCard />
 
 
         <Card>
