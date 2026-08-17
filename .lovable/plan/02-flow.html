@@ -1,4 +1,4 @@
-<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Access panel flow">
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Workspace identity access flow">
   <style>
     text { font-family: var(--font-sans); fill: hsl(var(--foreground)); }
     .lbl { font-size: 14px; font-weight: 480; }
@@ -14,30 +14,34 @@
     </marker>
   </defs>
 
-  <rect class="zone" x="16" y="16" width="608" height="120" rx="8"/>
-  <text class="note" x="28" y="36">admin panel (settings)</text>
+  <rect class="box" x="20" y="52" width="150" height="60" rx="8"/>
+  <text class="lbl" x="95" y="78" text-anchor="middle">Lovable workspace</text>
+  <text class="note" x="95" y="96" text-anchor="middle">member, @lovable.dev</text>
 
-  <rect class="box" x="36" y="52" width="150" height="60" rx="8"/>
-  <text class="lbl" x="111" y="78" text-anchor="middle">Add email</text>
-  <text class="note" x="111" y="96" text-anchor="middle">@lovable.dev only</text>
+  <line class="wire" x1="170" y1="82" x2="222" y2="82" marker-end="url(#chev)"/>
 
-  <line class="wire" x1="186" y1="82" x2="240" y2="82" marker-end="url(#chev)"/>
+  <rect class="acc" x="226" y="52" width="170" height="60" rx="8"/>
+  <text class="lbl" x="311" y="78" text-anchor="middle">Hub reads identity</text>
+  <text class="note" x="311" y="96" text-anchor="middle">no login page</text>
 
-  <rect class="acc" x="244" y="52" width="150" height="60" rx="8"/>
-  <text class="lbl" x="319" y="78" text-anchor="middle">Provision</text>
-  <text class="note" x="319" y="96" text-anchor="middle">creates account</text>
+  <line class="wire" x1="396" y1="82" x2="448" y2="82" marker-end="url(#chev)"/>
 
-  <line class="wire" x1="394" y1="82" x2="448" y2="82" marker-end="url(#chev)"/>
+  <rect class="box" x="452" y="52" width="168" height="60" rx="8"/>
+  <text class="lbl" x="536" y="78" text-anchor="middle">Hub user record</text>
+  <text class="note" x="536" y="96" text-anchor="middle">created on first visit</text>
 
-  <rect class="box" x="452" y="52" width="150" height="60" rx="8"/>
-  <text class="lbl" x="527" y="78" text-anchor="middle">Remove access</text>
-  <text class="note" x="527" y="96" text-anchor="middle">confirm → revoked</text>
+  <line class="wire" x1="536" y1="112" x2="536" y2="168" marker-end="url(#chev)"/>
 
-  <line class="wire" x1="319" y1="112" x2="319" y2="176" marker-end="url(#chev)"/>
+  <rect class="zone" x="196" y="172" width="424" height="98" rx="8"/>
+  <text class="note" x="208" y="192">access card (settings, admin only)</text>
 
-  <rect class="box" x="204" y="180" width="230" height="56" rx="8"/>
-  <text class="lbl" x="319" y="204" text-anchor="middle">Teammate signs in with Google</text>
-  <text class="note" x="319" y="222" text-anchor="middle">identity attaches to the account</text>
+  <rect class="box" x="216" y="202" width="180" height="50" rx="8"/>
+  <text class="lbl" x="306" y="232" text-anchor="middle">Grant / revoke admin</text>
 
-  <text class="note" x="319" y="266" text-anchor="middle">self-signup stays closed — the allowlist is the only way in</text>
+  <rect class="box" x="416" y="202" width="184" height="50" rx="8"/>
+  <text class="lbl" x="508" y="226" text-anchor="middle">Block person</text>
+  <text class="note" x="508" y="243" text-anchor="middle">refused even if in workspace</text>
+
+  <text class="note" x="95" y="200">self-signup</text>
+  <text class="note" x="95" y="218">stays closed</text>
 </svg>
