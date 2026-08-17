@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Login from "./pages/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
+import EditorRoute from "./components/EditorRoute";
 import Index from "./pages/Index";
 import Stats from "./pages/Stats";
 import FlowDiagram from "./pages/FlowDiagram";
@@ -54,8 +55,8 @@ const App = () => (
           <Route path="/" element={<ProtectedRoute><Stats /></ProtectedRoute>} />
           <Route path="/action-center" element={<ProtectedRoute><ActionCenter /></ProtectedRoute>} />
           <Route path="/conversations" element={<ProtectedRoute><Conversations /></ProtectedRoute>} />
-          <Route path="/triage" element={<ProtectedRoute><Triage /></ProtectedRoute>} />
-          <Route path="/escalations" element={<ProtectedRoute><Escalations /></ProtectedRoute>} />
+          <Route path="/triage" element={<EditorRoute><Triage /></EditorRoute>} />
+          <Route path="/escalations" element={<EditorRoute><Escalations /></EditorRoute>} />
           <Route path="/inbox-v2" element={<ProtectedRoute><InboxV2 /></ProtectedRoute>} />
 
 
@@ -68,18 +69,18 @@ const App = () => (
           <Route path="/conversations/:id" element={<ProtectedRoute><ConversationDetail /></ProtectedRoute>} />
           <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
           <Route path="/my/:owner" element={<ProtectedRoute><OwnerDashboard /></ProtectedRoute>} />
-          <Route path="/import" element={<ProtectedRoute><ImportPage /></ProtectedRoute>} />
-          <Route path="/import/bulk" element={<ProtectedRoute><BulkImportReview /></ProtectedRoute>} />
-          <Route path="/test-review" element={<ProtectedRoute><TestChannelReview /></ProtectedRoute>} />
+          <Route path="/import" element={<EditorRoute><ImportPage /></EditorRoute>} />
+          <Route path="/import/bulk" element={<EditorRoute><BulkImportReview /></EditorRoute>} />
+          <Route path="/test-review" element={<EditorRoute><TestChannelReview /></EditorRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Index /></ProtectedRoute>} />
           <Route path="/users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
-          <Route path="/backlog" element={<ProtectedRoute><Backlog /></ProtectedRoute>} />
+          <Route path="/backlog" element={<EditorRoute><Backlog /></EditorRoute>} />
           <Route path="/prospects" element={<ProtectedRoute><Prospects /></ProtectedRoute>} />
           <Route path="/sla-what-if" element={<ProtectedRoute><SlaWhatIf /></ProtectedRoute>} />
           <Route path="/sla-policy" element={<ProtectedRoute><SlaPolicyAdmin /></ProtectedRoute>} />
           <Route path="/float-coverage" element={<ProtectedRoute><FloatCoverage /></ProtectedRoute>} />
-          <Route path="/flow" element={<ProtectedRoute><FlowDiagram /></ProtectedRoute>} />
-          <Route path="/knowledge" element={<ProtectedRoute><ProjectKnowledge /></ProtectedRoute>} />
+          <Route path="/flow" element={<EditorRoute><FlowDiagram /></EditorRoute>} />
+          <Route path="/knowledge" element={<EditorRoute><ProjectKnowledge /></EditorRoute>} />
           <Route path="/changelog" element={<ProtectedRoute><Changelog /></ProtectedRoute>} />
           <Route path="/sla" element={<ProtectedRoute><SlaDashboard /></ProtectedRoute>} />
           <Route path="/sla-report" element={<ProtectedRoute><SlaReport /></ProtectedRoute>} />
