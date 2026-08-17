@@ -491,6 +491,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [expandedTickets, setExpandedTickets] = useState<Record<string, UnTicket[]>>({});
+  const [ticketsLoading, setTicketsLoading] = useState<Record<string, boolean>>({});
   const [selected, setSelected] = useState<Record<string, Set<string>>>({});
   const [dialog, setDialog] = useState<null | { kind: string; group?: GroupRow; ticketIds?: string[] }>(null);
 
