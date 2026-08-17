@@ -801,7 +801,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
         state={dialog}
         accounts={accounts}
         onClose={() => setDialog(null)}
-        onDone={() => { setDialog(null); setSelected({}); setExpandedTickets({}); load(); }}
+        onDone={() => { setDialog(null); setSelected({}); reloadAfterAction(); }}
       />
     </div>
   );
