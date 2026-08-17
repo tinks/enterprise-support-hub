@@ -213,7 +213,7 @@ export function ProductAreaWriteControl({
       .then(({ data }) =>
         setAreas(
           String(data?.product_areas ?? "")
-            .split("\n")
+            .split(/[\n,]/)
             .map((s) => s.trim())
             .filter(Boolean),
         ),

@@ -235,8 +235,10 @@ Deno.serve(async (req) => {
 
       if (action === "set_product_area") {
         const productArea = String(payload.productArea ?? "").trim();
+        // settings.product_areas is a single text field; historically comma-separated,
+        // tolerated newline-separated too.
         const allowedAreas: string[] = String(settings.product_areas || "")
-          .split("\n")
+          .split(/[\n,]/)
           .map((s) => s.trim())
           .filter(Boolean);
         // The Hub never invents a taxonomy value.
