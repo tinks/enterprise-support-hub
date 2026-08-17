@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, AlertTriangle, Check } from "lucide-react";
+import { useCanEdit } from "@/hooks/useCanEdit";
 
 /**
  * Step 2 of the ESH write rollout: the first Hub-originated write surfaced in the UI.
@@ -48,10 +49,12 @@ export function SeverityWriteControl({
   /** Fired only after Intercom accepted and the mirror was updated. */
   onWritten?: (severity: string) => void;
 }) {
+  const { canEdit, isLoading: roleLoading } = useCanEdit();
   const [value, setValue] = useState<string>(currentSeverity ?? "");
   const [outcome, setOutcome] = useState<Outcome>({ kind: "idle" });
 
   const sending = outcome.kind === "sending";
+  const readOnly = !roleLoading && !canEdit;
   const dirty = value !== "" && value !== (currentSeverity ?? "");
 
   const submit = async () => {
