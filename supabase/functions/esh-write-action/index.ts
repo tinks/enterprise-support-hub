@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
     // ─── 3. kill switch + allowlist ───
     const { data: settings } = await supabase
       .from("settings")
-      .select("esh_write_enabled, esh_write_allowed_actions")
+      .select("esh_write_enabled, esh_write_allowed_actions, product_areas, admin_owner_map")
       .limit(1)
       .maybeSingle();
 
