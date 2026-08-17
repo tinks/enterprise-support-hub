@@ -88,7 +88,7 @@ const Changelog = () => {
           </div>
           {canEdit && <Button onClick={() => { setEditing(null); setDialogOpen(true); }} className="gap-1">
             <Plus className="h-4 w-4" /> Add entry
-          </Button>
+          </Button>}
         </div>
 
         {loading ? (
@@ -130,7 +130,7 @@ const Changelog = () => {
                             <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{e.body}</p>
                           )}
                         </div>
-                        <div className="flex items-center gap-1 shrink-0">
+                        <div className={`flex items-center gap-1 shrink-0 ${canEdit ? "" : "hidden"}`}>
                           <Button
                             variant="ghost"
                             size="icon"
