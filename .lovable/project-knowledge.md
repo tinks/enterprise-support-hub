@@ -1721,3 +1721,26 @@ Role controls (**Grant editor** / **Make read-only** / **Grant admin** / **Revok
 ### Verification (17 Aug 2026)
 
 Positive path only: `/users` renders the editor controls, `/triage` and `/changelog` render for an editor+admin account, typecheck clean at 1900px. **UNVERIFIED:** the read-only branch — `EditorRoute` card, `ReadOnlyBanner`, RLS refusal — because no account without `editor` exists yet.
+
+## Owner and product area writes — Step 3 of the write spine (17 Aug 2026)
+
+The second Hub write surface, and the first one that can overwrite a value that already exists. Two actions on the same choke point (`esh-write-action`), two different Intercom mechanisms:
+
+- `set_owner` — a real Intercom **assignment**: `POST /conversations/{id}/parts` with `message_type=assignment`, `admin_id` = the human performing it, `assignee_id` = the target teammate's `intercom_admin_id` resolved from `public.teammates`. An owner with no active teammate mapping is refused, so the Hub never holds an owner Intercom's own assignment contradicts.
+- `set_product_area` — `PUT /conversations/{id}` writing `custom_attributes["Affected Product Area"]`, the exact key `_shared/v3.ts extractFields` reads. The value must appear in `settings.product_areas`; the Hub never invents a taxonomy value.
+
+### Strict conflict checking
+
+Unlike Severity, these fields may already hold a value and `sync-v3-open` can move them under the operator between page load and click. Every write carries `expectedCurrent` (the value the UI displayed; `null` means "was empty"). The function **GETs the conversation first** and compares. On mismatch it writes nothing and returns `409 {blocked:true, stale:true}` with `Intercom now holds X (you saw Y)`; the control renders "Write refused — the ticket moved" and tells the operator to reload rather than retry. Last-write-wins was explicitly rejected.
+
+### Mirror
+
+Read exclusively off the post-write verification GET, never off the request payload: `product_area`, `admin_assignee_id`, and `owner` derived through `settings.admin_owner_map` — the same derivation `sync-v3-closed` uses, so the next sync agrees instead of flapping. Intercom's `0` for unassigned is stored as `NULL`.
+
+### Interlocks
+
+Unchanged and still default-closed: both action names are in `KNOWN_ACTIONS` but are **not** in `settings.esh_write_allowed_actions`, so they refuse with `403 {blocked:true}` until explicitly enabled. `esh_write_enabled` remains the global kill switch, and `require-editor` still gates the caller.
+
+### Verification status
+
+Code deployed; **NOT yet exercised live**. Pending: allowlist entry, then the three negative tests (not-allowlisted refusal, stale-value 409 on a field changed in Intercom after page load, unmapped-teammate refusal) plus one live write/revert on a designated test ticket.
