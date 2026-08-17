@@ -813,6 +813,25 @@ function buildNodes(
       },
     },
     {
+      id: "owner-product-area-write",
+      type: "flowNode",
+      position: { x: COL_W * 0.5, y: ROW_H * 4.3 },
+      data: {
+        label: "Owner + product area writes (Step 3)",
+        desc: "Second write surface. Owner is a real Intercom ASSIGNMENT, product area is the 'Affected Product Area' custom attribute. Both go through esh-write-action with strict conflict checking.",
+        icon: ClipboardList,
+        details: [
+          "OwnerWriteControl / ProductAreaWriteControl (src/components/issues/TicketFieldWriteControls.tsx) render in the /triage and /inbox-v3 detail sheets and call esh-write-action with set_owner / set_product_area.",
+          "STRICT CONFLICT CHECK (the difference from Step 2): unlike Severity, these fields may already hold a value and sync-v3-open can move them underneath the operator. The function GETs the conversation FIRST and compares the live value to expectedCurrent (the value the UI displayed; null means 'was empty'). A mismatch returns 409 {blocked:true, stale:true} with 'Intercom now holds X (you saw Y)' and writes nothing — the UI tells the operator to reload, not to retry.",
+          "set_owner is an assignment, not a label: POST /conversations/{id}/parts with message_type=assignment, admin_id = the human doing it, assignee_id = the target teammate's intercom_admin_id resolved from public.teammates (active + mapped, otherwise refused). The Hub never records an owner Intercom cannot hold.",
+          "set_product_area is PUT /conversations/{id} custom_attributes['Affected Product Area'] — the exact key _shared/v3.ts extractFields reads, so the next sync agrees instead of reverting. The value must be one of settings.product_areas; the Hub never invents a taxonomy value.",
+          "Mirror is read off the verification GET only: product_area, admin_assignee_id, and owner (via settings.admin_owner_map, the same derivation sync-v3-closed uses). Intercom reports 0 for unassigned and that is stored as NULL.",
+          "Both actions are in KNOWN_ACTIONS but must ALSO be added to settings.esh_write_allowed_actions before they are callable — default-closed, unchanged.",
+        ],
+        accent: "blue",
+      },
+    },
+    {
 
       id: "inbox-v3-gap-scan",
       type: "flowNode",
