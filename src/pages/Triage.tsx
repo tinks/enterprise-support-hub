@@ -361,6 +361,7 @@ export default function Triage() {
             <IssueField label="Contact" value={`${selected.contact_name ?? "—"} · ${selected.contact_email ?? "—"}`} />
             <IssueField label="Customer" value={accountLabel(selected.customer_key)} />
             <IssueField label="Owner" value={selected.owner} />
+            <IssueField label="Product area" value={selected.custom_attributes?.["Affected Product Area"] ?? null} />
             <IssueField
               label="Created"
               value={selected.intercom_created_at ? format(new Date(selected.intercom_created_at), "PPpp") : "—"}
