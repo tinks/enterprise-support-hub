@@ -36,6 +36,7 @@ import FloatCoverage from "./pages/FloatCoverage";
 import Triage from "./pages/Triage";
 import Escalations from "./pages/Escalations";
 import ActionCenter from "./pages/ActionCenter";
+import Users from "./pages/Users";
 import { ActionSignalsProvider } from "./hooks/useActionSignals";
 
 
@@ -71,6 +72,7 @@ const App = () => (
           <Route path="/import/bulk" element={<ProtectedRoute><BulkImportReview /></ProtectedRoute>} />
           <Route path="/test-review" element={<ProtectedRoute><TestChannelReview /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+          <Route path="/users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
           <Route path="/backlog" element={<ProtectedRoute><Backlog /></ProtectedRoute>} />
           <Route path="/prospects" element={<ProtectedRoute><Prospects /></ProtectedRoute>} />
           <Route path="/sla-what-if" element={<ProtectedRoute><SlaWhatIf /></ProtectedRoute>} />
