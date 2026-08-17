@@ -23,7 +23,8 @@ Never inline a `SELECT ... FROM user_roles` inside a policy — it causes infini
 
 ## Client
 - Hook `src/hooks/useIsAdmin.ts` — UI gating only
-- Card `src/components/RolesCard.tsx` — mounted in `src/pages/Index.tsx` (Settings). Renders nothing for non-admins.
+- Card `src/components/UsersCard.tsx` — the single Users table on `/users` (`src/pages/Users.tsx`), covering both the `hub_members` access roster and role grants. `AccessCard` + `RolesCard` were merged into it on 17 Aug 2026 and deleted. Renders nothing for non-admins.
+
 
 ## Seeded admin
 `matt.niiro@lovable.dev` (auth uid `1d7bf5c8-520b-4a57-9aba-fe3f5e8357b1`) is the first admin, added in the initial roles migration.
