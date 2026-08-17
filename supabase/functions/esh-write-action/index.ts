@@ -25,12 +25,23 @@ const corsHeaders = {
 const INTERCOM_BASE = "https://api.intercom.io";
 const INTERCOM_VERSION = "2.13"; // pinned to match the v3 sync functions
 
-// Step 1 ships exactly one action. Anything else is refused by name, even if a
-// caller guesses the shape.
-const KNOWN_ACTIONS = ["set_severity"] as const;
+// Actions are refused by name, even if a caller guesses the shape. Being listed
+// here is not enough — the name must ALSO be in settings.esh_write_allowed_actions.
+const KNOWN_ACTIONS = ["set_severity", "set_owner", "set_product_area"] as const;
 type Action = (typeof KNOWN_ACTIONS)[number];
 
 const SEVERITY_VALUES = ["1", "2", "3", "4"];
+
+// Custom-attribute key the v3 sync (_shared/v3.ts extractFields) reads for the
+// product area. Writing anything else would be reverted by the next sync.
+const PRODUCT_AREA_ATTR = "Affected Product Area";
+
+/** Normalizes "field is empty" across null / undefined / "" so the strict
+ *  conflict check can't be fooled by a shape difference. */
+function norm(v: unknown): string | null {
+  const s = v === null || v === undefined ? "" : String(v).trim();
+  return s === "" ? null : s;
+}
 
 type Json = Record<string, unknown>;
 
