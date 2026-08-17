@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import ReadOnlyBanner from "@/components/ReadOnlyBanner";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -347,6 +348,7 @@ export default function InboxV3() {
 
   return (
     <AppLayout>
+      <div className="px-6 pt-4"><ReadOnlyBanner /></div>
       <div className="p-6 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>

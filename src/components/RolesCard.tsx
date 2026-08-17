@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { RefreshCw, ShieldCheck, ShieldOff } from "lucide-react";
+import { Pencil, PencilOff, RefreshCw, ShieldCheck, ShieldOff } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 interface UserRow {
@@ -45,31 +45,25 @@ const RolesCard = () => {
 
   const adminCount = users.filter((u) => u.roles.includes("admin")).length;
 
-  const grantAdmin = async (userId: string) => {
+  const setRole = async (
+    userId: string,
+    role: "admin" | "editor",
+    grant: boolean,
+  ) => {
     setBusyId(userId);
-    const { error } = await supabase.from("user_roles").insert({ user_id: userId, role: "admin" });
-    if (error) toast.error("Grant failed: " + error.message);
+    const { error } = grant
+      ? await supabase.from("user_roles").insert({ user_id: userId, role })
+      : await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", role);
+    if (error) toast.error(`${grant ? "Grant" : "Revoke"} failed: ` + error.message);
     else {
-      toast.success("Admin granted");
+      toast.success(`${role === "admin" ? "Admin" : "Editor"} ${grant ? "granted" : "revoked"}`);
       await load();
     }
     setBusyId(null);
   };
 
-  const revokeAdmin = async (userId: string) => {
-    setBusyId(userId);
-    const { error } = await supabase
-      .from("user_roles")
-      .delete()
-      .eq("user_id", userId)
-      .eq("role", "admin");
-    if (error) toast.error("Revoke failed: " + error.message);
-    else {
-      toast.success("Admin revoked");
-      await load();
-    }
-    setBusyId(null);
-  };
+  const grantAdmin = (userId: string) => setRole(userId, "admin", true);
+  const revokeAdmin = (userId: string) => setRole(userId, "admin", false);
 
   if (adminLoading) return null;
   if (!isAdmin) return null;
@@ -80,7 +74,8 @@ const RolesCard = () => {
         <div>
           <CardTitle className="text-lg">Roles &amp; permissions</CardTitle>
           <CardDescription>
-            Grant or revoke the admin role. Admin unlocks role management and future admin-gated features.
+            Editor allows changing data (tickets, notes, registry, settings). Without it an account
+            is read-only — reports and inbox views only. Admin adds role and access management.
           </CardDescription>
         </div>
         <Button variant="outline" size="sm" onClick={load} disabled={loading}>
@@ -145,28 +140,55 @@ const RolesCard = () => {
                       {new Date(u.created_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
-                      {hasAdmin ? (
-                        isLastAdmin ? (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span tabIndex={0}>{revokeButton}</span>
-                            </TooltipTrigger>
-                            <TooltipContent>Cannot remove the last admin</TooltipContent>
-                          </Tooltip>
+                      <div className="flex justify-end gap-2">
+                        {hasAdmin ? (
+                          <span className="text-xs text-muted-foreground self-center">
+                            editor implied
+                          </span>
+                        ) : u.roles.includes("editor") ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busyId === u.id}
+                            onClick={() => setRole(u.id, "editor", false)}
+                          >
+                            <PencilOff className="h-3 w-3 mr-1" />
+                            Make read-only
+                          </Button>
                         ) : (
-                          revokeButton
-                        )
-                      ) : (
-                        <Button
-                          variant="default"
-                          size="sm"
-                          disabled={busyId === u.id}
-                          onClick={() => grantAdmin(u.id)}
-                        >
-                          <ShieldCheck className="h-3 w-3 mr-1" />
-                          Grant admin
-                        </Button>
-                      )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busyId === u.id}
+                            onClick={() => setRole(u.id, "editor", true)}
+                          >
+                            <Pencil className="h-3 w-3 mr-1" />
+                            Grant editor
+                          </Button>
+                        )}
+                        {hasAdmin ? (
+                          isLastAdmin ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span tabIndex={0}>{revokeButton}</span>
+                              </TooltipTrigger>
+                              <TooltipContent>Cannot remove the last admin</TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            revokeButton
+                          )
+                        ) : (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            disabled={busyId === u.id}
+                            onClick={() => grantAdmin(u.id)}
+                          >
+                            <ShieldCheck className="h-3 w-3 mr-1" />
+                            Grant admin
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

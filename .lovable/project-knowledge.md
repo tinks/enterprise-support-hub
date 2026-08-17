@@ -1691,3 +1691,26 @@ Admin-only `AccessCard` on **Admin → Users** (`/users`, `src/pages/Users.tsx`)
 ### Verification (17 Aug 2026)
 
 Negative: 401 with no `Authorization` header and with the anon key alone; explicit refusals for a gmail.com address, self-block, unknown roster row, duplicate provision. Positive: test row `esh-access-test@lovable.dev` (mine) added and provisioned through the UI at 1900px, then blocked — `hub_members` shows `blocked` with `user_id` null and `auth.users` has 0 matching rows. Not yet proven: a real first-time workspace member completing the new sign-in path against a provisioned account.
+
+## Editor vs read-only roles
+
+CSMs joining the Hub need every report and inbox view but must not change data. The model is deny-by-default on writes only: reads are untouched.
+
+### Roles
+
+`app_role` gained `editor`. `public.can_edit(_uid uuid)` (security definer, same pattern as `has_role`) returns true for `editor` **or** `admin`. All 11 pre-existing accounts were backfilled as `editor` in the same migration, so no existing teammate lost a capability.
+
+### Enforcement
+
+- **RLS** — the 32 write policies that were open to any `authenticated` user now require `can_edit(auth.uid())` in `USING` / `WITH CHECK`. Read policies unchanged.
+- **Edge functions** — `supabase/functions/_shared/require-editor.ts` guards the 9 user-invoked mutators: `esh-write-action`, `post-reply`, `delete-conversation-mapping`, `delete-slack-message`, `create-intercom-from-import`, `import-intercom-ticket`, `import-slack-thread`, `bulk-import-intercom`, `bulk-import-slack`. Cron/webhook functions are deliberately untouched — they authenticate with the anon key and would 401.
+
+### UI (honesty layer, never the enforcement)
+
+`src/hooks/useCanEdit.ts` mirrors `useIsAdmin`. `EditorRoute` wraps the pages that exist purely to change data — Triage, Dev escalations, Import, Bulk import, Test review, Backlog, Settings, Float coverage, Flow, Knowledge — and renders a "Read-only access" card instead of a fully disabled surface; those nav children are `editorOnly` and hidden. `ReadOnlyBanner` appears on the view-and-edit surfaces (Inbox, Conversation detail, Inbox v3, Customers). `SeverityWriteControl` renders a static severity line for read-only accounts rather than a control that would refuse.
+
+`RolesCard` on `/users` gained **Grant editor** / **Make read-only** beside the admin controls; admins show "editor implied". The last-admin delete trigger is unchanged.
+
+### Verification (17 Aug 2026)
+
+Positive path only: `/users` renders the editor controls, `/triage` and `/changelog` render for an editor+admin account, typecheck clean at 1900px. **UNVERIFIED:** the read-only branch — `EditorRoute` card, `ReadOnlyBanner`, RLS refusal — because no account without `editor` exists yet.

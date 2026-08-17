@@ -1,3 +1,4 @@
+import { requireEditor } from "../_shared/require-editor.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -8,6 +9,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+  const gate = await requireEditor(req, corsHeaders);
+  if (!gate.ok) return gate.response;
 
   try {
     const slackToken = Deno.env.get("SLACK_BOT_TOKEN");

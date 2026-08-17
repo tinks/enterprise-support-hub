@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { requireEditor } from "../_shared/require-editor.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,6 +31,8 @@ interface InConversation {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const gate = await requireEditor(req, corsHeaders);
+  if (!gate.ok) return gate.response;
 
   try {
     const authHeader = req.headers.get("Authorization");

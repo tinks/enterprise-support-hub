@@ -23,10 +23,11 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import { useDashboardTeammates } from "@/hooks/useDashboardTeammates";
 import { useActionSignals } from "@/hooks/useActionSignals";
 
-type NavChild = { to: string; label: string; end?: boolean; adminOnly?: boolean };
+type NavChild = { to: string; label: string; end?: boolean; adminOnly?: boolean; editorOnly?: boolean };
 type NavLinkItem = { kind: "link"; to: string; icon: LucideIcon; label: string; end?: boolean };
 type NavGroupItem = { kind: "group"; label: string; icon: LucideIcon; items: NavChild[] };
 type NavEntry = NavLinkItem | NavGroupItem;
@@ -50,8 +51,8 @@ const navEntries: NavEntry[] = [
     label: "Issues",
     icon: MessageSquare,
     items: [
-      { to: "/triage", label: "Triage" },
-      { to: "/escalations", label: "Dev escalations" },
+      { to: "/triage", label: "Triage", editorOnly: true },
+      { to: "/escalations", label: "Dev escalations", editorOnly: true },
       { to: "/conversations", label: "Inbox" },
       { to: "/inbox-v3", label: "Inbox v3" },
     ],
@@ -67,9 +68,9 @@ const navEntries: NavEntry[] = [
     label: "Tools",
     icon: Wrench,
     items: [
-      { to: "/import", label: "Import" },
+      { to: "/import", label: "Import", editorOnly: true },
       { to: "/sla-workbench", label: "SLA Workbench" },
-      { to: "/backlog", label: "Backlog" },
+      { to: "/backlog", label: "Backlog", editorOnly: true },
       { to: "/prospects", label: "Prospects" },
       { to: "/sla-what-if", label: "SLA What-if" },
     ],
@@ -91,8 +92,8 @@ const navEntries: NavEntry[] = [
     label: "Docs",
     icon: BookOpen,
     items: [
-      { to: "/knowledge", label: "Knowledge" },
-      { to: "/flow", label: "Flow" },
+      { to: "/knowledge", label: "Knowledge", editorOnly: true },
+      { to: "/flow", label: "Flow", editorOnly: true },
       { to: "/changelog", label: "Changelog" },
     ],
   },
@@ -109,16 +110,20 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { isAdmin } = useIsAdmin();
+  const { canEdit } = useCanEdit();
   const { items: dashboardTeammates } = useDashboardTeammates();
   const { attentionCount, errorCount } = useActionSignals();
   // One aggregate disc on the rail: how many SIGNALS need attention (not items).
   const railBadge = attentionCount + errorCount;
 
-  // Admin-only nav children are hidden for non-admins (routes + RLS enforce too).
+  // Admin-only nav children are hidden for non-admins; editor-only children are
+  // hidden for read-only accounts (CSMs). Routes + RLS enforce too.
   // The Dashboards group appends the per-owner entries driven by the teammates roster.
   const visibleEntries: NavEntry[] = navEntries.map((e) => {
     if (e.kind !== "group") return e;
-    const items = e.items.filter((i) => !i.adminOnly || isAdmin);
+    const items = e.items.filter(
+      (i) => (!i.adminOnly || isAdmin) && (!i.editorOnly || canEdit),
+    );
     return {
       ...e,
       items: e.label === "Dashboards" ? [...items, ...dashboardTeammates] : items,
