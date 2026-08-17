@@ -140,28 +140,55 @@ const RolesCard = () => {
                       {new Date(u.created_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
-                      {hasAdmin ? (
-                        isLastAdmin ? (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span tabIndex={0}>{revokeButton}</span>
-                            </TooltipTrigger>
-                            <TooltipContent>Cannot remove the last admin</TooltipContent>
-                          </Tooltip>
+                      <div className="flex justify-end gap-2">
+                        {hasAdmin ? (
+                          <span className="text-xs text-muted-foreground self-center">
+                            editor implied
+                          </span>
+                        ) : u.roles.includes("editor") ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busyId === u.id}
+                            onClick={() => setRole(u.id, "editor", false)}
+                          >
+                            <PencilOff className="h-3 w-3 mr-1" />
+                            Make read-only
+                          </Button>
                         ) : (
-                          revokeButton
-                        )
-                      ) : (
-                        <Button
-                          variant="default"
-                          size="sm"
-                          disabled={busyId === u.id}
-                          onClick={() => grantAdmin(u.id)}
-                        >
-                          <ShieldCheck className="h-3 w-3 mr-1" />
-                          Grant admin
-                        </Button>
-                      )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busyId === u.id}
+                            onClick={() => setRole(u.id, "editor", true)}
+                          >
+                            <Pencil className="h-3 w-3 mr-1" />
+                            Grant editor
+                          </Button>
+                        )}
+                        {hasAdmin ? (
+                          isLastAdmin ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span tabIndex={0}>{revokeButton}</span>
+                              </TooltipTrigger>
+                              <TooltipContent>Cannot remove the last admin</TooltipContent>
+                            </Tooltip>
+                          ) : (
+                            revokeButton
+                          )
+                        ) : (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            disabled={busyId === u.id}
+                            onClick={() => grantAdmin(u.id)}
+                          >
+                            <ShieldCheck className="h-3 w-3 mr-1" />
+                            Grant admin
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
