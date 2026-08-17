@@ -339,10 +339,23 @@ Deno.serve(async (req) => {
     const conv = JSON.parse(readText);
     const attrs = conv?.custom_attributes ?? {};
 
+    // Everything below is read off the verification GET — never off the request
+    // payload — so the mirror can only ever hold what Intercom actually holds.
+    const ownerMap: Record<string, string> = (() => {
+      try { return JSON.parse(settings.admin_owner_map || "{}"); } catch { return {}; }
+    })();
+    const liveAdminId = norm(conv?.admin_assignee_id) ?? (assignedAdminId ? null : null);
+    // Same derivation sync-v3-closed uses, so the next sync agrees with us.
+    const liveOwner = liveAdminId ? (ownerMap[liveAdminId] ?? null) : null;
+    const liveProductArea = norm(attrs[PRODUCT_AREA_ATTR]);
+
     const { error: updErr } = await supabase
       .from("intercom_tickets_v3")
       .update({
         custom_attributes: attrs,
+        product_area: liveProductArea,
+        admin_assignee_id: liveAdminId,
+        owner: liveOwner,
         state: conv?.state ?? undefined,
         intercom_updated_at: conv?.updated_at
           ? new Date(conv.updated_at * 1000).toISOString()
