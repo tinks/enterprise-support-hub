@@ -14,6 +14,7 @@ import { IssueDetailSheet, IssueField } from "@/components/issues/IssueDetailShe
 import { idColumn, subjectColumn, contactColumn, customerColumn, ownerColumn } from "@/components/issues/issueColumns";
 import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 import { SeverityWriteControl } from "@/components/issues/SeverityWriteControl";
+import { OwnerWriteControl, ProductAreaWriteControl } from "@/components/issues/TicketFieldWriteControls";
 import {
   computeSla,
   businessHoursBetween,
@@ -361,6 +362,7 @@ export default function Triage() {
             <IssueField label="Contact" value={`${selected.contact_name ?? "—"} · ${selected.contact_email ?? "—"}`} />
             <IssueField label="Customer" value={accountLabel(selected.customer_key)} />
             <IssueField label="Owner" value={selected.owner} />
+            <IssueField label="Product area" value={selected.custom_attributes?.["Affected Product Area"] ?? null} />
             <IssueField
               label="Created"
               value={selected.intercom_created_at ? format(new Date(selected.intercom_created_at), "PPpp") : "—"}
@@ -381,6 +383,40 @@ export default function Triage() {
                     ),
                   );
                   setSelected(null);
+                }}
+              />
+            </div>
+            <div className="pt-2 border-t border-border">
+              <div className="text-xs text-muted-foreground mb-2">Set owner</div>
+              <OwnerWriteControl
+                conversationId={selected.intercom_conversation_id}
+                currentOwner={selected.owner}
+                onWritten={(o) => {
+                  setRows((prev) =>
+                    prev.map((r) =>
+                      r.intercom_conversation_id === selected.intercom_conversation_id ? { ...r, owner: o } : r,
+                    ),
+                  );
+                  setSelected((s) => (s ? { ...s, owner: o } : s));
+                }}
+              />
+            </div>
+            <div className="pt-2 border-t border-border">
+              <div className="text-xs text-muted-foreground mb-2">Set product area</div>
+              <ProductAreaWriteControl
+                conversationId={selected.intercom_conversation_id}
+                currentProductArea={selected.custom_attributes?.["Affected Product Area"] ?? null}
+                onWritten={(pa) => {
+                  setRows((prev) =>
+                    prev.map((r) =>
+                      r.intercom_conversation_id === selected.intercom_conversation_id
+                        ? { ...r, custom_attributes: { ...(r.custom_attributes ?? {}), "Affected Product Area": pa } }
+                        : r,
+                    ),
+                  );
+                  setSelected((s) =>
+                    s ? { ...s, custom_attributes: { ...(s.custom_attributes ?? {}), "Affected Product Area": pa } } : s,
+                  );
                 }}
               />
             </div>

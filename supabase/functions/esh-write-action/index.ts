@@ -25,12 +25,23 @@ const corsHeaders = {
 const INTERCOM_BASE = "https://api.intercom.io";
 const INTERCOM_VERSION = "2.13"; // pinned to match the v3 sync functions
 
-// Step 1 ships exactly one action. Anything else is refused by name, even if a
-// caller guesses the shape.
-const KNOWN_ACTIONS = ["set_severity"] as const;
+// Actions are refused by name, even if a caller guesses the shape. Being listed
+// here is not enough — the name must ALSO be in settings.esh_write_allowed_actions.
+const KNOWN_ACTIONS = ["set_severity", "set_owner", "set_product_area"] as const;
 type Action = (typeof KNOWN_ACTIONS)[number];
 
 const SEVERITY_VALUES = ["1", "2", "3", "4"];
+
+// Custom-attribute key the v3 sync (_shared/v3.ts extractFields) reads for the
+// product area. Writing anything else would be reverted by the next sync.
+const PRODUCT_AREA_ATTR = "Affected Product Area";
+
+/** Normalizes "field is empty" across null / undefined / "" so the strict
+ *  conflict check can't be fooled by a shape difference. */
+function norm(v: unknown): string | null {
+  const s = v === null || v === undefined ? "" : String(v).trim();
+  return s === "" ? null : s;
+}
 
 type Json = Record<string, unknown>;
 
@@ -117,7 +128,7 @@ Deno.serve(async (req) => {
     // ─── 3. kill switch + allowlist ───
     const { data: settings } = await supabase
       .from("settings")
-      .select("esh_write_enabled, esh_write_allowed_actions")
+      .select("esh_write_enabled, esh_write_allowed_actions, product_areas, admin_owner_map")
       .limit(1)
       .maybeSingle();
 
@@ -172,6 +183,8 @@ Deno.serve(async (req) => {
 
     // ─── 5. build the Intercom call ───
     let request: { method: string; path: string; body: Json };
+    // Owner writes are an assignment, so the mirror needs the resolved target.
+    let assignedAdminId: string | null = null;
 
     if (action === "set_severity") {
       const severity = String(payload.severity ?? "").trim();
@@ -185,6 +198,102 @@ Deno.serve(async (req) => {
         path: `/conversations/${conversationId}`,
         body: { custom_attributes: { Severity: severity } },
       };
+    } else if (action === "set_product_area" || action === "set_owner") {
+      // ─── 5a. strict conflict pre-read (step 3) ───
+      // These fields may already hold a value and the 5-min sync can move them
+      // underneath the operator. Read Intercom FIRST and refuse if it no longer
+      // holds what the UI displayed. `expectedCurrent: null` means "was empty".
+      const preRes = await fetch(`${INTERCOM_BASE}/conversations/${conversationId}`, { headers });
+      const preText = await preRes.text();
+      if (!preRes.ok) {
+        await log("failed", {
+          intercom_status: preRes.status,
+          error: `conflict pre-read failed: ${preText.slice(0, 1000)}`,
+        });
+        return json(
+          { error: "Could not read the current value from Intercom; nothing was written", status: preRes.status },
+          502,
+        );
+      }
+      const pre = JSON.parse(preText);
+      const preAttrs = pre?.custom_attributes ?? {};
+      const ownerMapPre: Record<string, string> = (() => {
+        try { return JSON.parse(settings.admin_owner_map || "{}"); } catch { return {}; }
+      })();
+
+      const liveValue =
+        action === "set_product_area"
+          ? norm(preAttrs[PRODUCT_AREA_ATTR])
+          : norm(ownerMapPre[String(pre?.admin_assignee_id ?? "")] ?? null);
+      const expected = norm(payload.expectedCurrent);
+
+      if (liveValue !== expected) {
+        const msg = `Intercom now holds ${liveValue ?? "no value"} (you saw ${expected ?? "no value"}). Reload to see current.`;
+        await log("blocked", { error: msg, intercom_status: preRes.status });
+        return json({ error: msg, blocked: true, stale: true, liveValue }, 409);
+      }
+
+      if (action === "set_product_area") {
+        const productArea = String(payload.productArea ?? "").trim();
+        // settings.product_areas is a single text field; historically comma-separated,
+        // tolerated newline-separated too.
+        const allowedAreas: string[] = String(settings.product_areas || "")
+          .split(/[\n,]/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+        // The Hub never invents a taxonomy value.
+        if (!productArea || (allowedAreas.length > 0 && !allowedAreas.includes(productArea))) {
+          const msg = `productArea must be one of the configured product areas (got '${productArea}')`;
+          await log("blocked", { error: msg });
+          return json({ error: msg, blocked: true }, 400);
+        }
+        request = {
+          method: "PUT",
+          path: `/conversations/${conversationId}`,
+          body: { custom_attributes: { [PRODUCT_AREA_ATTR]: productArea } },
+        };
+      } else {
+        // set_owner — resolve the TARGET teammate to a real Intercom admin id.
+        const targetName = norm(payload.teammateName);
+        const targetIdRaw = norm(payload.intercomAdminId);
+        let targetId = targetIdRaw;
+        let targetLabel = targetName ?? targetIdRaw ?? "";
+
+        if (!targetId) {
+          if (!targetName) {
+            const msg = "teammateName or intercomAdminId is required";
+            await log("blocked", { error: msg });
+            return json({ error: msg, blocked: true }, 400);
+          }
+          const { data: target } = await supabase
+            .from("teammates")
+            .select("name, intercom_admin_id, active")
+            .eq("name", targetName)
+            .maybeSingle();
+          if (!target?.intercom_admin_id || !target.active) {
+            // The Hub does not record an owner Intercom cannot hold.
+            const msg = `No active teammate with an Intercom admin id for '${targetName}'`;
+            await log("blocked", { error: msg });
+            return json({ error: msg, blocked: true }, 400);
+          }
+          targetId = target.intercom_admin_id;
+          targetLabel = target.name;
+        }
+
+        assignedAdminId = targetId;
+        request = {
+          method: "POST",
+          path: `/conversations/${conversationId}/parts`,
+          body: {
+            message_type: "assignment",
+            type: "admin",
+            // author of the assignment = the human doing it, never a bot admin
+            admin_id: teammate.intercom_admin_id,
+            assignee_id: targetId,
+          },
+        };
+        audit = { ...audit, payload: { ...payload, resolved_assignee_id: targetId, resolved_owner: targetLabel } };
+      }
     } else {
       const msg = `Action '${action}' has no handler`;
       await log("blocked", { error: msg });
@@ -232,10 +341,25 @@ Deno.serve(async (req) => {
     const conv = JSON.parse(readText);
     const attrs = conv?.custom_attributes ?? {};
 
+    // Everything below is read off the verification GET — never off the request
+    // payload — so the mirror can only ever hold what Intercom actually holds.
+    const ownerMap: Record<string, string> = (() => {
+      try { return JSON.parse(settings.admin_owner_map || "{}"); } catch { return {}; }
+    })();
+    // Intercom reports 0 for "unassigned".
+    const rawAdminId = norm(conv?.admin_assignee_id);
+    const liveAdminId = rawAdminId && rawAdminId !== "0" ? rawAdminId : null;
+    // Same derivation sync-v3-closed uses, so the next sync agrees with us.
+    const liveOwner = liveAdminId ? (ownerMap[liveAdminId] ?? null) : null;
+    const liveProductArea = norm(attrs[PRODUCT_AREA_ATTR]);
+
     const { error: updErr } = await supabase
       .from("intercom_tickets_v3")
       .update({
         custom_attributes: attrs,
+        product_area: liveProductArea,
+        admin_assignee_id: liveAdminId,
+        owner: liveOwner,
         state: conv?.state ?? undefined,
         intercom_updated_at: conv?.updated_at
           ? new Date(conv.updated_at * 1000).toISOString()
@@ -257,7 +381,14 @@ Deno.serve(async (req) => {
 
     await log("succeeded", {
       intercom_status: res.status,
-      intercom_response: { custom_attributes: attrs, state: conv?.state ?? null },
+      intercom_response: {
+        custom_attributes: attrs,
+        state: conv?.state ?? null,
+        admin_assignee_id: liveAdminId,
+        owner: liveOwner,
+        product_area: liveProductArea,
+        requested_assignee_id: assignedAdminId,
+      },
     });
 
     return json({
@@ -266,6 +397,9 @@ Deno.serve(async (req) => {
       conversationId,
       actor: teammate.name,
       custom_attributes: attrs,
+      owner: liveOwner,
+      admin_assignee_id: liveAdminId,
+      product_area: liveProductArea,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Internal server error";

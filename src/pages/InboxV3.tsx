@@ -16,6 +16,7 @@ import { effectiveRsa } from "@/pages/inbox-v3/rsa";
 import { toast } from "@/hooks/use-toast";
 import { intercomUrl } from "@/lib/intercom";
 import { IntercomIdChip } from "@/components/issues/IssueTable";
+import { OwnerWriteControl, ProductAreaWriteControl } from "@/components/issues/TicketFieldWriteControls";
 
 type Ticket = {
   id: string;
@@ -523,6 +524,26 @@ export default function InboxV3() {
                 </div>
                 <Field label="State" value={selected.state} />
                 <Field label="Owner" value={selected.owner} />
+                <div className="grid grid-cols-[140px_1fr] gap-3 items-start">
+                  <dt className="text-xs text-muted-foreground">Set owner</dt>
+                  <dd>
+                    <OwnerWriteControl
+                      conversationId={selected.intercom_conversation_id}
+                      currentOwner={selected.owner}
+                      onWritten={(o) => setSelected((s) => (s ? { ...s, owner: o } : s))}
+                    />
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[140px_1fr] gap-3 items-start">
+                  <dt className="text-xs text-muted-foreground">Set product area</dt>
+                  <dd>
+                    <ProductAreaWriteControl
+                      conversationId={selected.intercom_conversation_id}
+                      currentProductArea={selected.product_area}
+                      onWritten={(pa) => setSelected((s) => (s ? { ...s, product_area: pa } : s))}
+                    />
+                  </dd>
+                </div>
                 <div className="grid grid-cols-[140px_1fr] gap-3 items-center">
                   <dt className="text-xs text-muted-foreground">RSA</dt>
                   <dd className="text-sm flex items-center gap-2">
