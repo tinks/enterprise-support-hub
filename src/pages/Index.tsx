@@ -16,6 +16,7 @@ import ProductAreasCard from "@/components/ProductAreasCard";
 import AdminMappingCard from "@/components/AdminMappingCard";
 import SlackChannelAccountMapCard from "@/components/SlackChannelAccountMapCard";
 import IntegrationHealthCard from "@/components/IntegrationHealthCard";
+import IntercomFieldOptionsCard from "@/components/IntercomFieldOptionsCard";
 import InboxV3SyncCard from "@/components/InboxV3SyncCard";
 import TicketChannelTestCard from "@/components/TicketChannelTestCard";
 // CustomerAccountsCard retired from Settings (7 Aug 2026) — customer accounts are now
@@ -609,6 +610,9 @@ const Index = () => {
 
         {/* Product Areas Card */}
         <ProductAreasCard settings={settings} setSettings={setSettings} onSave={saveSettings} />
+
+        {/* Intercom field options (drift only, no validation change) */}
+        <IntercomFieldOptionsCard />
 
         {/* Admin Mapping Card */}
         <AdminMappingCard settings={settings} setSettings={setSettings} onSave={saveSettings} />
