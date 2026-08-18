@@ -205,7 +205,7 @@ Deno.serve(async (req) => {
         path: `/conversations/${conversationId}`,
         body: { custom_attributes: { Severity: severity } },
       };
-    } else if (action === "set_product_area" || action === "set_owner") {
+    } else if (action === "set_product_area" || action === "set_owner" || action === "set_classification") {
       // ─── 5a. strict conflict pre-read (step 3) ───
       // These fields may already hold a value and the 5-min sync can move them
       // underneath the operator. Read Intercom FIRST and refuse if it no longer
