@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, ArrowRight, Bell, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
+import { AlertTriangle, ArrowRight, Bell, CheckCircle2, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { formatDistanceToNowStrict } from "date-fns";
 import { useActionSignals, type SignalState } from "@/hooks/useActionSignals";
 import { FAMILY_LABEL, type SignalFamily } from "@/lib/actionSignals";
@@ -64,6 +64,34 @@ function SignalCard({ state, onGo }: { state: SignalState; onGo: (to: string) =>
               <CheckCircle2 className="h-3 w-3" /> clear
             </span>
           )}
+        </div>
+      )}
+
+      {status === "ok" && active && (reading?.items?.length ?? 0) > 0 && (
+        <div className="space-y-1">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            Tickets ({reading!.items!.length}
+            {reading!.items!.length < count ? ` of ${count}` : ""})
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {reading!.items!.map((it) => (
+              <a
+                key={it.id}
+                href={
+                  it.intercomId
+                    ? `https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${it.intercomId}`
+                    : undefined
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 font-mono text-[11px] hover:bg-muted"
+                title={it.label ?? it.id}
+              >
+                {it.label ?? it.intercomId ?? it.id}
+                <ExternalLink className="h-2.5 w-2.5" />
+              </a>
+            ))}
+          </div>
         </div>
       )}
 
