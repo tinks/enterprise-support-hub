@@ -265,3 +265,78 @@ export function ProductAreaWriteControl({
     </div>
   );
 }
+
+/**
+ * Ticket type = the `Ticket type` custom attribute the v3 sync mirrors into
+ * `classification`. Intercom has no settings-backed list for it, so the options
+ * are pinned in the edge function and mirrored here; a value outside the set is
+ * refused server-side rather than invented.
+ */
+export const TICKET_TYPE_VALUES = [
+  "Question",
+  "Issue",
+  "Configuration",
+  "Feature Request",
+  "Bug",
+  "Incident",
+];
+
+export function TicketTypeWriteControl({
+  conversationId,
+  currentTicketType,
+  onWritten,
+}: {
+  conversationId: string;
+  currentTicketType: string | null;
+  onWritten?: (ticketType: string | null) => void;
+}) {
+  const { canEdit, isLoading: roleLoading } = useCanEdit();
+  const { outcome, setOutcome, send } = useWriter();
+  const [value, setValue] = useState<string>(currentTicketType ?? "");
+
+  const sending = outcome.kind === "sending";
+  const dirty = value !== "" && value !== (currentTicketType ?? "");
+
+  if (!roleLoading && !canEdit) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Ticket type {currentTicketType ?? "not set"} — read-only account, editor role required to write to Intercom.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Select value={value} onValueChange={(v) => { setValue(v); setOutcome({ kind: "idle" }); }} disabled={sending}>
+          <SelectTrigger className="h-9 w-[220px] text-xs">
+            <SelectValue placeholder="Set ticket type…" />
+          </SelectTrigger>
+          <SelectContent>
+            {TICKET_TYPE_VALUES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Button
+          size="sm"
+          disabled={!dirty || sending}
+          onClick={async () => {
+            const data = await send(
+              {
+                conversationId,
+                action: "set_classification",
+                payload: { classification: value, expectedCurrent: currentTicketType ?? null },
+              },
+              (d) => ({ value: String(d?.classification ?? value) }),
+            );
+            if (data) onWritten?.((data as any)?.classification ?? value);
+          }}
+        >
+          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Write to Intercom"}
+        </Button>
+      </div>
+      <Outcomes outcome={outcome} noun="ticket type" />
+      <Footnote />
+    </div>
+  );
+}
+
