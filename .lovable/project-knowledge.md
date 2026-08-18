@@ -209,6 +209,7 @@ awaiting_context → processing → active ⇄ active_pending → resolved
 - **Deduplication:** Atomic UPDATE on `last_intercom_part_id` — first writer wins
 - Removes old feedback buttons from thread before posting new reply
 - **Escalation marker guard:** `intercom-webhook` skips its own customer-side marker text (`This ticket has been escalated — awaiting human support response.`) so Intercom cannot emit it back as `conversation.user.replied` and loop it into Slack repeatedly
+- **Author-type guard (Aug 2026):** after selecting the last forwardable part (`comment`/`assignment` with a body), `intercom-webhook` returns early without relaying when that part's `author.type` is `user`, `lead`, or `contact`. Slack→Intercom forwards of the original requester's own words are posted as user-type parts (no `[From: … via Slack]` prefix on that branch), which Intercom re-emits as `conversation.user.replied`; the relay previously picked them up and echoed the customer's own message back into the Slack thread under the Ask Lovable identity ("parroting" bug, observed on conversation `215475518887389`). Known tradeoff: genuine customer **email** replies on Slack-mapped conversations no longer surface in the Slack thread. A part-ledger approach (record Hub-created part IDs and skip only those) is the future refinement if that tradeoff bites
 - Converts HTML to Slack markdown (br→\n, p→\n\n, li→bullet, strips tags)
 - Strips AI footers/sign-offs
 - Splits messages at 2500 chars / 35 lines to avoid Slack's "See more" collapse

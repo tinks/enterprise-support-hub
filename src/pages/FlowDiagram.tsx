@@ -589,7 +589,9 @@ function buildNodes(
           "Removes old feedback buttons",
           "Posts reply with admin identity",
           'Shows only "Resolved" button (no escalate)',
+          "Author-type guard (Aug 2026): if the last forwardable part is authored by user/lead/contact, the webhook skips the Slack relay entirely. Slack→Intercom forwards of the original requester's own words post as user-type parts and re-fire conversation.user.replied — without this guard the customer's message was echoed back into the thread under the Ask Lovable identity (parroting bug). Side effect: customer email replies on Slack-mapped conversations no longer surface in the Slack thread.",
         ],
+
         message:
           "[Agent reply text...]\n\n[ 👍 This resolved my issue ]",
         botIdentity: ASK_LOVABLE,

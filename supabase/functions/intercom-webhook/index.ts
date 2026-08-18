@@ -1143,6 +1143,29 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Author-type guard: never relay a customer-authored part back into Slack.
+    // Slack→Intercom forwards of the original requester's words are posted as
+    // user-type parts, which Intercom re-emits as conversation.user.replied.
+    // Without this guard the Hub echoes the customer's own message into the
+    // thread labeled as Sam / Ask Lovable (the "parroting" bug).
+    {
+      const guardAuthorType = String(
+        (lastCommentPart.author as { type?: string } | undefined)?.type || ""
+      ).toLowerCase();
+      if (guardAuthorType === "user" || guardAuthorType === "lead" || guardAuthorType === "contact") {
+        console.log(
+          `Skipping Slack relay for conversation ${conversationId}: last forwardable part ${
+            lastCommentPart.id ?? "unknown"
+          } is customer-authored (${guardAuthorType})`
+        );
+        return new Response(
+          JSON.stringify({ ok: true, message: "Customer-authored part, not relayed" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+
     // Deduplication: atomic claim via Postgres row-level lock
     const partId = lastCommentPart.id ? String(lastCommentPart.id) : null;
     if (partId) {
