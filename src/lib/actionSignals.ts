@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { TICKET_TYPE_VALUES } from "@/components/issues/TicketFieldWriteControls";
 import {
   computeSla,
   parseSeverity,
@@ -359,7 +358,7 @@ export const ACTION_SIGNALS: ActionSignal[] = [
     route: "/",
     routeLabel: "Settings",
     meaning:
-      "Intercom offers product area / ticket type values the Hub's hand-maintained lists do not (or vice versa). Writes still validate against the Hub lists, so a missing value cannot be set from here.",
+      "Intercom's product area options no longer match the legacy settings.product_areas list used by the older Hub surfaces. Writes to Intercom are unaffected (they validate against the Intercom-sourced cache).",
     load: async () => {
       const [optsRes, settingsRes] = await Promise.all([
         supabase.from("intercom_field_options" as any).select("attr_key,option_value,active"),
@@ -376,14 +375,13 @@ export const ACTION_SIGNALS: ActionSignal[] = [
         .split(/[\n,]/)
         .map((s) => s.trim())
         .filter(Boolean);
-      const hubTypes = TICKET_TYPE_VALUES;
-
       const active = (key: string) =>
         rows.filter((r) => r.attr_key === key && r.active).map((r) => r.option_value);
 
+      // Ticket type is fully cache-driven after the Phase 2 cutover, so only the
+      // legacy settings.product_areas list can still drift from Intercom.
       const pairs: Array<[string, string[], string[]]> = [
         ["Affected Product Area", active("Affected Product Area"), hubAreas],
-        ["Ticket type", active("Ticket type"), hubTypes],
       ];
 
       const drifted = pairs.filter(
