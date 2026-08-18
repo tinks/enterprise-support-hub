@@ -355,7 +355,7 @@ export const ACTION_SIGNALS: ActionSignal[] = [
     id: "intercom_field_drift",
     label: "Intercom field options drift",
     family: "review",
-    route: "/",
+    route: "/settings",
     routeLabel: "Settings",
     meaning:
       "Intercom's product area options no longer match the legacy settings.product_areas list used by the older Hub surfaces. Writes to Intercom are unaffected (they validate against the Intercom-sourced cache).",
