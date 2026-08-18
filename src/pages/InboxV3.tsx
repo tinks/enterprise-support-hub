@@ -16,7 +16,7 @@ import { effectiveRsa } from "@/pages/inbox-v3/rsa";
 import { toast } from "@/hooks/use-toast";
 import { intercomUrl } from "@/lib/intercom";
 import { IntercomIdChip } from "@/components/issues/IssueTable";
-import { OwnerWriteControl, ProductAreaWriteControl } from "@/components/issues/TicketFieldWriteControls";
+import { OwnerWriteControl, ProductAreaWriteControl, TicketTypeWriteControl } from "@/components/issues/TicketFieldWriteControls";
 
 type Ticket = {
   id: string;
@@ -541,6 +541,16 @@ export default function InboxV3() {
                       conversationId={selected.intercom_conversation_id}
                       currentProductArea={selected.product_area}
                       onWritten={(pa) => setSelected((s) => (s ? { ...s, product_area: pa } : s))}
+                    />
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[140px_1fr] gap-3 items-start">
+                  <dt className="text-xs text-muted-foreground">Set ticket type</dt>
+                  <dd>
+                    <TicketTypeWriteControl
+                      conversationId={selected.intercom_conversation_id}
+                      currentTicketType={selected.classification}
+                      onWritten={(tt) => setSelected((s) => (s ? { ...s, classification: tt } : s))}
                     />
                   </dd>
                 </div>

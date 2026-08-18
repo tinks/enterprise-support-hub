@@ -27,14 +27,21 @@ const INTERCOM_VERSION = "2.13"; // pinned to match the v3 sync functions
 
 // Actions are refused by name, even if a caller guesses the shape. Being listed
 // here is not enough — the name must ALSO be in settings.esh_write_allowed_actions.
-const KNOWN_ACTIONS = ["set_severity", "set_owner", "set_product_area"] as const;
+const KNOWN_ACTIONS = ["set_severity", "set_owner", "set_product_area", "set_classification"] as const;
 type Action = (typeof KNOWN_ACTIONS)[number];
 
 const SEVERITY_VALUES = ["1", "2", "3", "4"];
 
-// Custom-attribute key the v3 sync (_shared/v3.ts extractFields) reads for the
-// product area. Writing anything else would be reverted by the next sync.
+// Custom-attribute keys the v3 sync (_shared/v3.ts extractFields) reads. Writing
+// anything else would be reverted by the next sync.
 const PRODUCT_AREA_ATTR = "Affected Product Area";
+const TICKET_TYPE_ATTR = "Ticket type";
+
+// Ticket type is a fixed Intercom dropdown; there is no settings-backed list, so
+// the accepted values are pinned here (derived from the live population). A value
+// outside this set is refused rather than invented.
+const TICKET_TYPE_VALUES = ["Question", "Issue", "Configuration", "Feature Request", "Bug", "Incident"];
+
 
 /** Normalizes "field is empty" across null / undefined / "" so the strict
  *  conflict check can't be fooled by a shape difference. */
@@ -198,7 +205,7 @@ Deno.serve(async (req) => {
         path: `/conversations/${conversationId}`,
         body: { custom_attributes: { Severity: severity } },
       };
-    } else if (action === "set_product_area" || action === "set_owner") {
+    } else if (action === "set_product_area" || action === "set_owner" || action === "set_classification") {
       // ─── 5a. strict conflict pre-read (step 3) ───
       // These fields may already hold a value and the 5-min sync can move them
       // underneath the operator. Read Intercom FIRST and refuse if it no longer
@@ -224,7 +231,9 @@ Deno.serve(async (req) => {
       const liveValue =
         action === "set_product_area"
           ? norm(preAttrs[PRODUCT_AREA_ATTR])
-          : norm(ownerMapPre[String(pre?.admin_assignee_id ?? "")] ?? null);
+          : action === "set_classification"
+            ? norm(preAttrs[TICKET_TYPE_ATTR])
+            : norm(ownerMapPre[String(pre?.admin_assignee_id ?? "")] ?? null);
       const expected = norm(payload.expectedCurrent);
 
       if (liveValue !== expected) {
@@ -251,6 +260,18 @@ Deno.serve(async (req) => {
           method: "PUT",
           path: `/conversations/${conversationId}`,
           body: { custom_attributes: { [PRODUCT_AREA_ATTR]: productArea } },
+        };
+      } else if (action === "set_classification") {
+        const ticketType = String(payload.classification ?? "").trim();
+        if (!TICKET_TYPE_VALUES.includes(ticketType)) {
+          const msg = `classification must be one of ${TICKET_TYPE_VALUES.join(", ")} (got '${ticketType}')`;
+          await log("blocked", { error: msg });
+          return json({ error: msg, blocked: true }, 400);
+        }
+        request = {
+          method: "PUT",
+          path: `/conversations/${conversationId}`,
+          body: { custom_attributes: { [TICKET_TYPE_ATTR]: ticketType } },
         };
       } else {
         // set_owner — resolve the TARGET teammate to a real Intercom admin id.
@@ -352,12 +373,14 @@ Deno.serve(async (req) => {
     // Same derivation sync-v3-closed uses, so the next sync agrees with us.
     const liveOwner = liveAdminId ? (ownerMap[liveAdminId] ?? null) : null;
     const liveProductArea = norm(attrs[PRODUCT_AREA_ATTR]);
+    const liveClassification = norm(attrs[TICKET_TYPE_ATTR]);
 
     const { error: updErr } = await supabase
       .from("intercom_tickets_v3")
       .update({
         custom_attributes: attrs,
         product_area: liveProductArea,
+        classification: liveClassification,
         admin_assignee_id: liveAdminId,
         owner: liveOwner,
         state: conv?.state ?? undefined,
@@ -387,6 +410,7 @@ Deno.serve(async (req) => {
         admin_assignee_id: liveAdminId,
         owner: liveOwner,
         product_area: liveProductArea,
+        classification: liveClassification,
         requested_assignee_id: assignedAdminId,
       },
     });
@@ -400,6 +424,7 @@ Deno.serve(async (req) => {
       owner: liveOwner,
       admin_assignee_id: liveAdminId,
       product_area: liveProductArea,
+      classification: liveClassification,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Internal server error";
