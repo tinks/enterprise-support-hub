@@ -175,6 +175,30 @@ export default function IntercomFieldOptionsCard() {
     setBusy(false);
   };
 
+  /**
+   * Reconcile drift by taking Intercom as the source of truth: overwrite the
+   * legacy hand-maintained list with Intercom's active options. Touches only
+   * the dropdown option list — no ticket rows are rewritten, so a value that
+   * disappears here still displays on tickets that already carry it.
+   */
+  const adoptProductAreas = async (values: string[]) => {
+    setBusy(true);
+    setError(null);
+    const { data: row } = await supabase.from("settings").select("id").limit(1).maybeSingle();
+    if (!row?.id) {
+      setError("No settings row found");
+      setBusy(false);
+      return;
+    }
+    const { error } = await supabase
+      .from("settings")
+      .update({ product_areas: values.join(",") })
+      .eq("id", row.id);
+    if (error) setError(error.message);
+    await load();
+    setBusy(false);
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -184,7 +208,8 @@ export default function IntercomFieldOptionsCard() {
             <CardDescription>
               What Intercom actually offers for the list fields the Hub writes, compared with the
               Hub's remaining hand-maintained list. Writes to Intercom validate against this cache;
-              drift shown here is informational and is never auto-corrected.
+              drift shown here is never auto-corrected — adopting Intercom's list is an explicit
+              action.
             </CardDescription>
           </div>
           {canEdit && (
@@ -196,13 +221,17 @@ export default function IntercomFieldOptionsCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {error && <p className="text-xs text-destructive">Refresh failed: {error}</p>}
+        {error && <p className="text-xs text-destructive">Action failed: {error}</p>}
         <AttrPanel
           attrKey={PRODUCT_AREA_ATTR}
           hubLabel="settings.product_areas (legacy surfaces)"
           hubValues={productAreas}
           rows={rows.filter((r) => r.attr_key === PRODUCT_AREA_ATTR)}
+          onAdopt={adoptProductAreas}
+          adopting={busy}
+          canEdit={canEdit}
         />
+
         <AttrPanel
           attrKey={TICKET_TYPE_ATTR}
           hubLabel="Writes validate directly against this cache"
