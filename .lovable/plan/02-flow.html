@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 300" width="640" height="300">
+  <style>
+    text { font-family: var(--font-sans); fill: hsl(var(--foreground)); }
+    .lbl { font-size: 14px; font-weight: 480; }
+    .note { font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .mono { font-family: var(--font-mono); font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .box { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .wire { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+    .zone { fill: none; stroke: hsl(var(--border)); stroke-width: 1; stroke-dasharray: 4 3; }
+    .tag { font-size: 12px; fill: hsl(var(--border)); }
+  </style>
+  <defs>
+    <marker id="ch" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8" fill="none" stroke="hsl(var(--muted-foreground))" stroke-width="1"/>
+    </marker>
+  </defs>
+
+  <rect class="zone" x="8" y="16" width="624" height="112" rx="8"/>
+  <text class="tag" x="20" y="34">phase 1 — cache and drift</text>
+
+  <rect class="box" x="28" y="46" width="150" height="56" rx="8"/>
+  <text class="lbl" x="103" y="70" text-anchor="middle">Intercom</text>
+  <text class="mono" x="103" y="88" text-anchor="middle">/data_attributes</text>
+
+  <rect class="box" x="238" y="46" width="160" height="56" rx="8"/>
+  <text class="lbl" x="318" y="70" text-anchor="middle">sync-intercom-fields</text>
+  <text class="note" x="318" y="88" text-anchor="middle">daily + on demand</text>
+
+  <rect class="box" x="458" y="46" width="150" height="56" rx="8"/>
+  <text class="lbl" x="533" y="70" text-anchor="middle">options cache</text>
+  <text class="mono" x="533" y="88" text-anchor="middle">intercom_field_options</text>
+
+  <line class="wire" x1="178" y1="74" x2="234" y2="74" marker-end="url(#ch)"/>
+  <line class="wire" x1="398" y1="74" x2="454" y2="74" marker-end="url(#ch)"/>
+
+  <rect class="zone" x="8" y="152" width="624" height="132" rx="8"/>
+  <text class="tag" x="20" y="170">phase 2 — validation cutover</text>
+
+  <rect class="box" x="28" y="186" width="150" height="56" rx="8"/>
+  <text class="lbl" x="103" y="210" text-anchor="middle">write control</text>
+  <text class="note" x="103" y="228" text-anchor="middle">options from cache</text>
+
+  <rect x="238" y="186" width="160" height="56" rx="8" fill="hsl(var(--accent))" stroke="none"/>
+  <text class="lbl" x="318" y="210" text-anchor="middle" fill="hsl(var(--accent-foreground))">esh-write-action</text>
+  <text x="318" y="228" text-anchor="middle" font-size="12" font-family="var(--font-sans)" fill="hsl(var(--accent-foreground))">validate against cache</text>
+
+  <rect class="box" x="458" y="186" width="150" height="56" rx="8"/>
+  <text class="lbl" x="533" y="210" text-anchor="middle">Intercom write</text>
+  <text class="note" x="533" y="228" text-anchor="middle">then mirror back</text>
+
+  <line class="wire" x1="178" y1="214" x2="234" y2="214" marker-end="url(#ch)"/>
+  <line class="wire" x1="398" y1="214" x2="454" y2="214" marker-end="url(#ch)"/>
+  <line class="wire" x1="533" y1="106" x2="533" y2="182" stroke-dasharray="4 3" marker-end="url(#ch)"/>
+  <line class="wire" x1="103" y1="106" x2="103" y2="182" stroke-dasharray="4 3" marker-end="url(#ch)"/>
+</svg>
