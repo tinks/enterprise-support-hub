@@ -420,6 +420,25 @@ export default function Triage() {
                 }}
               />
             </div>
+            <div className="pt-2 border-t border-border">
+              <div className="text-xs text-muted-foreground mb-2">Set ticket type</div>
+              <TicketTypeWriteControl
+                conversationId={selected.intercom_conversation_id}
+                currentTicketType={selected.custom_attributes?.["Ticket type"] ?? null}
+                onWritten={(tt) => {
+                  setRows((prev) =>
+                    prev.map((r) =>
+                      r.intercom_conversation_id === selected.intercom_conversation_id
+                        ? { ...r, custom_attributes: { ...(r.custom_attributes ?? {}), "Ticket type": tt } }
+                        : r,
+                    ),
+                  );
+                  setSelected((s) =>
+                    s ? { ...s, custom_attributes: { ...(s.custom_attributes ?? {}), "Ticket type": tt } } : s,
+                  );
+                }}
+              />
+            </div>
           </>
         )}
       </IssueDetailSheet>
