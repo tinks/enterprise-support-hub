@@ -8,6 +8,13 @@
       "when": 1787077015227,
       "tag": "0000_create_intercom_field_options",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787077109763,
+      "tag": "0001_schedule_sync_intercom_fields_daily",
+      "breakpoints": true
     }
   ]
 }
