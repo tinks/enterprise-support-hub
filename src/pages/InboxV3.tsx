@@ -544,6 +544,16 @@ export default function InboxV3() {
                     />
                   </dd>
                 </div>
+                <div className="grid grid-cols-[140px_1fr] gap-3 items-start">
+                  <dt className="text-xs text-muted-foreground">Set ticket type</dt>
+                  <dd>
+                    <TicketTypeWriteControl
+                      conversationId={selected.intercom_conversation_id}
+                      currentTicketType={selected.classification}
+                      onWritten={(tt) => setSelected((s) => (s ? { ...s, classification: tt } : s))}
+                    />
+                  </dd>
+                </div>
                 <div className="grid grid-cols-[140px_1fr] gap-3 items-center">
                   <dt className="text-xs text-muted-foreground">RSA</dt>
                   <dd className="text-sm flex items-center gap-2">
