@@ -261,6 +261,18 @@ Deno.serve(async (req) => {
           path: `/conversations/${conversationId}`,
           body: { custom_attributes: { [PRODUCT_AREA_ATTR]: productArea } },
         };
+      } else if (action === "set_classification") {
+        const ticketType = String(payload.classification ?? "").trim();
+        if (!TICKET_TYPE_VALUES.includes(ticketType)) {
+          const msg = `classification must be one of ${TICKET_TYPE_VALUES.join(", ")} (got '${ticketType}')`;
+          await log("blocked", { error: msg });
+          return json({ error: msg, blocked: true }, 400);
+        }
+        request = {
+          method: "PUT",
+          path: `/conversations/${conversationId}`,
+          body: { custom_attributes: { [TICKET_TYPE_ATTR]: ticketType } },
+        };
       } else {
         // set_owner — resolve the TARGET teammate to a real Intercom admin id.
         const targetName = norm(payload.teammateName);
