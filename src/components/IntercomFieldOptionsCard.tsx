@@ -37,6 +37,9 @@ function AttrPanel({
   hubLabel,
   hubValues,
   rows,
+  onAdopt,
+  adopting,
+  canEdit,
 }: {
   attrKey: string;
   /** Describes the parallel hand-maintained list, when one still exists. */
@@ -44,6 +47,10 @@ function AttrPanel({
   /** Omit when the field is fully cache-driven — then there is nothing to drift against. */
   hubValues?: string[];
   rows: OptionRow[];
+  /** Present only for panels whose Hub list can be overwritten from Intercom. */
+  onAdopt?: (values: string[]) => void;
+  adopting?: boolean;
+  canEdit?: boolean;
 }) {
   const intercomActive = rows.filter((r) => r.active).map((r) => r.option_value);
   const retired = rows.filter((r) => !r.active).map((r) => r.option_value);
@@ -53,6 +60,7 @@ function AttrPanel({
   const missingInHub = compared ? intercomActive.filter((v) => !compared.includes(v)) : [];
   const missingInIntercom = compared ? compared.filter((v) => !intercomActive.includes(v)) : [];
   const inSync = rows.length > 0 && missingInHub.length === 0 && missingInIntercom.length === 0;
+
 
   return (
     <div className="rounded-lg border p-3 space-y-3">
@@ -107,6 +115,25 @@ function AttrPanel({
           In the Hub list, not offered by Intercom: {missingInIntercom.join(", ")}
         </p>
       )}
+      {onAdopt && canEdit && !inSync && intercomActive.length > 0 && (
+        <div className="flex items-center gap-2 pt-1">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={adopting}
+            onClick={() => onAdopt(intercomActive)}
+          >
+            {adopting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Adopt Intercom's list
+          </Button>
+          <span className="text-[10px] text-muted-foreground">
+            Replaces the Hub list with Intercom's {intercomActive.length} active options
+            {missingInHub.length ? ` (+${missingInHub.length})` : ""}
+            {missingInIntercom.length ? ` (−${missingInIntercom.length})` : ""}. Dropdown options
+            only — no ticket data is changed.
+          </span>
+        </div>
+      )}
       {retired.length > 0 && (
         <p className="text-xs text-muted-foreground">
           Retired by Intercom (kept for history): {retired.join(", ")}
@@ -148,6 +175,30 @@ export default function IntercomFieldOptionsCard() {
     setBusy(false);
   };
 
+  /**
+   * Reconcile drift by taking Intercom as the source of truth: overwrite the
+   * legacy hand-maintained list with Intercom's active options. Touches only
+   * the dropdown option list — no ticket rows are rewritten, so a value that
+   * disappears here still displays on tickets that already carry it.
+   */
+  const adoptProductAreas = async (values: string[]) => {
+    setBusy(true);
+    setError(null);
+    const { data: row } = await supabase.from("settings").select("id").limit(1).maybeSingle();
+    if (!row?.id) {
+      setError("No settings row found");
+      setBusy(false);
+      return;
+    }
+    const { error } = await supabase
+      .from("settings")
+      .update({ product_areas: values.join(",") })
+      .eq("id", row.id);
+    if (error) setError(error.message);
+    await load();
+    setBusy(false);
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -157,7 +208,8 @@ export default function IntercomFieldOptionsCard() {
             <CardDescription>
               What Intercom actually offers for the list fields the Hub writes, compared with the
               Hub's remaining hand-maintained list. Writes to Intercom validate against this cache;
-              drift shown here is informational and is never auto-corrected.
+              drift shown here is never auto-corrected — adopting Intercom's list is an explicit
+              action.
             </CardDescription>
           </div>
           {canEdit && (
@@ -169,13 +221,17 @@ export default function IntercomFieldOptionsCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {error && <p className="text-xs text-destructive">Refresh failed: {error}</p>}
+        {error && <p className="text-xs text-destructive">Action failed: {error}</p>}
         <AttrPanel
           attrKey={PRODUCT_AREA_ATTR}
           hubLabel="settings.product_areas (legacy surfaces)"
           hubValues={productAreas}
           rows={rows.filter((r) => r.attr_key === PRODUCT_AREA_ATTR)}
+          onAdopt={adoptProductAreas}
+          adopting={busy}
+          canEdit={canEdit}
         />
+
         <AttrPanel
           attrKey={TICKET_TYPE_ATTR}
           hubLabel="Writes validate directly against this cache"
