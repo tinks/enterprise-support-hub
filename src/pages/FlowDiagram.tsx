@@ -826,8 +826,9 @@ function buildNodes(
           "OwnerWriteControl / ProductAreaWriteControl / TicketTypeWriteControl (src/components/issues/TicketFieldWriteControls.tsx) render in the /triage and /inbox-v3 detail sheets and call esh-write-action with set_owner / set_product_area / set_classification.",
           "STRICT CONFLICT CHECK (the difference from Step 2): unlike Severity, these fields may already hold a value and sync-v3-open can move them underneath the operator. The function GETs the conversation FIRST and compares the live value to expectedCurrent (the value the UI displayed; null means 'was empty'). A mismatch returns 409 {blocked:true, stale:true} with 'Intercom now holds X (you saw Y)' and writes nothing — the UI tells the operator to reload, not to retry.",
           "set_owner is an assignment, not a label: POST /conversations/{id}/parts with message_type=assignment, admin_id = the human doing it, assignee_id = the target teammate's intercom_admin_id resolved from public.teammates (active + mapped, otherwise refused). The Hub never records an owner Intercom cannot hold.",
-          "set_product_area is PUT /conversations/{id} custom_attributes['Affected Product Area'] — the exact key _shared/v3.ts extractFields reads, so the next sync agrees instead of reverting. The value must be one of settings.product_areas; the Hub never invents a taxonomy value.",
-          "set_classification is PUT /conversations/{id} custom_attributes['Ticket type'] — mirrored into intercom_tickets_v3.classification. There is no settings-backed list, so accepted values are pinned in the function (Question, Issue, Configuration, Feature Request, Bug, Incident, derived from the live population — UNVERIFIED against the Intercom dropdown definition). Anything else is refused, not invented.",
+          "set_product_area is PUT /conversations/{id} custom_attributes['Affected Product Area'] — the exact key _shared/v3.ts extractFields reads, so the next sync agrees instead of reverting.",
+          "set_classification is PUT /conversations/{id} custom_attributes['Ticket type'] — mirrored into intercom_tickets_v3.classification.",
+          "VALUE VALIDATION (Phase 2 cutover, 18 Aug 2026): the accepted values for BOTH list fields come from public.intercom_field_options, the daily cache of Intercom's own Data Attributes API. Nothing is pinned in code and nothing falls back to settings.product_areas. Empty cache ⇒ the write is REFUSED (400) rather than validated against a stale guess, and the same cache populates the dropdowns so the UI can never offer a value the function would reject.",
           "Mirror is read off the verification GET only: product_area, classification, admin_assignee_id, and owner (via settings.admin_owner_map, the same derivation sync-v3-closed uses). Intercom reports 0 for unassigned and that is stored as NULL.",
           "All three actions are in KNOWN_ACTIONS and were added to settings.esh_write_allowed_actions on 2026-08-18; the kill switch and default-closed allowlist are unchanged.",
         ],
@@ -835,6 +836,26 @@ function buildNodes(
       },
     },
     {
+      id: "intercom-field-options",
+      type: "flowNode",
+      position: { x: COL_W * 0.5, y: ROW_H * 4.7 },
+      data: {
+        label: "Intercom field options mirror",
+        desc: "Daily cache of Intercom's OWN dropdown options for 'Affected Product Area' and 'Ticket type'. The Hub validates writes against this, never against a hand-maintained list.",
+        icon: ClipboardList,
+        edgeFunction: "sync-intercom-fields",
+        details: [
+          "Cron sync-intercom-fields-daily at 05:20 UTC. Reads GET /data_attributes?model=conversation, keeps the two list attributes, upserts each option into public.intercom_field_options (attr_key, option_value, sort_order, active, first_seen_at, last_seen_at).",
+          "Options that disappear from Intercom are marked active=false, never deleted — a value already sitting on historical tickets stays explainable.",
+          "esh-write-action validates set_product_area / set_classification against the ACTIVE rows only. Cache empty ⇒ refuse the write; the Hub never guesses a taxonomy.",
+          "Settings hosts IntercomFieldOptionsCard: Ticket type is shown as Intercom-sourced (no drift comparison, the cache IS the list); Affected Product Area is also compared against the legacy settings.product_areas list that older non-write surfaces still read, so that drift stays visible instead of silently diverging.",
+          "Action center signal intercom_field_drift fires on that Product Area gap and links to /settings. Sync health is registered in integration_health, so a stale/failing cache alerts like any other pipeline.",
+        ],
+        accent: "blue",
+      },
+    },
+    {
+
 
       id: "inbox-v3-gap-scan",
       type: "flowNode",
