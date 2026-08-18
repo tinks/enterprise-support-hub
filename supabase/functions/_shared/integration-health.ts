@@ -14,7 +14,8 @@ export type IntegrationKey =
   | "slack_closed_won_poll"
   | "reconcile-v3-open"
   | "parahelp_routing_sync"
-  | "notion_registry_publish";
+  | "notion_registry_publish"
+  | "intercom_fields_sync";
 
 export type IntegrationStatus = "ok" | "auth_error" | "error";
 
