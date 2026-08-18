@@ -115,6 +115,25 @@ function AttrPanel({
           In the Hub list, not offered by Intercom: {missingInIntercom.join(", ")}
         </p>
       )}
+      {onAdopt && canEdit && !inSync && intercomActive.length > 0 && (
+        <div className="flex items-center gap-2 pt-1">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={adopting}
+            onClick={() => onAdopt(intercomActive)}
+          >
+            {adopting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Adopt Intercom's list
+          </Button>
+          <span className="text-[10px] text-muted-foreground">
+            Replaces the Hub list with Intercom's {intercomActive.length} active options
+            {missingInHub.length ? ` (+${missingInHub.length})` : ""}
+            {missingInIntercom.length ? ` (−${missingInIntercom.length})` : ""}. Dropdown options
+            only — no ticket data is changed.
+          </span>
+        </div>
+      )}
       {retired.length > 0 && (
         <p className="text-xs text-muted-foreground">
           Retired by Intercom (kept for history): {retired.join(", ")}
