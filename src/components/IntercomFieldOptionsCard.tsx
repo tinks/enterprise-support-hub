@@ -37,6 +37,9 @@ function AttrPanel({
   hubLabel,
   hubValues,
   rows,
+  onAdopt,
+  adopting,
+  canEdit,
 }: {
   attrKey: string;
   /** Describes the parallel hand-maintained list, when one still exists. */
@@ -44,6 +47,10 @@ function AttrPanel({
   /** Omit when the field is fully cache-driven — then there is nothing to drift against. */
   hubValues?: string[];
   rows: OptionRow[];
+  /** Present only for panels whose Hub list can be overwritten from Intercom. */
+  onAdopt?: (values: string[]) => void;
+  adopting?: boolean;
+  canEdit?: boolean;
 }) {
   const intercomActive = rows.filter((r) => r.active).map((r) => r.option_value);
   const retired = rows.filter((r) => !r.active).map((r) => r.option_value);
@@ -53,6 +60,7 @@ function AttrPanel({
   const missingInHub = compared ? intercomActive.filter((v) => !compared.includes(v)) : [];
   const missingInIntercom = compared ? compared.filter((v) => !intercomActive.includes(v)) : [];
   const inSync = rows.length > 0 && missingInHub.length === 0 && missingInIntercom.length === 0;
+
 
   return (
     <div className="rounded-lg border p-3 space-y-3">
