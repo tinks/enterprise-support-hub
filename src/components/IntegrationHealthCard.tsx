@@ -31,6 +31,7 @@ const INTEGRATIONS: Array<{ key: string; label: string; description: string; max
   { key: "parahelp_routing_sync", label: "Parahelp routing queue", description: "Pushes new customer domains to Parahelp email routing (API leg dormant until credentials exist; posts a pending digest to Slack).", maxStaleMin: 36 * 60 },
   { key: "notion_registry_publish", label: "Notion domain page", description: "Mirrors the customer registry domain list to the Notion page Parahelp reads. Writes only when the domain set changed.", maxStaleMin: 36 * 60 },
   { key: "reconcile-v3-open", label: "Transferred-out reconciliation", description: "Catches tickets that left the Enterprise Inbox and marks them transferred_out (hourly).", maxStaleMin: 180 },
+  { key: "intercom_fields_sync", label: "Intercom field options", description: "Caches the allowed product area / ticket type values from Intercom so drift against the Hub lists is visible (daily).", maxStaleMin: 48 * 60 },
 ];
 
 type Severity = "ok" | "warn" | "auth" | "error" | "unknown";

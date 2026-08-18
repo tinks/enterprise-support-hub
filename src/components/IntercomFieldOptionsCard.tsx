@@ -123,7 +123,7 @@ export default function IntercomFieldOptionsCard() {
       supabase.from("intercom_field_options" as any).select("*").order("sort_order"),
       supabase.from("settings").select("product_areas").limit(1).maybeSingle(),
     ]);
-    setRows(((opts.data ?? []) as unknown as OptionRow[]) ?? []);
+    setRows((opts.data ?? []) as unknown as OptionRow[]);
     setProductAreas(splitList(settings.data?.product_areas));
   }, []);
 

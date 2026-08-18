@@ -34,6 +34,7 @@ const INTEGRATIONS: Config[] = [
   { key: "parahelp_routing_sync", label: "Parahelp routing queue", maxStaleMin: 36 * 60 },
   { key: "notion_registry_publish", label: "Notion domain page", maxStaleMin: 36 * 60 },
   { key: "reconcile-v3-open", label: "Transferred-out reconciliation", maxStaleMin: 180 },
+  { key: "intercom_fields_sync", label: "Intercom field options", maxStaleMin: 48 * 60 },
 ];
 
 interface HealthRow {
