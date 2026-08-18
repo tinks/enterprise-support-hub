@@ -1745,3 +1745,37 @@ Unchanged and still default-closed: both action names are in `KNOWN_ACTIONS` but
 ### Verification status
 
 Code deployed; **NOT yet exercised live**. Pending: allowlist entry, then the three negative tests (not-allowlisted refusal, stale-value 409 on a field changed in Intercom after page load, unmapped-teammate refusal) plus one live write/revert on a designated test ticket.
+
+## Ticket type writes + Intercom-sourced field options (18 Aug 2026)
+
+### Third write action
+
+`set_classification` joined `set_owner` / `set_product_area` on the same choke point: `PUT /conversations/{id}` writing `custom_attributes["Ticket type"]`, mirrored into `intercom_tickets_v3.classification` off the verification GET, with the same strict `expectedCurrent` conflict check. `TicketTypeWriteControl` (`src/components/issues/TicketFieldWriteControls.tsx`) renders it in the `/triage` and `/inbox-v3` detail sheets.
+
+`settings.esh_write_allowed_actions` was widened the same day to `["set_severity","set_owner","set_product_area","set_classification"]`. The refusal that preceded it (`Action 'set_owner' is not in the allowlist`) was the interlock working, not a bug — the allowlist entry is deliberately a separate data change from the deploy.
+
+### Why a cache and not a hardcoded list
+
+Product area and ticket type are Intercom-owned dropdowns. Pinning their values in Hub code means the Hub silently disagrees with Intercom the moment someone edits the dropdown there. Three options were weighed — hand-maintained allowlist, live fetch per write, cached mirror with drift detection — and the cached mirror won: no hardcoding, no per-write latency, and divergence becomes *visible* rather than a rejected write nobody can explain.
+
+### `public.intercom_field_options` + `sync-intercom-fields`
+
+Cron `sync-intercom-fields-daily` at 05:20 UTC reads `GET /data_attributes?model=conversation`, keeps the two list attributes, and upserts `(attr_key, option_value, sort_order, active, first_seen_at, last_seen_at)`. Options that vanish from Intercom are marked `active=false`, never deleted, so a value still sitting on historical tickets stays explainable. The job registers in `integration_health`, so a failing or stale cache alerts like any other pipeline.
+
+### Phase 2 cutover — the cache is the only source of truth in the write path
+
+`esh-write-action` now validates `set_product_area` and `set_classification` against the **active** rows of `intercom_field_options` only. `TICKET_TYPE_VALUES` and `settings.product_areas` are no longer consulted there, and there is **no fallback**: if the cache holds no active options for a field, the write is REFUSED rather than validated against a stale guess. The same cache populates the dropdowns, so the UI cannot offer a value the function would reject.
+
+`settings.product_areas` still exists because older, non-write surfaces read it. `IntercomFieldOptionsCard` on Settings therefore shows Ticket type as Intercom-sourced (no drift comparison — the cache *is* the list) and keeps comparing Product Area against the legacy list, surfacing the gap instead of hiding it. Action center signal `intercom_field_drift` fires on that gap and links to `/settings`.
+
+### Verification (18 Aug 2026)
+
+- Cache holds 20 active `Affected Product Area` options and 6 `Ticket type` options, read live from Intercom.
+- Settings card renders both, and the Product Area drift (18 in `settings.product_areas` vs 20 in Intercom) is shown, not smoothed.
+- Negative tests run live against the write endpoint: a legacy-list-only product area (`SSO`) → `400 {blocked:true}` "must be one of the options Intercom offers"; an invented ticket type → `400 {blocked:true}` listing the six cached values. Earlier the same day, the stale-value `409` and not-allowlisted `403` paths were also exercised live.
+- **UNVERIFIED:** the empty-cache refusal branch (no run has ever seen an empty cache) and a successful `set_product_area` / `set_classification` write of a cache-only value that does not exist in `settings.product_areas`.
+- Note surfaced, not fixed: some historical tickets carry `product_area` values (e.g. `Remix/transfer`) that are **not** in Intercom's current active option list. Writes can no longer produce them; existing rows are untouched.
+
+### Action center evidence links
+
+The first-response-risk card now lists the offending `intercom_conversation_id`s (up to 5, then `+N more`) as direct Intercom links, instead of only linking to the SLA workbench. This was a *diagnosis* change, not a behaviour change: one flagged ticket (#215475496571177, AI-only replies on a snoozed conversation) was not enough evidence to change what the signal measures, so the signal was left alone and made investigable.
