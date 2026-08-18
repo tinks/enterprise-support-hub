@@ -424,6 +424,7 @@ Deno.serve(async (req) => {
       owner: liveOwner,
       admin_assignee_id: liveAdminId,
       product_area: liveProductArea,
+      classification: liveClassification,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Internal server error";
