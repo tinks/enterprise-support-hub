@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { TICKET_TYPE_VALUES } from "@/components/issues/TicketFieldWriteControls";
 import {
   computeSla,
   parseSeverity,
@@ -349,6 +350,52 @@ export const ACTION_SIGNALS: ActionSignal[] = [
         .limit(200);
       const rows = unwrap<Array<{ pending_at: string | null }>>(res as any);
       return { count: rows.length, oldestAt: minIso(rows.map((r) => r.pending_at)) };
+    },
+  },
+  {
+    id: "intercom_field_drift",
+    label: "Intercom field options drift",
+    family: "review",
+    route: "/",
+    routeLabel: "Settings",
+    meaning:
+      "Intercom offers product area / ticket type values the Hub's hand-maintained lists do not (or vice versa). Writes still validate against the Hub lists, so a missing value cannot be set from here.",
+    load: async () => {
+      const [optsRes, settingsRes] = await Promise.all([
+        supabase.from("intercom_field_options" as any).select("attr_key,option_value,active"),
+        supabase.from("settings").select("product_areas").limit(1).maybeSingle(),
+      ]);
+      if (optsRes.error) throw new Error(optsRes.error.message);
+      if (settingsRes.error) throw new Error(settingsRes.error.message);
+      const rows = (optsRes.data ?? []) as unknown as Array<{
+        attr_key: string;
+        option_value: string;
+        active: boolean;
+      }>;
+      const hubAreas = String(settingsRes.data?.product_areas ?? "")
+        .split(/[\n,]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const hubTypes = TICKET_TYPE_VALUES;
+
+      const active = (key: string) =>
+        rows.filter((r) => r.attr_key === key && r.active).map((r) => r.option_value);
+
+      const pairs: Array<[string, string[], string[]]> = [
+        ["Affected Product Area", active("Affected Product Area"), hubAreas],
+        ["Ticket type", active("Ticket type"), hubTypes],
+      ];
+
+      const drifted = pairs.filter(
+        ([, ic, hub]) =>
+          ic.length > 0 &&
+          (ic.some((v) => !hub.includes(v)) || hub.some((v) => !ic.includes(v))),
+      );
+
+      return {
+        count: drifted.length,
+        detail: drifted.length ? drifted.map(([k]) => k).join(", ") : null,
+      };
     },
   },
   {
