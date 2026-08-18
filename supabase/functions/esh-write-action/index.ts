@@ -27,14 +27,21 @@ const INTERCOM_VERSION = "2.13"; // pinned to match the v3 sync functions
 
 // Actions are refused by name, even if a caller guesses the shape. Being listed
 // here is not enough — the name must ALSO be in settings.esh_write_allowed_actions.
-const KNOWN_ACTIONS = ["set_severity", "set_owner", "set_product_area"] as const;
+const KNOWN_ACTIONS = ["set_severity", "set_owner", "set_product_area", "set_classification"] as const;
 type Action = (typeof KNOWN_ACTIONS)[number];
 
 const SEVERITY_VALUES = ["1", "2", "3", "4"];
 
-// Custom-attribute key the v3 sync (_shared/v3.ts extractFields) reads for the
-// product area. Writing anything else would be reverted by the next sync.
+// Custom-attribute keys the v3 sync (_shared/v3.ts extractFields) reads. Writing
+// anything else would be reverted by the next sync.
 const PRODUCT_AREA_ATTR = "Affected Product Area";
+const TICKET_TYPE_ATTR = "Ticket type";
+
+// Ticket type is a fixed Intercom dropdown; there is no settings-backed list, so
+// the accepted values are pinned here (derived from the live population). A value
+// outside this set is refused rather than invented.
+const TICKET_TYPE_VALUES = ["Question", "Issue", "Configuration", "Feature Request", "Bug", "Incident"];
+
 
 /** Normalizes "field is empty" across null / undefined / "" so the strict
  *  conflict check can't be fooled by a shape difference. */
