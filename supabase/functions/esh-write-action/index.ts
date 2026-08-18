@@ -410,6 +410,7 @@ Deno.serve(async (req) => {
         admin_assignee_id: liveAdminId,
         owner: liveOwner,
         product_area: liveProductArea,
+        classification: liveClassification,
         requested_assignee_id: assignedAdminId,
       },
     });
