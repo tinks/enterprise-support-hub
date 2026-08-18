@@ -204,19 +204,18 @@ export function ProductAreaWriteControl({
   const [value, setValue] = useState<string>(currentProductArea ?? "");
   const [areas, setAreas] = useState<string[]>([]);
 
+  // Phase 2 cutover: options come from the Intercom-sourced cache, never from
+  // the hand-maintained settings list. Empty cache = no options offered, and
+  // the edge function refuses the write for the same reason.
   useEffect(() => {
     supabase
-      .from("settings")
-      .select("product_areas")
-      .limit(1)
-      .maybeSingle()
+      .from("intercom_field_options" as any)
+      .select("option_value")
+      .eq("attr_key", "Affected Product Area")
+      .eq("active", true)
+      .order("sort_order")
       .then(({ data }) =>
-        setAreas(
-          String(data?.product_areas ?? "")
-            .split(/[\n,]/)
-            .map((s) => s.trim())
-            .filter(Boolean),
-        ),
+        setAreas(((data ?? []) as unknown as Array<{ option_value: string }>).map((r) => r.option_value)),
       );
   }, []);
 
@@ -268,18 +267,11 @@ export function ProductAreaWriteControl({
 
 /**
  * Ticket type = the `Ticket type` custom attribute the v3 sync mirrors into
- * `classification`. Intercom has no settings-backed list for it, so the options
- * are pinned in the edge function and mirrored here; a value outside the set is
+ * `classification`. Phase 2 cutover: the options come from the
+ * `intercom_field_options` cache that `sync-intercom-fields` refreshes from
+ * Intercom, not from a list pinned in the Hub. A value outside the cache is
  * refused server-side rather than invented.
  */
-export const TICKET_TYPE_VALUES = [
-  "Question",
-  "Issue",
-  "Configuration",
-  "Feature Request",
-  "Bug",
-  "Incident",
-];
 
 export function TicketTypeWriteControl({
   conversationId,
@@ -293,6 +285,19 @@ export function TicketTypeWriteControl({
   const { canEdit, isLoading: roleLoading } = useCanEdit();
   const { outcome, setOutcome, send } = useWriter();
   const [value, setValue] = useState<string>(currentTicketType ?? "");
+  const [types, setTypes] = useState<string[]>([]);
+
+  useEffect(() => {
+    supabase
+      .from("intercom_field_options" as any)
+      .select("option_value")
+      .eq("attr_key", "Ticket type")
+      .eq("active", true)
+      .order("sort_order")
+      .then(({ data }) =>
+        setTypes(((data ?? []) as unknown as Array<{ option_value: string }>).map((r) => r.option_value)),
+      );
+  }, []);
 
   const sending = outcome.kind === "sending";
   const dirty = value !== "" && value !== (currentTicketType ?? "");
@@ -313,7 +318,7 @@ export function TicketTypeWriteControl({
             <SelectValue placeholder="Set ticket type…" />
           </SelectTrigger>
           <SelectContent>
-            {TICKET_TYPE_VALUES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+            {types.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
           </SelectContent>
         </Select>
         <Button
