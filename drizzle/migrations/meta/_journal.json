@@ -29,6 +29,13 @@
       "when": 1787090226844,
       "tag": "0003_severity_rubric_v2_from_notion",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787090247474,
+      "tag": "0004_changelog_rubric_v2",
+      "breakpoints": true
     }
   ]
 }
