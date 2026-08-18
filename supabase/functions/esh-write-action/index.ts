@@ -373,6 +373,7 @@ Deno.serve(async (req) => {
     // Same derivation sync-v3-closed uses, so the next sync agrees with us.
     const liveOwner = liveAdminId ? (ownerMap[liveAdminId] ?? null) : null;
     const liveProductArea = norm(attrs[PRODUCT_AREA_ATTR]);
+    const liveClassification = norm(attrs[TICKET_TYPE_ATTR]);
 
     const { error: updErr } = await supabase
       .from("intercom_tickets_v3")
