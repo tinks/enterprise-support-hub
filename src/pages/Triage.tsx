@@ -5,7 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, RefreshCw, Info } from "lucide-react";
+import { Loader2, RefreshCw, Info, Sparkles } from "lucide-react";
+import { useCanEdit } from "@/hooks/useCanEdit";
+
 import { format } from "date-fns";
 import { useSlaPolicy } from "@/hooks/useSlaPolicy";
 import { PolicyFallbackBanner } from "@/components/sla/PolicyFallbackBanner";
@@ -14,6 +16,9 @@ import { IssueDetailSheet, IssueField } from "@/components/issues/IssueDetailShe
 import { idColumn, subjectColumn, contactColumn, customerColumn, ownerColumn } from "@/components/issues/issueColumns";
 import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 import { SeverityWriteControl } from "@/components/issues/SeverityWriteControl";
+import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
+import { recordSeverityDecision } from "@/lib/severityProposals";
+
 import { OwnerWriteControl, ProductAreaWriteControl, TicketTypeWriteControl } from "@/components/issues/TicketFieldWriteControls";
 import {
   computeSla,
@@ -101,6 +106,10 @@ export default function Triage() {
 
   const { accountLabel } = useCustomerLabels();
   const [selected, setSelected] = useState<TriageRow | null>(null);
+  const { canEdit } = useCanEdit();
+  const [proposing, setProposing] = useState(false);
+  const [proposeNote, setProposeNote] = useState<string | null>(null);
+
 
   const lastFetchRef = useRef(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -197,6 +206,35 @@ export default function Triage() {
       return true;
     });
   }, [untriaged, search, owner, customer]);
+
+  // Batch proposal over what the user can actually see. Capped at 25 by the
+  // edge function; tickets whose text hasn't changed since their last proposal
+  // are skipped there without a model call.
+  const proposeVisible = async () => {
+    setProposing(true);
+    setProposeNote(null);
+    try {
+      const ids = filtered.slice(0, 25).map((r) => r.intercom_conversation_id);
+      const { data, error } = await supabase.functions.invoke("propose-severity", {
+        body: { ticketIds: ids, pass: "triage" },
+      });
+      if (error) {
+        setProposeNote(`Failed — ${error.message}`);
+        return;
+      }
+      const results: any[] = (data as any)?.results ?? [];
+      const made = results.filter((r) => r.ok && !r.skipped).length;
+      const skipped = results.filter((r) => r.skipped).length;
+      const failed = results.filter((r) => r.ok === false).length;
+      setProposeNote(
+        `${made} proposed · ${skipped} unchanged (no call) · ${failed} failed · ${(data as any)?.remainingToday ?? "?"} calls left today`,
+      );
+    } finally {
+      setProposing(false);
+    }
+  };
+
+
 
   const columns: IssueColumn<TriageRow>[] = useMemo(() => [
     idColumn<TriageRow>((r) => r.intercom_conversation_id),
@@ -325,7 +363,21 @@ export default function Triage() {
               {customerOpts.map((k) => <SelectItem key={k} value={k as string}>{accountLabel(k)}</SelectItem>)}
             </SelectContent>
           </Select>
+          {canEdit && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-9 text-xs"
+              disabled={proposing || filtered.length === 0}
+              onClick={proposeVisible}
+            >
+              {proposing ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+              Propose severity for visible (max 25)
+            </Button>
+          )}
+          {proposeNote && <span className="text-xs text-muted-foreground">{proposeNote}</span>}
         </div>
+
 
         <IssueTable<TriageRow>
           rows={filtered}
@@ -367,14 +419,10 @@ export default function Triage() {
               label="Created"
               value={selected.intercom_created_at ? format(new Date(selected.intercom_created_at), "PPpp") : "—"}
             />
-            <div className="pt-2 border-t border-border">
-              <div className="text-xs text-muted-foreground mb-2">Set severity</div>
-              <SeverityWriteControl
+            <div className="pt-2 border-t border-border space-y-3">
+              <SeverityProposalCard
                 conversationId={selected.intercom_conversation_id}
-                currentSeverity={null}
-                onWritten={(sev) => {
-                  // Mirror locally only after the write-through succeeded, so the
-                  // ticket drops out of the untriaged list without waiting on sync.
+                onAccepted={(sev) => {
                   setRows((prev) =>
                     prev.map((r) =>
                       r.intercom_conversation_id === selected.intercom_conversation_id
@@ -385,7 +433,30 @@ export default function Triage() {
                   setSelected(null);
                 }}
               />
+              <div>
+                <div className="text-xs text-muted-foreground mb-2">Set severity</div>
+                <SeverityWriteControl
+                  conversationId={selected.intercom_conversation_id}
+                  currentSeverity={null}
+                  onWritten={(sev) => {
+                    // Label the open proposal with what the human actually chose,
+                    // only now that Intercom has accepted the value.
+                    void recordSeverityDecision(selected.intercom_conversation_id, Number(sev));
+                    // Mirror locally only after the write-through succeeded, so the
+                    // ticket drops out of the untriaged list without waiting on sync.
+                    setRows((prev) =>
+                      prev.map((r) =>
+                        r.intercom_conversation_id === selected.intercom_conversation_id
+                          ? { ...r, custom_attributes: { ...(r.custom_attributes ?? {}), Severity: sev } }
+                          : r,
+                      ),
+                    );
+                    setSelected(null);
+                  }}
+                />
+              </div>
             </div>
+
             <div className="pt-2 border-t border-border">
               <div className="text-xs text-muted-foreground mb-2">Set owner</div>
               <OwnerWriteControl
