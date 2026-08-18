@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
     text = await res.text();
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    await recordIntegrationHealth(supabase, "intercom_fields_sync" as never, "error", msg);
+    await recordIntegrationHealth(supabase, "intercom_fields_sync", "error", msg);
     return json({ error: msg }, 502);
   }
 
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
     // emptied, so a bad token can never make the Hub think Intercom has no options.
     await recordIntegrationHealth(
       supabase,
-      "intercom_fields_sync" as never,
+      "intercom_fields_sync",
       classifyHttpStatus(res.status),
       `HTTP ${res.status}: ${text.slice(0, 300)}`,
     );
@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
   try {
     payload = JSON.parse(text);
   } catch {
-    await recordIntegrationHealth(supabase, "intercom_fields_sync" as never, "error", "unparseable response");
+    await recordIntegrationHealth(supabase, "intercom_fields_sync", "error", "unparseable response");
     return json({ error: "Unparseable response from Intercom" }, 502);
   }
 
@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
         .from("intercom_field_options")
         .upsert(rows, { onConflict: "attr_key,option_value" });
       if (error) {
-        await recordIntegrationHealth(supabase, "intercom_fields_sync" as never, "error", error.message);
+        await recordIntegrationHealth(supabase, "intercom_fields_sync", "error", error.message);
         return json({ error: error.message }, 500);
       }
     }
@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
   const anyMissing = Object.values(perAttr).some((p) => p.missing);
   await recordIntegrationHealth(
     supabase,
-    "intercom_fields_sync" as never,
+    "intercom_fields_sync",
     anyMissing ? "error" : "ok",
     anyMissing
       ? `Attribute(s) not returned by Intercom: ${Object.entries(perAttr)
