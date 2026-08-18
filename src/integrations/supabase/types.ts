@@ -725,6 +725,33 @@ export type Database = {
         }
         Relationships: []
       }
+      intercom_field_options: {
+        Row: {
+          active: boolean
+          attr_key: string
+          first_seen_at: string
+          last_seen_at: string
+          option_value: string
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          attr_key: string
+          first_seen_at?: string
+          last_seen_at?: string
+          option_value: string
+          sort_order?: number
+        }
+        Update: {
+          active?: boolean
+          attr_key?: string
+          first_seen_at?: string
+          last_seen_at?: string
+          option_value?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
       intercom_sync_jobs_v3: {
         Row: {
           created_at: string

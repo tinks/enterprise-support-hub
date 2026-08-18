@@ -826,8 +826,9 @@ function buildNodes(
           "OwnerWriteControl / ProductAreaWriteControl / TicketTypeWriteControl (src/components/issues/TicketFieldWriteControls.tsx) render in the /triage and /inbox-v3 detail sheets and call esh-write-action with set_owner / set_product_area / set_classification.",
           "STRICT CONFLICT CHECK (the difference from Step 2): unlike Severity, these fields may already hold a value and sync-v3-open can move them underneath the operator. The function GETs the conversation FIRST and compares the live value to expectedCurrent (the value the UI displayed; null means 'was empty'). A mismatch returns 409 {blocked:true, stale:true} with 'Intercom now holds X (you saw Y)' and writes nothing — the UI tells the operator to reload, not to retry.",
           "set_owner is an assignment, not a label: POST /conversations/{id}/parts with message_type=assignment, admin_id = the human doing it, assignee_id = the target teammate's intercom_admin_id resolved from public.teammates (active + mapped, otherwise refused). The Hub never records an owner Intercom cannot hold.",
-          "set_product_area is PUT /conversations/{id} custom_attributes['Affected Product Area'] — the exact key _shared/v3.ts extractFields reads, so the next sync agrees instead of reverting. The value must be one of settings.product_areas; the Hub never invents a taxonomy value.",
-          "set_classification is PUT /conversations/{id} custom_attributes['Ticket type'] — mirrored into intercom_tickets_v3.classification. There is no settings-backed list, so accepted values are pinned in the function (Question, Issue, Configuration, Feature Request, Bug, Incident, derived from the live population — UNVERIFIED against the Intercom dropdown definition). Anything else is refused, not invented.",
+          "set_product_area is PUT /conversations/{id} custom_attributes['Affected Product Area'] — the exact key _shared/v3.ts extractFields reads, so the next sync agrees instead of reverting.",
+          "set_classification is PUT /conversations/{id} custom_attributes['Ticket type'] — mirrored into intercom_tickets_v3.classification.",
+          "VALUE VALIDATION (Phase 2 cutover, 18 Aug 2026): the accepted values for BOTH list fields come from public.intercom_field_options, the daily cache of Intercom's own Data Attributes API. Nothing is pinned in code and nothing falls back to settings.product_areas. Empty cache ⇒ the write is REFUSED (400) rather than validated against a stale guess, and the same cache populates the dropdowns so the UI can never offer a value the function would reject.",
           "Mirror is read off the verification GET only: product_area, classification, admin_assignee_id, and owner (via settings.admin_owner_map, the same derivation sync-v3-closed uses). Intercom reports 0 for unassigned and that is stored as NULL.",
           "All three actions are in KNOWN_ACTIONS and were added to settings.esh_write_allowed_actions on 2026-08-18; the kill switch and default-closed allowlist are unchanged.",
         ],
@@ -835,6 +836,26 @@ function buildNodes(
       },
     },
     {
+      id: "intercom-field-options",
+      type: "flowNode",
+      position: { x: COL_W * 0.5, y: ROW_H * 4.7 },
+      data: {
+        label: "Intercom field options mirror",
+        desc: "Daily cache of Intercom's OWN dropdown options for 'Affected Product Area' and 'Ticket type'. The Hub validates writes against this, never against a hand-maintained list.",
+        icon: ClipboardList,
+        edgeFunction: "sync-intercom-fields",
+        details: [
+          "Cron sync-intercom-fields-daily at 05:20 UTC. Reads GET /data_attributes?model=conversation, keeps the two list attributes, upserts each option into public.intercom_field_options (attr_key, option_value, sort_order, active, first_seen_at, last_seen_at).",
+          "Options that disappear from Intercom are marked active=false, never deleted — a value already sitting on historical tickets stays explainable.",
+          "esh-write-action validates set_product_area / set_classification against the ACTIVE rows only. Cache empty ⇒ refuse the write; the Hub never guesses a taxonomy.",
+          "Settings hosts IntercomFieldOptionsCard: Ticket type is shown as Intercom-sourced (no drift comparison, the cache IS the list); Affected Product Area is also compared against the legacy settings.product_areas list that older non-write surfaces still read, so that drift stays visible instead of silently diverging.",
+          "Action center signal intercom_field_drift fires on that Product Area gap and links to /settings. Sync health is registered in integration_health, so a stale/failing cache alerts like any other pipeline.",
+        ],
+        accent: "blue",
+      },
+    },
+    {
+
 
       id: "inbox-v3-gap-scan",
       type: "flowNode",
@@ -893,6 +914,8 @@ function buildNodes(
           "Layout: signals with count > 0 (and error cards) hoist into a 'Needs attention' block at the top; everything else stays grouped by family below with a 'clear' marker. All-clear renders an explicit empty state rather than a blank page.",
           "Wiring: ActionSignalsProvider wraps the router in App.tsx so AppLayout's badge and the page share ONE fetch; useActionSignals() returns a no-op zero state outside the provider rather than throwing.",
           "VERIFICATION STATE (14 Aug 2026): all 10 signals load and read 0, cross-checked against SQL (44 open tickets, 0 untriaged, 0 escalations, 0 Parahelp pending, 0 pending docs, 0 unhealthy integrations) — the zeros are real, not an over-filtered query. The non-zero path (amber card + rail badge) has NOT yet been observed against live data because every queue is currently empty.",
+          "EVIDENCE ON THE CARD (18 Aug 2026): first-response risk carries the offending intercom_conversation_ids (up to 5, plus '+N more') rendered as direct links into the Intercom inbox. Reason: the card used to link only to the SLA workbench, where finding the one flagged ticket was hard enough that a single alert could not be investigated — and no behaviour was changed to 'fix' the alert on one data point.",
+          "Eleventh signal (18 Aug 2026): intercom_field_drift — active options in intercom_field_options for 'Affected Product Area' vs the legacy settings.product_areas list, links to /settings. Ticket type is NOT compared: the cache is authoritative for it.",
         ],
         accent: "default",
       },
@@ -1094,6 +1117,7 @@ function buildNodes(
 /* ------------------------------------------------------------------ */
 const initialEdges: Edge[] = [
   { id: "e-triage-sev-write", source: "triage-severity-write", target: "esh-write-action", label: "set_severity", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
+  { id: "e-field-options-write", source: "intercom-field-options", target: "esh-write-action", label: "allowed values", animated: true, style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e1-2", source: "1", target: "2", animated: true, style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e2-3a", source: "2", target: "3a", label: "Add Details", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e2-3b", source: "2", target: "3b", label: "Proceed", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },

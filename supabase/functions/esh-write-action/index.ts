@@ -37,10 +37,23 @@ const SEVERITY_VALUES = ["1", "2", "3", "4"];
 const PRODUCT_AREA_ATTR = "Affected Product Area";
 const TICKET_TYPE_ATTR = "Ticket type";
 
-// Ticket type is a fixed Intercom dropdown; there is no settings-backed list, so
-// the accepted values are pinned here (derived from the live population). A value
-// outside this set is refused rather than invented.
-const TICKET_TYPE_VALUES = ["Question", "Issue", "Configuration", "Feature Request", "Bug", "Incident"];
+// Phase 2 cutover: the accepted values for both list fields now come from
+// `intercom_field_options`, the cache `sync-intercom-fields` refreshes daily
+// straight from Intercom's Data Attributes API. Nothing is pinned in code and
+// nothing falls back to a hand-maintained list: if the cache holds no active
+// options for a field, the write is REFUSED rather than validated against a
+// stale guess. TICKET_TYPE_VALUES / settings.product_areas are no longer
+// consulted here.
+async function activeOptions(supabase: any, attrKey: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("intercom_field_options")
+    .select("option_value")
+    .eq("attr_key", attrKey)
+    .eq("active", true);
+  if (error) throw new Error(`option cache read failed: ${error.message}`);
+  return ((data ?? []) as Array<{ option_value: string }>).map((r) => r.option_value);
+}
+
 
 
 /** Normalizes "field is empty" across null / undefined / "" so the strict
@@ -244,15 +257,16 @@ Deno.serve(async (req) => {
 
       if (action === "set_product_area") {
         const productArea = String(payload.productArea ?? "").trim();
-        // settings.product_areas is a single text field; historically comma-separated,
-        // tolerated newline-separated too.
-        const allowedAreas: string[] = String(settings.product_areas || "")
-          .split(/[\n,]/)
-          .map((s) => s.trim())
-          .filter(Boolean);
-        // The Hub never invents a taxonomy value.
-        if (!productArea || (allowedAreas.length > 0 && !allowedAreas.includes(productArea))) {
-          const msg = `productArea must be one of the configured product areas (got '${productArea}')`;
+        const allowedAreas = await activeOptions(supabase, PRODUCT_AREA_ATTR);
+        if (allowedAreas.length === 0) {
+          const msg =
+            `No cached Intercom options for '${PRODUCT_AREA_ATTR}'. Refresh from Intercom in Settings before writing.`;
+          await log("blocked", { error: msg });
+          return json({ error: msg, blocked: true }, 409);
+        }
+        // The Hub never invents a taxonomy value — the list is Intercom's, not ours.
+        if (!productArea || !allowedAreas.includes(productArea)) {
+          const msg = `productArea must be one of the options Intercom offers (got '${productArea}')`;
           await log("blocked", { error: msg });
           return json({ error: msg, blocked: true }, 400);
         }
@@ -263,8 +277,15 @@ Deno.serve(async (req) => {
         };
       } else if (action === "set_classification") {
         const ticketType = String(payload.classification ?? "").trim();
-        if (!TICKET_TYPE_VALUES.includes(ticketType)) {
-          const msg = `classification must be one of ${TICKET_TYPE_VALUES.join(", ")} (got '${ticketType}')`;
+        const allowedTypes = await activeOptions(supabase, TICKET_TYPE_ATTR);
+        if (allowedTypes.length === 0) {
+          const msg =
+            `No cached Intercom options for '${TICKET_TYPE_ATTR}'. Refresh from Intercom in Settings before writing.`;
+          await log("blocked", { error: msg });
+          return json({ error: msg, blocked: true }, 409);
+        }
+        if (!ticketType || !allowedTypes.includes(ticketType)) {
+          const msg = `classification must be one of ${allowedTypes.join(", ")} (got '${ticketType}')`;
           await log("blocked", { error: msg });
           return json({ error: msg, blocked: true }, 400);
         }
@@ -273,6 +294,7 @@ Deno.serve(async (req) => {
           path: `/conversations/${conversationId}`,
           body: { custom_attributes: { [TICKET_TYPE_ATTR]: ticketType } },
         };
+
       } else {
         // set_owner — resolve the TARGET teammate to a real Intercom admin id.
         const targetName = norm(payload.teammateName);

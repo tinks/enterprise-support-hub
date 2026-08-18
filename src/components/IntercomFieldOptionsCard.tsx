@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { RefreshCw, Loader2, AlertTriangle, Check } from "lucide-react";
 import { useCanEdit } from "@/hooks/useCanEdit";
-import { TICKET_TYPE_VALUES } from "@/components/issues/TicketFieldWriteControls";
 
 /**
  * Phase 1 of "Intercom-sourced field options": show what Intercom actually
@@ -40,16 +39,19 @@ function AttrPanel({
   rows,
 }: {
   attrKey: string;
+  /** Describes the parallel hand-maintained list, when one still exists. */
   hubLabel: string;
-  hubValues: string[];
+  /** Omit when the field is fully cache-driven — then there is nothing to drift against. */
+  hubValues?: string[];
   rows: OptionRow[];
 }) {
   const intercomActive = rows.filter((r) => r.active).map((r) => r.option_value);
   const retired = rows.filter((r) => !r.active).map((r) => r.option_value);
   const lastSeen = rows.length ? rows.map((r) => r.last_seen_at).sort().slice(-1)[0] : null;
 
-  const missingInHub = intercomActive.filter((v) => !hubValues.includes(v));
-  const missingInIntercom = hubValues.filter((v) => !intercomActive.includes(v));
+  const compared = hubValues ?? null;
+  const missingInHub = compared ? intercomActive.filter((v) => !compared.includes(v)) : [];
+  const missingInIntercom = compared ? compared.filter((v) => !intercomActive.includes(v)) : [];
   const inSync = rows.length > 0 && missingInHub.length === 0 && missingInIntercom.length === 0;
 
   return (
@@ -58,11 +60,17 @@ function AttrPanel({
         <div>
           <p className="text-sm font-medium">{attrKey}</p>
           <p className="text-xs text-muted-foreground">
-            Hub list: {hubLabel} · {hubValues.length} values · Intercom: {intercomActive.length} options
+            {compared
+              ? `Compared with ${hubLabel} (${compared.length} values) · Intercom: ${intercomActive.length} options`
+              : `${hubLabel} · Intercom: ${intercomActive.length} options`}
           </p>
         </div>
         {rows.length === 0 ? (
           <Badge variant="outline">Never synced</Badge>
+        ) : !compared ? (
+          <Badge variant="outline" className="text-emerald-600 border-emerald-600/40">
+            <Check className="h-3 w-3 mr-1" /> Intercom-sourced
+          </Badge>
         ) : inSync ? (
           <Badge variant="outline" className="text-emerald-600 border-emerald-600/40">
             <Check className="h-3 w-3 mr-1" /> In sync
@@ -148,8 +156,8 @@ export default function IntercomFieldOptionsCard() {
             <CardTitle>Intercom field options</CardTitle>
             <CardDescription>
               What Intercom actually offers for the list fields the Hub writes, compared with the
-              hand-maintained lists the Hub still validates against. Read-only: nothing here is
-              auto-corrected.
+              Hub's remaining hand-maintained list. Writes to Intercom validate against this cache;
+              drift shown here is informational and is never auto-corrected.
             </CardDescription>
           </div>
           {canEdit && (
@@ -164,14 +172,13 @@ export default function IntercomFieldOptionsCard() {
         {error && <p className="text-xs text-destructive">Refresh failed: {error}</p>}
         <AttrPanel
           attrKey={PRODUCT_AREA_ATTR}
-          hubLabel="settings.product_areas"
+          hubLabel="settings.product_areas (legacy surfaces)"
           hubValues={productAreas}
           rows={rows.filter((r) => r.attr_key === PRODUCT_AREA_ATTR)}
         />
         <AttrPanel
           attrKey={TICKET_TYPE_ATTR}
-          hubLabel="pinned in esh-write-action"
-          hubValues={TICKET_TYPE_VALUES}
+          hubLabel="Writes validate directly against this cache"
           rows={rows.filter((r) => r.attr_key === TICKET_TYPE_ATTR)}
         />
       </CardContent>
