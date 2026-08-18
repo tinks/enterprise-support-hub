@@ -40,6 +40,11 @@ export type SignalReading = {
   oldestAt?: string | null;
   /** Optional one-line extra context rendered under the count. */
   detail?: string | null;
+  /**
+   * Optional identifiers for the actual rows behind the count, so a card can
+   * name what it is alerting on instead of only linking to a page to hunt in.
+   */
+  items?: Array<{ id: string; label?: string | null; intercomId?: string | null }>;
 };
 
 export type ActionSignal = {
@@ -180,6 +185,7 @@ export const ACTION_SIGNALS: ActionSignal[] = [
       const nowS = Math.floor(Date.now() / 1000);
       let count = 0;
       let oldest: string | null = null;
+      const items: Array<{ id: string; intercomId: string }> = [];
 
       for (const t of tickets) {
         if (excused.has(t.intercom_conversation_id)) continue;
@@ -204,12 +210,18 @@ export const ACTION_SIGNALS: ActionSignal[] = [
             : Math.max(0, nowS - startS);
         if (elapsed > target.firstResponseS) {
           count++;
+          if (items.length < 25) {
+            items.push({
+              id: t.intercom_conversation_id,
+              intercomId: t.intercom_conversation_id,
+            });
+          }
           if (t.intercom_created_at && (!oldest || t.intercom_created_at < oldest)) {
             oldest = t.intercom_created_at;
           }
         }
       }
-      return { count, oldestAt: oldest };
+      return { count, oldestAt: oldest, items };
     },
   },
 
