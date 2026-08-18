@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+<head><style>
+svg { font-family: var(--font-sans); }
+.b { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; rx: 8; }
+.lbl { fill: hsl(var(--foreground)); font-size: 14px; font-weight: 480; }
+.sm { fill: hsl(var(--muted-foreground)); font-size: 12px; }
+.w { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+.dash { stroke-dasharray: 4 3; }
+.zone { fill: none; stroke: hsl(var(--border)); stroke-dasharray: 4 3; rx: 10; }
+.acc { fill: hsl(var(--accent)); }
+.accs { fill: none; stroke: hsl(var(--accent)); stroke-width: 1; rx: 8; }
+.acct { fill: hsl(var(--accent-foreground)); font-size: 12px; font-weight: 600; }
+</style></head>
+<body>
+<svg viewBox="0 0 640 400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="hsl(var(--muted-foreground))"/>
+    </marker>
+  </defs>
+
+  <rect class="zone" x="8" y="8" width="300" height="150"/>
+  <text class="sm" x="20" y="26">inputs</text>
+
+  <rect class="b" x="24" y="38" width="120" height="42"/>
+  <text class="lbl" x="84" y="58" text-anchor="middle">Ticket text</text>
+  <text class="sm" x="84" y="72" text-anchor="middle">subject + parts</text>
+
+  <rect class="b" x="164" y="38" width="128" height="42"/>
+  <text class="lbl" x="228" y="58" text-anchor="middle">Rubric vN</text>
+  <text class="sm" x="228" y="72" text-anchor="middle">editable in Hub</text>
+
+  <rect class="b" x="24" y="96" width="268" height="42"/>
+  <text class="lbl" x="158" y="116" text-anchor="middle">Few-shot: recent human decisions</text>
+  <text class="sm" x="158" y="130" text-anchor="middle">accepted + overridden examples</text>
+
+  <path class="w" d="M308 88 L372 88" marker-end="url(#a)"/>
+
+  <rect class="accs" x="376" y="60" width="180" height="56"/>
+  <text class="lbl" x="466" y="82" text-anchor="middle">propose-severity</text>
+  <text class="sm" x="466" y="98" text-anchor="middle">edge function · AI gateway</text>
+
+  <path class="w" d="M466 116 L466 156" marker-end="url(#a)"/>
+
+  <rect class="b" x="356" y="160" width="220" height="56"/>
+  <text class="lbl" x="466" y="182" text-anchor="middle">severity_proposals row</text>
+  <text class="sm" x="466" y="198" text-anchor="middle">sev · confidence · rationale · cost</text>
+
+  <path class="w" d="M356 188 L200 188 L200 232" marker-end="url(#a)"/>
+
+  <rect class="b" x="80" y="236" width="240" height="56"/>
+  <text class="lbl" x="200" y="258" text-anchor="middle">Triage sheet — proposal card</text>
+  <text class="sm" x="200" y="274" text-anchor="middle">read-only until a human acts</text>
+
+  <path class="w" d="M140 292 L140 330" marker-end="url(#a)"/>
+  <path class="w" d="M264 292 L264 330" marker-end="url(#a)"/>
+
+  <rect class="accs" x="52" y="334" width="176" height="46"/>
+  <circle class="acc" cx="70" cy="357" r="9"/>
+  <text class="acct" x="70" y="361" text-anchor="middle">1</text>
+  <text class="lbl" x="150" y="354" text-anchor="middle">Accept</text>
+  <text class="sm" x="150" y="370" text-anchor="middle">esh-write-action</text>
+
+  <rect class="b" x="244" y="334" width="176" height="46"/>
+  <text class="lbl" x="332" y="354" text-anchor="middle">Set a different value</text>
+  <text class="sm" x="332" y="370" text-anchor="middle">recorded as override</text>
+
+  <path class="w dash" d="M420 357 L560 357 L560 216" marker-end="url(#a)"/>
+  <text class="sm" x="566" y="290" text-anchor="middle" transform="rotate(-90 566 290)">feeds next few-shot</text>
+
+  <text class="sm" x="466" y="240" text-anchor="middle">reclassify pass supersedes, never deletes</text>
+</svg>
+</body>
+</html>
