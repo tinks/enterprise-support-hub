@@ -380,6 +380,7 @@ Deno.serve(async (req) => {
       .update({
         custom_attributes: attrs,
         product_area: liveProductArea,
+        classification: liveClassification,
         admin_assignee_id: liveAdminId,
         owner: liveOwner,
         state: conv?.state ?? undefined,
