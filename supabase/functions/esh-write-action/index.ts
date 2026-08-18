@@ -231,7 +231,9 @@ Deno.serve(async (req) => {
       const liveValue =
         action === "set_product_area"
           ? norm(preAttrs[PRODUCT_AREA_ATTR])
-          : norm(ownerMapPre[String(pre?.admin_assignee_id ?? "")] ?? null);
+          : action === "set_classification"
+            ? norm(preAttrs[TICKET_TYPE_ATTR])
+            : norm(ownerMapPre[String(pre?.admin_assignee_id ?? "")] ?? null);
       const expected = norm(payload.expectedCurrent);
 
       if (liveValue !== expected) {
