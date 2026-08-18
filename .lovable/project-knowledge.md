@@ -1779,3 +1779,45 @@ Cron `sync-intercom-fields-daily` at 05:20 UTC reads `GET /data_attributes?model
 ### Action center evidence links
 
 The first-response-risk card now lists the offending `intercom_conversation_id`s (up to 5, then `+N more`) as direct Intercom links, instead of only linking to the SLA workbench. This was a *diagnosis* change, not a behaviour change: one flagged ticket (#215475496571177, AI-only replies on a snoozed conversation) was not enough evidence to change what the signal measures, so the signal was left alone and made investigable.
+
+## AI severity proposals (18 Aug 2026)
+
+An AI reads a ticket and proposes a Severity 1–4. It is a **proposal layer only** — the model has no write path to Intercom. Severity still reaches Intercom exclusively through `esh-write-action`, on an explicit human click, exactly as it did before this feature existed.
+
+### Two passes, one function
+
+`propose-severity` (edge function, `google/gemini-3-flash-preview` via the Lovable AI gateway) accepts `{ ticketIds: string[] (1..25), pass: "triage" | "reclassify" }`.
+
+- `triage` — deliberately limited input (~4k chars: source message + first replies). This is the pass that runs while a ticket is still untriaged.
+- `reclassify` — the same ticket re-scored later against the fuller thread (~12k chars).
+
+Prompt input = the active rubric body + few-shot examples selected from past **human** decisions (accepted and overridden alike, so corrections teach) + the trimmed conversation. Output is structured: severity, confidence, rationale, and a short verbatim evidence quote.
+
+### Cost is bounded on purpose
+
+Four independent brakes, because an always-on classifier is the easiest way to spend money invisibly:
+
+1. `settings.severity_ai_enabled` — kill switch.
+2. `settings.severity_ai_daily_call_cap` (default 200) — counted against `severity_proposals` rows created today; the response reports `remainingToday`.
+3. Max 25 ticket ids per call.
+4. **Content hash** — each proposal stores a hash of the exact text sent to the model. A re-run over an unchanged ticket returns the existing proposal with `skipped: "unchanged"` and makes no model call.
+
+No cron. Every call is a human clicking something.
+
+### `public.severity_rubric_versions` and `public.severity_proposals`
+
+The rubric is versioned, with a partial unique index allowing exactly one `active` row. Saving an edit retires the current version and inserts the next; proposals keep the `rubric_version` that produced them, so a later rubric change never rewrites history.
+
+`severity_proposals` is the ledger: proposal, rationale, evidence, confidence, model, input/output tokens, `content_hash`, plus the human outcome. `recordSeverityDecision` (`src/lib/severityProposals.ts`) is called **after** Intercom accepts a severity write and stamps the open proposal `accepted` (same number) or `overridden` (different number) with `final_severity`. A write that Intercom refuses leaves the proposal open — nothing is marked decided on hope.
+
+### Surfaces
+
+- `SeverityProposalCard` sits above `SeverityWriteControl` in the `/triage` detail sheet: the proposal, its confidence and rationale, an **Accept** button (which routes through `esh-write-action`, not a shortcut), and a **Re-score with full thread** button.
+- Triage toolbar: "Propose severity for visible (max 25)", reporting `proposed / unchanged / failed / calls left today`.
+- `/severity-ai` (editor-visible, admin-editable rubric): agreement rate, a proposed-vs-final matrix, the disagreement list with rationale and direct Intercom links, token cost, and the rubric editor.
+
+### Verification (18 Aug 2026)
+
+- Live proposal on Intercom #215475026117090: Severity 4, high confidence, rubric v1, 685 input / 86 output tokens.
+- Dedup proven: an immediate identical re-run returned `calls: 0`, `skipped: "unchanged"`, no model call.
+- **UNVERIFIED:** the kill-switch-off refusal, the daily-cap refusal, the unknown-ticket-id branch, and the accept → `recordSeverityDecision` → `accepted`/`overridden` round trip through the UI. None of these has been exercised live.

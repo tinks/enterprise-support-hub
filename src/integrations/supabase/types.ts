@@ -1267,6 +1267,8 @@ export type Database = {
           notion_registry_page_id: string
           notion_registry_synced_at: string | null
           product_areas: string
+          severity_ai_daily_call_cap: number
+          severity_ai_enabled: boolean
           slack_bot_user_id: string
           test_intercom_inbox_id: string
           testing_mode: boolean
@@ -1292,6 +1294,8 @@ export type Database = {
           notion_registry_page_id?: string
           notion_registry_synced_at?: string | null
           product_areas?: string
+          severity_ai_daily_call_cap?: number
+          severity_ai_enabled?: boolean
           slack_bot_user_id?: string
           test_intercom_inbox_id?: string
           testing_mode?: boolean
@@ -1317,10 +1321,111 @@ export type Database = {
           notion_registry_page_id?: string
           notion_registry_synced_at?: string | null
           product_areas?: string
+          severity_ai_daily_call_cap?: number
+          severity_ai_enabled?: boolean
           slack_bot_user_id?: string
           test_intercom_inbox_id?: string
           testing_mode?: boolean
           updated_at?: string
+        }
+        Relationships: []
+      }
+      severity_proposals: {
+        Row: {
+          confidence: string
+          content_hash: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          evidence: string | null
+          final_severity: number | null
+          id: string
+          input_chars: number | null
+          input_tokens: number | null
+          intercom_conversation_id: string
+          model: string | null
+          output_tokens: number | null
+          pass: string
+          proposed_severity: number
+          rationale: string
+          rubric_version: number | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          confidence: string
+          content_hash: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          evidence?: string | null
+          final_severity?: number | null
+          id?: string
+          input_chars?: number | null
+          input_tokens?: number | null
+          intercom_conversation_id: string
+          model?: string | null
+          output_tokens?: number | null
+          pass: string
+          proposed_severity: number
+          rationale?: string
+          rubric_version?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          confidence?: string
+          content_hash?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          evidence?: string | null
+          final_severity?: number | null
+          id?: string
+          input_chars?: number | null
+          input_tokens?: number | null
+          intercom_conversation_id?: string
+          model?: string | null
+          output_tokens?: number | null
+          pass?: string
+          proposed_severity?: number
+          rationale?: string
+          rubric_version?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      severity_rubric_versions: {
+        Row: {
+          body: string
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string | null
+          status: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          status?: string
+          updated_at?: string
+          version: number
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          status?: string
+          updated_at?: string
+          version?: number
         }
         Relationships: []
       }

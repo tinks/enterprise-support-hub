@@ -15,7 +15,9 @@ export type IntegrationKey =
   | "reconcile-v3-open"
   | "parahelp_routing_sync"
   | "notion_registry_publish"
-  | "intercom_fields_sync";
+  | "intercom_fields_sync"
+  | "severity_ai";
+
 
 export type IntegrationStatus = "ok" | "auth_error" | "error";
 

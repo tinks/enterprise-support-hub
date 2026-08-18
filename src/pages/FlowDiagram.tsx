@@ -797,6 +797,25 @@ function buildNodes(
       },
     },
     {
+      id: "severity-ai-proposal",
+      type: "flowNode",
+      position: { x: COL_W * 0.5, y: ROW_H * 2.6 },
+      data: {
+        label: "AI severity proposal",
+        desc: "propose-severity scores a ticket 1–4 against a versioned rubric. Proposal only — it never writes to Intercom; a human clicks Accept and the write goes through esh-write-action like any other.",
+        icon: ClipboardList,
+        details: [
+          "Edge function propose-severity (google/gemini-3-flash-preview via the Lovable AI gateway). Input = the active severity_rubric_versions body + few-shot examples drawn from past human decisions + the truncated Intercom thread (triage pass ~4k chars, reclassify pass ~12k).",
+          "Cost controls: max 25 tickets per call, a daily cap in settings.severity_ai_daily_call_cap (default 200), a settings.severity_ai_enabled kill switch, and a per-ticket content hash that skips the model entirely when the thread has not changed since the last proposal (verified: second identical call returned calls=0, skipped=unchanged).",
+          "Every proposal is stored in severity_proposals with rationale, evidence, confidence, model, token counts and rubric_version. When a human sets severity, recordSeverityDecision stamps the open proposal accepted (same number) or overridden (different number) with the value the team actually chose.",
+          "UI: SeverityProposalCard sits above SeverityWriteControl in the /triage detail sheet; the Triage toolbar has a capped 'Propose severity for visible' batch button. Admin calibration lives at /severity-ai — agreement rate, a proposed-vs-final matrix, the disagreement list, token cost, and the editable rubric (saving retires the current version and activates the next; past proposals keep the version that produced them).",
+          "UNVERIFIED: the kill-switch-off refusal and the unknown-ticket-id branch have not been exercised live.",
+        ],
+        accent: "blue",
+      },
+    },
+    {
+
       id: "triage-severity-write",
       type: "flowNode",
       position: { x: COL_W * 0.5, y: ROW_H * 3.5 },
@@ -1116,7 +1135,9 @@ function buildNodes(
 /*  Edges                                                              */
 /* ------------------------------------------------------------------ */
 const initialEdges: Edge[] = [
+  { id: "e-sev-ai-triage", source: "severity-ai-proposal", target: "triage-severity-write", label: "proposes (human accepts)", animated: true, style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e-triage-sev-write", source: "triage-severity-write", target: "esh-write-action", label: "set_severity", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
+
   { id: "e-field-options-write", source: "intercom-field-options", target: "esh-write-action", label: "allowed values", animated: true, style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e1-2", source: "1", target: "2", animated: true, style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },
   { id: "e2-3a", source: "2", target: "3a", label: "Add Details", style: { stroke: "hsl(var(--primary))", strokeWidth: 2 } },

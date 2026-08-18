@@ -85,7 +85,9 @@ const navEntries: NavEntry[] = [
       { to: "/settings", label: "Settings" },
       { to: "/float-coverage", label: "Float coverage" },
       { to: "/sla-policy", label: "SLA Policy", adminOnly: true },
+      { to: "/severity-ai", label: "Severity AI", editorOnly: true },
     ],
+
   },
   {
     kind: "group",
