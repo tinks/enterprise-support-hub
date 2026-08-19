@@ -1,4 +1,17 @@
+## Step 0 — The showdown (AI vs. the ticket's existing severity)
+
+New table `public.severity_eval_runs` (label, rubric version, model, N, created_by) and `public.severity_eval_items` (run id, `intercom_conversation_id`, `human_severity`, `ai_severity`, `confidence`, `rationale`, `input_excerpt`, `verdict` = `pending | ai_wrong | human_wrong | both_defensible`, `adjudication_note`, `adjudicated_by`). Deliberately **separate from `severity_proposals`** so a backfill can never be mistaken for a live triage decision or inflate the agreement stat on `/severity-ai`.
+
+New edge function `run-severity-eval`: takes `{ n, pass, filters? }`, samples N tickets at random from `intercom_tickets_v3` that have a human Severity set (503 of 539 today), fetches each conversation, scores it with the **few-shot block disabled** (the point is a cold read, not imitation), and writes one item row per ticket. Respects `severity_ai_enabled` and the daily cap; the UI shows N against remaining headroom before you press go.
+
+New `/severity-ai` tab **Showdown**: start a run (N = 10 / 25 / 50, triage or reclassify pass), then a results view — agreement %, the 4×4 matrix, and a disagreement list showing the ticket, both numbers, the AI's rationale, and three adjudication buttons: *AI was wrong*, *the ticket was wrong*, *both defensible*.
+
+That last button matters. A run where the AI "loses" 30% of the time but half of those are tickets your team mis-severitied is a very different finding from a 30% loss where the AI is simply wrong — and only adjudication can tell them apart. Runs are re-runnable against a new rubric version, so this doubles as the before/after harness in Step 3.
+
+Promotion rule: only items adjudicated `ai_wrong` become few-shot examples, and only with the human severity as the label. `human_wrong` items are excluded from training signal entirely and are worth a separate look as a data-quality list.
+
 ## Step 1 — Capture the disagreement (the negative signal)
+
 
 One migration adding to `severity_proposals`: `override_reason_code text`, `override_reason_note text`.
 
