@@ -17,6 +17,8 @@ import { toast } from "@/hooks/use-toast";
 import { intercomUrl } from "@/lib/intercom";
 import { IntercomIdChip } from "@/components/issues/IssueTable";
 import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
+import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
+import { recordSeverityDecision } from "@/lib/severityProposals";
 
 type Ticket = {
   id: string;
@@ -525,26 +527,36 @@ export default function InboxV3() {
                 <Field label="State" value={selected.state} />
                 <Field label="Owner" value={selected.owner} />
                 <div className="grid grid-cols-[140px_1fr] gap-3 items-start">
+                  <dt className="text-xs text-muted-foreground">Severity AI</dt>
+                  <dd>
+                    <SeverityProposalCard conversationId={selected.intercom_conversation_id} />
+                  </dd>
+                </div>
+                <div className="grid grid-cols-[140px_1fr] gap-3 items-start">
                   <dt className="text-xs text-muted-foreground">Update fields</dt>
                   <dd>
                     <TicketFieldsPanel
                       conversationId={selected.intercom_conversation_id}
-                      show={{ severity: false }}
+                      currentSeverity={null}
                       currentOwner={selected.owner}
                       currentProductArea={selected.product_area}
                       currentTicketType={selected.classification}
-                      onWritten={(field, value) =>
+                      onWritten={(field, value) => {
+                        if (field === "severity") {
+                          void recordSeverityDecision(selected.intercom_conversation_id, Number(value));
+                        }
                         setSelected((s) => {
                           if (!s) return s;
                           if (field === "owner") return { ...s, owner: value };
                           if (field === "product_area") return { ...s, product_area: value };
                           if (field === "ticket_type") return { ...s, classification: value };
                           return s;
-                        })
-                      }
+                        });
+                      }}
                     />
                   </dd>
                 </div>
+
 
                 <div className="grid grid-cols-[140px_1fr] gap-3 items-center">
                   <dt className="text-xs text-muted-foreground">RSA</dt>
