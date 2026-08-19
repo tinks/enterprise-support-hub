@@ -1,0 +1,1 @@
+{"code":"export var slice = Array.prototype.slice;\nexport default function(x) {\n\treturn typeof x === \"object\" && \"length\" in x ? x : Array.from(x);\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

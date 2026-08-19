@@ -1,0 +1,1 @@
+{"code":"export { default as dispatch } from \"/node_modules/d3-dispatch/src/dispatch.js\";\n","map_data_url":null,"imports":["/node_modules/d3-dispatch/src/dispatch.js"],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

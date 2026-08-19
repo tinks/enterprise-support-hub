@@ -1,0 +1,1 @@
+{"code":"export default function(selector) {\n\treturn function() {\n\t\treturn this.matches(selector);\n\t};\n}\nexport function childMatcher(selector) {\n\treturn function(node) {\n\t\treturn node.matches(selector);\n\t};\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

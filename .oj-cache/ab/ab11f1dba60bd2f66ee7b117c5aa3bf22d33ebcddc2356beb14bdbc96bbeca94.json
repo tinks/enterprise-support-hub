@@ -1,0 +1,1 @@
+{"code":"import { sqrt } from \"/node_modules/d3-shape/src/math.js\";\nexport default { draw(context, size) {\n\tconst w = sqrt(size);\n\tconst x = -w / 2;\n\tcontext.rect(x, x, w, w);\n} };\n","map_data_url":null,"imports":["/node_modules/d3-shape/src/math.js"],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

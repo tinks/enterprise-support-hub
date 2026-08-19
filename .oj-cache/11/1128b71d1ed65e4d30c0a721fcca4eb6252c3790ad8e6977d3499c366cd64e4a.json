@@ -1,0 +1,1 @@
+{"code":"function remove() {\n\tvar parent = this.parentNode;\n\tif (parent) parent.removeChild(this);\n}\nexport default function() {\n\treturn this.each(remove);\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

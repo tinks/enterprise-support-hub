@@ -1,0 +1,1 @@
+{"code":"let defaultOptions = {};\nexport function getDefaultOptions() {\n\treturn defaultOptions;\n}\nexport function setDefaultOptions(newOptions) {\n\tdefaultOptions = newOptions;\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

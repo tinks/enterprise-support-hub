@@ -1,0 +1,1 @@
+{"code":"export default function(series) {\n\tvar n = series.length, o = new Array(n);\n\twhile (--n >= 0) o[n] = n;\n\treturn o;\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

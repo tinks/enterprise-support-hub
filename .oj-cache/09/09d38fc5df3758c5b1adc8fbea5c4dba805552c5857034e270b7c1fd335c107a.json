@@ -1,0 +1,1 @@
+{"code":"export function cubicIn(t) {\n\treturn t * t * t;\n}\nexport function cubicOut(t) {\n\treturn --t * t * t + 1;\n}\nexport function cubicInOut(t) {\n\treturn ((t *= 2) <= 1 ? t * t * t : (t -= 2) * t * t + 2) / 2;\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

@@ -1,0 +1,1 @@
+{"code":"var array = Array.prototype;\nexport var slice = array.slice;\nexport var map = array.map;\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

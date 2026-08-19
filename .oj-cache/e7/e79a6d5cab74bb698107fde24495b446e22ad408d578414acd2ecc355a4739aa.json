@@ -1,0 +1,1 @@
+{"code":"function* flatten(arrays) {\n\tfor (const array of arrays) {\n\t\tyield* array;\n\t}\n}\nexport default function merge(arrays) {\n\treturn Array.from(flatten(arrays));\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

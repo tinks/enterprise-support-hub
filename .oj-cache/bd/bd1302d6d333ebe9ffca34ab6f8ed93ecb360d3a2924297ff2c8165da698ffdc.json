@@ -1,0 +1,1 @@
+{"code":"export default function(numerals) {\n\treturn function(value) {\n\t\treturn value.replace(/[0-9]/g, function(i) {\n\t\t\treturn numerals[+i];\n\t\t});\n\t};\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

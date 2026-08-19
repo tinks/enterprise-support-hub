@@ -1,0 +1,1 @@
+{"code":"export default function constants(x) {\n\treturn function() {\n\t\treturn x;\n\t};\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

@@ -1,0 +1,1 @@
+{"code":"export default function(value) {\n\treturn arguments.length ? this.property(\"__data__\", value) : this.node().__data__;\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

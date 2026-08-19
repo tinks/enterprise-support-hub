@@ -1,0 +1,1 @@
+{"code":"export function addLeadingZeros(number, targetLength) {\n\tconst sign = number < 0 ? \"-\" : \"\";\n\tconst output = Math.abs(number).toString().padStart(targetLength, \"0\");\n\treturn sign + output;\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

@@ -1,0 +1,1 @@
+{"code":"export function nopropagation(event) {\n\tevent.stopImmediatePropagation();\n}\nexport default function(event) {\n\tevent.preventDefault();\n\tevent.stopImmediatePropagation();\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

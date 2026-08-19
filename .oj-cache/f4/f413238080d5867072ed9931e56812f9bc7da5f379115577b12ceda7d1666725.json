@@ -1,0 +1,1 @@
+{"code":"export default function(a, b) {\n\tvar d = new Date();\n\treturn a = +a, b = +b, function(t) {\n\t\treturn d.setTime(a * (1 - t) + b * t), d;\n\t};\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

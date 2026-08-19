@@ -1,0 +1,1 @@
+{"code":"// src/queryOptions.ts\nfunction queryOptions(options) {\n\treturn options;\n}\nexport { queryOptions };\n//# sourceMappingURL=queryOptions.js.map\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

@@ -1,0 +1,1 @@
+{"code":"import interrupt from \"/node_modules/d3-transition/src/interrupt.js\";\nexport default function(name) {\n\treturn this.each(function() {\n\t\tinterrupt(this, name);\n\t});\n}\n","map_data_url":null,"imports":["/node_modules/d3-transition/src/interrupt.js"],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

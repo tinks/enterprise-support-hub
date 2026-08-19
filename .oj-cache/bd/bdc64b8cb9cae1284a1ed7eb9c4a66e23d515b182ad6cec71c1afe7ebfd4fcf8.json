@@ -1,0 +1,1 @@
+{"code":"// packages/core/number/src/number.ts\nfunction clamp(value, [min, max]) {\n\treturn Math.min(max, Math.max(min, value));\n}\nexport { clamp };\n//# sourceMappingURL=index.mjs.map\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

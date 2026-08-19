@@ -1,0 +1,1 @@
+{"code":"export function x(p) {\n\treturn p[0];\n}\nexport function y(p) {\n\treturn p[1];\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

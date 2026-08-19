@@ -1,0 +1,1 @@
+{"code":"export default function(node) {\n\treturn node.ownerDocument && node.ownerDocument.defaultView || node.document && node || node.defaultView;\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}
