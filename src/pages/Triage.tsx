@@ -434,82 +434,45 @@ export default function Triage() {
                 }}
               />
               <div>
-                <div className="text-xs text-muted-foreground mb-2">Set severity</div>
-                <SeverityWriteControl
+                <div className="text-xs text-muted-foreground mb-2">Update ticket fields</div>
+                <TicketFieldsPanel
                   conversationId={selected.intercom_conversation_id}
                   currentSeverity={null}
-                  onWritten={(sev) => {
-                    // Label the open proposal with what the human actually chose,
-                    // only now that Intercom has accepted the value.
-                    void recordSeverityDecision(selected.intercom_conversation_id, Number(sev));
-                    // Mirror locally only after the write-through succeeded, so the
-                    // ticket drops out of the untriaged list without waiting on sync.
+                  currentOwner={selected.owner}
+                  currentProductArea={selected.custom_attributes?.["Affected Product Area"] ?? null}
+                  currentTicketType={selected.custom_attributes?.["Ticket type"] ?? null}
+                  onWritten={(field, value) => {
+                    const convId = selected.intercom_conversation_id;
+                    if (field === "severity") {
+                      // Label the open proposal with what the human actually chose,
+                      // only now that Intercom has accepted the value.
+                      void recordSeverityDecision(convId, Number(value));
+                    }
                     setRows((prev) =>
-                      prev.map((r) =>
-                        r.intercom_conversation_id === selected.intercom_conversation_id
-                          ? { ...r, custom_attributes: { ...(r.custom_attributes ?? {}), Severity: sev } }
-                          : r,
-                      ),
+                      prev.map((r) => {
+                        if (r.intercom_conversation_id !== convId) return r;
+                        if (field === "owner") return { ...r, owner: value };
+                        const key =
+                          field === "severity"
+                            ? "Severity"
+                            : field === "product_area"
+                              ? "Affected Product Area"
+                              : "Ticket type";
+                        return { ...r, custom_attributes: { ...(r.custom_attributes ?? {}), [key]: value } };
+                      }),
                     );
-                    setSelected(null);
+                    setSelected((s) => {
+                      if (!s) return s;
+                      if (field === "severity") return null; // triaged — drops out of the queue
+                      if (field === "owner") return { ...s, owner: value };
+                      const key = field === "product_area" ? "Affected Product Area" : "Ticket type";
+                      return { ...s, custom_attributes: { ...(s.custom_attributes ?? {}), [key]: value } };
+                    });
                   }}
                 />
               </div>
             </div>
 
-            <div className="pt-2 border-t border-border">
-              <div className="text-xs text-muted-foreground mb-2">Set owner</div>
-              <OwnerWriteControl
-                conversationId={selected.intercom_conversation_id}
-                currentOwner={selected.owner}
-                onWritten={(o) => {
-                  setRows((prev) =>
-                    prev.map((r) =>
-                      r.intercom_conversation_id === selected.intercom_conversation_id ? { ...r, owner: o } : r,
-                    ),
-                  );
-                  setSelected((s) => (s ? { ...s, owner: o } : s));
-                }}
-              />
-            </div>
-            <div className="pt-2 border-t border-border">
-              <div className="text-xs text-muted-foreground mb-2">Set product area</div>
-              <ProductAreaWriteControl
-                conversationId={selected.intercom_conversation_id}
-                currentProductArea={selected.custom_attributes?.["Affected Product Area"] ?? null}
-                onWritten={(pa) => {
-                  setRows((prev) =>
-                    prev.map((r) =>
-                      r.intercom_conversation_id === selected.intercom_conversation_id
-                        ? { ...r, custom_attributes: { ...(r.custom_attributes ?? {}), "Affected Product Area": pa } }
-                        : r,
-                    ),
-                  );
-                  setSelected((s) =>
-                    s ? { ...s, custom_attributes: { ...(s.custom_attributes ?? {}), "Affected Product Area": pa } } : s,
-                  );
-                }}
-              />
-            </div>
-            <div className="pt-2 border-t border-border">
-              <div className="text-xs text-muted-foreground mb-2">Set ticket type</div>
-              <TicketTypeWriteControl
-                conversationId={selected.intercom_conversation_id}
-                currentTicketType={selected.custom_attributes?.["Ticket type"] ?? null}
-                onWritten={(tt) => {
-                  setRows((prev) =>
-                    prev.map((r) =>
-                      r.intercom_conversation_id === selected.intercom_conversation_id
-                        ? { ...r, custom_attributes: { ...(r.custom_attributes ?? {}), "Ticket type": tt } }
-                        : r,
-                    ),
-                  );
-                  setSelected((s) =>
-                    s ? { ...s, custom_attributes: { ...(s.custom_attributes ?? {}), "Ticket type": tt } } : s,
-                  );
-                }}
-              />
-            </div>
           </>
         )}
       </IssueDetailSheet>
