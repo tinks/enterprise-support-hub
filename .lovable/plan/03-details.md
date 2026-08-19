@@ -52,8 +52,11 @@ On `/severity-ai`, a frequency table of override reason codes over a window, eac
 
 ## Honest constraint on timing
 
-With 3 proposals and 1 decision recorded, Steps 3 and 4 have nothing to measure yet. Steps 1 and 2 are what start accumulating the corpus, so they are worth building now regardless. Step 3's numbers only become meaningful somewhere around 30–50 decided tickets; I will build it but will not present an agreement rate as trustworthy before then, and the panel will state the sample size next to every number.
+Step 0 is what unblocks everything else: a single 50-ticket showdown gives Steps 3 and 4 something real to measure on day one, instead of waiting weeks for live triage decisions to accumulate. Steps 1 and 2 then keep the corpus growing from actual work.
+
+Two things I will not claim: a showdown agreement rate is only as good as the adjudication behind it, so an un-adjudicated run gets labelled UNVERIFIED in the UI; and every number on that tab shows its sample size, because 10 tickets is an anecdote.
 
 ## Paperwork
 
-Per convention: `.lovable/project-knowledge.md` staged via `sync-knowledge-pending`, a `changelog_entries` row, and FlowDiagram nodes for the reason capture and the backtest function.
+Per convention: `.lovable/project-knowledge.md` staged via `sync-knowledge-pending`, a `changelog_entries` row, and FlowDiagram nodes for the showdown runner, the reason capture, and the backtest function.
+
