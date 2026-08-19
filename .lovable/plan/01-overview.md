@@ -21,6 +21,16 @@ Verified in `propose-severity` and `severity_proposals`:
 - **No memory past 12 decisions.** Older corrections fall out of the window and vanish.
 - **No way to tell whether a change helped.** There is no held-out set, no re-run, no before/after agreement number. Any rubric edit today is unfalsifiable.
 
+## The showdown is the right instinct — and it's cheaper than you think
+
+You don't need to hand-label anything. **503 of the 539 tickets in `intercom_tickets_v3` already carry a human Severity** in their Intercom custom attributes. That is a ready-made answer key: pick N at random, ask the classifier cold, compare. One run takes the corpus from 3 decisions to a few hundred, today.
+
+Two honest caveats, both handled below:
+
+- **The answer key is imperfect.** Some of those severities were set at close, in a hurry, or by whoever was nearest. Disagreements are therefore two-sided — sometimes the AI is wrong, sometimes the ticket is. The showdown surfaces both, and you adjudicate.
+- **Keep it quarantined.** Backfill scores must not pollute the live proposal path, the override statistics, or the few-shot window until you have said a given row is a fair label. It lands in its own table and gets promoted by hand.
+
 ## What this plan builds
 
-A three-part foundation: capture the disagreement reason, feed real ticket text into the examples, and add a backtest so every rubric edit is scored against decisions you already made.
+Four parts: the random showdown that bootstraps the corpus, capture of the disagreement reason on real decisions, real ticket text in the few-shot examples, and a backtest so every rubric edit is scored instead of guessed.
+
