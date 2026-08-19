@@ -15,11 +15,11 @@ import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
 import { IssueDetailSheet, IssueField } from "@/components/issues/IssueDetailSheet";
 import { idColumn, subjectColumn, contactColumn, customerColumn, ownerColumn } from "@/components/issues/issueColumns";
 import { useCustomerLabels } from "@/hooks/useCustomerLabels";
-import { SeverityWriteControl } from "@/components/issues/SeverityWriteControl";
 import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
 import { recordSeverityDecision } from "@/lib/severityProposals";
 
-import { OwnerWriteControl, ProductAreaWriteControl, TicketTypeWriteControl } from "@/components/issues/TicketFieldWriteControls";
+import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
+
 import {
   computeSla,
   businessHoursBetween,
