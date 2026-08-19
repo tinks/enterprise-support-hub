@@ -116,6 +116,35 @@ export function TicketFieldsPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
+  // General rule: whatever Intercom already has set shows as the current value.
+  // The caller's props win when they carry a value; anything they leave null is
+  // filled from the v3 mirror of Intercom (`custom_attributes` + columns).
+  useEffect(() => {
+    let cancelled = false;
+    if (!conversationId) return;
+    supabase
+      .from("intercom_tickets_v3")
+      .select("owner, product_area, classification, custom_attributes")
+      .eq("intercom_conversation_id", conversationId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        const ca = (data as any).custom_attributes ?? {};
+        const sevRaw = ca["Severity"] ?? ca["severity"] ?? null;
+        const sev = sevRaw == null ? null : (String(sevRaw).match(/[1-4]/)?.[0] ?? String(sevRaw));
+        setCurrent((c) => ({
+          severity: c.severity ?? sev,
+          owner: c.owner ?? (data as any).owner ?? null,
+          product_area:
+            c.product_area ?? (data as any).product_area ?? ca["Affected Product Area"] ?? null,
+          ticket_type: c.ticket_type ?? (data as any).classification ?? ca["Ticket type"] ?? null,
+        }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId]);
+
   const [owners, setOwners] = useState<string[]>([]);
   const [areas, setAreas] = useState<string[]>([]);
   const [types, setTypes] = useState<string[]>([]);
