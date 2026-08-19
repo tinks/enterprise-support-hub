@@ -1812,7 +1812,8 @@ The rubric is versioned, with a partial unique index allowing exactly one `activ
 
 ### Surfaces
 
-- `SeverityProposalCard` sits above `SeverityWriteControl` in the `/triage` detail sheet: the proposal, its confidence and rationale, an **Accept** button (which routes through `esh-write-action`, not a shortcut), and a **Re-score with full thread** button.
+- `SeverityProposalCard` renders in the `/triage` **and** (19 Aug 2026) `/inbox-v3` detail sheets: the proposal, its confidence and rationale, an **Accept** button (which routes through `esh-write-action`, not a shortcut), and a **Re-score with full thread** button.
+- Severity is also editable from `TicketFieldsPanel` on both surfaces. On Inbox v3 the panel passes `expectedCurrent = null` because the v3 row does not carry Severity, so a ticket that already holds one in Intercom comes back as a 409 stale-conflict instead of being overwritten — the operator reloads rather than the Hub guessing. `recordSeverityDecision` fires on both surfaces after Intercom accepts.
 - Triage toolbar: "Propose severity for visible (max 25)", reporting `proposed / unchanged / failed / calls left today`.
 - `/severity-ai` (editor-visible, admin-editable rubric): agreement rate, a proposed-vs-final matrix, the disagreement list with rationale and direct Intercom links, token cost, and the rubric editor.
 
@@ -1826,7 +1827,7 @@ The rubric is versioned, with a partial unique index allowing exactly one `activ
 
 ### What changed
 
-The `/triage` and `/inbox-v3` detail sheets no longer show a write button per field. `TicketFieldsPanel` (`src/components/issues/TicketFieldsPanel.tsx`) renders severity (Triage only), owner, product area and ticket type in one panel behind a single **Update in Intercom** button. The button names how many fields are dirty; only those fields are written.
+The `/triage` and `/inbox-v3` detail sheets no longer show a write button per field. `TicketFieldsPanel` (`src/components/issues/TicketFieldsPanel.tsx`) renders severity (Triage and, from 19 Aug 2026, Inbox v3), owner, product area and ticket type in one panel behind a single **Update in Intercom** button. The button names how many fields are dirty; only those fields are written.
 
 ### What did NOT change
 
