@@ -36,6 +36,13 @@
       "when": 1787090247474,
       "tag": "0004_changelog_rubric_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1787159534039,
+      "tag": "0005_severity_training_foundation",
+      "breakpoints": true
     }
   ]
 }

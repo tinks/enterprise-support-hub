@@ -147,25 +147,45 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (!rubric) return json({ error: "No active severity rubric" }, 400);
 
-  // ─── few-shot: what humans actually decided, overrides first ───
-  const { data: history } = await supabase
+  // ─── few-shot: what humans actually decided.
+  // Examples are built from the REAL ticket excerpt (`input_excerpt`), never the
+  // model's own summary, so a misread can no longer be taught back as fact.
+  // Corrections are weighted ahead of easy agreements, and carry the reason.
+  const { data: overridden } = await supabase
     .from("severity_proposals")
-    .select("intercom_conversation_id, proposed_severity, final_severity, status, rationale, evidence")
-    .in("status", ["accepted", "overridden"])
+    .select(
+      "intercom_conversation_id, proposed_severity, final_severity, status, rationale, evidence, input_excerpt, override_reason_code, override_reason_note",
+    )
+    .eq("status", "overridden")
     .order("decided_at", { ascending: false, nullsFirst: false })
     .limit(FEWSHOT_LIMIT);
 
-  const examples = (history ?? [])
-    .map((h) => {
+  const { data: accepted } = await supabase
+    .from("severity_proposals")
+    .select(
+      "intercom_conversation_id, proposed_severity, final_severity, status, rationale, evidence, input_excerpt, override_reason_code, override_reason_note",
+    )
+    .eq("status", "accepted")
+    .order("decided_at", { ascending: false, nullsFirst: false })
+    .limit(FEWSHOT_LIMIT);
+
+  const history = [...(overridden ?? []), ...(accepted ?? [])].slice(0, FEWSHOT_LIMIT);
+
+  const examples = history
+    .map((h: any) => {
       const finalSev = h.final_severity ?? h.proposed_severity;
-      const snippet = String(h.evidence ?? h.rationale ?? "").slice(0, 240);
+      const snippet = String(h.input_excerpt ?? h.evidence ?? h.rationale ?? "").slice(0, 500);
       if (!snippet) return null;
-      return `Ticket: ${snippet}\nSeverity the team settled on: ${finalSev}${
-        h.status === "overridden" ? ` (AI had proposed ${h.proposed_severity} — corrected)` : ""
-      }`;
+      let correction = "";
+      if (h.status === "overridden") {
+        const why = [h.override_reason_code, h.override_reason_note].filter(Boolean).join(": ");
+        correction = ` (AI had proposed ${h.proposed_severity} — corrected${why ? `, because ${why}` : ""})`;
+      }
+      return `Ticket: ${snippet}\nSeverity the team settled on: ${finalSev}${correction}`;
     })
     .filter(Boolean)
     .join("\n\n");
+
 
   const results: any[] = [];
   let calls = 0;
@@ -326,6 +346,10 @@ Deno.serve(async (req) => {
       rubric_version: rubric.version,
       model: MODEL,
       input_chars: text.length,
+      // The real ticket text, kept so future few-shot examples and backtests
+      // read the ticket rather than the model's own summary of it.
+      input_excerpt: text.slice(0, 600),
+
       input_tokens: aiJson?.usage?.prompt_tokens ?? null,
       output_tokens: aiJson?.usage?.completion_tokens ?? null,
       content_hash: contentHash,

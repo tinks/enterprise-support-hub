@@ -1330,6 +1330,110 @@ export type Database = {
         }
         Relationships: []
       }
+      severity_eval_items: {
+        Row: {
+          adjudicated_at: string | null
+          adjudicated_by: string | null
+          adjudication_note: string | null
+          ai_severity: number | null
+          confidence: string | null
+          created_at: string
+          error: string | null
+          evidence: string | null
+          human_severity: number | null
+          id: string
+          input_excerpt: string | null
+          intercom_conversation_id: string
+          rationale: string | null
+          run_id: string
+          subject: string | null
+          verdict: string
+        }
+        Insert: {
+          adjudicated_at?: string | null
+          adjudicated_by?: string | null
+          adjudication_note?: string | null
+          ai_severity?: number | null
+          confidence?: string | null
+          created_at?: string
+          error?: string | null
+          evidence?: string | null
+          human_severity?: number | null
+          id?: string
+          input_excerpt?: string | null
+          intercom_conversation_id: string
+          rationale?: string | null
+          run_id: string
+          subject?: string | null
+          verdict?: string
+        }
+        Update: {
+          adjudicated_at?: string | null
+          adjudicated_by?: string | null
+          adjudication_note?: string | null
+          ai_severity?: number | null
+          confidence?: string | null
+          created_at?: string
+          error?: string | null
+          evidence?: string | null
+          human_severity?: number | null
+          id?: string
+          input_excerpt?: string | null
+          intercom_conversation_id?: string
+          rationale?: string | null
+          run_id?: string
+          subject?: string | null
+          verdict?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "severity_eval_items_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "severity_eval_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      severity_eval_runs: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string | null
+          model: string | null
+          notes: string | null
+          pass: string
+          requested_n: number
+          rubric_version: number | null
+          scored_n: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          model?: string | null
+          notes?: string | null
+          pass?: string
+          requested_n?: number
+          rubric_version?: number | null
+          scored_n?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          model?: string | null
+          notes?: string | null
+          pass?: string
+          requested_n?: number
+          rubric_version?: number | null
+          scored_n?: number
+        }
+        Relationships: []
+      }
       severity_proposals: {
         Row: {
           confidence: string
@@ -1341,10 +1445,13 @@ export type Database = {
           final_severity: number | null
           id: string
           input_chars: number | null
+          input_excerpt: string | null
           input_tokens: number | null
           intercom_conversation_id: string
           model: string | null
           output_tokens: number | null
+          override_reason_code: string | null
+          override_reason_note: string | null
           pass: string
           proposed_severity: number
           rationale: string
@@ -1362,10 +1469,13 @@ export type Database = {
           final_severity?: number | null
           id?: string
           input_chars?: number | null
+          input_excerpt?: string | null
           input_tokens?: number | null
           intercom_conversation_id: string
           model?: string | null
           output_tokens?: number | null
+          override_reason_code?: string | null
+          override_reason_note?: string | null
           pass: string
           proposed_severity: number
           rationale?: string
@@ -1383,10 +1493,13 @@ export type Database = {
           final_severity?: number | null
           id?: string
           input_chars?: number | null
+          input_excerpt?: string | null
           input_tokens?: number | null
           intercom_conversation_id?: string
           model?: string | null
           output_tokens?: number | null
+          override_reason_code?: string | null
+          override_reason_note?: string | null
           pass?: string
           proposed_severity?: number
           rationale?: string
@@ -2002,6 +2115,14 @@ export type Database = {
           result_source: string
         }[]
       }
+      severity_override_reason_rollup: {
+        Args: { _since?: string }
+        Returns: {
+          last_seen: string
+          occurrences: number
+          reason_code: string
+        }[]
+      }
       v3_accounts_usage: {
         Args: never
         Returns: {
@@ -2142,6 +2263,14 @@ export type Database = {
           slack_channel_id_detected: string
           subject: string
           workspace_id_detected: string
+        }[]
+      }
+      v3_severity_eval_sample: {
+        Args: { _n?: number }
+        Returns: {
+          conversation_id: string
+          human_severity: number
+          ticket_subject: string
         }[]
       }
       v3_tickets_for_channel: {

@@ -4,7 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, AlertTriangle, Check, RotateCw } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { useCanEdit } from "@/hooks/useCanEdit";
+import {
+  OVERRIDE_REASON_CODES,
+  recordSeverityDecision,
+  saveOverrideReason,
+  type SeverityDecision,
+} from "@/lib/severityProposals";
 
 /**
  * One panel, one Update button.
@@ -102,6 +109,11 @@ export function TicketFieldsPanel({
   });
   const [sending, setSending] = useState(false);
   const [results, setResults] = useState<FieldResult[]>([]);
+  // Set only when the human wrote a severity different from an open AI proposal.
+  const [override, setOverride] = useState<SeverityDecision | null>(null);
+  const [reasonCode, setReasonCode] = useState("");
+  const [reasonNote, setReasonNote] = useState("");
+  const [reasonSaved, setReasonSaved] = useState(false);
 
   // A different ticket means a fresh panel.
   useEffect(() => {
@@ -113,6 +125,10 @@ export function TicketFieldsPanel({
     });
     setDraft({ severity: "", owner: "", product_area: "", ticket_type: "" });
     setResults([]);
+    setOverride(null);
+    setReasonCode("");
+    setReasonNote("");
+    setReasonSaved(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId]);
 
@@ -208,6 +224,8 @@ export function TicketFieldsPanel({
     if (changed.length === 0) return;
     setSending(true);
     setResults([]);
+    setOverride(null);
+    setReasonSaved(false);
     const out: FieldResult[] = [];
     for (const field of changed) {
       try {
@@ -227,6 +245,18 @@ export function TicketFieldsPanel({
           setCurrent((c) => ({ ...c, [field]: written }));
           setDraft((d) => ({ ...d, [field]: "" }));
           onWritten?.(field, written);
+          if (field === "severity") {
+            // Label the open proposal now that Intercom accepted the value. A
+            // disagreement is the highest-value signal the classifier gets, so
+            // it is followed by a one-line "why".
+            const decision = await recordSeverityDecision(conversationId, Number(written));
+            if (decision?.status === "overridden") {
+              setOverride(decision);
+              setReasonCode("");
+              setReasonNote("");
+              setReasonSaved(false);
+            }
+          }
         }
       } catch (e) {
         const { message } = await readError(e);
@@ -337,6 +367,59 @@ export function TicketFieldsPanel({
           </p>
         );
       })}
+
+      {override && !reasonSaved && (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 space-y-2">
+          <p className="text-xs">
+            You set <span className="font-medium">Severity {override.finalSeverity}</span>; the classifier had proposed{" "}
+            <span className="font-medium">{override.proposedSeverity}</span>. Why?
+          </p>
+          <Select value={reasonCode} onValueChange={setReasonCode}>
+            <SelectTrigger className="h-9 w-full max-w-[280px] text-xs">
+              <SelectValue placeholder="Pick a reason…" />
+            </SelectTrigger>
+            <SelectContent>
+              {OVERRIDE_REASON_CODES.map((r) => (
+                <SelectItem key={r.code} value={r.code}>
+                  {r.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Textarea
+            value={reasonNote}
+            onChange={(e) => setReasonNote(e.target.value)}
+            placeholder="Optional: one line of detail (fed back into the classifier's examples)"
+            className="text-xs min-h-[56px]"
+          />
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={!reasonCode}
+              onClick={async () => {
+                const { error } = await saveOverrideReason(override.proposalId, reasonCode, reasonNote);
+                if (!error) setReasonSaved(true);
+              }}
+            >
+              Save reason
+            </Button>
+            <button
+              type="button"
+              className="text-[10px] text-muted-foreground underline"
+              onClick={() => setOverride(null)}
+            >
+              Skip
+            </button>
+          </div>
+        </div>
+      )}
+
+      {override && reasonSaved && (
+        <p className="text-xs text-emerald-600 dark:text-emerald-400">
+          Reason recorded — it will appear in the classifier's examples and in the reason roll-up.
+        </p>
+      )}
 
       <p className="text-[10px] text-muted-foreground">
         Each changed field is written through <code>esh-write-action</code>: Intercom first, then the Hub mirrors what
