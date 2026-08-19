@@ -1823,6 +1823,28 @@ The rubric is versioned, with a partial unique index allowing exactly one `activ
 - Dedup proven: an immediate identical re-run returned `calls: 0`, `skipped: "unchanged"`, no model call.
 - **UNVERIFIED:** the kill-switch-off refusal, the daily-cap refusal, the unknown-ticket-id branch, and the accept → `recordSeverityDecision` → `accepted`/`overridden` round trip through the UI. None of these has been exercised live.
 
+## Severity classifier training foundation (19 Aug 2026)
+
+### Why
+
+A classifier only improves if disagreement is captured with a reason and measured against ground truth. Before this, an override recorded only that the human chose a different number, and the few-shot block was built from the model's own earlier summaries — a misread could be taught back as fact.
+
+### What changed
+
+1. **Reason on override.** `recordSeverityDecision` now lives inside `TicketFieldsPanel` (the pages no longer call it, so it fires exactly once) and returns the decision. When the human's number differs from the open proposal, the panel prompts for a reason code (`OVERRIDE_REASON_CODES` in `src/lib/severityProposals.ts`) plus an optional note, saved to `severity_proposals.override_reason_code` / `override_reason_note`. The prompt is skippable — the decision is already recorded either way.
+2. **Real ticket text.** `propose-severity` stores `input_excerpt` (first 600 chars of the actual thread text it scored) and builds its few-shot block from those excerpts, overridden examples first, each carrying *why* it was corrected. It never quotes its own rationale back at itself.
+3. **Showdown (`run-severity-eval`).** Samples N tickets (max 50) that already carry a human Severity in Intercom via `v3_severity_eval_sample(n)` and scores them **cold** — rubric only, no few-shot — into `public.severity_eval_runs` / `severity_eval_items`. These stay OUT of `severity_proposals` so a backfill can never masquerade as live triage. Each disagreement is adjudicated `ai_wrong` / `human_wrong` / `both_defensible`; only `ai_wrong` is treated as training signal, because the severity on an old ticket is not automatically correct.
+4. **Backtest (`backtest-severity`).** Re-scores decided proposals and `ai_wrong` showdown items against the rubric text **currently in the editor**, returning exact-match / off-by-1 / off-by-2+. Nothing is saved: a rubric edit gets measured before it is published.
+5. **Reason roll-up.** `severity_override_reason_rollup()` powers a table on `/severity-ai`; a reason that keeps recurring is a rubric gap, not a model failure.
+
+All three new surfaces live on `/severity-ai` (`src/components/severity/SeverityTraining.tsx`). Runs and backtests are gated on the `editor` role (`require-editor.ts`), and no path here writes to Intercom.
+
+### Verification (19 Aug 2026)
+
+- `run-severity-eval` `{ n: 3, pass: "triage" }` → `scored: 3`, `failed: 0`, rubric v2. Outcome: 1 agreement (Sev 3 = Sev 3), 2 disagreements (AI 4 / ticket 2, AI 2 / ticket 3) left `pending` for human adjudication.
+- `backtest-severity` correctly refused with `400 "No backtestable cases yet — a case needs a stored ticket excerpt and a human severity."` — no decided proposal carries an `input_excerpt` yet, since excerpts only start accruing on proposals made from now on.
+- **UNVERIFIED:** the override reason prompt end-to-end through the UI, the backtest path sourced from adjudicated `ai_wrong` showdown items, and the daily-cap refusal on `run-severity-eval`.
+
 ## One Update button for ticket fields (19 Aug 2026)
 
 ### What changed
