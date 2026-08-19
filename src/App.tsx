@@ -54,7 +54,8 @@ const App = () => (
         <ActionSignalsProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/" element={<ProtectedRoute><Stats /></ProtectedRoute>} />
+          <Route path="/" element={<ProtectedRoute><AnalyticsV3 /></ProtectedRoute>} />
+          <Route path="/stats" element={<ProtectedRoute><Stats /></ProtectedRoute>} />
           <Route path="/action-center" element={<ProtectedRoute><ActionCenter /></ProtectedRoute>} />
           <Route path="/conversations" element={<ProtectedRoute><Conversations /></ProtectedRoute>} />
           <Route path="/triage" element={<EditorRoute><Triage /></EditorRoute>} />
