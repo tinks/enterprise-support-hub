@@ -17,6 +17,8 @@ import { toast } from "@/hooks/use-toast";
 import { intercomUrl } from "@/lib/intercom";
 import { IntercomIdChip } from "@/components/issues/IssueTable";
 import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
+import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
+import { recordSeverityDecision } from "@/lib/severityProposals";
 
 type Ticket = {
   id: string;
