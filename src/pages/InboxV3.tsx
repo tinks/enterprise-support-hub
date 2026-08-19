@@ -18,7 +18,6 @@ import { intercomUrl } from "@/lib/intercom";
 import { IntercomIdChip } from "@/components/issues/IssueTable";
 import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
 import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
-import { recordSeverityDecision } from "@/lib/severityProposals";
 
 type Ticket = {
   id: string;
@@ -542,9 +541,6 @@ export default function InboxV3() {
                       currentProductArea={selected.product_area}
                       currentTicketType={selected.classification}
                       onWritten={(field, value) => {
-                        if (field === "severity") {
-                          void recordSeverityDecision(selected.intercom_conversation_id, Number(value));
-                        }
                         setSelected((s) => {
                           if (!s) return s;
                           if (field === "owner") return { ...s, owner: value };

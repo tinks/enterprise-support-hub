@@ -9,6 +9,7 @@ import { Loader2, Save, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { intercomUrl } from "@/lib/intercom";
+import { SeverityShowdown, SeverityBacktest, OverrideReasonRollup } from "@/components/severity/SeverityTraining";
 
 /**
  * Calibration surface for the severity classifier.
@@ -166,6 +167,12 @@ export default function SeverityAi() {
           <Stat label="Agreement" value={agreement == null ? "—" : `${agreement}%`} />
           <Stat label="Off by 1 / 2+" value={`${offBy.one} / ${offBy.two}`} />
         </div>
+
+        <SeverityShowdown />
+
+        <OverrideReasonRollup />
+
+        <SeverityBacktest rubricBody={draft || rubric?.body || ""} />
 
         <div className="rounded-md border border-border p-4">
           <h2 className="text-sm font-medium mb-3">Proposed vs final</h2>

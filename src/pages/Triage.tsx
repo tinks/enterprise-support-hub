@@ -16,7 +16,6 @@ import { IssueDetailSheet, IssueField } from "@/components/issues/IssueDetailShe
 import { idColumn, subjectColumn, contactColumn, customerColumn, ownerColumn } from "@/components/issues/issueColumns";
 import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
-import { recordSeverityDecision } from "@/lib/severityProposals";
 
 import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
 
@@ -443,11 +442,6 @@ export default function Triage() {
                   currentTicketType={selected.custom_attributes?.["Ticket type"] ?? null}
                   onWritten={(field, value) => {
                     const convId = selected.intercom_conversation_id;
-                    if (field === "severity") {
-                      // Label the open proposal with what the human actually chose,
-                      // only now that Intercom has accepted the value.
-                      void recordSeverityDecision(convId, Number(value));
-                    }
                     setRows((prev) =>
                       prev.map((r) => {
                         if (r.intercom_conversation_id !== convId) return r;
