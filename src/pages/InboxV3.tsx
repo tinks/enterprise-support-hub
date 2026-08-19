@@ -16,7 +16,7 @@ import { effectiveRsa } from "@/pages/inbox-v3/rsa";
 import { toast } from "@/hooks/use-toast";
 import { intercomUrl } from "@/lib/intercom";
 import { IntercomIdChip } from "@/components/issues/IssueTable";
-import { OwnerWriteControl, ProductAreaWriteControl, TicketTypeWriteControl } from "@/components/issues/TicketFieldWriteControls";
+import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
 
 type Ticket = {
   id: string;
