@@ -1,0 +1,1 @@
+{"code":"export default function(a, b) {\n\treturn b < a ? -1 : b > a ? 1 : b >= a ? 0 : NaN;\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

@@ -1,0 +1,1 @@
+{"code":"// tpmt is two power minus ten times t scaled to [0,1]\nexport function tpmt(x) {\n\treturn (Math.pow(2, -10 * x) - .0009765625) * 1.0009775171065494;\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

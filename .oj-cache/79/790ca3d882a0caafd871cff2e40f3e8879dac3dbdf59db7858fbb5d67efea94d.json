@@ -1,0 +1,1 @@
+{"code":"export default function cumsum(values, valueof) {\n\tvar sum = 0, index = 0;\n\treturn Float64Array.from(values, valueof === undefined ? (v) => sum += +v || 0 : (v) => sum += +valueof(v, index++, values) || 0);\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

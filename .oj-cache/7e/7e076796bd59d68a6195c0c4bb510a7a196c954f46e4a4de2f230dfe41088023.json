@@ -1,0 +1,1 @@
+{"code":"import { pi, sqrt, tau } from \"/node_modules/d3-shape/src/math.js\";\nexport default { draw(context, size) {\n\tconst r = sqrt(size / pi);\n\tcontext.moveTo(r, 0);\n\tcontext.arc(0, 0, r, 0, tau);\n} };\n","map_data_url":null,"imports":["/node_modules/d3-shape/src/math.js"],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

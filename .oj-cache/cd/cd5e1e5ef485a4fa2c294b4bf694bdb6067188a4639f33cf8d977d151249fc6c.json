@@ -1,0 +1,1 @@
+{"code":"import { formatDecimalParts } from \"/node_modules/d3-format/src/formatDecimal.js\";\nexport default function(x) {\n\treturn x = formatDecimalParts(Math.abs(x)), x ? x[1] : NaN;\n}\n","map_data_url":null,"imports":["/node_modules/d3-format/src/formatDecimal.js"],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

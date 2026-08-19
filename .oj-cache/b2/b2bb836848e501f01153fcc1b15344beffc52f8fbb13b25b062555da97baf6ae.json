@@ -1,0 +1,1 @@
+{"code":"import count from \"/node_modules/d3-array/src/count.js\";\nexport default function thresholdSturges(values) {\n\treturn Math.max(1, Math.ceil(Math.log(count(values)) / Math.LN2) + 1);\n}\n","map_data_url":null,"imports":["/node_modules/d3-array/src/count.js"],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

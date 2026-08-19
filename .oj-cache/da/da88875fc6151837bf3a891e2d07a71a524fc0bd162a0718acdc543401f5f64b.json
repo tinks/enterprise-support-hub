@@ -1,0 +1,1 @@
+{"code":"export function quadIn(t) {\n\treturn t * t;\n}\nexport function quadOut(t) {\n\treturn t * (2 - t);\n}\nexport function quadInOut(t) {\n\treturn ((t *= 2) <= 1 ? t * t : --t * (2 - t) + 1) / 2;\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

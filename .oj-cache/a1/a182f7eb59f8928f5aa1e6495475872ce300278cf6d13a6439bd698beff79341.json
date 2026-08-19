@@ -1,0 +1,1 @@
+{"code":"export default function permute(source, keys) {\n\treturn Array.from(keys, (key) => source[key]);\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}
