@@ -1821,3 +1821,25 @@ The rubric is versioned, with a partial unique index allowing exactly one `activ
 - Live proposal on Intercom #215475026117090: Severity 4, high confidence, rubric v1, 685 input / 86 output tokens.
 - Dedup proven: an immediate identical re-run returned `calls: 0`, `skipped: "unchanged"`, no model call.
 - **UNVERIFIED:** the kill-switch-off refusal, the daily-cap refusal, the unknown-ticket-id branch, and the accept → `recordSeverityDecision` → `accepted`/`overridden` round trip through the UI. None of these has been exercised live.
+
+## One Update button for ticket fields (19 Aug 2026)
+
+### What changed
+
+The `/triage` and `/inbox-v3` detail sheets no longer show a write button per field. `TicketFieldsPanel` (`src/components/issues/TicketFieldsPanel.tsx`) renders severity (Triage only), owner, product area and ticket type in one panel behind a single **Update in Intercom** button. The button names how many fields are dirty; only those fields are written.
+
+### What did NOT change
+
+The write contract is identical. Each changed field is still its own `esh-write-action` call (`set_severity` / `set_owner` / `set_product_area` / `set_classification`), still Intercom-first with the Hub mirroring the verification GET, still strict `expectedCurrent` conflict checking, still validated against `public.intercom_field_options` for the two list fields, still gated on the `editor` role and the `esh_write_allowed_actions` allowlist.
+
+### Partial writes are visible, not smoothed
+
+Calls run in sequence and a failure on one field does **not** cancel the rest. Every field prints its own line — accepted, refused, or stale-conflict — so a three-field update where one field is refused says exactly which two landed. Only accepted fields update the Hub's local mirror and fire `onWritten`; a refused field keeps its draft value so it can be retried. On Triage, `recordSeverityDecision` fires only after Intercom accepts the severity, so the AI-proposal agreement label still reflects a real write.
+
+### Rollback path
+
+`TicketFieldWriteControls.tsx` and `SeverityWriteControl.tsx` are intentionally left in the repo, unused, as the single-field fallback.
+
+### Verification status
+
+Typecheck clean. **UNVERIFIED live**: no multi-field write, no partial-failure case, and no stale-409 case has been exercised against a real ticket since the panel replaced the per-field buttons.
