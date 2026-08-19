@@ -16,7 +16,7 @@ import { effectiveRsa } from "@/pages/inbox-v3/rsa";
 import { toast } from "@/hooks/use-toast";
 import { intercomUrl } from "@/lib/intercom";
 import { IntercomIdChip } from "@/components/issues/IssueTable";
-import { OwnerWriteControl, ProductAreaWriteControl, TicketTypeWriteControl } from "@/components/issues/TicketFieldWriteControls";
+import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
 
 type Ticket = {
   id: string;
@@ -525,35 +525,27 @@ export default function InboxV3() {
                 <Field label="State" value={selected.state} />
                 <Field label="Owner" value={selected.owner} />
                 <div className="grid grid-cols-[140px_1fr] gap-3 items-start">
-                  <dt className="text-xs text-muted-foreground">Set owner</dt>
+                  <dt className="text-xs text-muted-foreground">Update fields</dt>
                   <dd>
-                    <OwnerWriteControl
+                    <TicketFieldsPanel
                       conversationId={selected.intercom_conversation_id}
+                      show={{ severity: false }}
                       currentOwner={selected.owner}
-                      onWritten={(o) => setSelected((s) => (s ? { ...s, owner: o } : s))}
-                    />
-                  </dd>
-                </div>
-                <div className="grid grid-cols-[140px_1fr] gap-3 items-start">
-                  <dt className="text-xs text-muted-foreground">Set product area</dt>
-                  <dd>
-                    <ProductAreaWriteControl
-                      conversationId={selected.intercom_conversation_id}
                       currentProductArea={selected.product_area}
-                      onWritten={(pa) => setSelected((s) => (s ? { ...s, product_area: pa } : s))}
-                    />
-                  </dd>
-                </div>
-                <div className="grid grid-cols-[140px_1fr] gap-3 items-start">
-                  <dt className="text-xs text-muted-foreground">Set ticket type</dt>
-                  <dd>
-                    <TicketTypeWriteControl
-                      conversationId={selected.intercom_conversation_id}
                       currentTicketType={selected.classification}
-                      onWritten={(tt) => setSelected((s) => (s ? { ...s, classification: tt } : s))}
+                      onWritten={(field, value) =>
+                        setSelected((s) => {
+                          if (!s) return s;
+                          if (field === "owner") return { ...s, owner: value };
+                          if (field === "product_area") return { ...s, product_area: value };
+                          if (field === "ticket_type") return { ...s, classification: value };
+                          return s;
+                        })
+                      }
                     />
                   </dd>
                 </div>
+
                 <div className="grid grid-cols-[140px_1fr] gap-3 items-center">
                   <dt className="text-xs text-muted-foreground">RSA</dt>
                   <dd className="text-sm flex items-center gap-2">
