@@ -1,0 +1,1 @@
+{"code":"export default function() {\n\tvar callback = arguments[0];\n\targuments[0] = this;\n\tcallback.apply(null, arguments);\n\treturn this;\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

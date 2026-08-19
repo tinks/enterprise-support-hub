@@ -1,0 +1,1 @@
+{"code":"export default function(interpolator, n) {\n\tvar samples = new Array(n);\n\tfor (var i = 0; i < n; ++i) samples[i] = interpolator(i / (n - 1));\n\treturn samples;\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

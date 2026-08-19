@@ -1,0 +1,1 @@
+{"code":"export default function() {\n\tlet size = 0;\n\tfor (const node of this) ++size;\n\treturn size;\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

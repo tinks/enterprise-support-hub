@@ -1,0 +1,1 @@
+{"code":"export function getRoundingMethod(method) {\n\treturn (number) => {\n\t\tconst round = method ? Math[method] : Math.trunc;\n\t\tconst result = round(number);\n\t\t// Prevent negative zero\n\t\treturn result === 0 ? 0 : result;\n\t};\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

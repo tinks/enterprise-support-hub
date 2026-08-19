@@ -1,0 +1,1 @@
+{"code":"export default function(a, b) {\n\treturn a = +a, b = +b, function(t) {\n\t\treturn Math.round(a * (1 - t) + b * t);\n\t};\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}

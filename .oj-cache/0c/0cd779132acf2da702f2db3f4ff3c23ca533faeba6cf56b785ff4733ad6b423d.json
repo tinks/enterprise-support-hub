@@ -1,0 +1,1 @@
+{"code":"function empty() {\n\treturn [];\n}\nexport default function(selector) {\n\treturn selector == null ? empty : function() {\n\t\treturn this.querySelectorAll(selector);\n\t};\n}\n","map_data_url":null,"imports":[],"is_boundary":false,"kind":"","require_map":[],"css_exports":[],"fs_allow":[],"watch_files":[]}
