@@ -103,6 +103,17 @@ export default function Triage() {
   const [search, setSearch] = useState("");
   const [owner, setOwner] = useState(ANY);
   const [customer, setCustomer] = useState(ANY);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const modeParam = searchParams.get("mode");
+  const mode: TriageQueueMode = isTriageMode(modeParam) ? modeParam : "needs_severity";
+  const setMode = (m: TriageQueueMode) => {
+    const next = new URLSearchParams(searchParams);
+    if (m === "needs_severity") next.delete("mode");
+    else next.set("mode", m);
+    setSearchParams(next, { replace: true });
+  };
+  const severityMode = mode === "needs_severity";
+
   const [nowS, setNowS] = useState(() => Math.floor(Date.now() / 1000));
 
   // Tick every 30s so ages/bands advance without a reload (data itself is not refetched).
