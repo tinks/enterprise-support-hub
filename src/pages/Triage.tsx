@@ -200,7 +200,7 @@ export default function Triage() {
         };
       })
       .sort((a, b) => (b.businessS ?? -1) - (a.businessS ?? -1));
-  }, [rows, nowS, businessHours, targetS, policyLoading]);
+  }, [rows, nowS, businessHours, targetS, policyLoading, mode]);
 
   const ownerOpts = useMemo(
     () => Array.from(new Set(untriaged.map((r) => r.owner).filter(Boolean))).sort() as string[],
