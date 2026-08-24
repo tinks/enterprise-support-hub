@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
 import { idColumn, subjectColumn, contactColumn, customerColumn, ownerColumn, ageColumn } from "@/components/issues/issueColumns";
 import { useCustomerLabels } from "@/hooks/useCustomerLabels";
+import { useCanEdit } from "@/hooks/useCanEdit";
+
 
 type Ticket = {
   id: string;
@@ -102,6 +104,9 @@ export default function Escalations() {
   const [escalations, setEscalations] = useState<Map<string, Escalation>>(new Map());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const [syncingLinear, setSyncingLinear] = useState(false);
+  const canEdit = useCanEdit();
+
 
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState<"active" | "all" | HubState>("active");
@@ -134,6 +139,27 @@ export default function Escalations() {
     }
     setLoading(false);
   };
+
+  /** Pull Linear issue title/state/assignee onto the board. Read-only in Linear. */
+  const syncLinear = async () => {
+    setSyncingLinear(true);
+    const { data, error } = await supabase.functions.invoke("sync-linear-escalations");
+    setSyncingLinear(false);
+    if (error) {
+      toast.error("Linear sync failed", { description: error.message });
+      return;
+    }
+    const d = data as { resolved?: number; not_found?: string[]; rows_written?: number };
+    toast.success(`Linear sync: ${d?.resolved ?? 0} issue(s) refreshed`, {
+      description:
+        d?.not_found && d.not_found.length > 0
+          ? `Not found in Linear: ${d.not_found.slice(0, 5).join(", ")}`
+          : undefined,
+    });
+    await load();
+  };
+
+
 
   useEffect(() => { load(); }, []);
 
@@ -293,25 +319,40 @@ export default function Escalations() {
         }
         return (
           <>
-            <button
-              className="text-left hover:underline"
-              onClick={() => { setLinkDraft((d) => ({ ...d, [cid]: r.esc?.linear_url_override ?? "" })); setEditing({ id: cid, field: "link" }); }}
-            >
-              {r.linear.url ? (
-                <span className="text-foreground">{r.linear.key ?? "Linear issue"}</span>
-              ) : r.linear.raw ? (
-                <span className="text-muted-foreground truncate block max-w-[170px]">{r.linear.raw}</span>
-              ) : (
-                <span className="text-muted-foreground">— link</span>
+            <div className="flex items-center">
+              <button
+                className="text-left hover:underline"
+                onClick={() => { setLinkDraft((d) => ({ ...d, [cid]: r.esc?.linear_url_override ?? "" })); setEditing({ id: cid, field: "link" }); }}
+              >
+                {r.linear.url ? (
+                  <span className="text-foreground">{r.linear.key ?? "Linear issue"}</span>
+                ) : r.linear.raw ? (
+                  <span className="text-muted-foreground truncate block max-w-[170px]">{r.linear.raw}</span>
+                ) : (
+                  <span className="text-muted-foreground">— link</span>
+                )}
+              </button>
+              {r.linear.url && (
+                <a href={r.linear.url} target="_blank" rel="noreferrer" className="ml-1 inline-flex text-muted-foreground hover:text-foreground align-middle">
+                  <ExternalLink className="h-3 w-3" />
+                </a>
               )}
-            </button>
-            {r.linear.url && (
-              <a href={r.linear.url} target="_blank" rel="noreferrer" className="ml-1 inline-flex text-muted-foreground hover:text-foreground align-middle">
-                <ExternalLink className="h-3 w-3" />
-              </a>
+            </div>
+            {/* Mirror of Linear, refreshed by sync-linear-escalations. Read-only here. */}
+            {r.esc?.linear_synced_at && r.esc?.linear_key === r.linear.key && (
+              <div className="mt-0.5 text-[10px] text-muted-foreground leading-tight">
+                {r.esc.linear_title && (
+                  <div className="truncate max-w-[180px]" title={r.esc.linear_title}>{r.esc.linear_title}</div>
+                )}
+                <div>
+                  {r.esc.linear_state || "—"}
+                  {r.esc.linear_assignee ? ` · ${r.esc.linear_assignee}` : ""}
+                </div>
+              </div>
             )}
           </>
         );
+
       },
     },
     {
@@ -397,10 +438,17 @@ export default function Escalations() {
             <span className="text-xs text-muted-foreground">
               {dataAsOf ? `Data as of ${format(new Date(dataAsOf), "HH:mm")}` : "—"}
             </span>
+            {canEdit && (
+              <Button onClick={syncLinear} size="sm" variant="outline" disabled={syncingLinear}>
+                {syncingLinear ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                Sync Linear
+              </Button>
+            )}
             <Button onClick={load} size="sm" variant="outline" disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             </Button>
           </div>
+
         </div>
 
         <div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
@@ -409,10 +457,12 @@ export default function Escalations() {
             The board state is independent of Intercom — a closed conversation stays here until it is marked
             <span className="font-medium text-foreground"> Customer notified</span> or <span className="font-medium text-foreground">Won't do</span>.
             Qualifying tickets appear automatically at <span className="font-medium text-foreground">Open</span>; nothing is
-            written until you change a state, link, or note. Linear is link-only for now — issue title, state, and assignee
-            stay blank until the Linear connector sync is added.
+            written until you change a state, link, or note. Linear issue title, state and assignee are mirrored read-only
+            once a day (and on demand via <span className="font-medium text-foreground">Sync Linear</span>) — Linear is never
+            written to from the Hub.
           </span>
         </div>
+
 
         <div className="flex items-center gap-2 flex-wrap">
           {HUB_STATES.map((s) => (
