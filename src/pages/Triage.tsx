@@ -182,7 +182,7 @@ export default function Triage() {
   const untriaged = useMemo(() => {
     if (policyLoading) return [];
     return rows
-      .filter((r) => !hasSeverity(r.custom_attributes))
+      .filter((r) => inTriageMode(mode, r))
       .map((r) => {
         const sla = computeSla(r.raw_payload, undefined, businessHours);
         const createdS = r.intercom_created_at ? Math.floor(new Date(r.intercom_created_at).getTime() / 1000) : null;
