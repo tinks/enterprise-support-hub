@@ -1621,6 +1621,8 @@ A read-only landing surface that answers one question: **is anything in the ESH 
 
 **First-response risk is policy-aware, not a hardcoded target.** It loads `sla_policy_versions` + `sla_policy_targets`, resolves the effective policy per ticket by inbound date via `resolvePolicy()`, runs `computeSla()` on that version's business hours, and compares elapsed time on the target's own clock (business vs wall). Unclassified tickets are skipped — that is the Triage signal's job — and tickets carrying a `first_response` row in `sla_breach_overrides` are excluded.
 
+**Shared SLA population (24 Aug 2026).** The exclusion predicate that used to live inline in `classifySlaBatchRow` now lives in `src/lib/slaExclusions.ts` as `isSlaExcluded()`, and both the SLA workbench and this signal call it. Excluded from the SLA population: `rsa_override = false`; `rsa_override` unset with tag `enterprise-fyi` or `enterprise-duplicate`; tag `merged_ticket`; `customer_resolution_method` in `not_enterprise` / `prospect_personal` / `enterprise_prospect`; and tickets on accounts flagged `v3_customer_accounts.is_test`. Before this, a ticket tagged `enterprise-duplicate` could alert on the Action Center card while being absent from the workbench's violations table. Verified 24 Aug 2026: of 51 open severity-classified tickets, 7 are now excluded (including `215475518887389`), 44 still evaluated.
+
 **Stale-sync thresholds** are per job kind: `open_refresh` 60 min, `closed_backfill` 60 min, `gap_scan` 48 h. A kind with *no* completed run at all is treated as infinitely stale, never as healthy.
 
 ### Rules the surface is built on

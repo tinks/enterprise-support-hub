@@ -10,6 +10,8 @@ import {
   type SlaPolicyTargetRow,
   type SlaPolicyVersionRow,
 } from "@/lib/slaMetrics";
+import { isSlaExcluded } from "@/lib/slaExclusions";
+
 
 /**
  * Action Center signal registry.
@@ -156,16 +158,19 @@ export const ACTION_SIGNALS: ActionSignal[] = [
     route: "/sla-workbench",
     routeLabel: "SLA workbench",
     meaning:
-      "Open, severity-classified tickets with no support reply yet whose first-response clock already exceeds the effective policy target (overrides excluded).",
+      "Open, severity-classified tickets with no support reply yet whose first-response clock already exceeds the effective policy target (overrides excluded). Tickets outside the SLA population — fyi, duplicate, merged, prospect, non-enterprise, test accounts — are not counted.",
     load: async () => {
-      const [policies, ticketsRes, overridesRes] = await Promise.all([
+      const [policies, ticketsRes, overridesRes, testRes] = await Promise.all([
         loadPolicies(),
         supabase
           .from("intercom_tickets_v3")
-          .select("intercom_conversation_id,custom_attributes,intercom_created_at,raw_payload")
+          .select(
+            "intercom_conversation_id,custom_attributes,intercom_created_at,raw_payload,tags,rsa_override,customer_resolution_method,customer_key",
+          )
           .in("lifecycle_status", ["open", "reopened_after_finalize"])
           .limit(1000),
         supabase.from("sla_breach_overrides").select("intercom_conversation_id,metric").limit(1000),
+        supabase.from("v3_customer_accounts").select("customer_key,is_test").eq("is_test", true).limit(1000),
       ]);
       const tickets = unwrap<
         Array<{
@@ -173,10 +178,17 @@ export const ACTION_SIGNALS: ActionSignal[] = [
           custom_attributes: any;
           intercom_created_at: string | null;
           raw_payload: any;
+          tags: string[] | null;
+          rsa_override: boolean | null;
+          customer_resolution_method: string | null;
+          customer_key: string | null;
         }>
       >(ticketsRes as any);
       const overrides = unwrap<Array<{ intercom_conversation_id: string; metric: string }>>(
         overridesRes as any,
+      );
+      const testAccountKeys = new Set(
+        unwrap<Array<{ customer_key: string }>>(testRes as any).map((r) => r.customer_key),
       );
       const excused = new Set(
         overrides.filter((o) => o.metric === "first_response").map((o) => o.intercom_conversation_id),
@@ -189,8 +201,11 @@ export const ACTION_SIGNALS: ActionSignal[] = [
 
       for (const t of tickets) {
         if (excused.has(t.intercom_conversation_id)) continue;
+        // Same population rules as the SLA workbench (classifySlaBatchRow).
+        if (isSlaExcluded(t, { testAccountKeys })) continue;
         const severity = parseSeverity(t.custom_attributes?.["Severity"]);
         if (severity == null) continue; // unclassified is the Triage signal's job
+
         const anchorMs = t.intercom_created_at ? Date.parse(t.intercom_created_at) : Date.now();
         const policy = resolvePolicy(anchorMs, policies);
         const bh = policy?.businessHours ?? DEFAULT_BUSINESS_HOURS;
