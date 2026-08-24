@@ -339,7 +339,7 @@ export default function InboxV3() {
         if (rsaFilter === "not_required" && v !== "not_required") return false;
       }
       if (q) {
-        const hay = [displaySubject(r), r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, ...(r.tags || [])]
+        const hay = [displaySubject(r), r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, ...(r.tags || []), ...linearRefs(r)]
           .filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
       }
