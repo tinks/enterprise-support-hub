@@ -853,6 +853,9 @@ export type Database = {
           slack_channel_id_detected: string | null
           state: string | null
           subject: string | null
+          subject_override: string | null
+          subject_override_at: string | null
+          subject_override_by: string | null
           tags: string[]
           team_assignee_id: string | null
           time_to_first_admin_reply_s: number | null
@@ -904,6 +907,9 @@ export type Database = {
           slack_channel_id_detected?: string | null
           state?: string | null
           subject?: string | null
+          subject_override?: string | null
+          subject_override_at?: string | null
+          subject_override_by?: string | null
           tags?: string[]
           team_assignee_id?: string | null
           time_to_first_admin_reply_s?: number | null
@@ -955,6 +961,9 @@ export type Database = {
           slack_channel_id_detected?: string | null
           state?: string | null
           subject?: string | null
+          subject_override?: string | null
+          subject_override_at?: string | null
+          subject_override_by?: string | null
           tags?: string[]
           team_assignee_id?: string | null
           time_to_first_admin_reply_s?: number | null

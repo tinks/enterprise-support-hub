@@ -50,6 +50,13 @@
       "when": 1787584560838,
       "tag": "0006_schedule_daily_linear_escalation_sync",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1787586214091,
+      "tag": "0007_add_v3_subject_override",
+      "breakpoints": true
     }
   ]
 }

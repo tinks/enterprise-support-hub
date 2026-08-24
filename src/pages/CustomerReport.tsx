@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "@/components/AppLayout";
+import { displaySubject } from "@/lib/subjectDisplay";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +54,7 @@ type OpenTicket = {
   id: string;
   intercom_conversation_id: string;
   subject: string | null;
+  subject_override?: string | null;
   intercom_created_at: string | null;
   intercom_updated_at: string | null;
   lifecycle_status: string | null;
@@ -131,7 +133,7 @@ export default function CustomerReport() {
       setOpenLoading(true);
       const { data } = await supabase
         .from("intercom_tickets_v3")
-        .select("id,intercom_conversation_id,subject,intercom_created_at,intercom_updated_at,lifecycle_status,raw_payload")
+        .select("id,intercom_conversation_id,subject,subject_override,intercom_created_at,intercom_updated_at,lifecycle_status,raw_payload")
         .eq("customer_key", customer)
         .in("lifecycle_status", ["open", "reopened_after_finalize"])
         .order("intercom_created_at", { ascending: false });
@@ -203,6 +205,7 @@ export default function CustomerReport() {
     type Row = {
       id: string;
       subject: string | null;
+      subject_override?: string | null;
       intercom_conversation_id: string;
       severity: Severity | null;
       ticketType: string;
@@ -218,6 +221,7 @@ export default function CustomerReport() {
       rows.push({
         id: t.id,
         subject: t.subject,
+        subject_override: (t as any).subject_override ?? null,
         intercom_conversation_id: t.intercom_conversation_id,
         severity: parseSeverity(ca?.Severity),
         ticketType: ca?.["Ticket type"] || "—",
@@ -233,6 +237,7 @@ export default function CustomerReport() {
       rows.push({
         id: row.id,
         subject: row.subject,
+        subject_override: (row as any).subject_override ?? null,
         intercom_conversation_id: row.intercom_conversation_id,
         severity: parseSeverity(ca?.Severity),
         ticketType: ca?.["Ticket type"] || "—",
@@ -386,7 +391,7 @@ export default function CustomerReport() {
                     )}
                     {escalated.map((e) => (
                       <TableRow key={e.id}>
-                        <TableCell className="text-left max-w-[320px] truncate">{e.subject || "(no subject)"}</TableCell>
+                        <TableCell className="text-left max-w-[320px] truncate">{displaySubject(e, "(no subject)")}</TableCell>
                         <TableCell className="text-left tabular-nums text-xs select-all">{e.intercom_conversation_id}</TableCell>
                         <TableCell className="text-left">{e.severity == null ? "—" : `Sev ${e.severity}`}</TableCell>
                         <TableCell className="text-left">{e.ticketType}</TableCell>
@@ -449,7 +454,7 @@ export default function CustomerReport() {
                       const sev = parseSeverity(t.raw_payload?.custom_attributes?.Severity);
                       return (
                         <TableRow key={t.id}>
-                          <TableCell className="text-left max-w-[360px] truncate">{t.subject || "(no subject)"}</TableCell>
+                          <TableCell className="text-left max-w-[360px] truncate">{displaySubject(t, "(no subject)")}</TableCell>
                           <TableCell className="text-left tabular-nums text-xs select-all">{t.intercom_conversation_id}</TableCell>
                           <TableCell className="text-left">{sev == null ? "—" : `Sev ${sev}`}</TableCell>
                           <TableCell className="text-left tabular-nums">{fmtDate(t.intercom_created_at)}</TableCell>
@@ -497,7 +502,7 @@ export default function CustomerReport() {
                       )}
                       {scored.map(({ row, sev, compliance }) => (
                         <TableRow key={row.id}>
-                          <TableCell className="text-left max-w-[360px] truncate">{row.subject || "(no subject)"}</TableCell>
+                          <TableCell className="text-left max-w-[360px] truncate">{displaySubject(row, "(no subject)")}</TableCell>
                           <TableCell className="text-left tabular-nums text-xs select-all">{row.intercom_conversation_id}</TableCell>
                           <TableCell className="text-left">{sev == null ? "—" : `Sev ${sev}`}</TableCell>
                           <TableCell className="text-left tabular-nums">{fmtDate(row.intercom_created_at)}</TableCell>

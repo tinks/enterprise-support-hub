@@ -1872,3 +1872,26 @@ Calls run in sequence and a failure on one field does **not** cancel the rest. E
 ### Verification status
 
 Typecheck clean. **UNVERIFIED live**: no multi-field write, no partial-failure case, and no stale-409 case has been exercised against a real ticket since the panel replaced the per-field buttons.
+
+
+## Subject override — Hub-only descriptive labels (24 Aug 2026)
+
+Intercom frequently produces useless titles (`Intercom #215474865211089`). The Hub can now carry its own descriptive label for a ticket. This is a **Hub-only display field**: nothing is written to Intercom, and no measurement changes.
+
+### Storage
+
+`intercom_tickets_v3.subject_override` (text, nullable), plus `subject_override_by` (uuid) and `subject_override_at` (timestamptz) for attribution. Intercom's own `subject` column is never touched, so a label can always be reverted to the source value. The v3 sync writer (`_shared/v3-finalize.ts`) writes only `subject`, so re-syncs and finalize cannot clobber an override.
+
+### Display rule (single source)
+
+`src/lib/subjectDisplay.ts` — `displaySubject(row) = subject_override → subject → "Untitled"`. Every v3 surface reads through it: Triage, Inbox v3, Prospects, Dev escalations, SLA workbench (both violation tables and the ticket header), Customer report. Search indexes both the override and the original, so a ticket stays findable by either. Overridden rows render an `edited · Intercom: <original>` subline, so the label never hides what Intercom actually says.
+
+### Editing
+
+- Inline pencil on the Subject cell of every v3 table (editors only), plus a **Clear** action that drops back to Intercom's subject.
+- A Subject field in `TicketFieldsPanel` (Triage and Inbox v3 detail sheets), separated from the Intercom-mirrored fields so it is visually clear it does not travel to Intercom.
+- Writes go straight to the table under the existing `Editors update intercom_tickets_v3` policy (`can_edit(auth.uid())`); read-only roles get "Update refused — editor role required." Every set and clear appends a `subject_override_set` / `subject_override_cleared` row to `conversation_audit_logs` with old and new values.
+
+### Verification status
+
+Verified live on Intercom #215474865211089: set via SQL and rendered in Inbox v3 with the `edited · Intercom:` subline; then edited **through the UI** to a new label and cleared through the UI, with both actions landing in `conversation_audit_logs` under the acting editor's email and the row falling back to Intercom's subject. Typecheck and build clean. **UNVERIFIED**: the read-only refusal path (an `editor`-less account attempting a save) has not been exercised.
