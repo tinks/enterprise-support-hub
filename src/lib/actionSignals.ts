@@ -11,6 +11,8 @@ import {
   type SlaPolicyVersionRow,
 } from "@/lib/slaMetrics";
 import { isSlaExcluded } from "@/lib/slaExclusions";
+import { isUnassigned, assignmentGap, ASSIGNMENT_GAP_LABEL } from "@/lib/triageQueues";
+
 
 
 /**
@@ -133,6 +135,55 @@ export const ACTION_SIGNALS: ActionSignal[] = [
     },
   },
   {
+    id: "unassigned_tickets",
+    label: "Unassigned tickets",
+    family: "queues",
+    route: "/triage?mode=unassigned",
+    routeLabel: "Triage queue",
+    meaning:
+      "Open tickets with no Intercom assignee, or an assignee that isn't mapped to a Hub owner. Tickets outside the SLA population — fyi, duplicate, merged, prospect, non-enterprise, test accounts — are not counted.",
+    load: async () => {
+      const [ticketsRes, testRes] = await Promise.all([
+        supabase
+          .from("intercom_tickets_v3")
+          .select(
+            "intercom_conversation_id,admin_assignee_id,owner,intercom_created_at,tags,rsa_override,customer_resolution_method,customer_key",
+          )
+          .in("lifecycle_status", ["open", "reopened_after_finalize"])
+          .limit(1000),
+        supabase.from("v3_customer_accounts").select("account_key,is_test").eq("is_test", true).limit(1000),
+      ]);
+      const rows = unwrap<
+        Array<{
+          intercom_conversation_id: string;
+          admin_assignee_id: string | null;
+          owner: string | null;
+          intercom_created_at: string | null;
+          tags: string[] | null;
+          rsa_override: boolean | null;
+          customer_resolution_method: string | null;
+          customer_key: string | null;
+        }>
+      >(ticketsRes as any);
+      const testAccountKeys = new Set(
+        unwrap<Array<{ account_key: string }>>(testRes as any).map((r) => r.account_key),
+      );
+      const hits = rows.filter(
+        (r) => !isSlaExcluded(r, { testAccountKeys }) && isUnassigned(r),
+      );
+      return {
+        count: hits.length,
+        oldestAt: minIso(hits.map((r) => r.intercom_created_at)),
+        items: hits.map((r) => ({
+          id: r.intercom_conversation_id,
+          intercomId: r.intercom_conversation_id,
+          label: ASSIGNMENT_GAP_LABEL[assignmentGap(r) ?? "unmapped"],
+        })),
+      };
+    },
+  },
+  {
+
     id: "escalations",
     label: "Open dev escalations",
     family: "queues",

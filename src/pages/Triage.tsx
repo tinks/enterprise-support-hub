@@ -19,6 +19,17 @@ import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
 
 import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
 
+import { useSearchParams } from "react-router-dom";
+import {
+  inTriageMode,
+  assignmentGap,
+  ASSIGNMENT_GAP_LABEL,
+  hasSeverityValue,
+  isTriageMode,
+  TRIAGE_MODE_LABEL,
+  type TriageQueueMode,
+} from "@/lib/triageQueues";
+
 import {
   computeSla,
   businessHoursBetween,
@@ -28,6 +39,7 @@ import {
   type BusinessHoursConfig,
 } from "@/lib/slaMetrics";
 
+
 type Row = {
   id: string;
   intercom_conversation_id: string;
@@ -35,6 +47,7 @@ type Row = {
   contact_name: string | null;
   contact_email: string | null;
   owner: string | null;
+  admin_assignee_id: string | null;
   customer_key: string | null;
   custom_attributes: any;
   intercom_created_at: string | null;
@@ -82,11 +95,6 @@ function bandFor(elapsedS: number, targetS: number): Band {
 }
 
 
-function hasSeverity(attrs: any): boolean {
-  const v = attrs?.["Severity"];
-  if (v == null) return false;
-  return String(v).trim() !== "";
-}
 
 export default function Triage() {
   const { policies, loading: policyLoading, error: policyError, resolveForAnchor } = useSlaPolicy();
@@ -95,6 +103,17 @@ export default function Triage() {
   const [search, setSearch] = useState("");
   const [owner, setOwner] = useState(ANY);
   const [customer, setCustomer] = useState(ANY);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const modeParam = searchParams.get("mode");
+  const mode: TriageQueueMode = isTriageMode(modeParam) ? modeParam : "needs_severity";
+  const setMode = (m: TriageQueueMode) => {
+    const next = new URLSearchParams(searchParams);
+    if (m === "needs_severity") next.delete("mode");
+    else next.set("mode", m);
+    setSearchParams(next, { replace: true });
+  };
+  const severityMode = mode === "needs_severity";
+
   const [nowS, setNowS] = useState(() => Math.floor(Date.now() / 1000));
 
   // Tick every 30s so ages/bands advance without a reload (data itself is not refetched).
@@ -119,7 +138,7 @@ export default function Triage() {
     const { data, error } = await supabase
       .from("intercom_tickets_v3")
       .select(
-        "id,intercom_conversation_id,subject,contact_name,contact_email,owner,customer_key,custom_attributes,intercom_created_at,last_synced_at,raw_payload",
+        "id,intercom_conversation_id,subject,contact_name,contact_email,owner,admin_assignee_id,customer_key,custom_attributes,intercom_created_at,last_synced_at,raw_payload",
       )
       .in("lifecycle_status", ["open", "reopened_after_finalize"])
       .limit(1000);
@@ -163,7 +182,7 @@ export default function Triage() {
   const untriaged = useMemo(() => {
     if (policyLoading) return [];
     return rows
-      .filter((r) => !hasSeverity(r.custom_attributes))
+      .filter((r) => inTriageMode(mode, r))
       .map((r) => {
         const sla = computeSla(r.raw_payload, undefined, businessHours);
         const createdS = r.intercom_created_at ? Math.floor(new Date(r.intercom_created_at).getTime() / 1000) : null;
@@ -181,7 +200,7 @@ export default function Triage() {
         };
       })
       .sort((a, b) => (b.businessS ?? -1) - (a.businessS ?? -1));
-  }, [rows, nowS, businessHours, targetS, policyLoading]);
+  }, [rows, nowS, businessHours, targetS, policyLoading, mode]);
 
   const ownerOpts = useMemo(
     () => Array.from(new Set(untriaged.map((r) => r.owner).filter(Boolean))).sort() as string[],
@@ -241,6 +260,21 @@ export default function Triage() {
     contactColumn<TriageRow>((r) => r.contact_name, (r) => r.contact_email),
     customerColumn<TriageRow>((r) => r.customer_key, accountLabel),
     ownerColumn<TriageRow>((r) => r.owner),
+    ...(severityMode
+      ? []
+      : [{
+          key: "missing",
+          header: "Missing",
+          width: "w-[170px]",
+          cellClassName: "text-xs",
+          cell: (r: TriageRow) => {
+            const gap = assignmentGap(r);
+            const parts: string[] = [];
+            if (gap) parts.push(ASSIGNMENT_GAP_LABEL[gap]);
+            if (!hasSeverityValue(r.custom_attributes)) parts.push("no severity");
+            return parts.length ? parts.join(" · ") : "—";
+          },
+        } as IssueColumn<TriageRow>]),
     {
       key: "age_business",
       header: "Age (business)",
@@ -248,9 +282,11 @@ export default function Triage() {
       cell: (r) => (
         <div className="flex items-center gap-2">
           <span className="font-medium tabular-nums">{r.businessS == null ? "—" : formatDuration(r.businessS)}</span>
-          <span className={`rounded-full border px-1.5 py-0.5 text-[10px] ${BAND_META[r.band].pill}`}>
-            {BAND_META[r.band].label}
-          </span>
+          {severityMode && (
+            <span className={`rounded-full border px-1.5 py-0.5 text-[10px] ${BAND_META[r.band].pill}`}>
+              {BAND_META[r.band].label}
+            </span>
+          )}
         </div>
       ),
     },
@@ -275,7 +311,8 @@ export default function Triage() {
         </div>
       ),
     },
-  ], [accountLabel]);
+  ], [accountLabel, severityMode]);
+
 
 
   const counts = useMemo(() => {
@@ -301,11 +338,24 @@ export default function Triage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-semibold tracking-tight">Triage queue</h1>
-              <Badge variant="outline" className="text-[10px]">Severity writes enabled</Badge>
+              {severityMode && (
+                <Badge variant="outline" className="text-[10px]">Severity writes enabled</Badge>
+              )}
             </div>
             <p className="text-sm text-muted-foreground">
-              Open Enterprise-Inbox tickets with no <code className="text-xs">Severity</code> assigned in Intercom,
-              oldest first. Graded against the triage target ({formatDuration(targetS)}, business hours — provisional).
+              {severityMode ? (
+                <>
+                  Open Enterprise-Inbox tickets with no <code className="text-xs">Severity</code> assigned in Intercom,
+                  oldest first. Graded against the triage target ({formatDuration(targetS)}, business hours — provisional).
+                </>
+              ) : mode === "unassigned" ? (
+                <>
+                  Open Enterprise-Inbox tickets with no Intercom assignee, or an assignee that isn't mapped to a Hub
+                  owner. Oldest first, no target.
+                </>
+              ) : (
+                <>Open Enterprise-Inbox tickets missing a Severity or an owner. Oldest first.</>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -318,28 +368,49 @@ export default function Triage() {
           </div>
         </div>
 
+        <div className="inline-flex rounded-md border border-border p-0.5">
+          {(["needs_severity", "unassigned", "either"] as TriageQueueMode[]).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMode(m)}
+              className={`rounded px-3 py-1.5 text-xs transition-colors ${
+                mode === m
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {TRIAGE_MODE_LABEL[m]}
+            </button>
+          ))}
+        </div>
+
         <PolicyFallbackBanner show={policyFallback} error={policyError} />
 
         <div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
           <span>
             No live Intercom feed. <code className="text-xs">sync-v3-open</code> runs every 5 minutes over tickets
-            changed since the last window, so a newly-triaged ticket leaves this queue within about 5 minutes.
+            changed since the last window, so a ticket that gets {severityMode ? "a severity" : "assigned"} leaves this
+            queue within about 5 minutes.
             Age is business-hours elapsed ({businessHours.dayStartHour}:00–{businessHours.dayEndHour}:00 {businessHours.tz},
             work days only), anchored on Enterprise-Inbox assignment where present, else ticket creation.
           </span>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {(["breached", "at_risk", "approaching", "ok"] as Band[]).map((b) => (
-            <div key={b} className={`rounded-md border px-3 py-1.5 text-xs ${BAND_META[b].pill}`}>
-              <span className="font-semibold">{counts[b]}</span> {BAND_META[b].label}
-            </div>
-          ))}
+          {severityMode &&
+            (["breached", "at_risk", "approaching", "ok"] as Band[]).map((b) => (
+              <div key={b} className={`rounded-md border px-3 py-1.5 text-xs ${BAND_META[b].pill}`}>
+                <span className="font-semibold">{counts[b]}</span> {BAND_META[b].label}
+              </div>
+            ))}
           <div className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">{filtered.length}</span> awaiting triage
+            <span className="font-semibold text-foreground">{filtered.length}</span>{" "}
+            {mode === "unassigned" ? "unassigned" : "awaiting triage"}
           </div>
         </div>
+
 
         <div className="flex items-center gap-2 flex-wrap">
           <Input
@@ -362,7 +433,7 @@ export default function Triage() {
               {customerOpts.map((k) => <SelectItem key={k} value={k as string}>{accountLabel(k)}</SelectItem>)}
             </SelectContent>
           </Select>
-          {canEdit && (
+          {canEdit && severityMode && (
             <Button
               size="sm"
               variant="outline"
@@ -383,8 +454,9 @@ export default function Triage() {
           columns={columns}
           getRowKey={(r) => r.id}
           loading={loading || policyLoading}
-          emptyMessage="Nothing awaiting triage."
-          rowClassName={(r) => BAND_META[r.band].row}
+          emptyMessage={mode === "unassigned" ? "Everything is assigned." : "Nothing awaiting triage."}
+          rowClassName={(r) => (severityMode ? BAND_META[r.band].row : "")}
+
           onRowClick={(r) => setSelected(r)}
         />
       </div>
@@ -457,8 +529,14 @@ export default function Triage() {
                     );
                     setSelected((s) => {
                       if (!s) return s;
-                      if (field === "severity") return null; // triaged — drops out of the queue
-                      if (field === "owner") return { ...s, owner: value };
+                      if (field === "severity")
+                        return mode === "unassigned"
+                          ? { ...s, custom_attributes: { ...(s.custom_attributes ?? {}), Severity: value } }
+                          : null; // triaged — drops out of the severity queue
+
+                      // Assigning an owner completes the unassigned queue's gap.
+                      if (field === "owner") return severityMode ? { ...s, owner: value } : null;
+
                       const key = field === "product_area" ? "Affected Product Area" : "Ticket type";
                       return { ...s, custom_attributes: { ...(s.custom_attributes ?? {}), [key]: value } };
                     });
