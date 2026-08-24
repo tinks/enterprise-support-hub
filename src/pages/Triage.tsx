@@ -35,6 +35,7 @@ type Row = {
   contact_name: string | null;
   contact_email: string | null;
   owner: string | null;
+  admin_assignee_id: string | null;
   customer_key: string | null;
   custom_attributes: any;
   intercom_created_at: string | null;
@@ -82,11 +83,6 @@ function bandFor(elapsedS: number, targetS: number): Band {
 }
 
 
-function hasSeverity(attrs: any): boolean {
-  const v = attrs?.["Severity"];
-  if (v == null) return false;
-  return String(v).trim() !== "";
-}
 
 export default function Triage() {
   const { policies, loading: policyLoading, error: policyError, resolveForAnchor } = useSlaPolicy();
