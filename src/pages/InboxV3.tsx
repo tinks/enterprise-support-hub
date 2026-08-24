@@ -431,7 +431,7 @@ export default function InboxV3() {
 
           <div className="flex flex-wrap items-center gap-2 mt-4">
             <Input
-              placeholder="Search subject, contact, Intercom ID…"
+              placeholder="Search subject, contact, Intercom ID, Linear issue…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="max-w-sm h-9"
