@@ -260,6 +260,21 @@ export default function Triage() {
     contactColumn<TriageRow>((r) => r.contact_name, (r) => r.contact_email),
     customerColumn<TriageRow>((r) => r.customer_key, accountLabel),
     ownerColumn<TriageRow>((r) => r.owner),
+    ...(severityMode
+      ? []
+      : [{
+          key: "missing",
+          header: "Missing",
+          width: "w-[170px]",
+          cellClassName: "text-xs",
+          cell: (r: TriageRow) => {
+            const gap = assignmentGap(r);
+            const parts: string[] = [];
+            if (gap) parts.push(ASSIGNMENT_GAP_LABEL[gap]);
+            if (!hasSeverityValue(r.custom_attributes)) parts.push("no severity");
+            return parts.length ? parts.join(" · ") : "—";
+          },
+        } as IssueColumn<TriageRow>]),
     {
       key: "age_business",
       header: "Age (business)",
@@ -267,9 +282,11 @@ export default function Triage() {
       cell: (r) => (
         <div className="flex items-center gap-2">
           <span className="font-medium tabular-nums">{r.businessS == null ? "—" : formatDuration(r.businessS)}</span>
-          <span className={`rounded-full border px-1.5 py-0.5 text-[10px] ${BAND_META[r.band].pill}`}>
-            {BAND_META[r.band].label}
-          </span>
+          {severityMode && (
+            <span className={`rounded-full border px-1.5 py-0.5 text-[10px] ${BAND_META[r.band].pill}`}>
+              {BAND_META[r.band].label}
+            </span>
+          )}
         </div>
       ),
     },
@@ -294,7 +311,8 @@ export default function Triage() {
         </div>
       ),
     },
-  ], [accountLabel]);
+  ], [accountLabel, severityMode]);
+
 
 
   const counts = useMemo(() => {
