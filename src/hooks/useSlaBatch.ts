@@ -86,27 +86,14 @@ export function classifySlaBatchRow(row: SlaBatchRow, sla: SlaResult, opts?: Cla
   // Manually-logged bulk-import threads have no real reply timestamps —
   // unmeasurable for SLA. Check BEFORE the other buckets.
   if (sla.flags.manuallyLogged) return "manuallyLogged";
-  const tags = Array.isArray(row.tags) ? row.tags : [];
-  const hasTag = (t: string) => tags.includes(t);
-  // Account-level test/sandbox exclusion (`test_account`). Sits alongside the
-  // tag-based fyi/duplicate/not_enterprise/merged/rsa exclusions. Gated by the
-  // page's "Show test data" toggle: default OFF → excluded so real compliance
-  // numbers are untouched; ON → falls through to normal classification.
-  const isTest = !!(row.customer_key && opts?.testAccountKeys?.has(row.customer_key));
-  if (isTest && !opts?.showTestData) return "excluded";
-  const excluded =
-    row.rsa_override === false ||
-    (row.rsa_override == null && (hasTag("enterprise-fyi") || hasTag("enterprise-duplicate"))) ||
-    hasTag("merged_ticket") ||
-    row.customer_resolution_method === "not_enterprise" ||
-    // Prospect gates (Rules 0b/4b): personal-email inquiries and unmapped enterprise-prospect
-    // tickets are OUT of the Enterprise SLA population — counted separately in Customers.
-    row.customer_resolution_method === "prospect_personal" ||
-    row.customer_resolution_method === "enterprise_prospect";
-  if (excluded) return "excluded";
+  // Shared predicate (src/lib/slaExclusions.ts) — also used by the Action Center
+  // SLA signals so the card and this table can never disagree on population.
+  if (isSlaExcluded(row, { testAccountKeys: opts?.testAccountKeys, showTestData: opts?.showTestData }))
+    return "excluded";
   if (sla.flags.noCustomerParticipant) return "noCustomer";
   return "inScope";
 }
+
 
 export type SlaOverrideMetric = "triage" | "first_response" | "resolution" | "cadence";
 export type SlaOverrideReason =
