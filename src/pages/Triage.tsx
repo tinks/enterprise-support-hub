@@ -530,7 +530,9 @@ export default function Triage() {
                     setSelected((s) => {
                       if (!s) return s;
                       if (field === "severity") return null; // triaged — drops out of the queue
-                      if (field === "owner") return { ...s, owner: value };
+                      // Assigning an owner completes the unassigned queue's gap.
+                      if (field === "owner") return severityMode ? { ...s, owner: value } : null;
+
                       const key = field === "product_area" ? "Affected Product Area" : "Ticket type";
                       return { ...s, custom_attributes: { ...(s.custom_attributes ?? {}), [key]: value } };
                     });
