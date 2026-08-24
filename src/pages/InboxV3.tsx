@@ -54,7 +54,17 @@ type Ticket = {
   customer_override_reason: string | null;
   transferred_at: string | null;
   reassigned_team_id: string | null;
+  custom_attributes: Record<string, unknown> | null;
 };
+
+/** Linear-bearing Intercom custom attributes, searchable in the Inbox v3 filter. */
+const LINEAR_ATTR_KEYS = ["Escalated Issue", "Linear Issue"];
+
+function linearRefs(row: { custom_attributes?: Record<string, unknown> | null }): string[] {
+  const ca = row.custom_attributes ?? {};
+  return LINEAR_ATTR_KEYS.map((k) => ca[k]).filter((v) => typeof v === "string" && v.trim()) as string[];
+}
+
 
 type AccountOpt = { account_key: string; label: string };
 
