@@ -170,7 +170,7 @@ export const ACTION_SIGNALS: ActionSignal[] = [
           .in("lifecycle_status", ["open", "reopened_after_finalize"])
           .limit(1000),
         supabase.from("sla_breach_overrides").select("intercom_conversation_id,metric").limit(1000),
-        supabase.from("v3_customer_accounts").select("customer_key,is_test").eq("is_test", true).limit(1000),
+        supabase.from("v3_customer_accounts").select("account_key,is_test").eq("is_test", true).limit(1000),
       ]);
       const tickets = unwrap<
         Array<{
