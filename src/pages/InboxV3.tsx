@@ -54,7 +54,17 @@ type Ticket = {
   customer_override_reason: string | null;
   transferred_at: string | null;
   reassigned_team_id: string | null;
+  custom_attributes: Record<string, unknown> | null;
 };
+
+/** Linear-bearing Intercom custom attributes, searchable in the Inbox v3 filter. */
+const LINEAR_ATTR_KEYS = ["Escalated Issue", "Linear Issue"];
+
+function linearRefs(row: { custom_attributes?: Record<string, unknown> | null }): string[] {
+  const ca = row.custom_attributes ?? {};
+  return LINEAR_ATTR_KEYS.map((k) => ca[k]).filter((v) => typeof v === "string" && v.trim()) as string[];
+}
+
 
 type AccountOpt = { account_key: string; label: string };
 
@@ -329,7 +339,7 @@ export default function InboxV3() {
         if (rsaFilter === "not_required" && v !== "not_required") return false;
       }
       if (q) {
-        const hay = [displaySubject(r), r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, ...(r.tags || [])]
+        const hay = [displaySubject(r), r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, ...(r.tags || []), ...linearRefs(r)]
           .filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
       }
@@ -421,7 +431,7 @@ export default function InboxV3() {
 
           <div className="flex flex-wrap items-center gap-2 mt-4">
             <Input
-              placeholder="Search subject, contact, Intercom ID…"
+              placeholder="Search subject, contact, Intercom ID, Linear issue…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="max-w-sm h-9"
