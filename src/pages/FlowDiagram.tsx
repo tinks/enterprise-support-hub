@@ -797,6 +797,24 @@ function buildNodes(
       },
     },
     {
+      id: "subject-override",
+      type: "flowNode",
+      position: { x: COL_W * 1.5, y: ROW_H * 2.9 },
+      data: {
+        label: "Subject override (Hub-only label)",
+        desc: "Intercom titles like \"Intercom #2154748...\" carry no meaning. The Hub can hold its own descriptive label. Display only — nothing is written to Intercom, and no SLA/triage measurement changes.",
+        icon: ClipboardList,
+        details: [
+          "Storage: intercom_tickets_v3.subject_override plus subject_override_by / subject_override_at. Intercom's own subject column is never touched, so a label can always be reverted. _shared/v3-finalize.ts writes only subject, so re-sync and finalize cannot clobber an override.",
+          "One display rule, in src/lib/subjectDisplay.ts: displaySubject(row) = subject_override → subject → \"Untitled\". Read by Triage, Inbox v3, Prospects, Dev escalations, SLA workbench (both violation tables + ticket header) and the Customer report. Search indexes BOTH the label and the original, so a ticket stays findable either way, and overridden rows show an 'edited · Intercom: <original>' subline — the label never hides what Intercom says.",
+          "Editing: inline pencil on the Subject cell of every v3 table (editors only) with a Clear action, plus a Subject field in TicketFieldsPanel kept visually separate from the Intercom-mirrored fields. This write does NOT go through esh-write-action — it is Hub-local by design, gated by the existing 'Editors update intercom_tickets_v3' policy (can_edit(auth.uid())); read-only roles get 'Update refused — editor role required.'",
+          "Audit: every set and clear appends subject_override_set / subject_override_cleared to conversation_audit_logs with old + new values and the acting email.",
+          "Verified 24 Aug 2026 on Intercom #215474865211089: label rendered with the Intercom subline, then edited and cleared through the UI, both actions logged to conversation_audit_logs and the row falling back to Intercom's subject. UNVERIFIED: the read-only refusal path.",
+        ],
+        accent: "blue",
+      },
+    },
+    {
       id: "severity-ai-proposal",
       type: "flowNode",
       position: { x: COL_W * 0.5, y: ROW_H * 2.6 },

@@ -13,6 +13,7 @@ import { useSlaPolicy } from "@/hooks/useSlaPolicy";
 import { PolicyFallbackBanner } from "@/components/sla/PolicyFallbackBanner";
 import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
 import { IssueDetailSheet, IssueField } from "@/components/issues/IssueDetailSheet";
+import { displaySubject } from "@/lib/subjectDisplay";
 import { idColumn, subjectColumn, contactColumn, customerColumn, ownerColumn } from "@/components/issues/issueColumns";
 import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
@@ -44,6 +45,7 @@ type Row = {
   id: string;
   intercom_conversation_id: string;
   subject: string | null;
+  subject_override: string | null;
   contact_name: string | null;
   contact_email: string | null;
   owner: string | null;
@@ -138,7 +140,7 @@ export default function Triage() {
     const { data, error } = await supabase
       .from("intercom_tickets_v3")
       .select(
-        "id,intercom_conversation_id,subject,contact_name,contact_email,owner,admin_assignee_id,customer_key,custom_attributes,intercom_created_at,last_synced_at,raw_payload",
+        "id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,owner,admin_assignee_id,customer_key,custom_attributes,intercom_created_at,last_synced_at,raw_payload",
       )
       .in("lifecycle_status", ["open", "reopened_after_finalize"])
       .limit(1000);
@@ -217,7 +219,7 @@ export default function Triage() {
       if (owner !== ANY && r.owner !== owner) return false;
       if (customer !== ANY && r.customer_key !== customer) return false;
       if (q) {
-        const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id]
+        const hay = [displaySubject(r), r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id]
           .filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
       }
@@ -256,7 +258,12 @@ export default function Triage() {
 
   const columns: IssueColumn<TriageRow>[] = useMemo(() => [
     idColumn<TriageRow>((r) => r.intercom_conversation_id),
-    subjectColumn<TriageRow>((r) => r.subject),
+    subjectColumn<TriageRow>((r) => displaySubject(r), undefined, {
+      conversationId: (r) => r.intercom_conversation_id,
+      subjectRow: (r) => r,
+      onSaved: (r, next) =>
+        setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, subject_override: next } : x))),
+    }),
     contactColumn<TriageRow>((r) => r.contact_name, (r) => r.contact_email),
     customerColumn<TriageRow>((r) => r.customer_key, accountLabel),
     ownerColumn<TriageRow>((r) => r.owner),
@@ -464,7 +471,7 @@ export default function Triage() {
       <IssueDetailSheet
         open={!!selected}
         onOpenChange={(o) => !o && setSelected(null)}
-        title={selected?.subject || "Untitled"}
+        title={displaySubject(selected)}
         conversationId={selected?.intercom_conversation_id ?? null}
       >
         {selected && (
@@ -508,6 +515,11 @@ export default function Triage() {
                 <div className="text-xs text-muted-foreground mb-2">Update ticket fields</div>
                 <TicketFieldsPanel
                   conversationId={selected.intercom_conversation_id}
+                  showSubject
+                  onSubjectSaved={(next) => {
+                    const id = selected.id;
+                    setRows((prev) => prev.map((x) => (x.id === id ? { ...x, subject_override: next } : x)));
+                  }}
                   currentSeverity={null}
                   currentOwner={selected.owner}
                   currentProductArea={selected.custom_attributes?.["Affected Product Area"] ?? null}

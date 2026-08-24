@@ -6,6 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, AlertTriangle, Check, RotateCw } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { useCanEdit } from "@/hooks/useCanEdit";
+import { Input } from "@/components/ui/input";
+import { displaySubject, saveSubjectOverride } from "@/lib/subjectDisplay";
 import {
   OVERRIDE_REASON_CODES,
   recordSeverityDecision,
@@ -68,6 +70,10 @@ export type TicketFieldsPanelProps = {
   currentOwner?: string | null;
   currentProductArea?: string | null;
   currentTicketType?: string | null;
+  /** Show the Hub-only subject label editor (never written to Intercom). */
+  showSubject?: boolean;
+  /** Fired after the Hub subject override is saved or cleared. */
+  onSubjectSaved?: (next: string | null) => void;
   /** Hide a field entirely (e.g. a surface that does not own severity). */
   show?: Partial<Record<FieldKey, boolean>>;
   /** Fired per field, only after Intercom accepted that field. */
@@ -80,6 +86,8 @@ export function TicketFieldsPanel({
   currentOwner = null,
   currentProductArea = null,
   currentTicketType = null,
+  showSubject = false,
+  onSubjectSaved,
   show,
   onWritten,
 }: TicketFieldsPanelProps) {
@@ -160,6 +168,46 @@ export function TicketFieldsPanel({
       cancelled = true;
     };
   }, [conversationId]);
+
+  // Hub-only subject label. Separate from the Intercom fields above: it never
+  // reaches Intercom, so it does not go through `esh-write-action`.
+  const [subjectRow, setSubjectRow] = useState<{ subject: string | null; subject_override: string | null } | null>(null);
+  const [subjectDraft, setSubjectDraft] = useState("");
+  const [subjectSaving, setSubjectSaving] = useState(false);
+  const [subjectMsg, setSubjectMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    if (!showSubject || !conversationId) return;
+    let cancelled = false;
+    setSubjectMsg(null);
+    supabase
+      .from("intercom_tickets_v3")
+      .select("subject,subject_override")
+      .eq("intercom_conversation_id", conversationId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setSubjectRow(data as any);
+        setSubjectDraft(displaySubject(data as any, ""));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, showSubject]);
+
+  const commitSubject = async (next: string | null) => {
+    setSubjectSaving(true);
+    const { error, saved } = await saveSubjectOverride(conversationId, next);
+    setSubjectSaving(false);
+    if (error) {
+      setSubjectMsg({ ok: false, text: error });
+      return;
+    }
+    setSubjectRow((r) => (r ? { ...r, subject_override: saved } : r));
+    setSubjectDraft(saved ?? subjectRow?.subject ?? "");
+    setSubjectMsg({ ok: true, text: saved ? "Subject label saved (Hub only)." : "Override cleared — showing Intercom's subject." });
+    onSubjectSaved?.(saved);
+  };
 
   const [owners, setOwners] = useState<string[]>([]);
   const [areas, setAreas] = useState<string[]>([]);
@@ -311,6 +359,43 @@ export function TicketFieldsPanel({
 
   return (
     <div className="space-y-2">
+      {showSubject && (
+        <div className="space-y-1">
+          <div className="grid grid-cols-[110px_1fr] gap-2 items-center">
+            <span className="text-xs text-muted-foreground">Subject</span>
+            <div className="flex items-center gap-2">
+              <Input
+                value={subjectDraft}
+                onChange={(e) => setSubjectDraft(e.target.value)}
+                disabled={subjectSaving}
+                placeholder="Descriptive subject…"
+                className="h-9 text-xs max-w-[280px]"
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={subjectSaving || subjectDraft.trim() === displaySubject(subjectRow, "")}
+                onClick={() => void commitSubject(subjectDraft)}
+              >
+                {subjectSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save label"}
+              </Button>
+              {subjectRow?.subject_override ? (
+                <Button size="sm" variant="ghost" disabled={subjectSaving} onClick={() => void commitSubject(null)}>
+                  Clear
+                </Button>
+              ) : null}
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground pl-[118px]">
+            Hub label only — Intercom keeps {subjectRow?.subject ? `"${subjectRow.subject}"` : "its own subject"}.
+          </p>
+          {subjectMsg && (
+            <p className={`text-xs pl-[118px] ${subjectMsg.ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+              {subjectMsg.text}
+            </p>
+          )}
+        </div>
+      )}
       {visible.severity && (
         <Row field="severity" placeholder="Set severity…" options={["1", "2", "3", "4"]} labelFor={(s) => `Severity ${s}`} />
       )}

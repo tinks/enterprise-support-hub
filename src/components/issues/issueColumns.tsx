@@ -2,6 +2,9 @@ import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { IntercomIdChip, type IssueColumn } from "./IssueTable";
+import { EditableSubject } from "./EditableSubject";
+import type { SubjectRow } from "@/lib/subjectDisplay";
+
 
 /** Column 1 everywhere: the Intercom conversation ID as a link. */
 export function idColumn<T>(get: (row: T) => string): IssueColumn<T> {
@@ -13,23 +16,42 @@ export function idColumn<T>(get: (row: T) => string): IssueColumn<T> {
   };
 }
 
-/** Column 2: subject, with an optional muted second line. */
+/**
+ * Column 2: subject, with an optional muted second line.
+ *
+ * Pass `edit` to make the cell click-to-edit (Hub-only override; Intercom is
+ * never written to). Without it the cell stays plain text.
+ */
 export function subjectColumn<T>(
   get: (row: T) => string | null,
   secondary?: (row: T) => ReactNode,
+  edit?: {
+    conversationId: (row: T) => string | null;
+    subjectRow: (row: T) => SubjectRow;
+    onSaved?: (row: T, next: string | null) => void;
+  },
 ): IssueColumn<T> {
   return {
     key: "subject",
     header: "Subject",
     cellClassName: "max-w-[380px]",
-    cell: (r) => (
-      <div className="min-w-0">
-        <div className="truncate">{get(r) || "Untitled"}</div>
-        {secondary ? <div className="text-[10px] text-muted-foreground truncate">{secondary(r)}</div> : null}
-      </div>
-    ),
+    cell: (r) =>
+      edit ? (
+        <EditableSubject
+          conversationId={edit.conversationId(r)}
+          row={edit.subjectRow(r)}
+          secondary={secondary ? secondary(r) : undefined}
+          onSaved={(next) => edit.onSaved?.(r, next)}
+        />
+      ) : (
+        <div className="min-w-0">
+          <div className="truncate">{get(r) || "Untitled"}</div>
+          {secondary ? <div className="text-[10px] text-muted-foreground truncate">{secondary(r)}</div> : null}
+        </div>
+      ),
   };
 }
+
 
 /** Column 3: contact name over email. */
 export function contactColumn<T>(

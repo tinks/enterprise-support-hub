@@ -8,6 +8,7 @@ import { Loader2, RefreshCw, Info, Download } from "lucide-react";
 import { format } from "date-fns";
 import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
 import { IssueDetailSheet, IssueField } from "@/components/issues/IssueDetailSheet";
+import { displaySubject } from "@/lib/subjectDisplay";
 import { idColumn, subjectColumn, contactColumn, customerColumn, ownerColumn, ageColumn } from "@/components/issues/issueColumns";
 import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 
@@ -15,6 +16,7 @@ type Ticket = {
   id: string;
   intercom_conversation_id: string;
   subject: string | null;
+  subject_override: string | null;
   contact_name: string | null;
   contact_email: string | null;
   contact_domain: string | null;
@@ -61,7 +63,7 @@ export default function Prospects() {
     const { data, error } = await supabase
       .from("intercom_tickets_v3")
       .select(
-        "id,intercom_conversation_id,subject,contact_name,contact_email,contact_domain,owner,product_area,classification,state,lifecycle_status,tags,customer_key,customer_source,intercom_created_at,intercom_closed_at",
+        "id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,contact_domain,owner,product_area,classification,state,lifecycle_status,tags,customer_key,customer_source,intercom_created_at,intercom_closed_at",
       )
       .overlaps("tags", tags)
       .order("intercom_created_at", { ascending: false, nullsFirst: false })
@@ -89,7 +91,7 @@ export default function Prospects() {
       if (lifecycle === "open" && r.lifecycle_status !== "open") return false;
       if (lifecycle === "finalized" && r.lifecycle_status === "open") return false;
       if (q) {
-        const hay = [r.subject, r.contact_name, r.contact_email, r.contact_domain, r.intercom_conversation_id, ...(r.tags || [])]
+        const hay = [displaySubject(r), r.subject, r.contact_name, r.contact_email, r.contact_domain, r.intercom_conversation_id, ...(r.tags || [])]
           .filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
       }
@@ -99,7 +101,12 @@ export default function Prospects() {
 
   const columns: IssueColumn<Ticket>[] = useMemo(() => [
     idColumn<Ticket>((r) => r.intercom_conversation_id),
-    subjectColumn<Ticket>((r) => r.subject),
+    subjectColumn<Ticket>((r) => displaySubject(r), undefined, {
+      conversationId: (r) => r.intercom_conversation_id,
+      subjectRow: (r) => r,
+      onSaved: (r, next) =>
+        setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, subject_override: next } : x))),
+    }),
     contactColumn<Ticket>((r) => r.contact_name, (r) => r.contact_email),
     customerColumn<Ticket>((r) => r.customer_key, accountLabel),
     ownerColumn<Ticket>((r) => r.owner),
@@ -121,11 +128,11 @@ export default function Prospects() {
   ], [accountLabel]);
 
   const exportCsv = () => {
-    const header = ["conversation_id", "subject", "contact_name", "contact_email", "contact_domain", "customer", "owner", "product_area", "classification", "state", "lifecycle_status", "tags", "created_at", "closed_at"];
+    const header = ["conversation_id", "subject", "intercom_subject", "contact_name", "contact_email", "contact_domain", "customer", "owner", "product_area", "classification", "state", "lifecycle_status", "tags", "created_at", "closed_at"];
     const lines = [header.join(",")];
     for (const r of filtered) {
       lines.push([
-        r.intercom_conversation_id, r.subject, r.contact_name, r.contact_email, r.contact_domain,
+        r.intercom_conversation_id, displaySubject(r), r.subject, r.contact_name, r.contact_email, r.contact_domain,
         accountLabel(r.customer_key), r.owner, r.product_area, r.classification, r.state, r.lifecycle_status,
         (r.tags || []).join(" | "), r.intercom_created_at, r.intercom_closed_at,
       ].map(csvCell).join(","));
@@ -220,7 +227,7 @@ export default function Prospects() {
       <IssueDetailSheet
         open={!!selected}
         onOpenChange={(o) => !o && setSelected(null)}
-        title={selected?.subject || "Untitled"}
+        title={displaySubject(selected)}
         conversationId={selected?.intercom_conversation_id ?? null}
       >
         {selected && (

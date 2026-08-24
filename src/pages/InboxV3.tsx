@@ -14,6 +14,8 @@ import { format, formatDistanceToNow, differenceInDays } from "date-fns";
 import { CLEAN_DATA_START_LABEL } from "@/pages/inbox-v3/constants";
 import { effectiveRsa } from "@/pages/inbox-v3/rsa";
 import { toast } from "@/hooks/use-toast";
+import { displaySubject } from "@/lib/subjectDisplay";
+import { EditableSubject } from "@/components/issues/EditableSubject";
 import { intercomUrl } from "@/lib/intercom";
 import { IntercomIdChip } from "@/components/issues/IssueTable";
 import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
@@ -287,6 +289,15 @@ export default function InboxV3() {
     toast({ title: "Reset to auto-derived" });
   };
 
+  const patchSubject = (t: Ticket, next: string | null) => {
+    const apply = (rows: Ticket[]) =>
+      rows.map((r) => (r.id === t.id ? ({ ...r, subject_override: next } as Ticket) : r));
+    setFinalizedRows(apply);
+    setActiveRows(apply);
+    setTransferredRows(apply);
+    setSelected((cur) => (cur && cur.id === t.id ? ({ ...cur, subject_override: next } as Ticket) : cur));
+  };
+
   const currentRows = tab === "finalized" ? finalizedRows : tab === "transferred" ? transferredRows : activeRows;
   const currentLoading = tab === "finalized" ? finalizedLoading : tab === "transferred" ? transferredLoading : activeLoading;
   const reload = tab === "finalized" ? loadFinalized : tab === "transferred" ? loadTransferred : loadActive;
@@ -318,7 +329,7 @@ export default function InboxV3() {
         if (rsaFilter === "not_required" && v !== "not_required") return false;
       }
       if (q) {
-        const hay = [r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, ...(r.tags || [])]
+        const hay = [displaySubject(r), r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, ...(r.tags || [])]
           .filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
       }
@@ -462,7 +473,7 @@ export default function InboxV3() {
           </div>
 
           <TabsContent value="finalized" className="mt-4">
-            <FinalizedTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} onMarkFinalized={markAsFinalized} accountLabel={accountLabel} />
+            <FinalizedTable rows={filtered} loading={currentLoading} onSelect={setSelected} onSubjectSaved={patchSubject} onCycleRsa={cycleRsa} onMarkFinalized={markAsFinalized} accountLabel={accountLabel} />
           </TabsContent>
 
           <TabsContent value="active" className="mt-4 space-y-3">
@@ -473,7 +484,7 @@ export default function InboxV3() {
                 populated at close. Sorted oldest-first to surface stale backlog.
               </span>
             </div>
-            <ActiveTable rows={filtered} loading={currentLoading} onSelect={setSelected} onCycleRsa={cycleRsa} onMarkFinalized={markAsFinalized} accountLabel={accountLabel} />
+            <ActiveTable rows={filtered} loading={currentLoading} onSelect={setSelected} onSubjectSaved={patchSubject} onCycleRsa={cycleRsa} onMarkFinalized={markAsFinalized} accountLabel={accountLabel} />
           </TabsContent>
 
           <TabsContent value="transferred" className="mt-4 space-y-3">
@@ -484,7 +495,7 @@ export default function InboxV3() {
                 active/open analytics. "Time in inbox" is a proxy (transferred − created).
               </span>
             </div>
-            <TransferredTable rows={filtered} loading={currentLoading} onSelect={setSelected} accountLabel={accountLabel} />
+            <TransferredTable rows={filtered} loading={currentLoading} onSelect={setSelected} onSubjectSaved={patchSubject} accountLabel={accountLabel} />
           </TabsContent>
         </Tabs>
       </div>
@@ -494,7 +505,7 @@ export default function InboxV3() {
           {selected && (
             <>
               <SheetHeader>
-                <SheetTitle className="truncate">{selected.subject || "Untitled"}</SheetTitle>
+                <SheetTitle className="truncate">{displaySubject(selected)}</SheetTitle>
                 <SheetDescription>
                   <a
                     href={intercomUrl(selected.intercom_conversation_id)} target="_blank" rel="noreferrer"
@@ -536,6 +547,8 @@ export default function InboxV3() {
                   <dd>
                     <TicketFieldsPanel
                       conversationId={selected.intercom_conversation_id}
+                      showSubject
+                      onSubjectSaved={(next) => patchSubject(selected, next)}
                       currentSeverity={null}
                       currentOwner={selected.owner}
                       currentProductArea={selected.product_area}
@@ -701,7 +714,7 @@ function RsaBadge({ t, onCycle }: { t: Ticket; onCycle: (t: Ticket) => void }) {
   );
 }
 
-function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, accountLabel }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void; onMarkFinalized: (t: Ticket) => void; accountLabel: (key: string | null) => string }) {
+function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, accountLabel, onSubjectSaved }: { rows: Ticket[]; loading: boolean; onSubjectSaved: (t: Ticket, next: string | null) => void; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void; onMarkFinalized: (t: Ticket) => void; accountLabel: (key: string | null) => string }) {
   return (
     <div className="rounded-md border border-border overflow-auto">
       <Table>
@@ -735,7 +748,9 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, 
           {!loading && rows.map((r) => (
             <TableRow key={r.id} className="cursor-pointer" onClick={() => onSelect(r)}>
               <TableCell><IntercomIdChip id={r.intercom_conversation_id} /></TableCell>
-              <TableCell className="truncate max-w-[320px]">{r.subject || "—"}</TableCell>
+              <TableCell className="max-w-[320px]" onClick={(e) => e.stopPropagation()}>
+                <EditableSubject conversationId={r.intercom_conversation_id} row={r} onSaved={(next) => onSubjectSaved(r, next)} />
+              </TableCell>
               <TableCell className="truncate max-w-[180px]">
                 <div className="text-sm">{r.contact_name || "—"}</div>
                 <div className="text-xs text-muted-foreground truncate">{r.contact_email || ""}</div>
@@ -790,7 +805,7 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, 
   );
 }
 
-function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, accountLabel }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void; onMarkFinalized: (t: Ticket) => void; accountLabel: (key: string | null) => string }) {
+function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, accountLabel, onSubjectSaved }: { rows: Ticket[]; loading: boolean; onSubjectSaved: (t: Ticket, next: string | null) => void; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void; onMarkFinalized: (t: Ticket) => void; accountLabel: (key: string | null) => string }) {
   const now = Date.now();
   return (
     <div className="rounded-md border border-border overflow-auto">
@@ -827,7 +842,9 @@ function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, acc
             return (
               <TableRow key={r.id} className="cursor-pointer" onClick={() => onSelect(r)}>
                 <TableCell><IntercomIdChip id={r.intercom_conversation_id} /></TableCell>
-                <TableCell className="truncate max-w-[360px]">{r.subject || "—"}</TableCell>
+                <TableCell className="max-w-[360px]" onClick={(e) => e.stopPropagation()}>
+                <EditableSubject conversationId={r.intercom_conversation_id} row={r} onSaved={(next) => onSubjectSaved(r, next)} />
+              </TableCell>
                 <TableCell className="truncate max-w-[200px]">
                   <div className="text-sm">{r.contact_name || "—"}</div>
                   <div className="text-xs text-muted-foreground truncate">{r.contact_email || ""}</div>
@@ -880,7 +897,7 @@ function Field({ label, value, mono }: { label: string; value: string | null; mo
   );
 }
 
-function TransferredTable({ rows, loading, onSelect, accountLabel }: { rows: Ticket[]; loading: boolean; onSelect: (t: Ticket) => void; accountLabel: (key: string | null) => string }) {
+function TransferredTable({ rows, loading, onSelect, accountLabel, onSubjectSaved }: { rows: Ticket[]; loading: boolean; onSubjectSaved: (t: Ticket, next: string | null) => void; onSelect: (t: Ticket) => void; accountLabel: (key: string | null) => string }) {
   return (
     <div className="rounded-md border border-border overflow-auto">
       <Table>
@@ -914,7 +931,9 @@ function TransferredTable({ rows, loading, onSelect, accountLabel }: { rows: Tic
             return (
               <TableRow key={r.id} className="cursor-pointer" onClick={() => onSelect(r)}>
                 <TableCell><IntercomIdChip id={r.intercom_conversation_id} /></TableCell>
-                <TableCell className="truncate max-w-[320px]">{r.subject || "—"}</TableCell>
+                <TableCell className="max-w-[320px]" onClick={(e) => e.stopPropagation()}>
+                <EditableSubject conversationId={r.intercom_conversation_id} row={r} onSaved={(next) => onSubjectSaved(r, next)} />
+              </TableCell>
                 <TableCell className="truncate max-w-[160px]">
                   <Badge variant="secondary" className="text-xs">
                     {r.customer_key ? accountLabel(r.customer_key) : (r.contact_domain || "—")}

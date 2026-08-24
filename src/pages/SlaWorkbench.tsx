@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, RefreshCw, Gauge, ArrowUpDown, ExternalLink, PlayCircle } from "lucide-react";
 import { format } from "date-fns";
+import { displaySubject } from "@/lib/subjectDisplay";
+
 import {
   aggregate,
   computeTicketSla,
@@ -1018,9 +1020,9 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
                         target="_blank"
                         rel="noreferrer"
                         className="text-foreground hover:underline"
-                        title={r.subject ?? ""}
+                        title={displaySubject(r, "")}
                       >
-                        {r.subject || `Intercom #${r.intercom_conversation_id}`}
+                        {displaySubject(r, `Intercom #${r.intercom_conversation_id}`)}
                       </a>
                     </td>
                     <td className="px-3 py-2"><OriginBadge origin={r.origin} /></td>
@@ -1160,9 +1162,9 @@ function LegacyBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
                         target="_blank"
                         rel="noreferrer"
                         className="text-foreground hover:underline"
-                        title={r.subject ?? ""}
+                        title={displaySubject(r, "")}
                       >
-                        {r.subject || `Intercom #${r.intercom_conversation_id}`}
+                        {displaySubject(r, `Intercom #${r.intercom_conversation_id}`)}
                       </a>
                     </td>
                     <td className="px-3 py-2 max-w-[200px] truncate text-muted-foreground" title={r.contact_email ?? ""}>
@@ -1917,9 +1919,9 @@ function ViolationsSection({
                           target="_blank"
                           rel="noreferrer"
                           className="text-foreground hover:underline block truncate"
-                          title={row.subject ?? ""}
+                          title={displaySubject(row, "")}
                         >
-                          {row.subject || `Intercom #${cid}`}
+                          {displaySubject(row, `Intercom #${cid}`)}
                         </a>
                         <span className="text-[11px] text-muted-foreground tabular-nums">#{cid}</span>
                         <div className="flex flex-wrap gap-1 mt-1">

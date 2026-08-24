@@ -9,6 +9,7 @@ import { Loader2, RefreshCw, ExternalLink, Info, Check, X } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
+import { displaySubject } from "@/lib/subjectDisplay";
 import { idColumn, subjectColumn, contactColumn, customerColumn, ownerColumn, ageColumn } from "@/components/issues/issueColumns";
 import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 import { useCanEdit } from "@/hooks/useCanEdit";
@@ -18,6 +19,7 @@ type Ticket = {
   id: string;
   intercom_conversation_id: string;
   subject: string | null;
+  subject_override: string | null;
   contact_name: string | null;
   contact_email: string | null;
   owner: string | null;
@@ -126,7 +128,7 @@ export default function Escalations() {
       supabase
         .from("intercom_tickets_v3")
         .select(
-          "id,intercom_conversation_id,subject,contact_name,contact_email,owner,customer_key,customer_resolution_method,lifecycle_status,state,custom_attributes,intercom_created_at,last_synced_at",
+          "id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,owner,customer_key,customer_resolution_method,lifecycle_status,state,custom_attributes,intercom_created_at,last_synced_at",
         )
         .limit(2000),
       supabase.from("dev_escalations").select("*"),
@@ -209,7 +211,7 @@ export default function Escalations() {
       if (customerFilter !== ANY && r.ticket.customer_key !== customerFilter) return false;
       if (q) {
         const hay = [
-          r.ticket.subject, r.ticket.contact_name, r.ticket.contact_email,
+          displaySubject(r.ticket), r.ticket.subject, r.ticket.contact_name, r.ticket.contact_email,
           r.ticket.intercom_conversation_id, r.linear.raw, r.esc?.note,
         ].filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
@@ -267,7 +269,14 @@ export default function Escalations() {
 
   const columns: IssueColumn<EscalationRow>[] = [
     idColumn<EscalationRow>((r) => r.ticket.intercom_conversation_id),
-    subjectColumn<EscalationRow>((r) => r.ticket.subject),
+    subjectColumn<EscalationRow>((r) => displaySubject(r.ticket), undefined, {
+      conversationId: (r) => r.ticket.intercom_conversation_id,
+      subjectRow: (r) => r.ticket,
+      onSaved: (r, next) =>
+        setTickets((prev) =>
+          prev.map((x) => (x.id === r.ticket.id ? { ...x, subject_override: next } : x)),
+        ),
+    }),
     contactColumn<EscalationRow>((r) => r.ticket.contact_name, (r) => r.ticket.contact_email),
     customerColumn<EscalationRow>((r) => r.ticket.customer_key, accountLabel),
     ownerColumn<EscalationRow>((r) => r.ticket.owner),
