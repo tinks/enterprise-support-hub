@@ -433,7 +433,7 @@ export default function Triage() {
               {customerOpts.map((k) => <SelectItem key={k} value={k as string}>{accountLabel(k)}</SelectItem>)}
             </SelectContent>
           </Select>
-          {canEdit && (
+          {canEdit && severityMode && (
             <Button
               size="sm"
               variant="outline"
@@ -454,8 +454,9 @@ export default function Triage() {
           columns={columns}
           getRowKey={(r) => r.id}
           loading={loading || policyLoading}
-          emptyMessage="Nothing awaiting triage."
-          rowClassName={(r) => BAND_META[r.band].row}
+          emptyMessage={mode === "unassigned" ? "Everything is assigned." : "Nothing awaiting triage."}
+          rowClassName={(r) => (severityMode ? BAND_META[r.band].row : "")}
+
           onRowClick={(r) => setSelected(r)}
         />
       </div>
