@@ -1,0 +1,49 @@
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: var(--font-sans); fill: hsl(var(--foreground)); }
+    .lbl { font-size: 14px; font-weight: 480; }
+    .sm { font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .mono { font-family: var(--font-mono); font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .box { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .zone { fill: none; stroke: hsl(var(--border)); stroke-width: 1; stroke-dasharray: 4 3; }
+    .wire { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+    .tag { font-size: 12px; fill: hsl(var(--border)); }
+  </style>
+  <defs>
+    <marker id="cv" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M1 1 L6 4 L1 7" fill="none" stroke="hsl(var(--muted-foreground))" stroke-width="1"/>
+    </marker>
+  </defs>
+
+  <rect class="zone" x="8" y="18" width="200" height="120" rx="8"/>
+  <text class="tag" x="18" y="36">open population</text>
+  <rect class="box" x="28" y="52" width="160" height="66" rx="8"/>
+  <text class="lbl" x="108" y="80" text-anchor="middle">intercom_tickets_v3</text>
+  <text class="sm" x="108" y="100" text-anchor="middle">open + reopened</text>
+
+  <line class="wire" x1="208" y1="85" x2="256" y2="85" marker-end="url(#cv)"/>
+
+  <rect class="box" x="256" y="34" width="150" height="46" rx="8"/>
+  <text class="lbl" x="331" y="62" text-anchor="middle">Needs severity</text>
+  <rect class="box" x="256" y="92" width="150" height="46" rx="8"/>
+  <text class="lbl" x="331" y="114" text-anchor="middle">Unassigned</text>
+  <text class="sm" x="331" y="130" text-anchor="middle">no assignee or owner</text>
+  <rect class="box" x="256" y="150" width="150" height="46" rx="8"/>
+  <text class="lbl" x="331" y="178" text-anchor="middle">Either missing</text>
+
+  <line class="wire" x1="406" y1="57" x2="452" y2="100" marker-end="url(#cv)"/>
+  <line class="wire" x1="406" y1="115" x2="452" y2="112" marker-end="url(#cv)"/>
+  <line class="wire" x1="406" y1="173" x2="452" y2="124" marker-end="url(#cv)"/>
+
+  <rect class="box" x="452" y="76" width="176" height="72" rx="8" fill="hsl(var(--muted))"/>
+  <text class="lbl" x="540" y="104" text-anchor="middle">/triage</text>
+  <text class="mono" x="540" y="124" text-anchor="middle">one table + filters</text>
+  <text class="sm" x="540" y="140" text-anchor="middle">detail sheet, write panel</text>
+
+  <circle cx="24" cy="232" r="10" fill="hsl(var(--accent))"/>
+  <text x="24" y="236" text-anchor="middle" font-size="12" fill="hsl(var(--accent-foreground))">1</text>
+  <text class="sm" x="44" y="236">Bands and the 30-minute target apply only in Needs severity.</text>
+  <circle cx="24" cy="262" r="10" fill="hsl(var(--accent))"/>
+  <text x="24" y="266" text-anchor="middle" font-size="12" fill="hsl(var(--accent-foreground))">2</text>
+  <text class="sm" x="44" y="266">Action Center gains an Unassigned card, filtered by the shared SLA exclusions.</text>
+</svg>
