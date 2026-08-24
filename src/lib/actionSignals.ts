@@ -188,7 +188,7 @@ export const ACTION_SIGNALS: ActionSignal[] = [
         overridesRes as any,
       );
       const testAccountKeys = new Set(
-        unwrap<Array<{ customer_key: string }>>(testRes as any).map((r) => r.customer_key),
+        unwrap<Array<{ account_key: string }>>(testRes as any).map((r) => r.account_key),
       );
       const excused = new Set(
         overrides.filter((o) => o.metric === "first_response").map((o) => o.intercom_conversation_id),
