@@ -19,6 +19,17 @@ import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
 
 import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
 
+import { useSearchParams } from "react-router-dom";
+import {
+  inTriageMode,
+  assignmentGap,
+  ASSIGNMENT_GAP_LABEL,
+  hasSeverityValue,
+  isTriageMode,
+  TRIAGE_MODE_LABEL,
+  type TriageQueueMode,
+} from "@/lib/triageQueues";
+
 import {
   computeSla,
   businessHoursBetween,
@@ -27,6 +38,7 @@ import {
   TRIAGE_TARGET_S,
   type BusinessHoursConfig,
 } from "@/lib/slaMetrics";
+
 
 type Row = {
   id: string;
