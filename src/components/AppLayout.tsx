@@ -65,6 +65,12 @@ const navEntries: NavEntry[] = [
   },
   {
     kind: "group",
+    label: "Dashboards (v3)",
+    icon: Users,
+    items: [],
+  },
+  {
+    kind: "group",
     label: "Tools",
     icon: Wrench,
     items: [
