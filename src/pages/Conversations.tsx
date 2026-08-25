@@ -863,7 +863,8 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       setManualOffset(0);
     }
 
-    const pageSize = (isHeatmapMode || isResolutionMode || isDayOnlyMode || isReportDrilldown || paramChannel || paramChannelGroup || paramManualChannel) ? 1000 : 50;
+    // Owner dashboards (/my/<owner>) load in one shot and scroll, like Inbox v3.
+    const pageSize = (forceOwner || isHeatmapMode || isResolutionMode || isDayOnlyMode || isReportDrilldown || paramChannel || paramChannelGroup || paramManualChannel) ? 1000 : 50;
 
     let slackQuery = supabase
       .from("conversation_mappings")
@@ -1230,9 +1231,10 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     );
 
   const totalPages = Math.max(1, Math.ceil(unified.length / PAGE_SIZE));
+  // Owner dashboards render every loaded row in a scroll container (no paging).
   const pagedRows = useMemo(
-    () => unified.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [unified, page],
+    () => (forceOwner ? unified : unified.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)),
+    [unified, page, forceOwner],
   );
 
   // Reset to page 1 whenever filters or the underlying dataset shape change.
@@ -2353,7 +2355,13 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${mc.is_test ? "o
                 </Table>
               </div>
               )}
-              {unified.length > PAGE_SIZE || (canLoadMore && unified.length > 0) ? (
+              {forceOwner ? (
+                unified.length > 0 ? (
+                  <p className="text-xs text-muted-foreground text-center pt-3">
+                    Showing all {unified.length} conversations
+                  </p>
+                ) : null
+              ) : unified.length > PAGE_SIZE || (canLoadMore && unified.length > 0) ? (
                 <ConversationsPagination
                   page={page}
                   totalPages={totalPages}
