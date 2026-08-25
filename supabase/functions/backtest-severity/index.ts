@@ -214,10 +214,16 @@ Deno.serve(async (req) => {
   }
 
   const scored = results.filter((r) => r.ai != null).length;
+  // A regression = a case the AI previously got right that the draft rubric now misses.
+  const previouslyCorrect = results.filter((r) => r.source === "showdown_agreed" && r.ai != null);
+  const regressions = previouslyCorrect.filter((r) => r.ai !== r.human).length;
 
   return json({
     scored,
     requested: set.length,
+    previouslyCorrect: previouslyCorrect.length,
+    regressions,
+
     exactMatch: exact,
     offByOne,
     offByTwoPlus: scored - exact - offByOne,
