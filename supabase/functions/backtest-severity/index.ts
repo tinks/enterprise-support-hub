@@ -26,7 +26,13 @@ function json(body: unknown, status = 200) {
   });
 }
 
-type Case = { id: string; excerpt: string; human: number; source: "decision" | "showdown" };
+type Case = {
+  id: string;
+  excerpt: string;
+  human: number;
+  source: "decision" | "showdown" | "showdown_agreed";
+};
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
