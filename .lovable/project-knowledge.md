@@ -637,6 +637,17 @@ Canonical owner options across the UI: **Joel, Kristina, Sam (AI agent), CSM, Er
 - Tine has no email, Slack user ID, or Intercom admin ID recorded yet.
 - Known teammate emails live in `src/lib/parseThread.ts` `ADMIN_OPTIONS` (e.g. Eren = `eren@lovable.dev`).
 
+### Owner dashboards v3 — `/my-v3/:owner` (parallel, read-only)
+
+**WHAT.** `src/pages/OwnerDashboardV3.tsx` is a v3-data mirror of the legacy `/my/:owner` dashboard, reachable from the new **Dashboards (v3)** sidebar group (same `useDashboardTeammates` roster, `/my/` swapped for `/my-v3/`). It reads `intercom_tickets_v3` only — the legacy `/my/*` pages still read `conversation_mappings` / `gmail_conversations` / `manual_conversations` and are untouched.
+
+- **Population:** `owner ilike :owner` AND `intercom_created_at >= CLEAN_DATA_START_ISO` (June 1 2026 v3 data floor) AND `lifecycle_status <> 'transferred_out'`, limit 2000, newest first.
+- **Two tabs:** *Active* = `lifecycle_status ∈ {open, reopened_after_finalize}` sorted oldest-first (work the queue); *Closed* = everything else, newest-first.
+- **Presentation:** the shared issue-view template — `IssueTable` + `issueColumns` (id/subject/contact/customer/age) + `IssueDetailSheet`, `displaySubject` for subject overrides, `useCustomerLabels` for customer names. Single scroll, no pager.
+- **READ-ONLY by design:** no replies, no field writes, no override tables. Editing stays on Triage / Inbox v3 / the ESH write panel.
+- **Parallel, not a cutover:** legacy `/my/:owner` remains the default **Dashboards** group. Retiring it is a separate, later decision once v3 numbers are trusted.
+- Verified against Matt: 21 active / 146 closed, matching direct SQL over the same predicate.
+
 To add a new owner:
 1. Append to `OWNER_OPTIONS` in `src/pages/Conversations.tsx` (also extend the `OwnerFilter` type), `src/pages/ConversationDetail.tsx`, and the `SelectItem` list in `src/pages/TestChannelReview.tsx`.
 2. Add to `OWNER_MAP` in `src/pages/BulkImportReview.tsx` (lowercase name → display name).
