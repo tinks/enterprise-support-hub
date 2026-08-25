@@ -132,10 +132,18 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     const items = e.items.filter(
       (i) => (!i.adminOnly || isAdmin) && (!i.editorOnly || canEdit),
     );
-    return {
-      ...e,
-      items: e.label === "Dashboards" ? [...items, ...dashboardTeammates] : items,
-    };
+    if (e.label === "Dashboards") return { ...e, items: [...items, ...dashboardTeammates] };
+    // v3 mirror: same roster, pointed at the v3 reporting dashboards.
+    if (e.label === "Dashboards (v3)") {
+      return {
+        ...e,
+        items: [
+          ...items,
+          ...dashboardTeammates.map((t) => ({ ...t, to: t.to.replace(/^\/my\//, "/my-v3/") })),
+        ],
+      };
+    }
+    return { ...e, items };
   });
 
   // Sidebar stays expanded if hovering sidebar OR the portalled menu
