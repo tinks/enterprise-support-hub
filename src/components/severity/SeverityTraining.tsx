@@ -418,12 +418,24 @@ export function SeverityBacktest({ rubricBody }: { rubricBody: string }) {
               ({result.exactMatch}/{result.scored}) · off by 1: {result.offByOne} · off by 2+: {result.offByTwoPlus}
             </span>
           </p>
+          {result.previouslyCorrect > 0 && (
+            <p className="text-xs">
+              Regressions{" "}
+              <span className={result.regressions > 0 ? "font-medium text-destructive" : "font-medium"}>
+                {result.regressions}
+              </span>{" "}
+              <span className="text-muted-foreground">
+                of {result.previouslyCorrect} case(s) the AI previously got right
+              </span>
+            </p>
+          )}
           {result.scored < 30 && (
             <Badge variant="outline" className="text-[10px]">
               UNVERIFIED — {result.scored} cases is a small sample; treat the number as directional
             </Badge>
           )}
           <div className="max-h-64 overflow-auto">
+
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-muted-foreground">
