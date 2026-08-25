@@ -96,24 +96,35 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { data: adjudicated } = await supabase
+  // Showdown ground truth: every item whose human severity still stands.
+  // That means the AI's failures (`ai_wrong`), the ties (`both_defensible`),
+  // AND the cases where the AI already agreed — otherwise a rubric draft that
+  // breaks previously-correct calls would backtest as a pure win.
+  // Only `human_wrong` is excluded: there the human label is not truth.
+  const { data: evalItems } = await supabase
     .from("severity_eval_items")
-    .select("intercom_conversation_id, human_severity, input_excerpt, created_at")
-    .eq("verdict", "ai_wrong")
+    .select("intercom_conversation_id, human_severity, ai_severity, verdict, input_excerpt, created_at")
+    .neq("verdict", "human_wrong")
     .not("input_excerpt", "is", null)
     .order("created_at", { ascending: false })
-    .limit(MAX_N);
+    .limit(MAX_N * 2);
 
-  for (const a of adjudicated ?? []) {
+  for (const a of evalItems ?? []) {
     const id = String((a as any).intercom_conversation_id);
     if (cases.some((c) => c.id === id)) continue;
+    const verdict = String((a as any).verdict ?? "");
+    const agreed = Number((a as any).ai_severity) === Number((a as any).human_severity);
+    // `pending` only qualifies when the AI already agreed (nothing to adjudicate).
+    const adjudicated = verdict === "ai_wrong" || verdict === "both_defensible" || verdict === "agree";
+    if (!adjudicated && !agreed) continue;
     cases.push({
       id,
       excerpt: String((a as any).input_excerpt),
       human: Number((a as any).human_severity),
-      source: "showdown",
+      source: agreed && !adjudicated ? "showdown_agreed" : "showdown",
     });
   }
+
 
   const set = cases.filter((c) => [1, 2, 3, 4].includes(c.human)).slice(0, n);
   if (set.length === 0) {
