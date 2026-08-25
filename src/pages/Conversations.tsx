@@ -1231,9 +1231,10 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
     );
 
   const totalPages = Math.max(1, Math.ceil(unified.length / PAGE_SIZE));
+  // Owner dashboards render every loaded row in a scroll container (no paging).
   const pagedRows = useMemo(
-    () => unified.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [unified, page],
+    () => (forceOwner ? unified : unified.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)),
+    [unified, page, forceOwner],
   );
 
   // Reset to page 1 whenever filters or the underlying dataset shape change.
