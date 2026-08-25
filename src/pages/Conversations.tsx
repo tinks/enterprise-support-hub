@@ -863,7 +863,8 @@ const Conversations = ({ forceOwner }: ConversationsProps = {}) => {
       setManualOffset(0);
     }
 
-    const pageSize = (isHeatmapMode || isResolutionMode || isDayOnlyMode || isReportDrilldown || paramChannel || paramChannelGroup || paramManualChannel) ? 1000 : 50;
+    // Owner dashboards (/my/<owner>) load in one shot and scroll, like Inbox v3.
+    const pageSize = (forceOwner || isHeatmapMode || isResolutionMode || isDayOnlyMode || isReportDrilldown || paramChannel || paramChannelGroup || paramManualChannel) ? 1000 : 50;
 
     let slackQuery = supabase
       .from("conversation_mappings")
