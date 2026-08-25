@@ -5,7 +5,10 @@
 //
 // Ground truth comes from two places:
 //   decisions — severity_proposals with a human final_severity
-//   showdown  — severity_eval_items adjudicated `ai_wrong` (human severity stands)
+//   showdown  — severity_eval_items whose human severity still stands: adjudicated
+//               `ai_wrong` / `both_defensible`, plus items the AI already got right
+//               (so regressions on correct cases show up). `human_wrong` excluded.
+
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireEditor } from "../_shared/require-editor.ts";
