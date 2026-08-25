@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 300" width="640" height="300">
+  <style>
+    text { font-family: var(--font-sans); fill: hsl(var(--foreground)); }
+    .lbl { font-size: 14px; font-weight: 480; }
+    .note { font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .mono { font-family: var(--font-mono); font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .box { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .zone { fill: none; stroke: hsl(var(--border)); stroke-width: 1; stroke-dasharray: 4 3; }
+    .wire { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+    .acc { fill: none; stroke: hsl(var(--accent)); stroke-width: 1; }
+  </style>
+  <defs>
+    <marker id="cv" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6" fill="none" stroke="hsl(var(--muted-foreground))" stroke-width="1"/>
+    </marker>
+  </defs>
+
+  <rect class="zone" x="8" y="26" width="290" height="240" rx="8"/>
+  <text class="note" x="20" y="46">existing — unchanged</text>
+  <rect class="box" x="30" y="60" width="180" height="34" rx="8"/>
+  <text class="mono" x="44" y="82">/my/:owner</text>
+  <rect class="box" x="30" y="112" width="180" height="34" rx="8"/>
+  <text class="lbl" x="44" y="134">Conversations.tsx</text>
+  <line class="wire" x1="120" y1="94" x2="120" y2="110" marker-end="url(#cv)"/>
+  <rect class="box" x="30" y="176" width="240" height="70" rx="8"/>
+  <text class="mono" x="44" y="200">conversation_mappings</text>
+  <text class="mono" x="44" y="218">gmail_conversations</text>
+  <text class="mono" x="44" y="236">manual_conversations</text>
+  <line class="wire" x1="120" y1="146" x2="120" y2="174" marker-end="url(#cv)"/>
+
+  <rect class="zone" x="330" y="26" width="302" height="240" rx="8"/>
+  <text class="note" x="342" y="46">new — parallel</text>
+  <rect class="acc" x="352" y="60" width="180" height="34" rx="8"/>
+  <text class="mono" x="366" y="82">/my-v3/:owner</text>
+  <rect class="acc" x="352" y="112" width="240" height="34" rx="8"/>
+  <text class="lbl" x="366" y="134">OwnerDashboardV3 · IssueTable</text>
+  <line class="wire" x1="442" y1="94" x2="442" y2="110" marker-end="url(#cv)"/>
+  <rect class="box" x="352" y="176" width="240" height="70" rx="8"/>
+  <text class="mono" x="366" y="200">intercom_tickets_v3</text>
+  <text class="note" x="366" y="220">owner = route param</text>
+  <text class="note" x="366" y="238">floor: June 1, 2026 · read-only</text>
+  <line class="wire" x1="442" y1="146" x2="442" y2="174" marker-end="url(#cv)"/>
+</svg>
