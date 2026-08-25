@@ -5,7 +5,10 @@
 //
 // Ground truth comes from two places:
 //   decisions — severity_proposals with a human final_severity
-//   showdown  — severity_eval_items adjudicated `ai_wrong` (human severity stands)
+//   showdown  — severity_eval_items whose human severity still stands: adjudicated
+//               `ai_wrong` / `both_defensible`, plus items the AI already got right
+//               (so regressions on correct cases show up). `human_wrong` excluded.
+
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireEditor } from "../_shared/require-editor.ts";
@@ -26,7 +29,13 @@ function json(body: unknown, status = 200) {
   });
 }
 
-type Case = { id: string; excerpt: string; human: number; source: "decision" | "showdown" };
+type Case = {
+  id: string;
+  excerpt: string;
+  human: number;
+  source: "decision" | "showdown" | "showdown_agreed";
+};
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -96,24 +105,35 @@ Deno.serve(async (req) => {
     });
   }
 
-  const { data: adjudicated } = await supabase
+  // Showdown ground truth: every item whose human severity still stands.
+  // That means the AI's failures (`ai_wrong`), the ties (`both_defensible`),
+  // AND the cases where the AI already agreed — otherwise a rubric draft that
+  // breaks previously-correct calls would backtest as a pure win.
+  // Only `human_wrong` is excluded: there the human label is not truth.
+  const { data: evalItems } = await supabase
     .from("severity_eval_items")
-    .select("intercom_conversation_id, human_severity, input_excerpt, created_at")
-    .eq("verdict", "ai_wrong")
+    .select("intercom_conversation_id, human_severity, ai_severity, verdict, input_excerpt, created_at")
+    .neq("verdict", "human_wrong")
     .not("input_excerpt", "is", null)
     .order("created_at", { ascending: false })
-    .limit(MAX_N);
+    .limit(MAX_N * 2);
 
-  for (const a of adjudicated ?? []) {
+  for (const a of evalItems ?? []) {
     const id = String((a as any).intercom_conversation_id);
     if (cases.some((c) => c.id === id)) continue;
+    const verdict = String((a as any).verdict ?? "");
+    const agreed = Number((a as any).ai_severity) === Number((a as any).human_severity);
+    // `pending` only qualifies when the AI already agreed (nothing to adjudicate).
+    const adjudicated = verdict === "ai_wrong" || verdict === "both_defensible" || verdict === "agree";
+    if (!adjudicated && !agreed) continue;
     cases.push({
       id,
       excerpt: String((a as any).input_excerpt),
       human: Number((a as any).human_severity),
-      source: "showdown",
+      source: agreed && !adjudicated ? "showdown_agreed" : "showdown",
     });
   }
+
 
   const set = cases.filter((c) => [1, 2, 3, 4].includes(c.human)).slice(0, n);
   if (set.length === 0) {
@@ -194,10 +214,16 @@ Deno.serve(async (req) => {
   }
 
   const scored = results.filter((r) => r.ai != null).length;
+  // A regression = a case the AI previously got right that the draft rubric now misses.
+  const previouslyCorrect = results.filter((r) => r.source === "showdown_agreed" && r.ai != null);
+  const regressions = previouslyCorrect.filter((r) => r.ai !== r.human).length;
 
   return json({
     scored,
     requested: set.length,
+    previouslyCorrect: previouslyCorrect.length,
+    regressions,
+
     exactMatch: exact,
     offByOne,
     offByTwoPlus: scored - exact - offByOne,

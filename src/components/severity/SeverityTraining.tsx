@@ -381,9 +381,11 @@ export function SeverityBacktest({ rubricBody }: { rubricBody: string }) {
         <div>
           <h2 className="text-sm font-medium">Backtest the rubric draft</h2>
           <p className="text-xs text-muted-foreground mt-1">
-            Re-scores tickets you have already decided (and showdown tickets where the AI was judged wrong) against the
-            rubric text currently in the editor. Costs one model call per ticket. Nothing is saved.
+            Re-scores tickets you have already decided, plus showdown tickets whose human severity still stands —
+            including ones the AI already got right, so a rubric edit that breaks them shows up as a regression.
+            Costs one model call per ticket. Nothing is saved.
           </p>
+
         </div>
         {canEdit && (
           <div className="flex items-center gap-2">
@@ -416,12 +418,24 @@ export function SeverityBacktest({ rubricBody }: { rubricBody: string }) {
               ({result.exactMatch}/{result.scored}) · off by 1: {result.offByOne} · off by 2+: {result.offByTwoPlus}
             </span>
           </p>
+          {result.previouslyCorrect > 0 && (
+            <p className="text-xs">
+              Regressions{" "}
+              <span className={result.regressions > 0 ? "font-medium text-destructive" : "font-medium"}>
+                {result.regressions}
+              </span>{" "}
+              <span className="text-muted-foreground">
+                of {result.previouslyCorrect} case(s) the AI previously got right
+              </span>
+            </p>
+          )}
           {result.scored < 30 && (
             <Badge variant="outline" className="text-[10px]">
               UNVERIFIED — {result.scored} cases is a small sample; treat the number as directional
             </Badge>
           )}
           <div className="max-h-64 overflow-auto">
+
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-muted-foreground">
