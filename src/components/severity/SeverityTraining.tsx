@@ -381,9 +381,11 @@ export function SeverityBacktest({ rubricBody }: { rubricBody: string }) {
         <div>
           <h2 className="text-sm font-medium">Backtest the rubric draft</h2>
           <p className="text-xs text-muted-foreground mt-1">
-            Re-scores tickets you have already decided (and showdown tickets where the AI was judged wrong) against the
-            rubric text currently in the editor. Costs one model call per ticket. Nothing is saved.
+            Re-scores tickets you have already decided, plus showdown tickets whose human severity still stands —
+            including ones the AI already got right, so a rubric edit that breaks them shows up as a regression.
+            Costs one model call per ticket. Nothing is saved.
           </p>
+
         </div>
         {canEdit && (
           <div className="flex items-center gap-2">
