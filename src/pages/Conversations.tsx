@@ -2355,7 +2355,13 @@ className={`cursor-pointer hover:bg-muted/50 transition-colors ${mc.is_test ? "o
                 </Table>
               </div>
               )}
-              {unified.length > PAGE_SIZE || (canLoadMore && unified.length > 0) ? (
+              {forceOwner ? (
+                unified.length > 0 ? (
+                  <p className="text-xs text-muted-foreground text-center pt-3">
+                    Showing all {unified.length} conversations
+                  </p>
+                ) : null
+              ) : unified.length > PAGE_SIZE || (canLoadMore && unified.length > 0) ? (
                 <ConversationsPagination
                   page={page}
                   totalPages={totalPages}
