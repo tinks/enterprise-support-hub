@@ -1218,7 +1218,7 @@ Leadership-facing, lean/at-a-glance. Top → bottom:
 Everything the old `/sla-test` did, restructured onto the shared hook and extended:
 
 - **Tab 1 — "Analyze by ID (live)":** ≤10 ids/URLs → `sla-ticket-analyze` → runs `computeSla` on each returned conversation. Per-ticket card shows headline strip (our human FRT calendar+BH vs Intercom `time_to_admin_reply` + Δ + Intercom SLA status), origin + flag badges, color-coded timeline, calendar | BH metric table, prominent amber "no customer / internal" warning. Validation / spot-check tool only.
-- **Tab 2 — "Batch (stored)":** the full data-behind-it view. Corrected/Legacy toggle preserved; full sortable per-ticket table preserved.
+- **Tab 2 — "Population review (snapshot)"** (renamed from "Batch (stored)", which described the storage mechanism rather than the job): the full data-behind-it view. Corrected/Legacy toggle preserved; full sortable per-ticket table preserved.
 
 **Batch KPI cards** aggregate over in-scope rows (all severities — severity-blind medians are useful HERE alongside the tables that show the severity/source segmentation):
 
