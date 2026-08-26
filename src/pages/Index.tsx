@@ -16,6 +16,7 @@ import ProductAreasCard from "@/components/ProductAreasCard";
 import AdminMappingCard from "@/components/AdminMappingCard";
 import SlackChannelAccountMapCard from "@/components/SlackChannelAccountMapCard";
 import IntegrationHealthCard from "@/components/IntegrationHealthCard";
+import ScheduledJobsCard from "@/components/ScheduledJobsCard";
 import IntercomFieldOptionsCard from "@/components/IntercomFieldOptionsCard";
 import InboxV3SyncCard from "@/components/InboxV3SyncCard";
 import TicketChannelTestCard from "@/components/TicketChannelTestCard";
@@ -401,6 +402,8 @@ const Index = () => {
         </div>
 
         <IntegrationHealthCard />
+
+        <ScheduledJobsCard />
 
         <InboxV3SyncCard />
 
