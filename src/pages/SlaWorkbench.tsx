@@ -1508,6 +1508,27 @@ function ComplianceSection({
                       {s.resBreach || "—"}
                       {s.resExcused > 0 && <span className="ml-1 text-muted-foreground text-[11px]">· {s.resExcused} excused</span>}
                     </td>
+                    {(() => {
+                      const c = activePolicy.cadence?.[sev] ?? null;
+                      return (
+                        <>
+                          <td className="px-3 py-2 text-xs text-muted-foreground">
+                            {c == null
+                              ? <span className="italic">no commitment — n/a</span>
+                              : <>{(c.clock === "business" ? formatBusinessDuration : formatDuration)(c.maxGapS)} <span className="text-muted-foreground/70">({c.clock === "business" ? "bh" : "cal"})</span></>}
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums font-medium">
+                            {c == null
+                              ? <span className="text-muted-foreground italic">n/a</span>
+                              : s.cadPct == null ? "—" : `${s.cadPct.toFixed(0)}%`}
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums text-destructive">
+                            {c == null ? <span className="text-muted-foreground">—</span> : (s.cadBreach || "—")}
+                            {s.cadExcused > 0 && <span className="ml-1 text-muted-foreground text-[11px]">· {s.cadExcused} excused</span>}
+                          </td>
+                        </>
+                      );
+                    })()}
                   </tr>
                 );
               })}
@@ -1521,10 +1542,14 @@ function ComplianceSection({
                 <td className="px-3 py-2 text-muted-foreground">—</td>
                 <td className="px-3 py-2 text-right text-muted-foreground">—</td>
                 <td className="px-3 py-2 text-right text-muted-foreground">—</td>
+                <td className="px-3 py-2 text-muted-foreground">—</td>
+                <td className="px-3 py-2 text-right text-muted-foreground">—</td>
+                <td className="px-3 py-2 text-right text-muted-foreground">—</td>
               </tr>
             </tbody>
           </table>
         </div>
+
 
         <div className="border-t border-border pt-3">
           <button
