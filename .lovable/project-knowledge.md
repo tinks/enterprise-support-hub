@@ -648,6 +648,23 @@ Canonical owner options across the UI: **Joel, Kristina, Sam (AI agent), CSM, Er
 - **Parallel, not a cutover:** legacy `/my/:owner` remains the default **Dashboards** group. Retiring it is a separate, later decision once v3 numbers are trusted.
 - Verified against Matt: 21 active / 146 closed, matching direct SQL over the same predicate.
 
+### Intercom webhook — acknowledge first, process in the background
+
+**WHY.** Project monitoring caught `POST /functions/v1/intercom-webhook` returning 503 x16, 504 x2 and 520 x1 over one log window (2026-08-25). The handler did everything inside the request — signature verify, Supabase reads/writes, Intercom conversation fetch, Gmail email/subject matching, Slack posts — so one slow upstream call held the socket until the platform killed it, and bursts of concurrent deliveries piled up long-lived instances.
+
+**SHAPE NOW (`supabase/functions/intercom-webhook/index.ts`).**
+- `Deno.serve` does only: CORS preflight → read body → `verifyIntercomSignature`. A bad signature still returns **401**; nothing else is synchronous.
+- It then returns **200 `{ ok: true, accepted: true }` immediately** and hands the payload to `handleEvent(rawBody)` via `EdgeRuntime.waitUntil`. `handleEvent` is the entire previous handler, moved verbatim — every topic branch, the dedup claims, the Gmail linking tiers, the cross-thread link guard, `pending_intercom_links`, and the Slack posts are unchanged.
+- Each background run logs `[timing] handleEvent <ms> status=<code>` so the branch cost is observable.
+
+**OUTBOUND TIMEOUTS.** A module-level `fetch` wrapper attaches `AbortSignal.timeout(8000)` to any call that does not already pass a signal. A hung Intercom or Slack call now fails fast and is handled instead of running out the request clock.
+
+**DEAD LETTER — the replacement for Intercom's retry.** Because we answer 200 before doing the work, Intercom no longer retries a failure. Instead `recordWebhookFailure()` writes `public.intercom_webhook_failures` (`topic`, `intercom_conversation_id`, `error`, full `payload` jsonb, `created_at`, plus `replayed_at`/`replay_ok` for later replay) and posts a `:shield:` alert to `#enterprise-support-hub-alerts` under the existing "Support Hub Guard" identity. Both are wrapped in try/catch: a dead-letter write can never mask the original error. RLS: authenticated SELECT, service_role full.
+
+**VERIFIED (2026-08-26).** Bad-signature POST → 401 (negative case, checked). 13 live deliveries after deploy all logged `status=200`, 613–1931 ms. `intercom_webhook_failures` = 0 rows. **UNVERIFIED:** the 24-hour 503/504/520 count against the 19-failure baseline — that window has not elapsed. Replay of a stored dead-letter payload is also UNVERIFIED (no failure row has occurred yet to replay), and no replay UI exists yet.
+
+
+
 To add a new owner:
 1. Append to `OWNER_OPTIONS` in `src/pages/Conversations.tsx` (also extend the `OwnerFilter` type), `src/pages/ConversationDetail.tsx`, and the `SelectItem` list in `src/pages/TestChannelReview.tsx`.
 2. Add to `OWNER_MAP` in `src/pages/BulkImportReview.tsx` (lowercase name → display name).
