@@ -1218,7 +1218,7 @@ Leadership-facing, lean/at-a-glance. Top → bottom:
 Everything the old `/sla-test` did, restructured onto the shared hook and extended:
 
 - **Tab 1 — "Analyze by ID (live)":** ≤10 ids/URLs → `sla-ticket-analyze` → runs `computeSla` on each returned conversation. Per-ticket card shows headline strip (our human FRT calendar+BH vs Intercom `time_to_admin_reply` + Δ + Intercom SLA status), origin + flag badges, color-coded timeline, calendar | BH metric table, prominent amber "no customer / internal" warning. Validation / spot-check tool only.
-- **Tab 2 — "Batch (stored)":** the full data-behind-it view. Corrected/Legacy toggle preserved; full sortable per-ticket table preserved.
+- **Tab 2 — "Population review (snapshot)"** (renamed from "Batch (stored)", which described the storage mechanism rather than the job): the full data-behind-it view. Corrected/Legacy toggle preserved; full sortable per-ticket table preserved.
 
 **Batch KPI cards** aggregate over in-scope rows (all severities — severity-blind medians are useful HERE alongside the tables that show the severity/source segmentation):
 
@@ -1296,6 +1296,10 @@ Surfaced as the Report §2b **"Triage discipline (provisional 30-min target)"** 
 - **`public.sla_breach_overrides` still physically exists but is a DEAD MIRROR** — unreferenced by any code path, holding 4 stale `resolution` rows that were copied into `sla_violation_overrides` at consolidation time. It is a **cleanup candidate**, not a live table; do not read or write it.
 
 **Workbench surface** (`src/pages/SlaWorkbench.tsx`, same `filteredInScope` population / window / customer filter as everything else on the page) is now a **unified Violations table** with one column per metric — **First response · Resolution · Triage · Cadence** — each cell excusable through the shared `ExcuseDialog` (writes the matching `metric`). Header: **total violations · excused · OVERRIDE-RATE % · unexcused**, plus a per-reason breakdown across all metrics. Reason **auto-suggestion** is per metric: triage → `recorded_at_close`, else `answered_before_classified`; cadence → `customer_hold` when the worst gap overlapped a customer-wait.
+
+**Violations table sorting (UI-only).** A **Sort** selector sits next to "Hide fully-excused": default **Worst first (most misses)** (unchanged from the previous implicit order), plus **Severity Sev 1-first**, **Severity Sev 4-first**, **Longest resolution**, **Longest first response**, **Oldest**, **Newest**. Rows with **unknown severity always sink** to the bottom of the severity sorts. Sorting operates on a **copy** of the row array, so the header counts (total / excused / override-rate / unexcused) and the per-reason breakdown are computed from the unsorted set and never change with sort order.
+
+**Cadence in "Compliance vs proposed SLA targets" (Workbench `ComplianceSection`).** The per-severity compliance table now carries **Cadence target · Cadence %met · Cadence breaches (with excused count inline)**, matching the existing First-Response and Resolution column triplets. Cadence is scored per row with `evaluateCadence(sla, sev, row.policy.cadence[sev]?.maxGapS)` — the same call the Violations table already used — so the summary and the detail can never disagree. Severities with **no cadence target render no cell content** rather than a misleading 100%.
 
 **Why the unified table.** Override-rate is a tracked **red-flag KPI** — a high rate means the *target or the population* is wrong, not that the team is excused. One table + one section keeps the tail workable: excuse off-hours / non-support-thread / customer-hold noise so the **genuine misses stand alone**, with no chance of the same ticket being excused in one place and counted in another.
 
