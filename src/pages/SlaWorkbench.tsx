@@ -1977,10 +1977,26 @@ function ViolationsSection({
             {open ? "▾" : "▸"} Violation detail ({rows.length} tickets)
           </button>
           {open && (
-            <label className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Switch checked={hideExcused} onCheckedChange={setHideExcused} />
-              Hide fully-excused tickets
-            </label>
+            <>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Switch checked={hideExcused} onCheckedChange={setHideExcused} />
+                Hide fully-excused tickets
+              </label>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <ArrowUpDown className="h-3.5 w-3.5" />
+                Sort
+                <Select value={sortKey} onValueChange={(v) => setSortKey(v as ViolSortKey)}>
+                  <SelectTrigger className="h-7 w-[220px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(VIOL_SORT_LABELS) as ViolSortKey[]).map((k) => (
+                      <SelectItem key={k} value={k} className="text-xs">{VIOL_SORT_LABELS[k]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+            </>
           )}
         </div>
 
