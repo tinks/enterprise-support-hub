@@ -1470,6 +1470,9 @@ function ComplianceSection({
                 <th className="text-left px-3 py-2 font-medium">Res target</th>
                 <th className="text-right px-3 py-2 font-medium">Res %met</th>
                 <th className="text-right px-3 py-2 font-medium">Res breaches</th>
+                <th className="text-left px-3 py-2 font-medium">Cadence target</th>
+                <th className="text-right px-3 py-2 font-medium">Cadence %met</th>
+                <th className="text-right px-3 py-2 font-medium">Cadence breaches</th>
               </tr>
             </thead>
             <tbody>
