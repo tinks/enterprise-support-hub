@@ -1810,6 +1810,7 @@ function ViolationsSection({
   const { isAdmin } = useIsAdmin();
   const [open, setOpen] = useState(false);
   const [hideExcused, setHideExcused] = useState(false);
+  const [sortKey, setSortKey] = useState<ViolSortKey>("worst");
   const [excuseTarget, setExcuseTarget] = useState<{ cid: string; metric: ViolMetric; subject: string | null; suggestedReason?: SlaOverrideReason } | null>(null);
 
   const rows = useMemo<ViolationRow[]>(() => {
