@@ -1864,7 +1864,7 @@ function ViolationsSection({
     };
   }, [rows, getOverride]);
 
-  const visible = useMemo(() => {
+  const filtered = useMemo(() => {
     if (!hideExcused) return rows;
     return rows.filter((v) => {
       const cid = v.row.intercom_conversation_id;
@@ -1872,6 +1872,49 @@ function ViolationsSection({
       return open("triage", v.triageMiss) || open("first_response", v.frMiss) || open("resolution", v.resMiss) || open("cadence", v.cadenceMiss);
     });
   }, [rows, hideExcused, isExcused]);
+
+  // Sorting. "worst" is the pre-existing default (most misses, then biggest
+  // resolution overshoot) and is preserved exactly; the other keys re-sort a
+  // COPY so `rows` (and therefore the summary counts) are never mutated.
+  // Unclassified severity always sinks to the bottom of severity sorts — an
+  // absent severity is not "Sev 5", it is unknown.
+  const missCount = (v: ViolationRow) =>
+    Number(v.triageMiss) + Number(v.frMiss) + Number(v.resMiss) + Number(v.cadenceMiss);
+
+  const visible = useMemo(() => {
+    if (sortKey === "worst") return filtered;
+    const out = [...filtered];
+    const created = (v: ViolationRow) => {
+      const t = v.row.intercom_created_at ? Date.parse(v.row.intercom_created_at) : NaN;
+      return Number.isNaN(t) ? 0 : t;
+    };
+    out.sort((a, b) => {
+      switch (sortKey) {
+        case "severity": {
+          const sa = a.severity ?? 99, sb = b.severity ?? 99;
+          if (sa !== sb) return sa - sb;
+          return missCount(b) - missCount(a);
+        }
+        case "severity_desc": {
+          const sa = a.severity ?? -1, sb = b.severity ?? -1;
+          if (sa !== sb) return sb - sa;
+          return missCount(b) - missCount(a);
+        }
+        case "resolution":
+          return (b.compliance?.resolution.value ?? 0) - (a.compliance?.resolution.value ?? 0);
+        case "first_response":
+          return (b.compliance?.firstResponse.value ?? 0) - (a.compliance?.firstResponse.value ?? 0);
+        case "oldest":
+          return created(a) - created(b);
+        case "newest":
+          return created(b) - created(a);
+        default:
+          return 0;
+      }
+    });
+    return out;
+  }, [filtered, sortKey]);
+
 
   return (
     <Card>
