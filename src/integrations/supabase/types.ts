@@ -974,6 +974,39 @@ export type Database = {
         }
         Relationships: []
       }
+      intercom_webhook_failures: {
+        Row: {
+          created_at: string
+          error: string
+          id: string
+          intercom_conversation_id: string | null
+          payload: Json
+          replay_ok: boolean | null
+          replayed_at: string | null
+          topic: string | null
+        }
+        Insert: {
+          created_at?: string
+          error: string
+          id?: string
+          intercom_conversation_id?: string | null
+          payload: Json
+          replay_ok?: boolean | null
+          replayed_at?: string | null
+          topic?: string | null
+        }
+        Update: {
+          created_at?: string
+          error?: string
+          id?: string
+          intercom_conversation_id?: string | null
+          payload?: Json
+          replay_ok?: boolean | null
+          replayed_at?: string | null
+          topic?: string | null
+        }
+        Relationships: []
+      }
       knowledge_documents: {
         Row: {
           content: string

@@ -57,6 +57,13 @@
       "when": 1787586214091,
       "tag": "0007_add_v3_subject_override",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787748060000,
+      "tag": "0008_create_intercom_webhook_failures",
+      "breakpoints": true
     }
   ]
 }
