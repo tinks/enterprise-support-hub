@@ -642,7 +642,7 @@ function DualMetricRow({
 }
 
 // ============================================================================
-// TAB 2 · Batch (stored)
+// TAB 2 · Population review (snapshot) — formerly "Batch (stored)"
 // ============================================================================
 type BatchMode = "corrected" | "legacy";
 
