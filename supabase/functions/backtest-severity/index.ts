@@ -130,7 +130,9 @@ Deno.serve(async (req) => {
       id,
       excerpt: String((a as any).input_excerpt),
       human: Number((a as any).human_severity),
-      source: agreed && !adjudicated ? "showdown_agreed" : "showdown",
+      // Previously-correct cases are the regression detectors, regardless of
+      // whether they carry an explicit `agree` verdict or are still `pending`.
+      source: agreed ? "showdown_agreed" : "showdown",
     });
   }
 
