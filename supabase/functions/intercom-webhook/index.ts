@@ -1752,9 +1752,74 @@ Deno.serve(async (req) => {
   } catch (error: unknown) {
     console.error("Error in intercom-webhook:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    // The HTTP response was already sent (200) before this ran, so Intercom will
+    // NOT retry. The dead-letter row + alert is the replacement safety net.
+    await recordWebhookFailure(supabase, rawBody, errorMessage);
     return new Response(JSON.stringify({ error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+}
+
+// ─── Transport layer ───
+// Verify the signature, acknowledge Intercom immediately, then do the real work
+// in the background. Everything above this point used to run INSIDE the request,
+// which is what produced the 504s (slow Intercom/Slack calls holding the socket)
+// and 503s (many long-lived instances at once).
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const INTERCOM_WEBHOOK_SECRET = Deno.env.get("INTERCOM_WEBHOOK_SECRET");
+  if (!INTERCOM_WEBHOOK_SECRET) {
+    return new Response(JSON.stringify({ error: "INTERCOM_WEBHOOK_SECRET not configured" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const rawBody = await req.text();
+  const isValid = await verifyIntercomSignature(
+    rawBody,
+    req.headers.get("x-hub-signature"),
+    INTERCOM_WEBHOOK_SECRET,
+  );
+  if (!isValid) {
+    console.error("Invalid Intercom webhook signature");
+    return new Response(JSON.stringify({ error: "Invalid signature" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const work = (async () => {
+    const started = Date.now();
+    try {
+      const res = await handleEvent(rawBody);
+      console.log(`[timing] handleEvent ${Date.now() - started}ms status=${res.status}`);
+    } catch (err) {
+      // handleEvent has its own catch; this covers anything thrown outside it.
+      console.error("intercom-webhook background failure:", err);
+      try {
+        const supabase = createClient(
+          Deno.env.get("SUPABASE_URL")!,
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+        );
+        await recordWebhookFailure(supabase, rawBody, err instanceof Error ? err.message : String(err));
+      } catch (inner) {
+        console.error("dead-letter write failed:", inner);
+      }
+    }
+  })();
+
+  // deno-lint-ignore no-explicit-any
+  const runtime = (globalThis as any).EdgeRuntime;
+  if (runtime?.waitUntil) runtime.waitUntil(work);
+
+  return new Response(JSON.stringify({ ok: true, accepted: true }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 });
