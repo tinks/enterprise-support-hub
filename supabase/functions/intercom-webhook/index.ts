@@ -131,30 +131,62 @@ async function verifyIntercomSignature(
   return computed === expected;
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+// Records a delivery that failed AFTER we already answered Intercom 200, so the
+// event is recoverable by hand instead of silently lost. Never throws.
+// deno-lint-ignore no-explicit-any
+async function recordWebhookFailure(supabase: any, rawBody: string, errorMessage: string) {
+  let payload: unknown = { raw: rawBody.slice(0, 20000) };
+  let topic: string | null = null;
+  let convId: string | null = null;
+  try {
+    const parsed = JSON.parse(rawBody);
+    payload = parsed;
+    topic = parsed?.topic ?? null;
+    const id = parsed?.data?.item?.id ?? parsed?.data?.item?.ticket?.id;
+    convId = id ? String(id) : null;
+  } catch { /* keep the raw body */ }
 
-  const INTERCOM_WEBHOOK_SECRET = Deno.env.get("INTERCOM_WEBHOOK_SECRET");
-  if (!INTERCOM_WEBHOOK_SECRET) {
-    return new Response(JSON.stringify({ error: "INTERCOM_WEBHOOK_SECRET not configured" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+  try {
+    await supabase.from("intercom_webhook_failures").insert({
+      topic,
+      intercom_conversation_id: convId,
+      error: errorMessage.slice(0, 2000),
+      payload,
     });
+  } catch (e) {
+    console.error("Failed to write intercom_webhook_failures row:", e);
   }
 
-  const rawBody = await req.text();
-  const hubSignature = req.headers.get("x-hub-signature");
-
-  const isValid = await verifyIntercomSignature(rawBody, hubSignature, INTERCOM_WEBHOOK_SECRET);
-  if (!isValid) {
-    console.error("Invalid Intercom webhook signature");
-    return new Response(JSON.stringify({ error: "Invalid signature" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+  try {
+    const token = Deno.env.get("SLACK_BOT_TOKEN");
+    if (!token) return;
+    await fetch(`${SLACK_API_URL}/chat.postMessage`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        channel: ALERT_CHANNEL_ID,
+        text: `:shield: Intercom webhook delivery failed — topic \`${topic ?? "unknown"}\`, conversation \`${convId ?? "unknown"}\`: ${errorMessage.slice(0, 300)}`,
+        username: "Support Hub Guard",
+        icon_emoji: ":shield:",
+      }),
     });
+  } catch (e) {
+    console.error("Failed to alert on webhook failure:", e);
   }
+}
+
+// Every outbound call gets a hard ceiling. A hung Intercom or Slack call used to
+// hold the whole request open until the platform killed it (504).
+const OUTBOUND_TIMEOUT_MS = 8000;
+const baseFetch = globalThis.fetch;
+globalThis.fetch = ((input: any, init?: RequestInit) => {
+  if (init?.signal) return baseFetch(input, init);
+  return baseFetch(input, { ...(init ?? {}), signal: AbortSignal.timeout(OUTBOUND_TIMEOUT_MS) });
+}) as typeof fetch;
+
+// The full event pipeline. Runs in the background after the 200 is already sent.
+async function handleEvent(rawBody: string): Promise<Response> {
+
 
   const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN");
   if (!SLACK_BOT_TOKEN) {
