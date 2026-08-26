@@ -127,7 +127,7 @@ export default function SlaWorkbench() {
         <Tabs defaultValue="live" className="w-full">
           <TabsList>
             <TabsTrigger value="live">Analyze by ID (live)</TabsTrigger>
-            <TabsTrigger value="batch">Batch (stored)</TabsTrigger>
+            <TabsTrigger value="batch">Population review (snapshot)</TabsTrigger>
           </TabsList>
 
           <TabsContent value="live" className="mt-4">
@@ -642,7 +642,7 @@ function DualMetricRow({
 }
 
 // ============================================================================
-// TAB 2 · Batch (stored)
+// TAB 2 · Population review (snapshot) — formerly "Batch (stored)"
 // ============================================================================
 type BatchMode = "corrected" | "legacy";
 
@@ -1304,6 +1304,10 @@ function ComplianceSection({
   const rowSummary = (b: SeverityBucket) => {
     let frMet = 0, frBreach = 0, frExcused = 0, frNotEval = 0;
     let resMet = 0, resBreach = 0, resExcused = 0, resNotEval = 0;
+    // Cadence mirrors FR/Res exactly: met / breach / excused / not-evaluable.
+    // Sev 3–4 carry no cadence commitment, so evaluateCadence returns null and
+    // every one of their rows lands in cadNotEval — never scored as a miss.
+    let cadMet = 0, cadBreach = 0, cadExcused = 0, cadNotEval = 0;
     for (const { row, compliance } of b.rows) {
       const includeFr = frBasis === "all" || row.sla.initiatedBy === "customer";
       if (includeFr) {
@@ -1321,15 +1325,26 @@ function ComplianceSection({
         else resBreach++;
       }
       else resNotEval++;
+
+      const cadMetVal = evaluateCadence(row.sla, b.severity, row.policy.cadence?.[b.severity]?.maxGapS);
+      if (cadMetVal === true) cadMet++;
+      else if (cadMetVal === false) {
+        if (isExcused(row.intercom_conversation_id, "cadence")) cadExcused++;
+        else cadBreach++;
+      }
+      else cadNotEval++;
     }
     const frDenom = frMet + frBreach;
     const resDenom = resMet + resBreach;
+    const cadDenom = cadMet + cadBreach;
     return {
       n: b.rows.length,
       frMet, frBreach, frExcused, frNotEval,
       frPct: frDenom ? (frMet / frDenom) * 100 : null,
       resMet, resBreach, resExcused, resNotEval,
       resPct: resDenom ? (resMet / resDenom) * 100 : null,
+      cadMet, cadBreach, cadExcused, cadNotEval,
+      cadPct: cadDenom ? (cadMet / cadDenom) * 100 : null,
     };
   };
 
@@ -1455,6 +1470,9 @@ function ComplianceSection({
                 <th className="text-left px-3 py-2 font-medium">Res target</th>
                 <th className="text-right px-3 py-2 font-medium">Res %met</th>
                 <th className="text-right px-3 py-2 font-medium">Res breaches</th>
+                <th className="text-left px-3 py-2 font-medium">Cadence target</th>
+                <th className="text-right px-3 py-2 font-medium">Cadence %met</th>
+                <th className="text-right px-3 py-2 font-medium">Cadence breaches</th>
               </tr>
             </thead>
             <tbody>
@@ -1490,6 +1508,27 @@ function ComplianceSection({
                       {s.resBreach || "—"}
                       {s.resExcused > 0 && <span className="ml-1 text-muted-foreground text-[11px]">· {s.resExcused} excused</span>}
                     </td>
+                    {(() => {
+                      const c = activePolicy.cadence?.[sev] ?? null;
+                      return (
+                        <>
+                          <td className="px-3 py-2 text-xs text-muted-foreground">
+                            {c == null
+                              ? <span className="italic">no commitment — n/a</span>
+                              : <>{(c.clock === "business" ? formatBusinessDuration : formatDuration)(c.maxGapS)} <span className="text-muted-foreground/70">({c.clock === "business" ? "bh" : "cal"})</span></>}
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums font-medium">
+                            {c == null
+                              ? <span className="text-muted-foreground italic">n/a</span>
+                              : s.cadPct == null ? "—" : `${s.cadPct.toFixed(0)}%`}
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums text-destructive">
+                            {c == null ? <span className="text-muted-foreground">—</span> : (s.cadBreach || "—")}
+                            {s.cadExcused > 0 && <span className="ml-1 text-muted-foreground text-[11px]">· {s.cadExcused} excused</span>}
+                          </td>
+                        </>
+                      );
+                    })()}
                   </tr>
                 );
               })}
@@ -1503,10 +1542,14 @@ function ComplianceSection({
                 <td className="px-3 py-2 text-muted-foreground">—</td>
                 <td className="px-3 py-2 text-right text-muted-foreground">—</td>
                 <td className="px-3 py-2 text-right text-muted-foreground">—</td>
+                <td className="px-3 py-2 text-muted-foreground">—</td>
+                <td className="px-3 py-2 text-right text-muted-foreground">—</td>
+                <td className="px-3 py-2 text-right text-muted-foreground">—</td>
               </tr>
             </tbody>
           </table>
         </div>
+
 
         <div className="border-t border-border pt-3">
           <button
@@ -1564,7 +1607,7 @@ function ComplianceSection({
         </div>
 
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          First Response = first human reply, measured from the AI→human handoff for AI-handled tickets (else from open). Resolution = active in-our-court time (stop-the-clock: customer-wait and reopened gaps excluded). Clocks: Sev 1 wall-clock 24/7; Sev 2–4 Europe/Berlin business hours (1 business day = 15h). Business-hours durations are shown in business days ("bd", 1 bd = 15h) so they line up with the targets; calendar durations use 24h days. Company holidays not yet modeled. Sev 1 sample is tiny (n≈1). First Response basis: Customer-initiated by default (agent-initiated tickets — outbound/relayed/forwarded, ~half the volume — are shown separately and excluded from the FR %, since no customer was awaiting a first reply); switch to All tickets for the source-independent total. Resolution always covers all tickets. Individual breaches and their excuses live in the Violations table below.
+          First Response = first human reply, measured from the AI→human handoff for AI-handled tickets (else from open). Resolution = active in-our-court time (stop-the-clock: customer-wait and reopened gaps excluded). Communication cadence (PROVISIONAL, drumbeat model incl. tail gap) = the worst gap between proactive updates; Sev 1 target 1h wall-clock, Sev 2 target 4h business hours, and Sev 3/4 carry no cadence commitment so their column reads n/a and never scores a miss — tickets with no comms or no close are non-evaluable and are excluded from the cadence denominator rather than counted as misses. Clocks: Sev 1 wall-clock 24/7; Sev 2–4 Europe/Berlin business hours (1 business day = 15h). Business-hours durations are shown in business days ("bd", 1 bd = 15h) so they line up with the targets; calendar durations use 24h days. Company holidays not yet modeled. Sev 1 sample is tiny (n≈1). First Response basis: Customer-initiated by default (agent-initiated tickets — outbound/relayed/forwarded, ~half the volume — are shown separately and excluded from the FR %, since no customer was awaiting a first reply); switch to All tickets for the source-independent total. Resolution always covers all tickets. Individual breaches and their excuses live in the Violations table below.
         </p>
       </CardContent>
 
@@ -1749,6 +1792,29 @@ type ViolationRow = {
   cadenceMiss: boolean;
 };
 
+// Sort options for the Violations table. "worst" is the historical default
+// (most misses first, then biggest resolution overshoot) and stays the default
+// so the table's meaning does not change silently for existing users.
+type ViolSortKey =
+  | "worst"
+  | "severity"
+  | "severity_desc"
+  | "resolution"
+  | "first_response"
+  | "oldest"
+  | "newest";
+
+const VIOL_SORT_LABELS: Record<ViolSortKey, string> = {
+  worst: "Worst first (most misses)",
+  severity: "Severity (Sev 1 first)",
+  severity_desc: "Severity (Sev 4 first)",
+  resolution: "Longest resolution",
+  first_response: "Longest first response",
+  oldest: "Oldest ticket",
+  newest: "Newest ticket",
+};
+
+
 function ViolationsSection({
   inScope,
   activePolicy,
@@ -1767,6 +1833,7 @@ function ViolationsSection({
   const { isAdmin } = useIsAdmin();
   const [open, setOpen] = useState(false);
   const [hideExcused, setHideExcused] = useState(false);
+  const [sortKey, setSortKey] = useState<ViolSortKey>("worst");
   const [excuseTarget, setExcuseTarget] = useState<{ cid: string; metric: ViolMetric; subject: string | null; suggestedReason?: SlaOverrideReason } | null>(null);
 
   const rows = useMemo<ViolationRow[]>(() => {
@@ -1821,7 +1888,7 @@ function ViolationsSection({
     };
   }, [rows, getOverride]);
 
-  const visible = useMemo(() => {
+  const filtered = useMemo(() => {
     if (!hideExcused) return rows;
     return rows.filter((v) => {
       const cid = v.row.intercom_conversation_id;
@@ -1829,6 +1896,49 @@ function ViolationsSection({
       return open("triage", v.triageMiss) || open("first_response", v.frMiss) || open("resolution", v.resMiss) || open("cadence", v.cadenceMiss);
     });
   }, [rows, hideExcused, isExcused]);
+
+  // Sorting. "worst" is the pre-existing default (most misses, then biggest
+  // resolution overshoot) and is preserved exactly; the other keys re-sort a
+  // COPY so `rows` (and therefore the summary counts) are never mutated.
+  // Unclassified severity always sinks to the bottom of severity sorts — an
+  // absent severity is not "Sev 5", it is unknown.
+  const missCount = (v: ViolationRow) =>
+    Number(v.triageMiss) + Number(v.frMiss) + Number(v.resMiss) + Number(v.cadenceMiss);
+
+  const visible = useMemo(() => {
+    if (sortKey === "worst") return filtered;
+    const out = [...filtered];
+    const created = (v: ViolationRow) => {
+      const t = v.row.intercom_created_at ? Date.parse(v.row.intercom_created_at) : NaN;
+      return Number.isNaN(t) ? 0 : t;
+    };
+    out.sort((a, b) => {
+      switch (sortKey) {
+        case "severity": {
+          const sa = a.severity ?? 99, sb = b.severity ?? 99;
+          if (sa !== sb) return sa - sb;
+          return missCount(b) - missCount(a);
+        }
+        case "severity_desc": {
+          const sa = a.severity ?? -1, sb = b.severity ?? -1;
+          if (sa !== sb) return sb - sa;
+          return missCount(b) - missCount(a);
+        }
+        case "resolution":
+          return (b.compliance?.resolution.value ?? 0) - (a.compliance?.resolution.value ?? 0);
+        case "first_response":
+          return (b.compliance?.firstResponse.value ?? 0) - (a.compliance?.firstResponse.value ?? 0);
+        case "oldest":
+          return created(a) - created(b);
+        case "newest":
+          return created(b) - created(a);
+        default:
+          return 0;
+      }
+    });
+    return out;
+  }, [filtered, sortKey]);
+
 
   return (
     <Card>
@@ -1867,10 +1977,26 @@ function ViolationsSection({
             {open ? "▾" : "▸"} Violation detail ({rows.length} tickets)
           </button>
           {open && (
-            <label className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Switch checked={hideExcused} onCheckedChange={setHideExcused} />
-              Hide fully-excused tickets
-            </label>
+            <>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Switch checked={hideExcused} onCheckedChange={setHideExcused} />
+                Hide fully-excused tickets
+              </label>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <ArrowUpDown className="h-3.5 w-3.5" />
+                Sort
+                <Select value={sortKey} onValueChange={(v) => setSortKey(v as ViolSortKey)}>
+                  <SelectTrigger className="h-7 w-[220px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(VIOL_SORT_LABELS) as ViolSortKey[]).map((k) => (
+                      <SelectItem key={k} value={k} className="text-xs">{VIOL_SORT_LABELS[k]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </label>
+            </>
           )}
         </div>
 
