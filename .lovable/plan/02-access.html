@@ -1,0 +1,70 @@
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: var(--font-sans); fill: hsl(var(--foreground)); }
+    .lbl { font-size: 14px; font-weight: 480; }
+    .sm { font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .mono { font-family: var(--font-mono); font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .box { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; rx: 8; }
+    .zone { fill: none; stroke: hsl(var(--border)); stroke-width: 1; stroke-dasharray: 4 3; rx: 8; }
+    .wire { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+    .acc { stroke: hsl(var(--accent)); stroke-width: 1; fill: none; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="hsl(var(--muted-foreground))"/>
+    </marker>
+    <marker id="b" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="hsl(var(--accent))"/>
+    </marker>
+  </defs>
+
+  <rect class="zone" x="8" y="8" width="300" height="140"/>
+  <text class="sm" x="20" y="28">blocked today</text>
+
+  <rect class="box" x="28" y="42" width="120" height="42"/>
+  <text class="lbl" x="88" y="60" text-anchor="middle">Agent SQL</text>
+  <text class="mono" x="88" y="76" text-anchor="middle">read_query</text>
+
+  <rect class="box" x="28" y="96" width="120" height="38"/>
+  <text class="lbl" x="88" y="120" text-anchor="middle">psql</text>
+
+  <line class="wire" x1="148" y1="63" x2="228" y2="90" marker-end="url(#a)" stroke-dasharray="4 3"/>
+  <line class="wire" x1="148" y1="115" x2="228" y2="98" marker-end="url(#a)" stroke-dasharray="4 3"/>
+  <text class="sm" x="196" y="150" text-anchor="middle">denied</text>
+
+  <rect class="box" x="232" y="70" width="96" height="48"/>
+  <text class="lbl" x="280" y="90" text-anchor="middle">cron.job</text>
+  <text class="mono" x="280" y="106" text-anchor="middle">schedules</text>
+
+  <rect class="zone" x="352" y="8" width="280" height="140"/>
+  <text class="sm" x="364" y="28">the fix — read only</text>
+
+  <rect class="box" x="378" y="52" width="150" height="46"/>
+  <text class="lbl" x="453" y="72" text-anchor="middle">esh_cron_jobs()</text>
+  <text class="mono" x="453" y="88" text-anchor="middle">security definer</text>
+
+  <path class="acc" d="M378 75 L332 94" marker-end="url(#b)"/>
+  <text class="sm" x="352" y="118" text-anchor="middle">reads</text>
+
+  <rect class="box" x="378" y="108" width="150" height="34"/>
+  <text class="lbl" x="453" y="130" text-anchor="middle">Settings panel</text>
+  <line class="wire" x1="453" y1="98" x2="453" y2="108" marker-end="url(#a)"/>
+
+  <rect class="zone" x="8" y="170" width="624" height="118"/>
+  <text class="sm" x="20" y="190">writes — unchanged, yours</text>
+
+  <rect class="box" x="28" y="204" width="150" height="42"/>
+  <text class="lbl" x="103" y="230" text-anchor="middle">Your SQL editor</text>
+
+  <line class="wire" x1="178" y1="225" x2="252" y2="225" marker-end="url(#a)"/>
+  <rect class="box" x="256" y="204" width="180" height="42"/>
+  <text class="lbl" x="346" y="223" text-anchor="middle">cron.schedule(...)</text>
+  <text class="mono" x="346" y="239" text-anchor="middle">0 5 * * *</text>
+
+  <line class="wire" x1="436" y1="225" x2="500" y2="225" marker-end="url(#a)"/>
+  <rect class="box" x="504" y="204" width="112" height="42"/>
+  <text class="lbl" x="560" y="223" text-anchor="middle">Notion page</text>
+  <text class="mono" x="560" y="239" text-anchor="middle">501 domains</text>
+
+  <text class="sm" x="20" y="272">agent never gains a write path to cron</text>
+</svg>
