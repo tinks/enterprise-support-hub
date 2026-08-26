@@ -2134,6 +2134,18 @@ export type Database = {
         Args: { p_event_ts: string; p_mapping_id: string }
         Returns: boolean
       }
+      esh_cron_jobs: {
+        Args: never
+        Returns: {
+          active: boolean
+          command_summary: string
+          jobname: string
+          last_message: string
+          last_run_at: string
+          last_status: string
+          schedule: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
