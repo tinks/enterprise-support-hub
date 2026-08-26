@@ -1304,6 +1304,10 @@ function ComplianceSection({
   const rowSummary = (b: SeverityBucket) => {
     let frMet = 0, frBreach = 0, frExcused = 0, frNotEval = 0;
     let resMet = 0, resBreach = 0, resExcused = 0, resNotEval = 0;
+    // Cadence mirrors FR/Res exactly: met / breach / excused / not-evaluable.
+    // Sev 3–4 carry no cadence commitment, so evaluateCadence returns null and
+    // every one of their rows lands in cadNotEval — never scored as a miss.
+    let cadMet = 0, cadBreach = 0, cadExcused = 0, cadNotEval = 0;
     for (const { row, compliance } of b.rows) {
       const includeFr = frBasis === "all" || row.sla.initiatedBy === "customer";
       if (includeFr) {
@@ -1321,15 +1325,26 @@ function ComplianceSection({
         else resBreach++;
       }
       else resNotEval++;
+
+      const cadMetVal = evaluateCadence(row.sla, b.severity, row.policy.cadence?.[b.severity]?.maxGapS);
+      if (cadMetVal === true) cadMet++;
+      else if (cadMetVal === false) {
+        if (isExcused(row.intercom_conversation_id, "cadence")) cadExcused++;
+        else cadBreach++;
+      }
+      else cadNotEval++;
     }
     const frDenom = frMet + frBreach;
     const resDenom = resMet + resBreach;
+    const cadDenom = cadMet + cadBreach;
     return {
       n: b.rows.length,
       frMet, frBreach, frExcused, frNotEval,
       frPct: frDenom ? (frMet / frDenom) * 100 : null,
       resMet, resBreach, resExcused, resNotEval,
       resPct: resDenom ? (resMet / resDenom) * 100 : null,
+      cadMet, cadBreach, cadExcused, cadNotEval,
+      cadPct: cadDenom ? (cadMet / cadDenom) * 100 : null,
     };
   };
 
