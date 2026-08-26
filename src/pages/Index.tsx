@@ -402,6 +402,8 @@ const Index = () => {
 
         <IntegrationHealthCard />
 
+        <ScheduledJobsCard />
+
         <InboxV3SyncCard />
 
         <TicketChannelTestCard />
