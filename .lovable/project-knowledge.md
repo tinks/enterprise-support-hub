@@ -820,6 +820,26 @@ Runs every 10 minutes via `pg_cron` (`integration-health-alert-every-10min`). Fo
 
 De-duplication: `integration_health.last_alerted_status` + `last_alerted_at` track the most recent posted severity per integration. The same severity is re-posted at most every 6 hours; a severity change always posts immediately. Passing `{ test: true }` (or `?test=1`) short-circuits the loop and posts a single `:satellite_antenna: *Test alert*` message — used by the Settings button.
 
+### Scheduled-job visibility — `public.esh_cron_jobs()` + `ScheduledJobsCard.tsx` (26 Aug 2026)
+
+`integration_health` only covers what a function reports about *itself*. A schedule that fails before the target function runs at all — malformed `headers` literal, unscheduled job, disabled job — writes nothing, and a silent scheduler failure looks identical to a healthy quiet morning. `public.esh_cron_jobs()` closes that gap.
+
+- `SECURITY DEFINER`, `STABLE`, `SET search_path = public`, gated by `has_role(auth.uid(), 'admin')`; `EXECUTE` granted to `authenticated` only, revoked from `PUBLIC`, never `anon`.
+- Returns `jobname`, `schedule`, `active`, `command_summary`, plus `last_run_at` / `last_status` / `last_message` from the newest `cron.job_run_details` row per job.
+- `command_summary` **redacts** `Authorization` and `Bearer` values before they leave the database, truncated to 600 chars. `apikey` values are NOT redacted — those are the publishable anon key that already ships in the client bundle.
+
+UI: `src/components/ScheduledJobsCard.tsx`, mounted at the bottom of Settings, admin-only (renders nothing otherwise). Per-job badge: **Ran OK / Overdue / Failed / Disabled / Never run**. Overdue = no run within twice the parsed cadence (5-min floor); `cadenceMinutes()` returns `null` for cron expressions it cannot reason about and the card then never claims a job is overdue. A missing function surfaces an explicit "needs the introspection migration" notice rather than an empty list pretending to be zero jobs.
+
+**Read-only by design.** There is no create / alter / unschedule path from the app or from the agent — cron jobs on this project are authored by hand in the SQL editor, because agent SQL is refused on `cron.*` internals and the managed HTTP-schedule tools are not exposed here.
+
+### Notion registry publish schedule — `publish_registry_notion_daily`
+
+`pg_cron` job at `0 5 * * *` (05:00 UTC) posting to `publish-registry-notion`. Placed 60 min after `poll-slack-closed-won` (04:00) and 30 min after `sync-parahelp-routing` (04:30) so an account registered that morning is enqueued before the page is rewritten.
+
+Created 26 Aug 2026, once the Notion connection was linked (the job was deliberately withheld until then so a missing credential could not alarm daily). The first attempt shipped a malformed headers literal — `{"Content-Type":"application/json",apikey":"..."}`, missing an opening quote — which would have failed the `::jsonb` cast on every fire; it was caught by reading the command back through `esh_cron_jobs()` *before* the first fire and re-scheduled.
+
+**Status: UNVERIFIED** until a real 05:00 run reports `last_status = 'succeeded'` — `last_run_at` was still null at creation. Negative case that makes pg_cron status the only honest signal: an unchanged registry writes nothing to Notion and only re-stamps the hash, so a healthy no-op morning is indistinguishable from a skipped run in `integration_health`.
+
 ### Cross-thread link conflict alerts — `intercom-webhook` `postGuardAlert`
 
 When the inverse-uniqueness guard (Option 2) refuses to stamp a second Gmail thread on an Intercom ticket that is already linked to a different thread, `postGuardAlert()` posts a `:shield: Cross-thread link blocked` message to `#enterprise-support-hub-alerts` (channel ID `C0B9NSBM60H`) using `SLACK_BOT_TOKEN` with `username: "Support Hub Guard"` / `icon_emoji: ":shield:"` (same bot as Support Hub Health, just a per-message identity override). Two call sites mirror the two guard log lines: `[cross_thread_link_conflict:email]` and `[cross_thread_link_conflict:subject]`. The post is non-blocking — failures are caught and logged so the guard always returns. Expected volume is ~0.7 alerts/day based on historical conflict rate (see chat history Jun 10).
