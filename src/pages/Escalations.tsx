@@ -5,14 +5,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, RefreshCw, ExternalLink, Info, Check, X } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Loader2, RefreshCw, ExternalLink, Info, Check, X, SlidersHorizontal } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
+import { IssueDetailSheet, IssueField } from "@/components/issues/IssueDetailSheet";
 import { displaySubject } from "@/lib/subjectDisplay";
-import { idColumn, subjectColumn, contactColumn, customerColumn, ownerColumn, ageColumn } from "@/components/issues/issueColumns";
+import { idColumn, subjectColumn, customerColumn, ageColumn } from "@/components/issues/issueColumns";
 import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 import { useCanEdit } from "@/hooks/useCanEdit";
+import { TicketNotes, fetchV3Notes, type TicketNote } from "@/components/issues/TicketNotes";
 
 
 type Ticket = {
@@ -53,9 +56,10 @@ type EscalationRow = {
   esc: Escalation | null;
   hubState: "open" | "in_progress" | "fix_shipped" | "customer_notified" | "wont_do";
   linear: { url: string | null; key: string | null; raw: string | null };
+  /** True when a Linear issue is actually linked (a Slack permalink does not count). */
+  hasLinear: boolean;
   type: "Bug" | "Feature Request";
   createdMs: number | null;
-  ageDays: number | null;
 };
 
 
@@ -73,6 +77,8 @@ const HUB_META: Record<HubState, { label: string; pill: string }> = {
 };
 
 const TERMINAL: HubState[] = ["customer_notified", "wont_do"];
+
+type Queue = "needs_linear" | "linked" | "all";
 
 /** Resolve a Linear link from the Hub override first, then the Intercom attributes. */
 function resolveLinear(attrs: any, override: string | null): { url: string | null; key: string | null; raw: string | null } {
@@ -104,21 +110,22 @@ function ticketType(attrs: any): string | null {
 export default function Escalations() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [escalations, setEscalations] = useState<Map<string, Escalation>>(new Map());
+  const [notes, setNotes] = useState<Map<string, TicketNote[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [syncingLinear, setSyncingLinear] = useState(false);
-  const canEdit = useCanEdit();
+  const { canEdit } = useCanEdit();
 
-
+  const [queue, setQueue] = useState<Queue>("needs_linear");
   const [search, setSearch] = useState("");
   const [stateFilter, setStateFilter] = useState<"active" | "all" | HubState>("active");
   const [typeFilter, setTypeFilter] = useState(ANY);
   const [ownerFilter, setOwnerFilter] = useState(ANY);
   const [customerFilter, setCustomerFilter] = useState(ANY);
 
-  const [noteDraft, setNoteDraft] = useState<Record<string, string>>({});
-  const [linkDraft, setLinkDraft] = useState<Record<string, string>>({});
-  const [editing, setEditing] = useState<{ id: string; field: "note" | "link" } | null>(null);
+  const [detail, setDetail] = useState<EscalationRow | null>(null);
+  const [linkDraft, setLinkDraft] = useState("");
+  const [editingLink, setEditingLink] = useState(false);
 
   const { accountLabel } = useCustomerLabels();
 
@@ -133,12 +140,24 @@ export default function Escalations() {
         .limit(2000),
       supabase.from("dev_escalations").select("*"),
     ]);
-    if (!t.error) setTickets((t.data ?? []) as Ticket[]);
+    const loaded = (t.error ? [] : ((t.data ?? []) as Ticket[]));
+    if (!t.error) setTickets(loaded);
     if (!e.error) {
       const m = new Map<string, Escalation>();
       for (const row of (e.data ?? []) as Escalation[]) m.set(row.intercom_conversation_id, row);
       setEscalations(m);
     }
+    // Notes for the qualifying population, batched — the detail sheet opens with
+    // them already present and search can index them.
+    const qualifying = loaded
+      .filter((x) => {
+        const tt = ticketType(x.custom_attributes);
+        return (tt === "Bug" || tt === "Feature Request")
+          && x.lifecycle_status !== "transferred_out"
+          && x.customer_resolution_method !== "not_enterprise";
+      })
+      .map((x) => x.id);
+    setNotes(await fetchV3Notes(qualifying));
     setLoading(false);
   };
 
@@ -161,8 +180,6 @@ export default function Escalations() {
     await load();
   };
 
-
-
   useEffect(() => { load(); }, []);
 
   const rows = useMemo(() => {
@@ -184,10 +201,10 @@ export default function Escalations() {
           esc,
           hubState,
           linear,
+          hasLinear: !!linear.url,
           type: ticketType(t.custom_attributes) as "Bug" | "Feature Request",
           createdMs,
-          ageDays: createdMs == null ? null : Math.floor((Date.now() - createdMs) / 86_400_000),
-        };
+        } as EscalationRow;
       })
       .sort((a, b) => (a.createdMs ?? 0) - (b.createdMs ?? 0));
   }, [tickets, escalations]);
@@ -201,6 +218,7 @@ export default function Escalations() {
     [rows],
   );
 
+  /** Everything except the queue split — so each queue's count reflects the filters. */
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
@@ -212,21 +230,18 @@ export default function Escalations() {
       if (q) {
         const hay = [
           displaySubject(r.ticket), r.ticket.subject, r.ticket.contact_name, r.ticket.contact_email,
-          r.ticket.intercom_conversation_id, r.linear.raw, r.esc?.note,
+          r.ticket.intercom_conversation_id, r.linear.raw,
+          ...(notes.get(r.ticket.id) ?? []).map((n) => n.note_text),
         ].filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
     });
-  }, [rows, search, stateFilter, typeFilter, ownerFilter, customerFilter]);
+  }, [rows, search, stateFilter, typeFilter, ownerFilter, customerFilter, notes]);
 
-  const counts = useMemo(() => {
-    const c: Record<HubState, number> = {
-      open: 0, in_progress: 0, fix_shipped: 0, customer_notified: 0, wont_do: 0,
-    };
-    for (const r of rows) c[r.hubState] += 1;
-    return c;
-  }, [rows]);
+  const needsLinear = useMemo(() => filtered.filter((r) => !r.hasLinear), [filtered]);
+  const linked = useMemo(() => filtered.filter((r) => r.hasLinear), [filtered]);
+  const visible = queue === "needs_linear" ? needsLinear : queue === "linked" ? linked : filtered;
 
   const dataAsOf = useMemo(() => {
     let newest: number | null = null;
@@ -246,7 +261,6 @@ export default function Escalations() {
       hub_state: patch.hub_state ?? existing?.hub_state ?? "open",
       linear_url_override:
         patch.linear_url_override !== undefined ? patch.linear_url_override : existing?.linear_url_override ?? null,
-      note: patch.note !== undefined ? patch.note : existing?.note ?? null,
       ...(patch.hub_state ? { state_changed_at: new Date().toISOString() } : {}),
       ...(patch.hub_state === "customer_notified" ? { notified_at: new Date().toISOString() } : {}),
     };
@@ -265,7 +279,27 @@ export default function Escalations() {
       next.set(conversationId, data as Escalation);
       return next;
     });
+    setDetail((d) =>
+      d && d.ticket.intercom_conversation_id === conversationId
+        ? { ...d, esc: data as Escalation, hubState: (data as Escalation).hub_state as HubState }
+        : d,
+    );
   };
+
+  const hubSelect = (r: EscalationRow, className = "h-7 text-xs") => (
+    <Select
+      value={r.hubState}
+      onValueChange={(v) => upsert(r.ticket.intercom_conversation_id, { hub_state: v as HubState })}
+      disabled={!canEdit || saving === r.ticket.intercom_conversation_id}
+    >
+      <SelectTrigger className={`${className} border ${HUB_META[r.hubState].pill}`} onClick={(e) => e.stopPropagation()}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {HUB_STATES.map((s) => <SelectItem key={s} value={s}>{HUB_META[s].label}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
 
   const columns: IssueColumn<EscalationRow>[] = [
     idColumn<EscalationRow>((r) => r.ticket.intercom_conversation_id),
@@ -277,9 +311,7 @@ export default function Escalations() {
           prev.map((x) => (x.id === r.ticket.id ? { ...x, subject_override: next } : x)),
         ),
     }),
-    contactColumn<EscalationRow>((r) => r.ticket.contact_name, (r) => r.ticket.contact_email),
     customerColumn<EscalationRow>((r) => r.ticket.customer_key, accountLabel),
-    ownerColumn<EscalationRow>((r) => r.ticket.owner),
     {
       key: "type",
       header: "Type",
@@ -289,145 +321,49 @@ export default function Escalations() {
       ),
     },
     {
-      key: "intercom_state",
-      header: "Intercom",
-      width: "w-[110px]",
-      cellClassName: "text-xs text-muted-foreground",
-      cell: (r) =>
-        r.ticket.lifecycle_status === "finalized" ? "Closed" : r.ticket.state || r.ticket.lifecycle_status || "—",
-    },
-    {
       key: "linear",
       header: "Linear",
       width: "w-[190px]",
       cellClassName: "text-xs",
       cell: (r) => {
-        const cid = r.ticket.intercom_conversation_id;
-        const isSaving = saving === cid;
-        if (editing?.id === cid && editing.field === "link") {
+        if (r.linear.url) {
           return (
-            <div className="flex items-center gap-1">
-              <Input
-                autoFocus
-                className="h-7 text-xs"
-                placeholder="Linear URL or KEY-123"
-                value={linkDraft[cid] ?? r.esc?.linear_url_override ?? ""}
-                onChange={(e) => setLinkDraft((d) => ({ ...d, [cid]: e.target.value }))}
-              />
-              <Button size="icon" variant="ghost" className="h-7 w-7" disabled={isSaving}
-                onClick={async () => {
-                  await upsert(cid, { linear_url_override: (linkDraft[cid] ?? "").trim() || null });
-                  setEditing(null);
-                }}
-              ><Check className="h-3.5 w-3.5" /></Button>
-              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(null)}>
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          );
-        }
-        return (
-          <>
-            <div className="flex items-center">
-              <button
-                className="text-left hover:underline"
-                onClick={() => { setLinkDraft((d) => ({ ...d, [cid]: r.esc?.linear_url_override ?? "" })); setEditing({ id: cid, field: "link" }); }}
+            <div className="min-w-0">
+              <a
+                href={r.linear.url}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 hover:underline"
               >
-                {r.linear.url ? (
-                  <span className="text-foreground">{r.linear.key ?? "Linear issue"}</span>
-                ) : r.linear.raw ? (
-                  <span className="text-muted-foreground truncate block max-w-[170px]">{r.linear.raw}</span>
-                ) : (
-                  <span className="text-muted-foreground">— link</span>
-                )}
-              </button>
-              {r.linear.url && (
-                <a href={r.linear.url} target="_blank" rel="noreferrer" className="ml-1 inline-flex text-muted-foreground hover:text-foreground align-middle">
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              )}
-            </div>
-            {/* Mirror of Linear, refreshed by sync-linear-escalations. Read-only here. */}
-            {r.esc?.linear_synced_at && r.esc?.linear_key === r.linear.key && (
-              <div className="mt-0.5 text-[10px] text-muted-foreground leading-tight">
-                {r.esc.linear_title && (
-                  <div className="truncate max-w-[180px]" title={r.esc.linear_title}>{r.esc.linear_title}</div>
-                )}
-                <div>
+                {r.linear.key ?? "Linear issue"}
+                <ExternalLink className="h-3 w-3 shrink-0" />
+              </a>
+              {r.esc?.linear_synced_at && r.esc?.linear_key === r.linear.key && (
+                <div className="text-[10px] text-muted-foreground truncate max-w-[180px]">
                   {r.esc.linear_state || "—"}
                   {r.esc.linear_assignee ? ` · ${r.esc.linear_assignee}` : ""}
                 </div>
-              </div>
-            )}
-          </>
-        );
-
+              )}
+            </div>
+          );
+        }
+        if (r.linear.raw) {
+          return <span className="text-muted-foreground truncate block max-w-[170px]" title={r.linear.raw}>{r.linear.raw}</span>;
+        }
+        return <span className="text-destructive">Missing</span>;
       },
     },
     {
       key: "hub_state",
       header: "Hub state",
       width: "w-[180px]",
-      cell: (r) => {
-        const cid = r.ticket.intercom_conversation_id;
-        return (
-          <Select
-            value={r.hubState}
-            onValueChange={(v) => upsert(cid, { hub_state: v as HubState })}
-            disabled={saving === cid}
-          >
-            <SelectTrigger className={`h-7 text-xs border ${HUB_META[r.hubState].pill}`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {HUB_STATES.map((s) => <SelectItem key={s} value={s}>{HUB_META[s].label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        );
-      },
-    },
-    {
-      key: "note",
-      header: "Note",
-      width: "w-[220px]",
-      cellClassName: "text-xs",
-      cell: (r) => {
-        const cid = r.ticket.intercom_conversation_id;
-        const isSaving = saving === cid;
-        if (editing?.id === cid && editing.field === "note") {
-          return (
-            <div className="flex items-center gap-1">
-              <Input
-                autoFocus
-                className="h-7 text-xs"
-                value={noteDraft[cid] ?? r.esc?.note ?? ""}
-                onChange={(e) => setNoteDraft((d) => ({ ...d, [cid]: e.target.value }))}
-              />
-              <Button size="icon" variant="ghost" className="h-7 w-7" disabled={isSaving}
-                onClick={async () => {
-                  await upsert(cid, { note: (noteDraft[cid] ?? "").trim() || null });
-                  setEditing(null);
-                }}
-              ><Check className="h-3.5 w-3.5" /></Button>
-              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(null)}>
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          );
-        }
-        return (
-          <button
-            className="text-left w-full truncate hover:underline text-muted-foreground"
-            onClick={() => { setNoteDraft((d) => ({ ...d, [cid]: r.esc?.note ?? "" })); setEditing({ id: cid, field: "note" }); }}
-          >
-            {r.esc?.note || "— add note"}
-          </button>
-        );
-      },
+      cell: (r) => <div onClick={(e) => e.stopPropagation()}>{hubSelect(r)}</div>,
     },
     ageColumn<EscalationRow>((r) => r.createdMs),
   ];
 
+  const detailNotes = detail ? notes.get(detail.ticket.id) ?? [] : [];
 
   return (
     <AppLayout>
@@ -437,10 +373,35 @@ export default function Escalations() {
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-semibold tracking-tight">Dev escalations</h1>
               <Badge variant="outline" className="text-[10px]">Hub-owned state</Badge>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground">
+                    <Info className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-[380px] text-xs text-muted-foreground space-y-2">
+                  <p>
+                    Intercom tickets typed <code>Bug</code> or <code>Feature Request</code>, tracked against their Linear
+                    escalation until the customer has been notified. Oldest first.
+                  </p>
+                  <p>
+                    Board state is independent of Intercom — a closed conversation stays here until it is marked
+                    <span className="font-medium text-foreground"> Customer notified</span> or
+                    <span className="font-medium text-foreground"> Won't do</span>. Qualifying tickets appear automatically
+                    at <span className="font-medium text-foreground">Open</span>.
+                  </p>
+                  <p>
+                    Linear title, state and assignee are mirrored read-only once a day (and on demand via
+                    <span className="font-medium text-foreground"> Sync Linear</span>) — Linear is never written to from the Hub.
+                  </p>
+                  <p>
+                    Notes are stored on the ticket itself, so they stay visible wherever the ticket is opened.
+                  </p>
+                </PopoverContent>
+              </Popover>
             </div>
             <p className="text-sm text-muted-foreground">
-              Intercom tickets typed <code className="text-xs">Bug</code> or <code className="text-xs">Feature Request</code>,
-              tracked against their Linear escalation until the customer has been notified. Oldest first.
+              Which escalations still need a Linear issue, and where the linked ones stand.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -457,39 +418,32 @@ export default function Escalations() {
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             </Button>
           </div>
-
         </div>
-
-        <div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-          <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-          <span>
-            The board state is independent of Intercom — a closed conversation stays here until it is marked
-            <span className="font-medium text-foreground"> Customer notified</span> or <span className="font-medium text-foreground">Won't do</span>.
-            Qualifying tickets appear automatically at <span className="font-medium text-foreground">Open</span>; nothing is
-            written until you change a state, link, or note. Linear issue title, state and assignee are mirrored read-only
-            once a day (and on demand via <span className="font-medium text-foreground">Sync Linear</span>) — Linear is never
-            written to from the Hub.
-          </span>
-        </div>
-
 
         <div className="flex items-center gap-2 flex-wrap">
-          {HUB_STATES.map((s) => (
-            <div key={s} className={`rounded-md border px-3 py-1.5 text-xs ${HUB_META[s].pill}`}>
-              <span className="font-semibold">{counts[s]}</span> {HUB_META[s].label}
-            </div>
-          ))}
-          <div className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground">
-            <span className="font-semibold text-foreground">{filtered.length}</span> shown
+          <div className="inline-flex rounded-md border border-border overflow-hidden">
+            {([
+              ["needs_linear", "Needs Linear", needsLinear.length],
+              ["linked", "Linked", linked.length],
+              ["all", "All", filtered.length],
+            ] as const).map(([key, label, count]) => (
+              <button
+                key={key}
+                onClick={() => setQueue(key)}
+                className={`px-3 py-1.5 text-xs border-r border-border last:border-r-0 ${
+                  queue === key ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                }`}
+              >
+                {label} · <span className="font-semibold">{count}</span>
+              </button>
+            ))}
           </div>
-        </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
           <Input
-            placeholder="Search subject, contact, Linear, note…"
+            placeholder="Search subject, contact, Intercom ID, Linear, notes…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-9 w-[280px] text-xs"
+            className="h-9 w-[300px] text-xs"
           />
           <Select value={stateFilter} onValueChange={(v) => setStateFilter(v as typeof stateFilter)}>
             <SelectTrigger className="h-9 w-[190px] text-xs"><SelectValue /></SelectTrigger>
@@ -499,38 +453,186 @@ export default function Escalations() {
               {HUB_STATES.map((s) => <SelectItem key={s} value={s}>{HUB_META[s].label}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger className="h-9 w-[170px] text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ANY}>Type: any</SelectItem>
-              <SelectItem value="Bug">Bug</SelectItem>
-              <SelectItem value="Feature Request">Feature Request</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={ownerFilter} onValueChange={setOwnerFilter}>
-            <SelectTrigger className="h-9 w-[150px] text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ANY}>Owner: any</SelectItem>
-              {ownerOpts.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={customerFilter} onValueChange={setCustomerFilter}>
-            <SelectTrigger className="h-9 w-[200px] text-xs"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ANY}>Customer: any</SelectItem>
-              {customerOpts.map((k) => <SelectItem key={k} value={k as string}>{accountLabel(k)}</SelectItem>)}
-            </SelectContent>
-          </Select>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 text-xs">
+                <SlidersHorizontal className="h-3.5 w-3.5 mr-1" />
+                More filters
+                {[typeFilter, ownerFilter, customerFilter].filter((v) => v !== ANY).length > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-[10px]">
+                    {[typeFilter, ownerFilter, customerFilter].filter((v) => v !== ANY).length}
+                  </Badge>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[260px] space-y-2">
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ANY}>Type: any</SelectItem>
+                  <SelectItem value="Bug">Bug</SelectItem>
+                  <SelectItem value="Feature Request">Feature Request</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+                <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ANY}>Owner: any</SelectItem>
+                  {ownerOpts.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={customerFilter} onValueChange={setCustomerFilter}>
+                <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ANY}>Customer: any</SelectItem>
+                  {customerOpts.map((k) => <SelectItem key={k} value={k as string}>{accountLabel(k)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-xs"
+                onClick={() => { setTypeFilter(ANY); setOwnerFilter(ANY); setCustomerFilter(ANY); }}
+              >
+                Clear
+              </Button>
+            </PopoverContent>
+          </Popover>
         </div>
 
+        {queue === "needs_linear" && (
+          <p className="text-xs text-muted-foreground">
+            Every bug and feature request should have a Linear issue. These do not — link one from the row detail.
+          </p>
+        )}
+
         <IssueTable<EscalationRow>
-          rows={filtered}
+          rows={visible}
           columns={columns}
           getRowKey={(r) => r.ticket.id}
           loading={loading}
-          emptyMessage="No escalations match these filters."
+          emptyMessage={
+            queue === "needs_linear"
+              ? "Every escalation in scope has a Linear issue."
+              : "No escalations match these filters."
+          }
+          onRowClick={(r) => { setDetail(r); setEditingLink(false); setLinkDraft(r.esc?.linear_url_override ?? ""); }}
         />
       </div>
+
+      <IssueDetailSheet
+        open={!!detail}
+        onOpenChange={(o) => { if (!o) setDetail(null); }}
+        title={detail ? displaySubject(detail.ticket) : ""}
+        conversationId={detail?.ticket.intercom_conversation_id ?? null}
+      >
+        {detail && (
+          <>
+            <IssueField label="Type" value={detail.type} />
+            <IssueField label="Contact" value={detail.ticket.contact_name} />
+            <IssueField label="Email" value={detail.ticket.contact_email} />
+            <IssueField label="Customer" value={accountLabel(detail.ticket.customer_key)} />
+            <IssueField label="Owner" value={detail.ticket.owner} />
+            <IssueField
+              label="Intercom state"
+              value={
+                detail.ticket.lifecycle_status === "finalized"
+                  ? "Closed"
+                  : detail.ticket.state || detail.ticket.lifecycle_status || "—"
+              }
+            />
+            <IssueField
+              label="Created"
+              value={detail.createdMs ? format(new Date(detail.createdMs), "d MMM yyyy HH:mm") : "—"}
+            />
+
+            <div className="pt-2 border-t border-border" />
+
+            <IssueField
+              label="Hub state"
+              value={<div className="w-[200px]">{hubSelect(detail, "h-8 text-xs")}</div>}
+            />
+            <IssueField
+              label="Linear issue"
+              value={
+                editingLink ? (
+                  <div className="flex items-center gap-1">
+                    <Input
+                      autoFocus
+                      className="h-8 text-xs"
+                      placeholder="Linear URL or KEY-123"
+                      value={linkDraft}
+                      onChange={(e) => setLinkDraft(e.target.value)}
+                    />
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      disabled={saving === detail.ticket.intercom_conversation_id}
+                      onClick={async () => {
+                        await upsert(detail.ticket.intercom_conversation_id, {
+                          linear_url_override: linkDraft.trim() || null,
+                        });
+                        setEditingLink(false);
+                      }}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingLink(false)}>
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    {detail.linear.url ? (
+                      <a href={detail.linear.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:underline">
+                        {detail.linear.key ?? "Linear issue"} <ExternalLink className="h-3 w-3" />
+                      </a>
+                    ) : detail.linear.raw ? (
+                      <span className="text-muted-foreground break-all">{detail.linear.raw}</span>
+                    ) : (
+                      <span className="text-destructive">Missing</span>
+                    )}
+                    {canEdit && (
+                      <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setEditingLink(true)}>
+                        {detail.esc?.linear_url_override ? "Edit link" : "Link"}
+                      </Button>
+                    )}
+                  </div>
+                )
+              }
+            />
+            {detail.esc?.linear_synced_at && detail.esc?.linear_key === detail.linear.key && (
+              <>
+                <IssueField label="Linear title" value={detail.esc.linear_title} />
+                <IssueField label="Linear state" value={detail.esc.linear_state} />
+                <IssueField label="Linear assignee" value={detail.esc.linear_assignee} />
+                <IssueField
+                  label="Linear synced"
+                  value={format(new Date(detail.esc.linear_synced_at), "d MMM yyyy HH:mm")}
+                />
+              </>
+            )}
+
+            <div className="pt-3 border-t border-border">
+              <div className="text-xs text-muted-foreground mb-2">Notes</div>
+              <TicketNotes
+                ticketId={detail.ticket.id}
+                initialNotes={detailNotes}
+                canEdit={canEdit}
+                onChange={(next) =>
+                  setNotes((prev) => {
+                    const m = new Map(prev);
+                    m.set(detail.ticket.id, next);
+                    return m;
+                  })
+                }
+              />
+            </div>
+          </>
+        )}
+      </IssueDetailSheet>
     </AppLayout>
   );
 }
