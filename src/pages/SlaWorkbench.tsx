@@ -1792,6 +1792,29 @@ type ViolationRow = {
   cadenceMiss: boolean;
 };
 
+// Sort options for the Violations table. "worst" is the historical default
+// (most misses first, then biggest resolution overshoot) and stays the default
+// so the table's meaning does not change silently for existing users.
+type ViolSortKey =
+  | "worst"
+  | "severity"
+  | "severity_desc"
+  | "resolution"
+  | "first_response"
+  | "oldest"
+  | "newest";
+
+const VIOL_SORT_LABELS: Record<ViolSortKey, string> = {
+  worst: "Worst first (most misses)",
+  severity: "Severity (Sev 1 first)",
+  severity_desc: "Severity (Sev 4 first)",
+  resolution: "Longest resolution",
+  first_response: "Longest first response",
+  oldest: "Oldest ticket",
+  newest: "Newest ticket",
+};
+
+
 function ViolationsSection({
   inScope,
   activePolicy,
