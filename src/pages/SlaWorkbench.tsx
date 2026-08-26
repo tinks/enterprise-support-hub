@@ -127,7 +127,7 @@ export default function SlaWorkbench() {
         <Tabs defaultValue="live" className="w-full">
           <TabsList>
             <TabsTrigger value="live">Analyze by ID (live)</TabsTrigger>
-            <TabsTrigger value="batch">Batch (stored)</TabsTrigger>
+            <TabsTrigger value="batch">Population review (snapshot)</TabsTrigger>
           </TabsList>
 
           <TabsContent value="live" className="mt-4">
