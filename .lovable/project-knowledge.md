@@ -838,7 +838,7 @@ UI: `src/components/ScheduledJobsCard.tsx`, mounted at the bottom of Settings, a
 
 Created 26 Aug 2026, once the Notion connection was linked (the job was deliberately withheld until then so a missing credential could not alarm daily). The first attempt shipped a malformed headers literal — `{"Content-Type":"application/json",apikey":"..."}`, missing an opening quote — which would have failed the `::jsonb` cast on every fire; it was caught by reading the command back through `esh_cron_jobs()` *before* the first fire and re-scheduled.
 
-**Status: UNVERIFIED** until a real 05:00 run reports `last_status = 'succeeded'` — `last_run_at` was still null at creation. Negative case that makes pg_cron status the only honest signal: an unchanged registry writes nothing to Notion and only re-stamps the hash, so a healthy no-op morning is indistinguishable from a skipped run in `integration_health`.
+**Status: VERIFIED (27 Aug 2026).** The job fired at **05:00:07 UTC** on its first scheduled occurrence; `integration_health.notion_registry_publish` = `ok`, no failure recorded. It was a **real write, not a no-op**: `notion_registry_changed_at` equals `notion_registry_synced_at` (05:00:07), so the domain set had changed and the page was rewritten — **504 domains**. Negative case that makes pg_cron status the only honest signal in general: an unchanged registry writes nothing to Notion and only re-stamps the hash, so a healthy no-op morning is indistinguishable from a skipped run in `integration_health` alone.
 
 ### Cross-thread link conflict alerts — `intercom-webhook` `postGuardAlert`
 
