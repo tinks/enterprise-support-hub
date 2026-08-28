@@ -33,6 +33,7 @@ import CustomerReport from "./pages/CustomerReport";
 import Backlog from "./pages/Backlog";
 import Prospects from "./pages/Prospects";
 import SlaWhatIf from "./pages/SlaWhatIf";
+import SlaFrtDiff from "./pages/SlaFrtDiff";
 import SlaPolicyAdmin from "./pages/SlaPolicyAdmin";
 import SeverityAi from "./pages/SeverityAi";
 
@@ -82,6 +83,7 @@ const App = () => (
           <Route path="/backlog" element={<EditorRoute><Backlog /></EditorRoute>} />
           <Route path="/prospects" element={<ProtectedRoute><Prospects /></ProtectedRoute>} />
           <Route path="/sla-what-if" element={<ProtectedRoute><SlaWhatIf /></ProtectedRoute>} />
+          <Route path="/sla-frt-diff" element={<ProtectedRoute><SlaFrtDiff /></ProtectedRoute>} />
           <Route path="/sla-policy" element={<ProtectedRoute><SlaPolicyAdmin /></ProtectedRoute>} />
           <Route path="/severity-ai" element={<ProtectedRoute><SeverityAi /></ProtectedRoute>} />
 
