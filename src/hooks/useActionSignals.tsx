@@ -112,17 +112,22 @@ export function ActionSignalsProvider({ children }: { children: ReactNode }) {
   }, [load]);
 
   const value = useMemo<Ctx>(() => {
-    const attentionCount = states.filter((s) => s.status === "ok" && (s.reading?.count ?? 0) > 0).length;
-    const errorCount = states.filter((s) => s.status === "error").length;
+    const withMute = states.map((s) => ({ ...s, muted: mutedIds.includes(s.signal.id) }));
+    const attentionCount = withMute.filter(
+      (s) => !s.muted && s.status === "ok" && (s.reading?.count ?? 0) > 0,
+    ).length;
+    const errorCount = withMute.filter((s) => !s.muted && s.status === "error").length;
     return {
-      states,
+      states: withMute,
       attentionCount,
       errorCount,
-      loading: states.some((s) => s.status === "loading"),
+      loading: withMute.some((s) => s.status === "loading"),
       lastLoadedAt,
       refresh: load,
+      mutedIds,
+      toggleMuted,
     };
-  }, [states, lastLoadedAt, load]);
+  }, [states, mutedIds, lastLoadedAt, load, toggleMuted]);
 
   return <ActionSignalsContext.Provider value={value}>{children}</ActionSignalsContext.Provider>;
 }
@@ -137,7 +142,10 @@ export function useActionSignals(): Ctx {
       loading: false,
       lastLoadedAt: null,
       refresh: () => {},
+      mutedIds: [],
+      toggleMuted: () => {},
     };
   }
   return ctx;
+
 }
