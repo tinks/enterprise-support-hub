@@ -64,6 +64,13 @@
       "when": 1787748060000,
       "tag": "0008_create_intercom_webhook_failures",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1787918561082,
+      "tag": "0009_add_hot_path_indexes",
+      "breakpoints": true
     }
   ]
 }
