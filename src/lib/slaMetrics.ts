@@ -240,6 +240,8 @@ export function extractTimeline(raw: any): TimelinePart[] {
         assignedToType: assign.type,
         assignedToId: assign.id,
         eventDetails: p?.event_details ?? null,
+        relayFrom: parseRelayFrom(body),
+
       });
     }
   }
