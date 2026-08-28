@@ -1440,7 +1440,7 @@ describe("Slack relay attribution", () => {
       supportAdminIds: new Set(["10476723"]),
       supportSlackNames: new Set(["tine"]),
     });
-    expect(sla.firstSupportReplyFromInboxS).toBe(540); // 600 - 60
+    expect(sla.firstSupportReplyFromInboxS).toBe(600); // relay reply at T0+600, clock at created_at
     expect(sla.samParticipated).toBe(false);
   });
 
