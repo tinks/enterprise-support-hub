@@ -10,28 +10,43 @@ import { FAMILY_LABEL, type SignalFamily } from "@/lib/actionSignals";
 
 const FAMILY_ORDER: SignalFamily[] = ["queues", "sla", "pipeline", "review"];
 
-function SignalCard({ state, onGo }: { state: SignalState; onGo: (to: string) => void }) {
-  const { signal, status, reading, error } = state;
+function SignalCard({
+  state,
+  onGo,
+  onToggleMute,
+}: {
+  state: SignalState;
+  onGo: (to: string) => void;
+  onToggleMute: (id: string) => void;
+}) {
+  const { signal, status, reading, error, muted } = state;
   const count = reading?.count ?? 0;
-  const active = status === "ok" && count > 0;
-  const isError = status === "error";
+  const active = status === "ok" && count > 0 && !muted;
+  const isError = status === "error" && !muted;
 
-  const border = isError
-    ? "border-destructive/50 bg-destructive/5"
-    : active
-      ? "border-amber-500/50 bg-amber-500/5"
-      : "border-border";
+  const border = muted
+    ? "border-border bg-muted/30 opacity-70"
+    : isError
+      ? "border-destructive/50 bg-destructive/5"
+      : active
+        ? "border-amber-500/50 bg-amber-500/5"
+        : "border-border";
 
   return (
     <div className={`rounded-lg border p-4 flex flex-col gap-2 ${border}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-sm font-medium truncate">{signal.label}</div>
-          <div className="text-xs text-muted-foreground mt-0.5">{FAMILY_LABEL[signal.family]}</div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            {FAMILY_LABEL[signal.family]}
+            {muted ? " · muted" : ""}
+          </div>
         </div>
         <div className="shrink-0 text-right">
           {status === "loading" && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-          {isError && <AlertTriangle className="h-5 w-5 text-destructive" />}
+          {status === "error" && (
+            <AlertTriangle className={`h-5 w-5 ${muted ? "text-muted-foreground" : "text-destructive"}`} />
+          )}
           {status === "ok" && (
             <span
               className={`text-2xl font-semibold tabular-nums ${active ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}
@@ -43,6 +58,7 @@ function SignalCard({ state, onGo }: { state: SignalState; onGo: (to: string) =>
       </div>
 
       <p className="text-xs text-muted-foreground leading-snug">{signal.meaning}</p>
+
 
       {isError && (
         <p className="text-xs text-destructive break-words">
