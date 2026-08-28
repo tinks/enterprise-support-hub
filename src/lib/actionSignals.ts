@@ -102,6 +102,12 @@ async function loadPolicies(): Promise<SlaPolicy[]> {
 
 export const ACTION_SIGNALS: ActionSignal[] = [
   // ---- Queues -----------------------------------------------------------
+// Temporary: the Self-serve Enterprise inbox is still being validated, so its
+// tickets are excluded from the ticket-backed Action Center signals. Remove
+// this filter (and the notes in the signal descriptions) once SSE is live.
+const SUPPRESS_SSE = true;
+const enterpriseOnly = <T>(q: T): T => (SUPPRESS_SSE ? (q as any).eq("plan_tier", "enterprise") : q);
+
   {
     id: "unattributed",
     label: "Unattributed customers",
@@ -122,13 +128,15 @@ export const ACTION_SIGNALS: ActionSignal[] = [
     family: "queues",
     route: "/triage",
     routeLabel: "Triage queue",
-    meaning: "Open tickets with no Severity set in Intercom.",
+    meaning:
+      "Open tickets with no Severity set in Intercom. Self-serve Enterprise (SSE) tickets are suppressed while that inbox is being tested.",
     load: async () => {
-      const res = await supabase
-        .from("intercom_tickets_v3")
-        .select("custom_attributes,intercom_created_at")
-        .in("lifecycle_status", ["open", "reopened_after_finalize"])
-        .limit(1000);
+      const res = await enterpriseOnly(
+        supabase
+          .from("intercom_tickets_v3")
+          .select("custom_attributes,intercom_created_at")
+          .in("lifecycle_status", ["open", "reopened_after_finalize"]),
+      ).limit(1000);
       const rows = unwrap<Array<{ custom_attributes: any; intercom_created_at: string | null }>>(res as any);
       const open = rows.filter((r) => !hasSeverity(r.custom_attributes));
       return { count: open.length, oldestAt: minIso(open.map((r) => r.intercom_created_at)) };
@@ -141,16 +149,17 @@ export const ACTION_SIGNALS: ActionSignal[] = [
     route: "/triage?mode=unassigned",
     routeLabel: "Triage queue",
     meaning:
-      "Open tickets with no Intercom assignee, or an assignee that isn't mapped to a Hub owner. Tickets outside the SLA population — fyi, duplicate, merged, prospect, non-enterprise, test accounts — are not counted.",
+      "Open tickets with no Intercom assignee, or an assignee that isn't mapped to a Hub owner. Tickets outside the SLA population — fyi, duplicate, merged, prospect, non-enterprise, test accounts — are not counted. Self-serve Enterprise (SSE) tickets are suppressed while that inbox is being tested.",
     load: async () => {
       const [ticketsRes, testRes] = await Promise.all([
-        supabase
-          .from("intercom_tickets_v3")
-          .select(
-            "intercom_conversation_id,admin_assignee_id,owner,intercom_created_at,tags,rsa_override,customer_resolution_method,customer_key",
-          )
-          .in("lifecycle_status", ["open", "reopened_after_finalize"])
-          .limit(1000),
+        enterpriseOnly(
+          supabase
+            .from("intercom_tickets_v3")
+            .select(
+              "intercom_conversation_id,admin_assignee_id,owner,intercom_created_at,tags,rsa_override,customer_resolution_method,customer_key",
+            )
+            .in("lifecycle_status", ["open", "reopened_after_finalize"]),
+        ).limit(1000),
         supabase.from("v3_customer_accounts").select("account_key,is_test").eq("is_test", true).limit(1000),
       ]);
       const rows = unwrap<
@@ -209,17 +218,18 @@ export const ACTION_SIGNALS: ActionSignal[] = [
     route: "/sla-workbench",
     routeLabel: "SLA workbench",
     meaning:
-      "Open, severity-classified tickets with no support reply yet whose first-response clock already exceeds the effective policy target (overrides excluded). Tickets outside the SLA population — fyi, duplicate, merged, prospect, non-enterprise, test accounts — are not counted.",
+      "Open, severity-classified tickets with no support reply yet whose first-response clock already exceeds the effective policy target (overrides excluded). Tickets outside the SLA population — fyi, duplicate, merged, prospect, non-enterprise, test accounts — are not counted. Self-serve Enterprise (SSE) tickets are suppressed while that inbox is being tested.",
     load: async () => {
       const [policies, ticketsRes, overridesRes, testRes] = await Promise.all([
         loadPolicies(),
-        supabase
-          .from("intercom_tickets_v3")
-          .select(
-            "intercom_conversation_id,custom_attributes,intercom_created_at,raw_payload,tags,rsa_override,customer_resolution_method,customer_key",
-          )
-          .in("lifecycle_status", ["open", "reopened_after_finalize"])
-          .limit(1000),
+        enterpriseOnly(
+          supabase
+            .from("intercom_tickets_v3")
+            .select(
+              "intercom_conversation_id,custom_attributes,intercom_created_at,raw_payload,tags,rsa_override,customer_resolution_method,customer_key",
+            )
+            .in("lifecycle_status", ["open", "reopened_after_finalize"]),
+        ).limit(1000),
         supabase.from("sla_breach_overrides").select("intercom_conversation_id,metric").limit(1000),
         supabase.from("v3_customer_accounts").select("account_key,is_test").eq("is_test", true).limit(1000),
       ]);
