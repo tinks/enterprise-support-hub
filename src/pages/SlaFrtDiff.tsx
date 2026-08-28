@@ -137,6 +137,8 @@ export default function SlaFrtDiff() {
       toUnevaluable: rows.filter((r) => r.flip === "to_unevaluable").length,
       toEvaluable: rows.filter((r) => r.flip === "to_evaluable").length,
       noDemand: rows.filter((r) => r.demandS == null).length,
+      awaitingResponse: rows.filter((r) => r.demandS != null && r.proposedCalS == null).length,
+      proposedZero: rows.filter((r) => r.proposedBhS === 0).length,
     };
   }, [rows]);
 
