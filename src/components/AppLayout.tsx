@@ -79,6 +79,7 @@ const navEntries: NavEntry[] = [
       { to: "/backlog", label: "Backlog", editorOnly: true },
       { to: "/prospects", label: "Prospects" },
       { to: "/sla-what-if", label: "SLA What-if" },
+      { to: "/sla-frt-diff", label: "SLA FRT diff" },
     ],
   },
   {
