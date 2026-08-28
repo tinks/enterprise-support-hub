@@ -222,7 +222,7 @@ export const ACTION_SIGNALS: ActionSignal[] = [
     meaning:
       "Open, severity-classified tickets with no support reply yet whose first-response clock already exceeds the effective policy target (overrides excluded). Tickets outside the SLA population — fyi, duplicate, merged, prospect, non-enterprise, test accounts — are not counted. Self-serve Enterprise (SSE) tickets are suppressed while that inbox is being tested.",
     load: async () => {
-      const [policies, ticketsRes, overridesRes, testRes] = await Promise.all([
+      const [policies, ticketsRes, overridesRes, testRes, rosterRes] = await Promise.all([
         loadPolicies(),
         enterpriseOnly(
           supabase
@@ -234,7 +234,34 @@ export const ACTION_SIGNALS: ActionSignal[] = [
         ).limit(1000),
         supabase.from("sla_breach_overrides").select("intercom_conversation_id,metric").limit(1000),
         supabase.from("v3_customer_accounts").select("account_key,is_test").eq("is_test", true).limit(1000),
+        supabase.from("teammates").select("intercom_admin_id,email,name").eq("role", "support"),
       ]);
+      // Same roster the SLA workbench passes in (useSlaBatch): without it a
+      // Slack-relayed teammate reply reads as Sam and the ticket looks
+      // unanswered forever.
+      const roster = unwrap<Array<{ intercom_admin_id: string | null; email: string | null; name: string | null }>>(
+        rosterRes as any,
+      );
+      const supportEmails = new Set<string>();
+      const supportAdminIds = new Set<string>();
+      const supportSlackNames = new Set<string>();
+      const addName = (v: string | null | undefined) => {
+        const s = (v ?? "").trim().toLowerCase();
+        if (s.length >= 3) supportSlackNames.add(s);
+      };
+      for (const r of roster) {
+        if (r.email) {
+          supportEmails.add(r.email.trim().toLowerCase());
+          addName(r.email.split("@")[0]);
+        }
+        if (r.intercom_admin_id) supportAdminIds.add(String(r.intercom_admin_id).trim());
+        if (r.name) {
+          addName(r.name);
+          addName(r.name.trim().split(/\s+/)[0]);
+        }
+      }
+      const slaOpts = { supportEmails, supportAdminIds, supportSlackNames };
+
       const tickets = unwrap<
         Array<{
           intercom_conversation_id: string;
