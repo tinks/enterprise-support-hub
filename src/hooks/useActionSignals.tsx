@@ -15,23 +15,40 @@ export type SignalState = {
   status: "loading" | "ok" | "error";
   reading: SignalReading | null;
   error: string | null;
+  /** Muted signals still load and display, but never raise the badge. */
+  muted: boolean;
 };
 
 type Ctx = {
   states: SignalState[];
-  /** Number of signals with count > 0. Errors are NOT counted as attention. */
+  /** Number of unmuted signals with count > 0. Errors are NOT counted as attention. */
   attentionCount: number;
   /** Number of signals whose loader failed. */
   errorCount: number;
   loading: boolean;
   lastLoadedAt: number | null;
   refresh: () => void;
+  mutedIds: string[];
+  toggleMuted: (id: string) => void;
 };
 
 const ActionSignalsContext = createContext<Ctx | null>(null);
 
+const MUTED_KEY = "esh.actionSignals.muted";
+
+const readMuted = (): string[] => {
+  try {
+    const raw = localStorage.getItem(MUTED_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((v) => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
+};
+
 const initialStates = (): SignalState[] =>
-  ACTION_SIGNALS.map((signal) => ({ signal, status: "loading", reading: null, error: null }));
+  ACTION_SIGNALS.map((signal) => ({ signal, status: "loading", reading: null, error: null, muted: false }));
+
 
 export function ActionSignalsProvider({ children }: { children: ReactNode }) {
   const [states, setStates] = useState<SignalState[]>(initialStates);
