@@ -564,6 +564,8 @@ function buildNodes(
           "Atomic status gate: escalated → escalated_pending",
           "Resolves sender identity via Slack users.info (name + email)",
           "Sender attribution: employee → admin reply using real Intercom admin ID; original requester → customer reply; other → customer reply with name prefix",
+          "DURABLE RELAY IDENTITY (Option B, Aug 2026) — the teammate's Intercom admin id is resolved from the LIVE public.teammates table (slack_user_id first, then email ilike, active=true only), replacing a hardcoded two-entry map that was stale (Joel's id wrong, Kristina's email wrong) and missing Tine/Matt/Eren/Tejas — every one of their Slack replies used to post under the relay admin (Sam, 9520895) and read as sam_ai to the SLA engine, so the First-Response clock never stopped. The body prefix now carries a machine-readable marker `[From: <Display Name> (<email>) via Slack]`, and computeSla prefers an exact email match from relayFrom against supportEmails before falling back to display-name matching. FAIL LOUD, NEVER DROP: if no admin id resolves, or Intercom rejects the teammate id (retry falls back to the relay admin), the reply is still delivered and the gap is upserted into public.relay_attribution_gaps (slack_user_id PK, email, name, reason, occurrences, last conversation id, resolved_at) — surfaced as the Action Center 'Slack relay identity gaps' signal. Option A's name parser stays active for historical parts written before this change.",
+
           "Downloads & re-hosts any attached files",
           "Removes remaining feedback buttons",
           "Posts 'reply forwarded' notice only on successful transition",
