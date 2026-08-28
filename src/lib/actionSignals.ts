@@ -302,7 +302,7 @@ export const ACTION_SIGNALS: ActionSignal[] = [
         const target = policy?.targets?.[severity];
         if (!target || !Number.isFinite(target.firstResponseS)) continue;
 
-        const sla = computeSla(t.raw_payload, undefined, bh);
+        const sla = computeSla(t.raw_payload, slaOpts, bh);
         const answered =
           sla.firstSupportReplyFromInboxS != null || sla.firstSupportReplyFromInboxBusinessHoursS != null;
         if (answered) continue;
