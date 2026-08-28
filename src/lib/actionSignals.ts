@@ -98,15 +98,17 @@ async function loadPolicies(): Promise<SlaPolicy[]> {
   return versions.map((v) => policyToEngine(v, targets.filter((t) => t.version_id === v.id)));
 }
 
-// ---------------------------------------------------------------- signals
-
-export const ACTION_SIGNALS: ActionSignal[] = [
-  // ---- Queues -----------------------------------------------------------
 // Temporary: the Self-serve Enterprise inbox is still being validated, so its
 // tickets are excluded from the ticket-backed Action Center signals. Remove
 // this filter (and the notes in the signal descriptions) once SSE is live.
 const SUPPRESS_SSE = true;
-const enterpriseOnly = <T>(q: T): T => (SUPPRESS_SSE ? (q as any).eq("plan_tier", "enterprise") : q);
+const enterpriseOnly = <T,>(q: T): T => (SUPPRESS_SSE ? (q as any).eq("plan_tier", "enterprise") : q);
+
+// ---------------------------------------------------------------- signals
+
+export const ACTION_SIGNALS: ActionSignal[] = [
+  // ---- Queues -----------------------------------------------------------
+
 
   {
     id: "unattributed",
