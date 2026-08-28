@@ -735,6 +735,15 @@ function sumCustomerWaitGaps(timeline: TimelinePart[], clip: (a: number, b: numb
 export type SlaComputeOptions = {
   supportEmails?: Set<string>;
   supportAdminIds?: Set<string>;
+  /**
+   * Lowercased Slack display names / first names of SUPPORT-roster teammates.
+   * Slack-relayed replies land in Intercom under the relay admin (Sam), so the
+   * ONLY attribution is the `[From: <name> via Slack]` body prefix. A part whose
+   * relay name is in this set is re-attributed to `human_admin` and counts as a
+   * support reply; an UNKNOWN relay name (typically the customer speaking in the
+   * shared Slack channel) is left exactly as classified before — no guessing.
+   */
+  supportSlackNames?: Set<string>;
 };
 
 export function computeSla(
@@ -747,7 +756,15 @@ export function computeSla(
   // config is DEFAULT_BUSINESS_HOURS → output is bit-identical to before.
   const bhBetween = (a: number, b: number) => businessHoursBetween(a, b, businessHours);
 
-  const timeline = extractTimeline(conversation);
+  const relayNames = opts?.supportSlackNames;
+  const isRelaySupport = (p: TimelinePart): boolean =>
+    !!(p.relayFrom && relayNames && relayNames.has(p.relayFrom));
+  // Re-attribute BEFORE anything reads the timeline, so every downstream metric
+  // (FRT, resolution-active, cadence, triage) sees the teammate, not the relay.
+  const timeline = extractTimeline(conversation).map((p) =>
+    isRelaySupport(p) && p.actor !== "human_admin" ? { ...p, actor: "human_admin" as Actor } : p,
+  );
+
   const createdAt: number | null =
     typeof conversation?.created_at === "number" ? conversation.created_at : null;
 
