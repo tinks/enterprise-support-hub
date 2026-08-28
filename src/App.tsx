@@ -33,6 +33,7 @@ import CustomerReport from "./pages/CustomerReport";
 import Backlog from "./pages/Backlog";
 import Prospects from "./pages/Prospects";
 import SlaWhatIf from "./pages/SlaWhatIf";
+import SlaFrtDiff from "./pages/SlaFrtDiff";
 import SlaPolicyAdmin from "./pages/SlaPolicyAdmin";
 import SeverityAi from "./pages/SeverityAi";
 
