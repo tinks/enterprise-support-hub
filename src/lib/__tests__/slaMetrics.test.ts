@@ -1459,4 +1459,56 @@ describe("Slack relay attribution", () => {
     });
     expect(sla.firstSupportReplyFromInboxS).toBeNull();
   });
+
+  // Durable relay marker (Option B): the relay now emits the sender's EMAIL in
+  // the prefix, so attribution no longer depends on display-name matching.
+  const convoEmailMarker = {
+    ...convo,
+    conversation_parts: {
+      conversation_parts: [
+        convo.conversation_parts.conversation_parts[0],
+        {
+          created_at: T0 + 600,
+          part_type: "comment",
+          body: "<p>[From: Tine Saint-Ghislain (tine@lovable.dev) via Slack]&nbsp;</p><p>Hi, taking a look</p>",
+          author: SAM,
+        },
+      ],
+    },
+  };
+
+  it("email marker matches the support roster even with an unknown display name", () => {
+    const sla = computeSla(convoEmailMarker, {
+      supportEmails: new Set(["tine@lovable.dev"]),
+      supportAdminIds: new Set(["10476723"]),
+      supportSlackNames: new Set(["joel"]),
+    });
+    expect(sla.firstSupportReplyFromInboxS).toBe(600);
+  });
+
+  it("email marker for a NON-roster address is not re-attributed", () => {
+    const sla = computeSla(
+      {
+        ...convo,
+        conversation_parts: {
+          conversation_parts: [
+            convo.conversation_parts.conversation_parts[0],
+            {
+              created_at: T0 + 600,
+              part_type: "comment",
+              body: "<p>[From: Stan (stan@joinhandshake.com) via Slack]</p><p>any update?</p>",
+              author: SAM,
+            },
+          ],
+        },
+      },
+      {
+        supportEmails: new Set(["tine@lovable.dev"]),
+        supportAdminIds: new Set(["10476723"]),
+        supportSlackNames: new Set(["tine"]),
+      },
+    );
+    expect(sla.firstSupportReplyFromInboxS).toBeNull();
+  });
+
 });
