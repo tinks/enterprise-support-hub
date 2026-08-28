@@ -71,6 +71,13 @@
       "when": 1787918561082,
       "tag": "0009_add_hot_path_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1787936792047,
+      "tag": "0010_sse_plan_tier_dimension",
+      "breakpoints": true
     }
   ]
 }

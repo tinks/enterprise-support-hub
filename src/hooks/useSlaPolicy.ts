@@ -6,6 +6,7 @@ import {
   type SlaPolicy,
   type SlaPolicyTargetRow,
   type SlaPolicyVersionRow,
+  type PlanTier,
 } from "@/lib/slaMetrics";
 
 /**
@@ -21,7 +22,7 @@ export type UseSlaPolicy = {
   loading: boolean;
   error: string | null;
   /** The policy in force at `anchorMs`, or null if it precedes every version. */
-  resolveForAnchor: (anchorMs: number) => SlaPolicy | null;
+  resolveForAnchor: (anchorMs: number, plan?: PlanTier) => SlaPolicy | null;
   refresh: () => void;
 };
 
@@ -42,7 +43,7 @@ export function useSlaPolicy(): UseSlaPolicy {
         const [versionsRes, targetsRes] = await Promise.all([
           supabase
             .from("sla_policy_versions" as any)
-            .select("id,effective_from,status,business_hours,label")
+            .select("id,effective_from,status,business_hours,label,plan")
             .order("effective_from", { ascending: true }),
           supabase
             .from("sla_policy_targets" as any)
@@ -71,7 +72,7 @@ export function useSlaPolicy(): UseSlaPolicy {
   }, [refreshKey]);
 
   const resolveForAnchor = useCallback(
-    (anchorMs: number) => resolvePolicy(anchorMs, policies),
+    (anchorMs: number, plan: PlanTier = "enterprise") => resolvePolicy(anchorMs, policies, plan),
     [policies],
   );
 

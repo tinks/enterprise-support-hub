@@ -9,6 +9,7 @@
 // ---------------------------------------------------------------------------
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { resolveInboxes, inboxSearchClause } from "../_shared/v3-inboxes.ts";
 import {
   CLEAN_DATA_START_ISO,
   intercomHeaders,
@@ -34,7 +35,7 @@ Deno.serve(async (req) => {
 
   const { data: settings } = await supabase.from("settings").select("*").limit(1).single();
   if (!settings?.intercom_inbox_id) return json({ error: "No enterprise inbox configured" }, 400);
-  const enterpriseInboxId = settings.intercom_inbox_id;
+  const inboxes = resolveInboxes(settings);
 
   const { data: jobRow } = await supabase.from("intercom_sync_jobs_v3").insert({
     kind: "gap_scan",
@@ -67,7 +68,7 @@ Deno.serve(async (req) => {
 
     // Intercom side — total_count via per_page:1
     const icCount = await intercomClosedCount(
-      INTERCOM_API_TOKEN, enterpriseInboxId, sinceSec, untilSec,
+      INTERCOM_API_TOKEN, inboxes.ids, sinceSec, untilSec,
     );
 
     // Our side
@@ -127,7 +128,7 @@ Deno.serve(async (req) => {
 
 async function intercomClosedCount(
   token: string,
-  inboxId: string,
+  inboxIds: string[],
   sinceSec: number,
   untilSec: number,
 ): Promise<number | null> {
@@ -138,7 +139,7 @@ async function intercomClosedCount(
       query: {
         operator: "AND",
         value: [
-          { field: "team_assignee_id", operator: "=", value: parseInt(inboxId) },
+          inboxSearchClause(inboxIds),
           { field: "state", operator: "=", value: "closed" },
           { field: "statistics.last_close_at", operator: ">", value: sinceSec },
           { field: "statistics.last_close_at", operator: "<", value: untilSec },

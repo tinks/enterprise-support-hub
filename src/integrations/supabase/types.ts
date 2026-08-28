@@ -842,6 +842,7 @@ export type Database = {
           last_synced_at: string | null
           lifecycle_status: string
           owner: string | null
+          plan_tier: string
           product_area: string | null
           project_uuid_detected: string | null
           raw_payload: Json | null
@@ -896,6 +897,7 @@ export type Database = {
           last_synced_at?: string | null
           lifecycle_status?: string
           owner?: string | null
+          plan_tier?: string
           product_area?: string | null
           project_uuid_detected?: string | null
           raw_payload?: Json | null
@@ -950,6 +952,7 @@ export type Database = {
           last_synced_at?: string | null
           lifecycle_status?: string
           owner?: string | null
+          plan_tier?: string
           product_area?: string | null
           project_uuid_detected?: string | null
           raw_payload?: Json | null
@@ -1312,6 +1315,7 @@ export type Database = {
           severity_ai_daily_call_cap: number
           severity_ai_enabled: boolean
           slack_bot_user_id: string
+          sse_intercom_inbox_id: string
           test_intercom_inbox_id: string
           testing_mode: boolean
           updated_at: string
@@ -1339,6 +1343,7 @@ export type Database = {
           severity_ai_daily_call_cap?: number
           severity_ai_enabled?: boolean
           slack_bot_user_id?: string
+          sse_intercom_inbox_id?: string
           test_intercom_inbox_id?: string
           testing_mode?: boolean
           updated_at?: string
@@ -1366,6 +1371,7 @@ export type Database = {
           severity_ai_daily_call_cap?: number
           severity_ai_enabled?: boolean
           slack_bot_user_id?: string
+          sse_intercom_inbox_id?: string
           test_intercom_inbox_id?: string
           testing_mode?: boolean
           updated_at?: string
@@ -1663,6 +1669,7 @@ export type Database = {
           effective_from: string
           id: string
           label: string | null
+          plan: string
           status: string
           updated_at: string
           updated_by: string | null
@@ -1674,6 +1681,7 @@ export type Database = {
           effective_from: string
           id?: string
           label?: string | null
+          plan?: string
           status?: string
           updated_at?: string
           updated_by?: string | null
@@ -1685,6 +1693,7 @@ export type Database = {
           effective_from?: string
           id?: string
           label?: string | null
+          plan?: string
           status?: string
           updated_at?: string
           updated_by?: string | null

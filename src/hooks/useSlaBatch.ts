@@ -7,6 +7,9 @@ import {
   SLA_TARGETS,
   CADENCE_TARGETS,
   TRIAGE_TARGET_S,
+  parsePlanTier,
+  registerAnchorTeamIds,
+  type PlanTier,
   type SlaPolicy,
   type SlaResult,
   type Origin,
@@ -32,6 +35,7 @@ const sameBusinessHours = (a: BusinessHoursConfig, b: BusinessHoursConfig) =>
  */
 export const BUILTIN_POLICY: SlaPolicy = {
   id: "builtin",
+  plan: "enterprise",
   label: "Built-in defaults (engine constants)",
   effectiveFromMs: 0,
   status: "provisional",
@@ -39,6 +43,28 @@ export const BUILTIN_POLICY: SlaPolicy = {
   targets: SLA_TARGETS,
   cadence: CADENCE_TARGETS,
   triageTargetS: TRIAGE_TARGET_S,
+};
+
+/**
+ * Built-in fallback for self-serve enterprise (SSE): NO first-response,
+ * resolution or cadence commitments — triage discipline only (1h). Used the
+ * same way as BUILTIN_POLICY: only when config is missing, and never silently.
+ */
+export const BUILTIN_SSE_POLICY: SlaPolicy = {
+  id: "builtin-sse",
+  plan: "sse",
+  label: "Built-in defaults (self-serve enterprise)",
+  effectiveFromMs: 0,
+  status: "provisional",
+  businessHours: DEFAULT_BUSINESS_HOURS,
+  targets: {
+    1: { firstResponseS: Number.POSITIVE_INFINITY, firstResponseClock: "business", resolutionS: null, resolutionClock: "business" },
+    2: { firstResponseS: Number.POSITIVE_INFINITY, firstResponseClock: "business", resolutionS: null, resolutionClock: "business" },
+    3: { firstResponseS: Number.POSITIVE_INFINITY, firstResponseClock: "business", resolutionS: null, resolutionClock: "business" },
+    4: { firstResponseS: Number.POSITIVE_INFINITY, firstResponseClock: "business", resolutionS: null, resolutionClock: "business" },
+  },
+  cadence: { 1: null, 2: null, 3: null, 4: null },
+  triageTargetS: 3600,
 };
 
 // ---- Shared row/enrichment types (previously local to SlaTest.tsx) ----------
@@ -59,6 +85,8 @@ export type SlaBatchRow = {
   customer_resolution_method: string | null;
   owner: string | null;
   customer_key: string | null;
+  /** 'enterprise' (default) or 'sse' — derived at ingest from the Intercom inbox. */
+  plan_tier?: string | null;
 };
 
 export type SlaBatchBucket = "inScope" | "excluded" | "noCustomer" | "manuallyLogged";
@@ -67,6 +95,8 @@ export type SlaBatchEnriched = SlaBatchRow & {
   sla: SlaResult;
   origin: Origin;
   bucket: SlaBatchBucket;
+  /** Plan tier of this ticket, parsed from plan_tier. */
+  planTier: PlanTier;
   /** Effective-dated policy resolved by the ticket's inbound anchor. */
   policy: SlaPolicy;
   /** True when this row fell back to the built-in constants (loud, not silent). */
@@ -144,7 +174,7 @@ export type UseSlaBatch = {
   policyFallback: boolean;
   policyError: string | null;
   /** Resolve the policy in force at an anchor (ms). Null before every version. */
-  resolveForAnchor: (anchorMs: number) => SlaPolicy | null;
+  resolveForAnchor: (anchorMs: number, plan?: PlanTier) => SlaPolicy | null;
   /** True when the policy config loaded cleanly (>=1 version, no error). */
   policyConfigLoaded: boolean;
 };
@@ -187,6 +217,23 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
   const [supportAdminIds, setSupportAdminIds] = useState<Set<string>>(new Set());
   const [rosterLoaded, setRosterLoaded] = useState(false);
 
+  // Register the self-serve enterprise inbox as an SLA clock-start anchor.
+  // Without this, an SSE ticket's clock would fall back to created_at.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("settings")
+        .select("sse_intercom_inbox_id")
+        .limit(1)
+        .maybeSingle();
+      if (cancelled) return;
+      const sse = (data as any)?.sse_intercom_inbox_id;
+      if (sse) registerAnchorTeamIds([sse]);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -224,7 +271,7 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,intercom_created_at,intercom_closed_at,time_to_resolve_s,time_to_first_admin_reply_s,raw_payload,tags,rsa_override,customer_resolution_method,owner,customer_key")
+            .select("id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,intercom_created_at,intercom_closed_at,time_to_resolve_s,time_to_first_admin_reply_s,raw_payload,tags,rsa_override,customer_resolution_method,owner,customer_key,plan_tier")
             .in("lifecycle_status", ["finalized", "reopened_after_finalize"])
             .order("intercom_closed_at", { ascending: false })
             .range(offset, offset + PAGE - 1);
@@ -254,8 +301,9 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
       // wall-clock timestamp, so it does not depend on business hours.
       const base = computeSla(r.raw_payload, opts);
       const anchorS = base.slaClockStartS ?? base.createdAtS;
-      const resolved = configLoaded && anchorS != null ? resolveForAnchor(anchorS * 1000) : null;
-      const policy = resolved ?? BUILTIN_POLICY;
+      const planTier = parsePlanTier(r.plan_tier);
+      const resolved = configLoaded && anchorS != null ? resolveForAnchor(anchorS * 1000, planTier) : null;
+      const policy = resolved ?? (planTier === "sse" ? BUILTIN_SSE_POLICY : BUILTIN_POLICY);
       const policyFallback = resolved == null;
       // Pass 2 only when the resolved calendar actually differs from the default.
       const sla =
@@ -264,7 +312,7 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
           : computeSla(r.raw_payload, opts, policy.businessHours);
       const origin = detectOrigin(r.raw_payload);
       const bucket = classifySlaBatchRow(r, sla, { testAccountKeys, showTestData });
-      return { ...r, sla, origin, bucket, policy, policyFallback };
+      return { ...r, sla, origin, bucket, planTier, policy, policyFallback };
     }),
     [rows, testAccountKeys, showTestData, rosterLoaded, supportEmails, supportAdminIds, configLoaded, policyLoading, resolveForAnchor],
   );

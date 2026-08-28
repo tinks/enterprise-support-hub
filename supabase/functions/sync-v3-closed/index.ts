@@ -38,6 +38,7 @@ import {
 } from "../_shared/v3.ts";
 import { syncTicketAttributes } from "../_shared/v3-attributes.ts";
 import { writeV3Signals } from "../_shared/v3-signals.ts";
+import { resolveInboxes, inboxSearchClause } from "../_shared/v3-inboxes.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: V3_CORS_HEADERS });
@@ -69,7 +70,7 @@ Deno.serve(async (req) => {
   if (!settings?.intercom_inbox_id) {
     return json({ error: "No enterprise inbox configured" }, 400);
   }
-  const enterpriseInboxId = settings.intercom_inbox_id;
+  const inboxes = resolveInboxes(settings);
 
   let adminOwnerMap: Record<string, string> = {};
   try { adminOwnerMap = JSON.parse(settings.admin_owner_map || "{}"); } catch { /* */ }
@@ -147,7 +148,7 @@ Deno.serve(async (req) => {
     if (Date.now() - startedAt > TIME_BUDGET_MS * 0.4) break;
 
     const clauses: any[] = [
-      { field: "team_assignee_id", operator: "=", value: parseInt(enterpriseInboxId) },
+      inboxSearchClause(inboxes.ids),
       { field: "state", operator: "=", value: "closed" },
       { field: windowField, operator: ">", value: sinceTs },
     ];
@@ -274,7 +275,7 @@ Deno.serve(async (req) => {
       const icData = await icRes.json();
 
       // Inbox membership guard (defensive — search already filtered)
-      if (String(icData.team_assignee_id || "") !== String(enterpriseInboxId)) {
+      if (!inboxes.isOurs(icData.team_assignee_id)) {
         skipped++;
         continue;
       }
@@ -338,6 +339,7 @@ Deno.serve(async (req) => {
       const row = {
         intercom_conversation_id: convId,
         team_assignee_id: String(icData.team_assignee_id ?? ""),
+        plan_tier: inboxes.planFor(icData.team_assignee_id) ?? "enterprise",
         admin_assignee_id: adminId || null,
         owner,
         contact_name: contactName || null,
