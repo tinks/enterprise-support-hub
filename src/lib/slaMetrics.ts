@@ -125,7 +125,25 @@ export type TimelinePart = {
   // { attribute: { name: "Severity" }, value: { name: "2" }, ... }.
   // null when the part has no event_details.
   eventDetails: any | null;
+  // Slack↔Intercom relay attribution. Messages bridged from Slack are posted
+  // into Intercom under the RELAY admin identity (Sam, id 9520895) with the
+  // body prefix `[From: <name> via Slack]`. `<name>` is the ONLY signal of who
+  // actually spoke — it can be a teammate OR the customer. Lowercased, or null
+  // when the part is not relayed.
+  relayFrom: string | null;
 };
+
+// `[From: tine via Slack]` → "tine". Tolerates the leading whitespace and
+// entity noise stripHtml leaves behind. Only matches at the START of the body:
+// a mid-body occurrence is quoted text, not attribution.
+const RELAY_PREFIX_RE = /^\s*\[from:\s*([^\]]+?)\s+via\s+slack\]/i;
+
+export function parseRelayFrom(body: string): string | null {
+  const m = RELAY_PREFIX_RE.exec(body || "");
+  const name = m?.[1]?.trim().toLowerCase();
+  return name ? name : null;
+}
+
 
 
 function stripHtml(s: any): string {
