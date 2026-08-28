@@ -52,9 +52,22 @@ const initialStates = (): SignalState[] =>
 
 export function ActionSignalsProvider({ children }: { children: ReactNode }) {
   const [states, setStates] = useState<SignalState[]>(initialStates);
+  const [mutedIds, setMutedIds] = useState<string[]>(readMuted);
   const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null);
   const lastFetchRef = useRef(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const toggleMuted = useCallback((id: string) => {
+    setMutedIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      try {
+        localStorage.setItem(MUTED_KEY, JSON.stringify(next));
+      } catch {
+        /* non-fatal: mute is a display preference */
+      }
+      return next;
+    });
+  }, []);
 
   const load = useCallback(async () => {
     lastFetchRef.current = Date.now();
@@ -62,16 +75,17 @@ export function ActionSignalsProvider({ children }: { children: ReactNode }) {
       ACTION_SIGNALS.map(async (signal): Promise<SignalState> => {
         try {
           const reading = await signal.load();
-          return { signal, status: "ok", reading, error: null };
+          return { signal, status: "ok", reading, error: null, muted: false };
         } catch (e: any) {
           // Loud, never silent: a failed query is an error card, not a zero.
-          return { signal, status: "error", reading: null, error: e?.message ?? String(e) };
+          return { signal, status: "error", reading: null, error: e?.message ?? String(e), muted: false };
         }
       }),
     );
     setStates(results);
     setLastLoadedAt(Date.now());
   }, []);
+
 
   useEffect(() => {
     load();
