@@ -59,9 +59,13 @@ export default function SlaDashboard() {
   const { loading, error, inScope, excluded, noCustomer, manuallyLogged, refresh, isExcused, customerLabels, activePolicy, policyFallback, policyError } = useSlaBatch({ showTestData });
   const [dateWindow, setDateWindow] = useState<DateWindow>("month");
   const [customerFilter, setCustomerFilter] = useState<string>(ALL_CUSTOMERS);
+  // Self-serve enterprise carries NO first-response / resolution / cadence
+  // commitments, so mixing it into this scorecard would silently inflate
+  // compliance. Enterprise-only is the honest default; the plan is selectable.
+  const [planFilter, setPlanFilter] = useState<"enterprise" | "sse" | "all">("enterprise");
 
   // Filter in-scope rows to selected window by finalized/close date.
-  const windowedInScopeDate = useMemo(() => {
+  const windowedByDate = useMemo(() => {
     const { startMs, endMs } = windowRange(dateWindow, new Date());
     if (startMs == null && endMs == null) return inScope;
     return inScope.filter((r) => {
@@ -70,6 +74,17 @@ export default function SlaDashboard() {
       return (startMs == null || t >= startMs) && (endMs == null || t < endMs);
     });
   }, [inScope, dateWindow]);
+
+  const sseInWindow = useMemo(
+    () => windowedByDate.filter((r) => r.planTier === "sse").length,
+    [windowedByDate],
+  );
+
+  const windowedInScopeDate = useMemo(
+    () => (planFilter === "all" ? windowedByDate : windowedByDate.filter((r) => r.planTier === planFilter)),
+    [windowedByDate, planFilter],
+  );
+
 
   // Distinct customers present in the date-filtered in-scope set (for the selector).
   const customerOptions = useMemo(() => {
@@ -226,6 +241,17 @@ export default function SlaDashboard() {
               </SelectContent>
             </Select>
             <span className="text-xs text-muted-foreground italic">{WINDOW_CAPTIONS[dateWindow]}</span>
+            <span className="text-xs uppercase tracking-wide text-muted-foreground ml-2">Plan</span>
+            <Select value={planFilter} onValueChange={(v) => setPlanFilter(v as "enterprise" | "sse" | "all")}>
+              <SelectTrigger className="h-8 w-[200px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="enterprise">Enterprise</SelectItem>
+                <SelectItem value="sse">Self-serve enterprise</SelectItem>
+                <SelectItem value="all">All plans</SelectItem>
+              </SelectContent>
+            </Select>
             <span className="text-xs uppercase tracking-wide text-muted-foreground ml-2">Customer</span>
             <Select value={customerFilter} onValueChange={setCustomerFilter}>
               <SelectTrigger className="h-8 w-[220px] text-sm">
@@ -252,6 +278,10 @@ export default function SlaDashboard() {
             </span>
             <span className="text-muted-foreground">
               Excluded: <span className="tabular-nums">{excluded.length}</span>
+            </span>
+            <span className="text-muted-foreground">
+              Self-serve enterprise in window: <span className="tabular-nums">{sseInWindow}</span>
+              {planFilter === "enterprise" && sseInWindow > 0 && " · not scored here (no SLA commitments)"}
             </span>
             <span className="text-muted-foreground">
               Internal / no-customer: <span className="tabular-nums">{noCustomer.length}</span>

@@ -19,6 +19,7 @@ import {
   V3_CORS_HEADERS,
 } from "../_shared/v3.ts";
 import { finalizeConversation } from "../_shared/v3-finalize.ts";
+import { resolveInboxes, inboxSearchClause } from "../_shared/v3-inboxes.ts";
 import {
   type IntegrationKey,
   recordIntegrationHealth,
@@ -48,7 +49,7 @@ Deno.serve(async (req) => {
 
   const { data: settings } = await supabase.from("settings").select("*").limit(1).single();
   if (!settings?.intercom_inbox_id) return json({ error: "No enterprise inbox configured" }, 400);
-  const enterpriseInboxId = settings.intercom_inbox_id;
+  const inboxes = resolveInboxes(settings);
 
   let adminOwnerMap: Record<string, string> = {};
   try { adminOwnerMap = JSON.parse(settings.admin_owner_map || "{}"); } catch { /* ignore */ }
@@ -69,7 +70,7 @@ Deno.serve(async (req) => {
       query: {
         operator: "AND",
         value: [
-          { field: "team_assignee_id", operator: "=", value: parseInt(enterpriseInboxId) },
+          inboxSearchClause(inboxes.ids),
           {
             operator: "OR",
             value: [
@@ -166,7 +167,7 @@ Deno.serve(async (req) => {
     const curTeam = String(icData.team_assignee_id || "");
     const curState = String(icData.state || "");
 
-    if (curTeam !== String(enterpriseInboxId)) {
+    if (!inboxes.isOurs(curTeam)) {
       const { error: upErr } = await supabase
         .from("intercom_tickets_v3")
         .update({
@@ -192,7 +193,7 @@ Deno.serve(async (req) => {
         supabase,
         intercomToken: INTERCOM_API_TOKEN,
         convId,
-        enterpriseInboxId,
+        inboxes,
         adminOwnerMap,
         existing: { id: row.id },
       });

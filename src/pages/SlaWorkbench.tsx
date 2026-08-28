@@ -30,6 +30,8 @@ import {
   type TimelinePart,
   type Actor,
   type Origin,
+  parsePlanTier,
+  type PlanTier,
   type Severity,
   type SlaCompliance,
 } from "@/lib/slaMetrics";
@@ -42,6 +44,7 @@ import {
   type SlaOverrideMetric,
   type SlaOverrideReason,
   BUILTIN_POLICY,
+  BUILTIN_SSE_POLICY,
 } from "@/hooks/useSlaBatch";
 
 /** Business-day length for the given policy's calendar — drives "Nbd" rendering. */
@@ -689,7 +692,7 @@ function BatchStoredTab({ showTestData }: { showTestData: boolean }) {
 const UNATTRIBUTED = "__unattributed__";
 const ALL_CUSTOMERS = "__all__";
 
-function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverrides, customerLabels, testAccountKeys, showTestData, activePolicy, policyError, resolveForAnchor, policyConfigLoaded }: { rows: Row[]; loading: boolean; isExcused: (cid: string, metric: SlaOverrideMetric) => boolean; getOverride: (cid: string, metric: SlaOverrideMetric) => SlaOverride | undefined; refreshOverrides: () => void; customerLabels: Map<string, string>; testAccountKeys: Set<string>; showTestData: boolean; activePolicy: SlaPolicy; policyError: string | null; resolveForAnchor: (anchorMs: number) => SlaPolicy | null; policyConfigLoaded: boolean }) {
+function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverrides, customerLabels, testAccountKeys, showTestData, activePolicy, policyError, resolveForAnchor, policyConfigLoaded }: { rows: Row[]; loading: boolean; isExcused: (cid: string, metric: SlaOverrideMetric) => boolean; getOverride: (cid: string, metric: SlaOverrideMetric) => SlaOverride | undefined; refreshOverrides: () => void; customerLabels: Map<string, string>; testAccountKeys: Set<string>; showTestData: boolean; activePolicy: SlaPolicy; policyError: string | null; resolveForAnchor: (anchorMs: number, plan?: PlanTier) => SlaPolicy | null; policyConfigLoaded: boolean }) {
   const [sortKey, setSortKey] = useState<CorrectedSortKey>("closed");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [dateWindow, setDateWindow] = useState<DateWindow>("month");
@@ -701,15 +704,16 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
       // wall-clock inbound anchor, pass 2 re-scores with that policy's calendar.
       const base = computeSla(r.raw_payload);
       const anchorS = base.slaClockStartS ?? base.createdAtS;
-      const resolved = policyConfigLoaded && anchorS != null ? resolveForAnchor(anchorS * 1000) : null;
-      const policy = resolved ?? BUILTIN_POLICY;
+      const planTier = parsePlanTier((r as any).plan_tier);
+      const resolved = policyConfigLoaded && anchorS != null ? resolveForAnchor(anchorS * 1000, planTier) : null;
+      const policy = resolved ?? (planTier === "sse" ? BUILTIN_SSE_POLICY : BUILTIN_POLICY);
       const policyFallback = resolved == null;
       const sla = policy.businessHours === DEFAULT_BUSINESS_HOURS
         ? base
         : computeSla(r.raw_payload, undefined, policy.businessHours);
       const origin = detectOrigin(r.raw_payload);
       const bucket = classifyRow(r, sla, { testAccountKeys, showTestData });
-      return { ...r, sla, origin, bucket, policy, policyFallback };
+      return { ...r, sla, origin, bucket, planTier, policy, policyFallback };
     }),
     [rows, testAccountKeys, showTestData, policyConfigLoaded, resolveForAnchor],
   );

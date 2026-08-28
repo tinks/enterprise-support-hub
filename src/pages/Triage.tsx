@@ -37,8 +37,11 @@ import {
   formatDuration,
   DEFAULT_BUSINESS_HOURS,
   TRIAGE_TARGET_S,
+  parsePlanTier,
+  type PlanTier,
   type BusinessHoursConfig,
 } from "@/lib/slaMetrics";
+
 
 
 type Row = {
@@ -55,6 +58,7 @@ type Row = {
   intercom_created_at: string | null;
   last_synced_at: string | null;
   raw_payload: any;
+  plan_tier?: string | null;
 };
 
 type Band = "breached" | "at_risk" | "approaching" | "ok";
@@ -65,6 +69,9 @@ type TriageRow = Row & {
   businessS: number | null;
   wallS: number | null;
   band: Band;
+  planTier: PlanTier;
+  /** Triage target applied to THIS row (plan-specific). */
+  targetS: number;
 };
 
 const ANY = "__any__";
@@ -140,7 +147,7 @@ export default function Triage() {
     const { data, error } = await supabase
       .from("intercom_tickets_v3")
       .select(
-        "id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,owner,admin_assignee_id,customer_key,custom_attributes,intercom_created_at,last_synced_at,raw_payload",
+        "id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,owner,admin_assignee_id,customer_key,custom_attributes,intercom_created_at,last_synced_at,raw_payload,plan_tier",
       )
       .in("lifecycle_status", ["open", "reopened_after_finalize"])
       .limit(1000);
@@ -179,6 +186,13 @@ export default function Triage() {
   );
   const businessHours: BusinessHoursConfig = activePolicy?.businessHours ?? DEFAULT_BUSINESS_HOURS;
   const targetS = activePolicy?.triageTargetS ?? TRIAGE_TARGET_S;
+  // Self-serve enterprise carries its own (looser) triage target and no other
+  // SLA commitments. Resolved from the SSE policy version; falls back to 1h.
+  const ssePolicy = useMemo(
+    () => (configLoaded ? resolveForAnchor(Date.now(), "sse") : null),
+    [configLoaded, resolveForAnchor],
+  );
+  const sseTargetS = ssePolicy?.triageTargetS ?? 3600;
   const policyFallback = !configLoaded || activePolicy == null || activePolicy.triageTargetS == null;
 
   const untriaged = useMemo(() => {
@@ -190,6 +204,8 @@ export default function Triage() {
         const createdS = r.intercom_created_at ? Math.floor(new Date(r.intercom_created_at).getTime() / 1000) : null;
         const anchorS = sla.slaClockStartS ?? sla.createdAtS ?? createdS;
         const fromAssignment = sla.slaClockStartS != null && sla.slaClockStartS !== sla.createdAtS;
+        const planTier = parsePlanTier(r.plan_tier);
+        const rowTargetS = planTier === "sse" ? sseTargetS : targetS;
         const businessS = anchorS != null ? businessHoursBetween(anchorS, nowS, businessHours) : null;
         const wallS = anchorS != null ? Math.max(0, nowS - anchorS) : null;
         return {
@@ -198,11 +214,13 @@ export default function Triage() {
           fromAssignment,
           businessS,
           wallS,
-          band: bandFor(businessS ?? 0, targetS) as Band,
+          planTier,
+          targetS: rowTargetS,
+          band: bandFor(businessS ?? 0, rowTargetS) as Band,
         };
       })
       .sort((a, b) => (b.businessS ?? -1) - (a.businessS ?? -1));
-  }, [rows, nowS, businessHours, targetS, policyLoading, mode]);
+  }, [rows, nowS, businessHours, targetS, sseTargetS, policyLoading, mode]);
 
   const ownerOpts = useMemo(
     () => Array.from(new Set(untriaged.map((r) => r.owner).filter(Boolean))).sort() as string[],
@@ -267,6 +285,20 @@ export default function Triage() {
     contactColumn<TriageRow>((r) => r.contact_name, (r) => r.contact_email),
     customerColumn<TriageRow>((r) => r.customer_key, accountLabel),
     ownerColumn<TriageRow>((r) => r.owner),
+    {
+      key: "plan",
+      header: "Plan",
+      width: "w-[110px]",
+      cellClassName: "text-xs",
+      cell: (r: TriageRow) =>
+        r.planTier === "sse" ? (
+          <span className="rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium">
+            SSE
+          </span>
+        ) : (
+          <span className="text-muted-foreground">Enterprise</span>
+        ),
+    } as IssueColumn<TriageRow>,
     ...(severityMode
       ? []
       : [{
@@ -480,7 +512,8 @@ export default function Triage() {
             <IssueField label="Age (business)" value={selected.businessS == null ? "—" : formatDuration(selected.businessS)} />
             <IssueField label="Elapsed (wall)" value={selected.wallS == null ? "—" : formatDuration(selected.wallS)} />
             <IssueField label="Band" value={BAND_META[selected.band].label} />
-            <IssueField label="Target" value={formatDuration(targetS)} />
+            <IssueField label="Plan" value={selected.planTier === "sse" ? "Self-serve enterprise" : "Enterprise"} />
+            <IssueField label="Target" value={formatDuration(selected.targetS)} />
             <IssueField
               label="Anchor"
               value={

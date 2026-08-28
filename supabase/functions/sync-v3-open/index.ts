@@ -28,6 +28,7 @@ import { finalizeConversation } from "../_shared/v3-finalize.ts";
 import { syncTicketAttributes } from "../_shared/v3-attributes.ts";
 import { writeV3Signals } from "../_shared/v3-signals.ts";
 import { notifyNewTicket } from "../_shared/new-ticket-alert.ts";
+import { resolveInboxes, inboxSearchClause } from "../_shared/v3-inboxes.ts";
 
 
 
@@ -51,7 +52,7 @@ Deno.serve(async (req) => {
 
   const { data: settings } = await supabase.from("settings").select("*").limit(1).single();
   if (!settings?.intercom_inbox_id) return json({ error: "No enterprise inbox configured" }, 400);
-  const enterpriseInboxId = settings.intercom_inbox_id;
+  const inboxes = resolveInboxes(settings);
 
   let adminOwnerMap: Record<string, string> = {};
   try { adminOwnerMap = JSON.parse(settings.admin_owner_map || "{}"); } catch {}
@@ -80,7 +81,7 @@ Deno.serve(async (req) => {
       query: {
         operator: "AND",
         value: [
-          { field: "team_assignee_id", operator: "=", value: parseInt(enterpriseInboxId) },
+          inboxSearchClause(inboxes.ids),
           {
             operator: "OR",
             value: [
@@ -204,7 +205,7 @@ Deno.serve(async (req) => {
           supabase,
           intercomToken: INTERCOM_API_TOKEN,
           convId,
-          enterpriseInboxId,
+          inboxes,
           adminOwnerMap,
           existing: null,
         });
@@ -230,6 +231,7 @@ Deno.serve(async (req) => {
       const row = {
         intercom_conversation_id: convId,
         team_assignee_id: String(conv.team_assignee_id ?? ""),
+        plan_tier: inboxes.planFor(conv.team_assignee_id) ?? "enterprise",
         admin_assignee_id: adminId || null,
         owner,
         contact_name: contactName,
@@ -298,7 +300,7 @@ Deno.serve(async (req) => {
       const icData = await fRes.json();
 
       // Moved out of the Enterprise Inbox between search and GET → minimal only.
-      if (String(icData.team_assignee_id ?? "") !== String(enterpriseInboxId)) {
+      if (!inboxes.isOurs(icData.team_assignee_id)) {
         await minimalUpsert();
         continue;
       }
@@ -309,7 +311,7 @@ Deno.serve(async (req) => {
           supabase,
           intercomToken: INTERCOM_API_TOKEN,
           convId,
-          enterpriseInboxId,
+          inboxes,
           adminOwnerMap,
           existing: existingRow ? { id: existingRow.id } : null,
         });

@@ -47,6 +47,24 @@ export const SHARED_MAILBOX_EMAILS: ReadonlySet<string> = new Set([
 // against SLA.
 export const ENTERPRISE_INBOX_TEAM_ID = "8484447";
 
+// Self-serve enterprise (SSE) tickets arrive in their own Intercom inbox and
+// carry the same clock-start semantics. The extra team id is configured in
+// `settings.sse_intercom_inbox_id` and registered at load time, so the engine
+// stays a pure function of what it is told rather than hardcoding a second id.
+const ANCHOR_TEAM_IDS = new Set<string>([ENTERPRISE_INBOX_TEAM_ID]);
+
+/** Register additional inbox team ids that start the SLA clock (idempotent). */
+export function registerAnchorTeamIds(ids: Array<string | null | undefined>): void {
+  for (const id of ids) {
+    const t = String(id ?? "").trim();
+    if (t) ANCHOR_TEAM_IDS.add(t);
+  }
+}
+
+export function isAnchorTeamId(id: unknown): boolean {
+  return ANCHOR_TEAM_IDS.has(String(id ?? ""));
+}
+
 // ---- Triage discipline (PROVISIONAL, tunable) -------------------------------
 // Both constants are provisional proposals, not agreed SLA targets. They exist
 // so we can MEASURE the two behaviours we are re-enforcing; tune freely.
@@ -713,7 +731,7 @@ export function computeSla(
 
   // SLA clock-start = first Enterprise Inbox team assignment; else createdAt.
   const enterpriseInboxAssignment = timeline.find(
-    (p) => p.assignedToType === "team" && p.assignedToId === ENTERPRISE_INBOX_TEAM_ID,
+    (p) => p.assignedToType === "team" && isAnchorTeamId(p.assignedToId),
   );
   const enterpriseInboxAssignedAtS: number | null = enterpriseInboxAssignment?.ts ?? null;
   const slaClockStartS: number | null =
@@ -1364,12 +1382,20 @@ export function evaluateCadence(
 export type PolicyStatus = "provisional" | "committed";
 export type DbClock = "business" | "wall";
 
+/** Plan tier a ticket (and a policy version) belongs to. */
+export type PlanTier = "enterprise" | "sse";
+
+export function parsePlanTier(v: unknown): PlanTier {
+  return String(v ?? "") === "sse" ? "sse" : "enterprise";
+}
+
 export type SlaPolicyVersionRow = {
   id: string;
   effective_from: string;
   status: string;
   business_hours: any;
   label?: string | null;
+  plan?: string | null;
 };
 
 export type SlaPolicyTargetRow = {
@@ -1383,6 +1409,8 @@ export type SlaPolicyTargetRow = {
 export type SlaPolicy = {
   id: string;
   label: string | null;
+  /** Plan tier this policy governs. Legacy rows default to 'enterprise'. */
+  plan: PlanTier;
   effectiveFromMs: number;
   status: PolicyStatus;
   businessHours: BusinessHoursConfig;
@@ -1449,6 +1477,7 @@ export function policyToEngine(
   return {
     id: version.id,
     label: version.label ?? null,
+    plan: parsePlanTier(version.plan),
     effectiveFromMs: Date.parse(version.effective_from),
     status: version.status === "committed" ? "committed" : "provisional",
     businessHours: parseBusinessHours(version.business_hours),
@@ -1463,9 +1492,14 @@ export function policyToEngine(
  * effectiveFromMs <= anchorMs. Returns null when the ticket arrived before any
  * configured version (never falls back silently).
  */
-export function resolvePolicy(anchorMs: number, versions: SlaPolicy[]): SlaPolicy | null {
+export function resolvePolicy(
+  anchorMs: number,
+  versions: SlaPolicy[],
+  plan: PlanTier = "enterprise",
+): SlaPolicy | null {
   let best: SlaPolicy | null = null;
   for (const v of versions) {
+    if (v.plan !== plan) continue;
     if (!Number.isFinite(v.effectiveFromMs) || v.effectiveFromMs > anchorMs) continue;
     if (!best || v.effectiveFromMs > best.effectiveFromMs) best = v;
   }

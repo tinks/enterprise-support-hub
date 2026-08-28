@@ -16,6 +16,7 @@ import {
 } from "./v3.ts";
 import { syncTicketAttributes } from "./v3-attributes.ts";
 import { writeV3Signals } from "./v3-signals.ts";
+import type { InboxResolver } from "./v3-inboxes.ts";
 
 export type FinalizeResult =
   | { kind: "inserted" | "updated" }
@@ -26,11 +27,12 @@ export async function finalizeConversation(params: {
   supabase: any;
   intercomToken: string;
   convId: string;
-  enterpriseInboxId: string;
+  /** All ingested inboxes + their plan tiers (enterprise / sse). */
+  inboxes: InboxResolver;
   adminOwnerMap: Record<string, string>;
   existing?: { id: string } | null;
 }): Promise<FinalizeResult> {
-  const { supabase, intercomToken, convId, enterpriseInboxId, adminOwnerMap, existing } = params;
+  const { supabase, intercomToken, convId, inboxes, adminOwnerMap, existing } = params;
 
   const icRes = await fetch(`https://api.intercom.io/conversations/${convId}`, {
     headers: intercomHeaders(intercomToken),
@@ -38,9 +40,11 @@ export async function finalizeConversation(params: {
   if (!icRes.ok) return { kind: "failed", reason: `GET ${icRes.status}` };
   const icData = await icRes.json();
 
-  if (String(icData.team_assignee_id || "") !== String(enterpriseInboxId)) {
+  const planTier = inboxes.planFor(icData.team_assignee_id);
+  if (!planTier) {
     return { kind: "skipped", reason: "not_enterprise_inbox" };
   }
+
 
   const isTicket = isTicketPayload(icData);
   const closedConv = String(icData.state || "") === "closed";
@@ -104,6 +108,8 @@ export async function finalizeConversation(params: {
   const row = {
     intercom_conversation_id: convId,
     team_assignee_id: String(icData.team_assignee_id ?? ""),
+    plan_tier: planTier,
+
     admin_assignee_id: adminId || null,
     owner,
     contact_name: contactName || null,
