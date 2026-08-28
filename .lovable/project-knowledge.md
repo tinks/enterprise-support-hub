@@ -1977,3 +1977,23 @@ Intercom frequently produces useless titles (`Intercom #215474865211089`). The H
 ### Verification status
 
 Verified live on Intercom #215474865211089: set via SQL and rendered in Inbox v3 with the `edited · Intercom:` subline; then edited **through the UI** to a new label and cleared through the UI, with both actions landing in `conversation_audit_logs` under the acting editor's email and the row falling back to Intercom's subject. Typecheck and build clean. **UNVERIFIED**: the read-only refusal path (an `editor`-less account attempting a save) has not been exercised.
+
+## PostgREST filter injection guard on contact emails (28 Aug 2026)
+
+The Gmail linker in three edge functions built a PostgREST `.or()` filter by interpolating an Intercom contact email straight into the filter string. PostgREST treats `,` `(` `)` `%` `\` `"` `'` and whitespace as structure, so a crafted address could restructure the filter and match Gmail rows it had no claim to. Low severity (the address has to arrive from Intercom), but it is a real injection surface into a linking decision that changes ticket attribution.
+
+### The guard
+
+`supabase/functions/_shared/safe-email.ts` — `isFilterSafeEmail(email)` requires a conservative `local@domain.tld` shape and rejects any of the reserved characters above. It is a validator, not a sanitizer: nothing is rewritten, so a rejected address can never be silently turned into a different one.
+
+### Where it is applied
+
+`intercom-webhook`, `poll-intercom-inbox`, `backfill-enterprise-inbox`. On rejection the **email linker alone is skipped** — the existing subject-match tier and the `pending_intercom_links` deferred-link path still run, so a legitimate ticket does not lose its Gmail link because of a strict validator.
+
+### Scanner findings closed as already fixed
+
+Re-checked against current code, not assumed: `gmail_callback_xss` (the callback already escapes via `escapeHtml`), `knowledge_xss` (`inlineMd()` escapes before applying inline formatting), `open_self_signup` (no `signUp` call remains in `Login.tsx`).
+
+### Verification status
+
+Guard logic and call-site placement reviewed in code; build clean. **UNVERIFIED**: no live ticket has yet arrived with a reserved-character contact email, so the rejection branch has not been exercised against production data.
