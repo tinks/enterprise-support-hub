@@ -29,9 +29,14 @@ const isCustomerSide = (p: TimelinePart) => p.actor === "customer" || p.actor ==
 function firstDemandTs(sla: SlaResult): number | null {
   const anchor = sla.slaClockStartS;
   if (anchor == null) return null;
-  const p = sla.timeline.find((t) => isCustomerSide(t) && t.ts >= anchor);
+  // If customer demand already exists when the ticket enters the inbox, the
+  // anchor IS the demand point — identical to today's engine.
+  if (sla.timeline.some((t) => isCustomerSide(t) && t.ts <= anchor)) return anchor;
+  // Otherwise (support-initiated thread) wait for the first customer inbound.
+  const p = sla.timeline.find((t) => isCustomerSide(t) && t.ts > anchor);
   return p ? p.ts : null;
 }
+
 
 type DiffRow = {
   row: SlaBatchEnriched;
