@@ -111,11 +111,22 @@ function SignalCard({
         </div>
       )}
 
-      <div className="mt-auto pt-2">
+      <div className="mt-auto pt-2 flex items-center justify-between gap-2">
         <Button variant={active ? "default" : "outline"} size="sm" onClick={() => onGo(signal.route)}>
           {signal.routeLabel}
           <ArrowRight className="h-3 w-3 ml-1" />
         </Button>
+        <div className="flex items-center gap-1.5">
+          <Label htmlFor={`mute-${signal.id}`} className="text-[11px] text-muted-foreground">
+            Alert
+          </Label>
+          <Switch
+            id={`mute-${signal.id}`}
+            checked={!muted}
+            onCheckedChange={() => onToggleMute(signal.id)}
+            aria-label={muted ? `Unmute ${signal.label}` : `Mute ${signal.label}`}
+          />
+        </div>
       </div>
     </div>
   );
@@ -123,13 +134,15 @@ function SignalCard({
 
 export default function ActionCenter() {
   const navigate = useNavigate();
-  const { states, attentionCount, errorCount, loading, lastLoadedAt, refresh } = useActionSignals();
+  const { states, attentionCount, errorCount, loading, lastLoadedAt, refresh, toggleMuted } =
+    useActionSignals();
 
   const grouped = useMemo(() => {
-    const active = states.filter((s) => s.status === "error" || (s.reading?.count ?? 0) > 0);
-    const quiet = states.filter((s) => !(s.status === "error" || (s.reading?.count ?? 0) > 0));
-    return { active, quiet };
+    const isActive = (s: SignalState) =>
+      !s.muted && (s.status === "error" || (s.reading?.count ?? 0) > 0);
+    return { active: states.filter(isActive), quiet: states.filter((s) => !isActive(s)) };
   }, [states]);
+
 
   const byFamily = (list: SignalState[]) =>
     FAMILY_ORDER.map((f) => ({ family: f, items: list.filter((s) => s.signal.family === f) })).filter(
