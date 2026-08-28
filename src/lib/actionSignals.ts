@@ -346,18 +346,25 @@ export const ACTION_SIGNALS: ActionSignal[] = [
         closed_backfill: 60,
         gap_scan: 48 * 60,
       };
-      const res = await supabase
-        .from("intercom_sync_jobs_v3")
-        .select("kind,status,finished_at")
-        .eq("status", "done")
-        .order("finished_at", { ascending: false })
-        .limit(200);
-      const rows = unwrap<Array<{ kind: string; finished_at: string | null }>>(res as any);
+      // Query the latest completed job PER KIND — a single global query can be
+      // fully consumed by the highest-frequency kind (open_refresh) and make
+      // rarer kinds (gap_scan) look infinitely stale.
       const latest = new Map<string, string>();
-      for (const r of rows) {
-        if (!r.finished_at) continue;
-        if (!latest.has(r.kind)) latest.set(r.kind, r.finished_at);
-      }
+      await Promise.all(
+        Object.keys(MAX_AGE_MIN).map(async (kind) => {
+          const res = await supabase
+            .from("intercom_sync_jobs_v3")
+            .select("kind,finished_at")
+            .eq("status", "done")
+            .eq("kind", kind)
+            .not("finished_at", "is", null)
+            .order("finished_at", { ascending: false })
+            .limit(1);
+          const rows = unwrap<Array<{ kind: string; finished_at: string | null }>>(res as any);
+          if (rows[0]?.finished_at) latest.set(kind, rows[0].finished_at);
+        }),
+      );
+
       const stale: string[] = [];
       let oldest: string | null = null;
       for (const [kind, maxAge] of Object.entries(MAX_AGE_MIN)) {
