@@ -15,29 +15,59 @@ export type SignalState = {
   status: "loading" | "ok" | "error";
   reading: SignalReading | null;
   error: string | null;
+  /** Muted signals still load and display, but never raise the badge. */
+  muted: boolean;
 };
 
 type Ctx = {
   states: SignalState[];
-  /** Number of signals with count > 0. Errors are NOT counted as attention. */
+  /** Number of unmuted signals with count > 0. Errors are NOT counted as attention. */
   attentionCount: number;
   /** Number of signals whose loader failed. */
   errorCount: number;
   loading: boolean;
   lastLoadedAt: number | null;
   refresh: () => void;
+  mutedIds: string[];
+  toggleMuted: (id: string) => void;
 };
 
 const ActionSignalsContext = createContext<Ctx | null>(null);
 
+const MUTED_KEY = "esh.actionSignals.muted";
+
+const readMuted = (): string[] => {
+  try {
+    const raw = localStorage.getItem(MUTED_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((v) => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
+};
+
 const initialStates = (): SignalState[] =>
-  ACTION_SIGNALS.map((signal) => ({ signal, status: "loading", reading: null, error: null }));
+  ACTION_SIGNALS.map((signal) => ({ signal, status: "loading", reading: null, error: null, muted: false }));
+
 
 export function ActionSignalsProvider({ children }: { children: ReactNode }) {
   const [states, setStates] = useState<SignalState[]>(initialStates);
+  const [mutedIds, setMutedIds] = useState<string[]>(readMuted);
   const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null);
   const lastFetchRef = useRef(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const toggleMuted = useCallback((id: string) => {
+    setMutedIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      try {
+        localStorage.setItem(MUTED_KEY, JSON.stringify(next));
+      } catch {
+        /* non-fatal: mute is a display preference */
+      }
+      return next;
+    });
+  }, []);
 
   const load = useCallback(async () => {
     lastFetchRef.current = Date.now();
@@ -45,16 +75,17 @@ export function ActionSignalsProvider({ children }: { children: ReactNode }) {
       ACTION_SIGNALS.map(async (signal): Promise<SignalState> => {
         try {
           const reading = await signal.load();
-          return { signal, status: "ok", reading, error: null };
+          return { signal, status: "ok", reading, error: null, muted: false };
         } catch (e: any) {
           // Loud, never silent: a failed query is an error card, not a zero.
-          return { signal, status: "error", reading: null, error: e?.message ?? String(e) };
+          return { signal, status: "error", reading: null, error: e?.message ?? String(e), muted: false };
         }
       }),
     );
     setStates(results);
     setLastLoadedAt(Date.now());
   }, []);
+
 
   useEffect(() => {
     load();
@@ -81,17 +112,22 @@ export function ActionSignalsProvider({ children }: { children: ReactNode }) {
   }, [load]);
 
   const value = useMemo<Ctx>(() => {
-    const attentionCount = states.filter((s) => s.status === "ok" && (s.reading?.count ?? 0) > 0).length;
-    const errorCount = states.filter((s) => s.status === "error").length;
+    const withMute = states.map((s) => ({ ...s, muted: mutedIds.includes(s.signal.id) }));
+    const attentionCount = withMute.filter(
+      (s) => !s.muted && s.status === "ok" && (s.reading?.count ?? 0) > 0,
+    ).length;
+    const errorCount = withMute.filter((s) => !s.muted && s.status === "error").length;
     return {
-      states,
+      states: withMute,
       attentionCount,
       errorCount,
-      loading: states.some((s) => s.status === "loading"),
+      loading: withMute.some((s) => s.status === "loading"),
       lastLoadedAt,
       refresh: load,
+      mutedIds,
+      toggleMuted,
     };
-  }, [states, lastLoadedAt, load]);
+  }, [states, mutedIds, lastLoadedAt, load, toggleMuted]);
 
   return <ActionSignalsContext.Provider value={value}>{children}</ActionSignalsContext.Provider>;
 }
@@ -106,7 +142,10 @@ export function useActionSignals(): Ctx {
       loading: false,
       lastLoadedAt: null,
       refresh: () => {},
+      mutedIds: [],
+      toggleMuted: () => {},
     };
   }
   return ctx;
+
 }
