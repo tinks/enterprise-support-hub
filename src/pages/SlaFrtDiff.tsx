@@ -37,6 +37,17 @@ function firstDemandTs(sla: SlaResult): number | null {
   return p ? p.ts : null;
 }
 
+// The reply that ANSWERS the demand: first public support reply at/after the
+// demand point. An earlier outbound (the message that opened an agent-initiated
+// thread) answered nothing and must not count as a 0s first response.
+function responseTsFor(sla: SlaResult, demandS: number | null): number | null {
+  if (demandS == null) return null;
+  const p = sla.timeline.find(
+    (t) => t.isPublicReply && (t.actor === "human_admin" || t.actor === "sam_ai") && t.ts >= demandS,
+  );
+  return p ? p.ts : null;
+}
+
 
 type DiffRow = {
   row: SlaBatchEnriched;
