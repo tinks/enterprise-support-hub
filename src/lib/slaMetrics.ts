@@ -813,6 +813,8 @@ export function computeSla(
   const hasRoster = !!((supportEmails?.size ?? 0) + (supportAdminIds?.size ?? 0));
   const isSupportPart = (p: TimelinePart): boolean => {
     if (!p.isPublicReply) return false;
+    // Slack-relayed teammate reply: identity lives in the body prefix only.
+    if (isRelaySupport(p)) return true;
     // No roster supplied → pre-commit-2 fallback: any human_admin reply.
     if (!hasRoster) return p.actor === "human_admin";
     // Sam is role='ai' → never in the roster → correctly excluded.
@@ -820,6 +822,7 @@ export function computeSla(
     if (p.authorId && supportAdminIds?.has(p.authorId)) return true;
     return false;
   };
+
   const firstSupportReply = timeline.find(isSupportPart);
   const firstSupportReplyS = firstSupportReply?.ts ?? null;
   const firstSupportReplyFromInboxS =
