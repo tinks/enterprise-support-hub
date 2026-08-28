@@ -1306,6 +1306,8 @@ function tp(over: Partial<TimelinePart>): TimelinePart {
     assignedToType: null,
     assignedToId: null,
     eventDetails: null,
+    relayFrom: null,
+
     ...over,
   };
 }
