@@ -59,9 +59,13 @@ export default function SlaDashboard() {
   const { loading, error, inScope, excluded, noCustomer, manuallyLogged, refresh, isExcused, customerLabels, activePolicy, policyFallback, policyError } = useSlaBatch({ showTestData });
   const [dateWindow, setDateWindow] = useState<DateWindow>("month");
   const [customerFilter, setCustomerFilter] = useState<string>(ALL_CUSTOMERS);
+  // Self-serve enterprise carries NO first-response / resolution / cadence
+  // commitments, so mixing it into this scorecard would silently inflate
+  // compliance. Enterprise-only is the honest default; the plan is selectable.
+  const [planFilter, setPlanFilter] = useState<"enterprise" | "sse" | "all">("enterprise");
 
   // Filter in-scope rows to selected window by finalized/close date.
-  const windowedInScopeDate = useMemo(() => {
+  const windowedByDate = useMemo(() => {
     const { startMs, endMs } = windowRange(dateWindow, new Date());
     if (startMs == null && endMs == null) return inScope;
     return inScope.filter((r) => {
@@ -70,6 +74,17 @@ export default function SlaDashboard() {
       return (startMs == null || t >= startMs) && (endMs == null || t < endMs);
     });
   }, [inScope, dateWindow]);
+
+  const sseInWindow = useMemo(
+    () => windowedByDate.filter((r) => r.planTier === "sse").length,
+    [windowedByDate],
+  );
+
+  const windowedInScopeDate = useMemo(
+    () => (planFilter === "all" ? windowedByDate : windowedByDate.filter((r) => r.planTier === planFilter)),
+    [windowedByDate, planFilter],
+  );
+
 
   // Distinct customers present in the date-filtered in-scope set (for the selector).
   const customerOptions = useMemo(() => {
