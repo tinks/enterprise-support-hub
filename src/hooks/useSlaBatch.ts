@@ -215,7 +215,16 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
    */
   const [supportEmails, setSupportEmails] = useState<Set<string>>(new Set());
   const [supportAdminIds, setSupportAdminIds] = useState<Set<string>>(new Set());
+  /**
+   * Slack display-name aliases for the same roster. Slack-relayed replies post
+   * into Intercom under the relay admin (Sam) with a `[From: <name> via Slack]`
+   * prefix and no teammate email/admin id, so name is the only attribution.
+   * Aliases: full name, first name, and email local part (min 3 chars, to avoid
+   * matching a customer who happens to share a short first name).
+   */
+  const [supportSlackNames, setSupportSlackNames] = useState<Set<string>>(new Set());
   const [rosterLoaded, setRosterLoaded] = useState(false);
+
 
   // Register the self-serve enterprise inbox as an SLA clock-start anchor.
   // Without this, an SSE ticket's clock would fall back to created_at.
