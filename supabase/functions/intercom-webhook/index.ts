@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isFilterSafeEmail } from "../_shared/safe-email.ts";
 import { crypto } from "https://deno.land/std@0.208.0/crypto/mod.ts";
 import { encode as hexEncode } from "https://deno.land/std@0.208.0/encoding/hex.ts";
 import { recordIntegrationHealth, classifyHttpStatus } from "../_shared/integration-health.ts";
@@ -422,7 +423,7 @@ async function handleEvent(rawBody: string): Promise<Response> {
       }
 
       // Cross-reference with gmail_conversations before creating manual entry
-      if (contactEmail && !skipEmailLinker) {
+      if (contactEmail && !skipEmailLinker && isFilterSafeEmail(contactEmail)) {
         const emailLower = contactEmail.toLowerCase();
         const { data: gmailMatches } = await supabase
           .from("gmail_conversations")
