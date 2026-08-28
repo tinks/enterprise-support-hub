@@ -664,18 +664,34 @@ Deno.serve(async (req) => {
              * (never drop a reply), but we record the gap so the Action Center
              * surfaces it instead of failing silently.
              */
+            // Resolve by slack_user_id FIRST (exact, survives Slack-profile
+            // emails that differ from the roster email), then by email.
             let teammateAdminId: string | null = null;
-            if (senderEmail) {
-              const { data: tm } = await supabase
+            {
+              const pickId = (row: any) => {
+                const id = row?.intercom_admin_id;
+                return id ? String(id).trim() : null;
+              };
+              const bySlack = await supabase
                 .from("teammates")
                 .select("intercom_admin_id,name,active")
-                .ilike("email", senderEmail)
+                .eq("slack_user_id", event.user)
                 .eq("active", true)
                 .limit(1)
                 .maybeSingle();
-              const id = (tm as any)?.intercom_admin_id;
-              teammateAdminId = id ? String(id).trim() : null;
+              teammateAdminId = pickId(bySlack.data);
+              if (!teammateAdminId && senderEmail) {
+                const byEmail = await supabase
+                  .from("teammates")
+                  .select("intercom_admin_id,name,active")
+                  .ilike("email", senderEmail)
+                  .eq("active", true)
+                  .limit(1)
+                  .maybeSingle();
+                teammateAdminId = pickId(byEmail.data);
+              }
             }
+
 
             const recordRelayGap = async (reason: string) => {
               try {
