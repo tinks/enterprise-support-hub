@@ -215,6 +215,8 @@ export function extractTimeline(raw: any): TimelinePart[] {
       assignedToType: null,
       assignedToId: null,
       eventDetails: null,
+      relayFrom: parseRelayFrom(body),
+
     });
   }
   const arr = raw?.conversation_parts?.conversation_parts;
