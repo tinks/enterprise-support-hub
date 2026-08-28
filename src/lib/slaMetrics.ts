@@ -125,7 +125,25 @@ export type TimelinePart = {
   // { attribute: { name: "Severity" }, value: { name: "2" }, ... }.
   // null when the part has no event_details.
   eventDetails: any | null;
+  // Slack↔Intercom relay attribution. Messages bridged from Slack are posted
+  // into Intercom under the RELAY admin identity (Sam, id 9520895) with the
+  // body prefix `[From: <name> via Slack]`. `<name>` is the ONLY signal of who
+  // actually spoke — it can be a teammate OR the customer. Lowercased, or null
+  // when the part is not relayed.
+  relayFrom: string | null;
 };
+
+// `[From: tine via Slack]` → "tine". Tolerates the leading whitespace and
+// entity noise stripHtml leaves behind. Only matches at the START of the body:
+// a mid-body occurrence is quoted text, not attribution.
+const RELAY_PREFIX_RE = /^\s*\[from:\s*([^\]]+?)\s+via\s+slack\]/i;
+
+export function parseRelayFrom(body: string): string | null {
+  const m = RELAY_PREFIX_RE.exec(body || "");
+  const name = m?.[1]?.trim().toLowerCase();
+  return name ? name : null;
+}
+
 
 
 function stripHtml(s: any): string {
@@ -197,6 +215,8 @@ export function extractTimeline(raw: any): TimelinePart[] {
       assignedToType: null,
       assignedToId: null,
       eventDetails: null,
+      relayFrom: parseRelayFrom(body),
+
     });
   }
   const arr = raw?.conversation_parts?.conversation_parts;
@@ -220,6 +240,8 @@ export function extractTimeline(raw: any): TimelinePart[] {
         assignedToType: assign.type,
         assignedToId: assign.id,
         eventDetails: p?.event_details ?? null,
+        relayFrom: parseRelayFrom(body),
+
       });
     }
   }
@@ -713,6 +735,15 @@ function sumCustomerWaitGaps(timeline: TimelinePart[], clip: (a: number, b: numb
 export type SlaComputeOptions = {
   supportEmails?: Set<string>;
   supportAdminIds?: Set<string>;
+  /**
+   * Lowercased Slack display names / first names of SUPPORT-roster teammates.
+   * Slack-relayed replies land in Intercom under the relay admin (Sam), so the
+   * ONLY attribution is the `[From: <name> via Slack]` body prefix. A part whose
+   * relay name is in this set is re-attributed to `human_admin` and counts as a
+   * support reply; an UNKNOWN relay name (typically the customer speaking in the
+   * shared Slack channel) is left exactly as classified before — no guessing.
+   */
+  supportSlackNames?: Set<string>;
 };
 
 export function computeSla(
@@ -725,7 +756,15 @@ export function computeSla(
   // config is DEFAULT_BUSINESS_HOURS → output is bit-identical to before.
   const bhBetween = (a: number, b: number) => businessHoursBetween(a, b, businessHours);
 
-  const timeline = extractTimeline(conversation);
+  const relayNames = opts?.supportSlackNames;
+  const isRelaySupport = (p: TimelinePart): boolean =>
+    !!(p.relayFrom && relayNames && relayNames.has(p.relayFrom));
+  // Re-attribute BEFORE anything reads the timeline, so every downstream metric
+  // (FRT, resolution-active, cadence, triage) sees the teammate, not the relay.
+  const timeline = extractTimeline(conversation).map((p) =>
+    isRelaySupport(p) && p.actor !== "human_admin" ? { ...p, actor: "human_admin" as Actor } : p,
+  );
+
   const createdAt: number | null =
     typeof conversation?.created_at === "number" ? conversation.created_at : null;
 
@@ -774,6 +813,8 @@ export function computeSla(
   const hasRoster = !!((supportEmails?.size ?? 0) + (supportAdminIds?.size ?? 0));
   const isSupportPart = (p: TimelinePart): boolean => {
     if (!p.isPublicReply) return false;
+    // Slack-relayed teammate reply: identity lives in the body prefix only.
+    if (isRelaySupport(p)) return true;
     // No roster supplied → pre-commit-2 fallback: any human_admin reply.
     if (!hasRoster) return p.actor === "human_admin";
     // Sam is role='ai' → never in the roster → correctly excluded.
@@ -781,6 +822,7 @@ export function computeSla(
     if (p.authorId && supportAdminIds?.has(p.authorId)) return true;
     return false;
   };
+
   const firstSupportReply = timeline.find(isSupportPart);
   const firstSupportReplyS = firstSupportReply?.ts ?? null;
   const firstSupportReplyFromInboxS =

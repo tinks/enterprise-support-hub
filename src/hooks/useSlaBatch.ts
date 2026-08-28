@@ -215,7 +215,16 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
    */
   const [supportEmails, setSupportEmails] = useState<Set<string>>(new Set());
   const [supportAdminIds, setSupportAdminIds] = useState<Set<string>>(new Set());
+  /**
+   * Slack display-name aliases for the same roster. Slack-relayed replies post
+   * into Intercom under the relay admin (Sam) with a `[From: <name> via Slack]`
+   * prefix and no teammate email/admin id, so name is the only attribution.
+   * Aliases: full name, first name, and email local part (min 3 chars, to avoid
+   * matching a customer who happens to share a short first name).
+   */
+  const [supportSlackNames, setSupportSlackNames] = useState<Set<string>>(new Set());
   const [rosterLoaded, setRosterLoaded] = useState(false);
+
 
   // Register the self-serve enterprise inbox as an SLA clock-start anchor.
   // Without this, an SSE ticket's clock would fall back to created_at.
@@ -239,19 +248,31 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
     (async () => {
       const { data, error } = await supabase
         .from("teammates")
-        .select("intercom_admin_id,email,role")
+        .select("intercom_admin_id,email,role,name")
         .eq("role", "support");
       if (cancelled) return;
       if (!error) {
         const emails = new Set<string>();
         const ids = new Set<string>();
-        for (const r of (data ?? []) as Array<{ intercom_admin_id: string | null; email: string | null }>) {
+        const names = new Set<string>();
+        const addName = (v: string | null | undefined) => {
+          const s = (v ?? "").trim().toLowerCase();
+          if (s.length >= 3) names.add(s);
+        };
+        for (const r of (data ?? []) as Array<{ intercom_admin_id: string | null; email: string | null; name: string | null }>) {
           if (r.email) emails.add(r.email.trim().toLowerCase());
           if (r.intercom_admin_id) ids.add(String(r.intercom_admin_id).trim());
+          if (r.name) {
+            addName(r.name);
+            addName(r.name.trim().split(/\s+/)[0]);
+          }
+          if (r.email) addName(r.email.split("@")[0]);
         }
         setSupportEmails(emails);
         setSupportAdminIds(ids);
+        setSupportSlackNames(names);
       }
+
       // On error we leave both sets empty → engine falls back to the
       // pre-commit-2 any-human_admin behavior rather than scoring nothing.
       setRosterLoaded(true);
@@ -295,7 +316,7 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
 
   const enriched = useMemo<SlaBatchEnriched[]>(
     () => (rosterLoaded && !policyLoading ? rows : []).map((r) => {
-      const opts = { supportEmails, supportAdminIds };
+      const opts = { supportEmails, supportAdminIds, supportSlackNames };
       // Pass 1 with the built-in calendar to derive the ticket's inbound anchor
       // (Enterprise-Inbox assignment, else created_at) — the anchor itself is a
       // wall-clock timestamp, so it does not depend on business hours.
@@ -314,7 +335,7 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
       const bucket = classifySlaBatchRow(r, sla, { testAccountKeys, showTestData });
       return { ...r, sla, origin, bucket, planTier, policy, policyFallback };
     }),
-    [rows, testAccountKeys, showTestData, rosterLoaded, supportEmails, supportAdminIds, configLoaded, policyLoading, resolveForAnchor],
+    [rows, testAccountKeys, showTestData, rosterLoaded, supportEmails, supportAdminIds, supportSlackNames, configLoaded, policyLoading, resolveForAnchor],
   );
 
   const activePolicy = useMemo(

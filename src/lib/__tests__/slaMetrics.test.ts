@@ -1402,3 +1402,61 @@ describe("evaluateCadence", () => {
     expect(evaluateCadence(sla, 2)).toBe(evaluateCadence(sla, 2, CADENCE_TARGETS[2]!.maxGapS));
   });
 });
+
+// ---------------------------------------------------------------------------
+// Slack relay attribution: a teammate replying in Slack is posted into Intercom
+// under the relay admin (Sam) with a `[From: <name> via Slack]` body prefix.
+// Without the prefix parse the reply is read as sam_ai and the FR clock never
+// stops (real cases: Handshake 215475637394716, Tre 215475649809370).
+// ---------------------------------------------------------------------------
+describe("Slack relay attribution", () => {
+  const SAM = { id: "9520895", name: "Sam", type: "admin" };
+  const CUSTOMER = { id: "c1", name: "stan@joinhandshake.com", type: "user" };
+  const T0 = 1_787_000_000; // Sat? irrelevant — assertions use wall-clock fields
+  const convo = {
+    created_at: T0,
+    source: { body: "<p>Help</p>", author: CUSTOMER },
+    conversation_parts: {
+      conversation_parts: [
+        { created_at: T0 + 60, part_type: "assignment", body: "", assigned_to: { type: "team", id: "5372074" } },
+        { created_at: T0 + 600, part_type: "comment", body: "<p>[From: tine via Slack]&nbsp;</p><p>Hi, taking a look</p>", author: SAM },
+      ],
+    },
+  };
+
+  it("parses the relay prefix and ignores mid-body occurrences", () => {
+    const parts = extractTimeline(convo);
+    expect(parts[2].relayFrom).toBe("tine");
+    expect(parts[0].relayFrom).toBeNull();
+    expect(extractTimeline({
+      created_at: T0,
+      source: { body: "quoting [From: tine via Slack] earlier", author: CUSTOMER },
+    })[0].relayFrom).toBeNull();
+  });
+
+  it("known relay name → counts as the support first response", () => {
+    const sla = computeSla(convo, {
+      supportEmails: new Set(["tine@lovable.dev"]),
+      supportAdminIds: new Set(["10476723"]),
+      supportSlackNames: new Set(["tine"]),
+    });
+    expect(sla.firstSupportReplyFromInboxS).toBe(600); // relay reply at T0+600, clock at created_at
+  });
+
+  it("unknown relay name (customer via Slack) is NOT re-attributed", () => {
+    const sla = computeSla(convo, {
+      supportEmails: new Set(["tine@lovable.dev"]),
+      supportAdminIds: new Set(["10476723"]),
+      supportSlackNames: new Set(["joel"]),
+    });
+    expect(sla.firstSupportReplyFromInboxS).toBeNull();
+  });
+
+  it("no supportSlackNames supplied → behavior unchanged (regression guard)", () => {
+    const sla = computeSla(convo, {
+      supportEmails: new Set(["tine@lovable.dev"]),
+      supportAdminIds: new Set(["10476723"]),
+    });
+    expect(sla.firstSupportReplyFromInboxS).toBeNull();
+  });
+});
