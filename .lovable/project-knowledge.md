@@ -1159,6 +1159,24 @@ Pure, source-agnostic TypeScript. No network, DB, or Intercom client access. Sam
 
 **Aggregate** (`aggregate`): `{ avg, median, p90, p95, n, nNull }` over nullable numbers.
 
+### Self-serve enterprise (SSE) — the plan-tier dimension (28 Aug 2026)
+
+A second commercial tier ships alongside standard Enterprise: **self-serve enterprise**, sold with **NO SLA commitments** and a **1-hour triage target**. It has **no separate views** — every v3 surface stays one population — but every ticket now carries an explicit plan tier so SSE can never be silently scored against Enterprise commitments.
+
+**Where the tier comes from — the Intercom inbox, nothing else.** `settings.sse_intercom_inbox_id` (new, empty by default) names the SSE inbox; `settings.intercom_inbox_id` remains Enterprise. `supabase/functions/_shared/v3-inboxes.ts` (`resolveInboxes`, `inboxSearchClause`) is the single source: it yields the ingest id list, the plan for a `team_assignee_id`, and the Intercom search clause. **While `sse_intercom_inbox_id` is empty the resolver returns exactly the previous single-inbox behavior** — one id, plan `enterprise`, an identical `=` search clause. The feature is inert until configured.
+
+- `intercom_tickets_v3.plan_tier` — `text NOT NULL DEFAULT 'enterprise'`, `CHECK IN ('enterprise','sse')`, indexed. Every pre-existing row backfilled to `enterprise` by the default.
+- Writers updated in lockstep: `sync-v3-open`, `sync-v3-closed`, `sync-v3-gap-scan`, `reconcile-v3-open`, `_shared/v3-finalize.ts` (its `enterpriseInboxId: string` param became `inboxes: InboxResolver`; the not-ours skip reason is unchanged). Gap-scan counts Intercom across **both** inboxes so its comparison against our store stays like-for-like.
+- **NOT changed:** `intercom-webhook` still guards on the Enterprise inbox only — it feeds the legacy `manual_conversations` bridge, not v3. SSE tickets reach v3 through `sync-v3-open`.
+
+**Policy resolution is now (anchor, plan), not anchor alone.** `sla_policy_versions.plan` (`'enterprise' | 'sse'`, default `enterprise`) partitions versions; `resolvePolicy(anchorMs, versions, plan)` never crosses plans. Seeded SSE version — *"Self-serve enterprise (triage only)"*, `effective_from 2026-01-01`, `provisional`: **triage 3600 s business, and no other target row at all** — so first response, resolution and cadence resolve to "no target", not to a lenient one. `BUILTIN_SSE_POLICY` in `useSlaBatch.ts` mirrors that shape as the loud fallback.
+
+**Clock start.** SSE anchors the same way (first inbox team-assignment, else `created_at`). The engine no longer hardcodes one team id: `registerAnchorTeamIds()` / `isAnchorTeamId()` in `slaMetrics.ts`, registered from `settings.sse_intercom_inbox_id` by `useSlaBatch`.
+
+**Surfaces.** Triage (`/triage`) grades each row against **its own** target — 30 min Enterprise, 60 min SSE — and carries a `Plan` column (`SSE` pill / `Enterprise`) plus a Plan field in the detail sheet. The SLA Dashboard adds a **Plan selector defaulting to `Enterprise`**, because averaging a commitment-free tier into a compliance scorecard would inflate it; the count of SSE tickets in-window is always shown, labelled *"not scored here (no SLA commitments)"*.
+
+**UNVERIFIED:** no SSE inbox id is configured yet and no SSE ticket exists, so the ingest path, the `sse` policy resolution and the SSE triage band have **not** been exercised against real data — only unit-tested and type-checked (118 SLA tests green).
+
 ### Compliance evaluation — policy targets (DATA), `parseSeverity`, `evaluateCompliance`
 
 **Targets are no longer hardcoded.** Since the SLA-policy-config build (see *"SLA policy config — admin-editable, effective-dated targets"* below), every SLA target and the business-hours calendar live in `sla_policy_versions` / `sla_policy_targets` and are resolved **per ticket** by its inbound anchor. `SLA_TARGETS`, `CADENCE_TARGETS`, `TRIAGE_TARGET_S` and `DEFAULT_BUSINESS_HOURS` in `src/lib/slaMetrics.ts` are **retained as the built-in fallback/default only** — used when the config fails to load, is empty, or a ticket predates every version, and always with a loud `PolicyFallbackBanner`.
