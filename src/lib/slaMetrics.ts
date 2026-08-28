@@ -757,8 +757,20 @@ export function computeSla(
   const bhBetween = (a: number, b: number) => businessHoursBetween(a, b, businessHours);
 
   const relayNames = opts?.supportSlackNames;
-  const isRelaySupport = (p: TimelinePart): boolean =>
-    !!(p.relayFrom && relayNames && relayNames.has(p.relayFrom));
+  // The durable relay marker carries the sender's email —
+  // `[From: Tine (tine@lovable.dev) via Slack]` — so prefer an exact email
+  // match over display-name matching (names collide, emails don't).
+  const relayEmailOf = (v: string | null): string | null => {
+    const m = /[\w.+-]+@[\w.-]+\.\w{2,}/.exec(v || "");
+    return m ? m[0].toLowerCase() : null;
+  };
+  const isRelaySupport = (p: TimelinePart): boolean => {
+    if (!p.relayFrom) return false;
+    const em = relayEmailOf(p.relayFrom);
+    if (em && opts?.supportEmails?.has(em)) return true;
+    return !!(relayNames && relayNames.has(p.relayFrom));
+  };
+
   // Re-attribute BEFORE anything reads the timeline, so every downstream metric
   // (FRT, resolution-active, cadence, triage) sees the teammate, not the relay.
   const timeline = extractTimeline(conversation).map((p) =>

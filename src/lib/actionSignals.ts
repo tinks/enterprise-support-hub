@@ -464,6 +464,35 @@ export const ACTION_SIGNALS: ActionSignal[] = [
     },
   },
   {
+    id: "relay_identity_gaps",
+    label: "Slack relay identity gaps",
+    family: "review",
+    route: "/settings",
+    routeLabel: "Settings (teammates)",
+    meaning:
+      "A Slack↔Intercom relayed reply could not be posted under the teammate's own Intercom admin id — either the teammate has no intercom_admin_id in the roster, or Intercom rejected it. The reply was still delivered, but it lands under the relay admin (Sam), which makes the ticket look unanswered to the SLA engine. Fix the teammate's Intercom admin id, then mark the gap resolved.",
+    load: async () => {
+      const res = await supabase
+        .from("relay_attribution_gaps" as any)
+        .select("slack_user_id,slack_email,slack_display_name,reason,last_seen_at,last_conversation_id")
+        .is("resolved_at", null)
+        .limit(200);
+      const rows = (res as any).data ?? [];
+      if ((res as any).error) throw new Error((res as any).error.message);
+      return {
+        count: rows.length,
+        oldestAt: minIso(rows.map((r: any) => r.last_seen_at)),
+        detail: rows.length ? rows.map((r: any) => r.slack_email || r.slack_display_name || r.slack_user_id).join(", ") : null,
+        items: rows.map((r: any) => ({
+          id: r.slack_user_id,
+          label: `${r.slack_email || r.slack_display_name || r.slack_user_id} — ${r.reason}`,
+          intercomId: r.last_conversation_id ?? null,
+        })),
+      };
+    },
+  },
+  {
+
     id: "intercom_field_drift",
     label: "Intercom field options drift",
     family: "review",

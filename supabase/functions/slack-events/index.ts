@@ -655,27 +655,93 @@ Deno.serve(async (req) => {
             const isOriginalRequester = event.user === mapping.slack_user_id;
             const isEmployee = senderEmail.endsWith("@lovable.dev");
 
-            // Hardcoded employee email → Intercom admin ID mapping
-            const EMPLOYEE_ADMIN_IDS: Record<string, string> = {
-              "joel@lovable.dev": "8430778",
-              "kristina@lovable.dev": "9985999",
+            /**
+             * Durable relay identity (Option B). Resolve the Slack sender's
+             * email against the LIVE `teammates` roster instead of a hardcoded
+             * map, so a reply relayed from Slack posts into Intercom under the
+             * teammate's own admin id — not under the relay admin (Sam).
+             * If the roster has no admin id for this sender we still relay
+             * (never drop a reply), but we record the gap so the Action Center
+             * surfaces it instead of failing silently.
+             */
+            // Resolve by slack_user_id FIRST (exact, survives Slack-profile
+            // emails that differ from the roster email), then by email.
+            let teammateAdminId: string | null = null;
+            {
+              const pickId = (row: any) => {
+                const id = row?.intercom_admin_id;
+                return id ? String(id).trim() : null;
+              };
+              const bySlack = await supabase
+                .from("teammates")
+                .select("intercom_admin_id,name,active")
+                .eq("slack_user_id", event.user)
+                .eq("active", true)
+                .limit(1)
+                .maybeSingle();
+              teammateAdminId = pickId(bySlack.data);
+              if (!teammateAdminId && senderEmail) {
+                const byEmail = await supabase
+                  .from("teammates")
+                  .select("intercom_admin_id,name,active")
+                  .ilike("email", senderEmail)
+                  .eq("active", true)
+                  .limit(1)
+                  .maybeSingle();
+                teammateAdminId = pickId(byEmail.data);
+              }
+            }
+
+
+            const recordRelayGap = async (reason: string) => {
+              try {
+                const { data: existing } = await supabase
+                  .from("relay_attribution_gaps")
+                  .select("occurrences")
+                  .eq("slack_user_id", event.user)
+                  .maybeSingle();
+                await supabase.from("relay_attribution_gaps").upsert(
+                  {
+                    slack_user_id: event.user,
+                    slack_email: senderEmail || null,
+                    slack_display_name: senderName || null,
+                    reason,
+                    occurrences: ((existing as any)?.occurrences ?? 0) + 1,
+                    last_conversation_id: mapping.intercom_conversation_id ?? null,
+                    last_seen_at: new Date().toISOString(),
+                    resolved_at: null,
+                  },
+                  { onConflict: "slack_user_id" },
+                );
+              } catch (e) {
+                console.error("Failed to record relay attribution gap:", e);
+              }
             };
+
+            // Machine-readable marker: carry the sender's EMAIL alongside the
+            // display name so the SLA engine can attribute historical/relay
+            // parts without relying on display-name collisions.
+            const relayTag = senderEmail
+              ? `${senderName || senderEmail} (${senderEmail})`
+              : senderName || event.user;
 
             // Determine reply type and body based on sender
             let replyPayload: Record<string, any>;
 
             if (isEmployee && adminId) {
-              const employeeAdminId = senderEmail
-                ? EMPLOYEE_ADMIN_IDS[senderEmail.toLowerCase()]
-                : null;
-              const prefixedBody = `*[From: ${senderName || senderEmail} via Slack]*\n\n${replyBody}`;
+              if (!teammateAdminId) {
+                await recordRelayGap("no_intercom_admin_id");
+              }
+              const prefixedBody = `*[From: ${relayTag} via Slack]*\n\n${replyBody}`;
               replyPayload = {
                 message_type: "comment",
                 type: "admin",
-                admin_id: employeeAdminId || adminId,
+                admin_id: teammateAdminId || adminId,
                 body: prefixedBody,
               };
-              console.log(`Attributing reply as admin (employee: ${senderEmail}, adminId: ${employeeAdminId || adminId})`);
+              console.log(
+                `Attributing reply as admin (employee: ${senderEmail}, adminId: ${teammateAdminId || adminId}, resolved=${!!teammateAdminId})`,
+              );
             } else if (isOriginalRequester && mapping.intercom_contact_id) {
               replyPayload = {
                 message_type: "comment",
@@ -685,7 +751,7 @@ Deno.serve(async (req) => {
               };
               console.log(`Attributing reply as original requester (${event.user})`);
             } else if (mapping.intercom_contact_id) {
-              const prefixedBody = `*[From: ${senderName || event.user} via Slack]*\n\n${replyBody}`;
+              const prefixedBody = `*[From: ${relayTag} via Slack]*\n\n${replyBody}`;
               replyPayload = {
                 message_type: "comment",
                 type: "user",
@@ -694,21 +760,24 @@ Deno.serve(async (req) => {
               };
               console.log(`Attributing reply as other user (${senderName || event.user})`);
             } else if (adminId) {
-              const employeeFallbackId = senderEmail
-                ? EMPLOYEE_ADMIN_IDS[senderEmail.toLowerCase()]
-                : null;
-              const prefixedBody = senderName ? `*[From: ${senderName} via Slack]*\n\n${replyBody}` : replyBody;
+              if (isEmployee && !teammateAdminId) {
+                await recordRelayGap("no_intercom_admin_id");
+              }
+              const prefixedBody = senderName || senderEmail
+                ? `*[From: ${relayTag} via Slack]*\n\n${replyBody}`
+                : replyBody;
               replyPayload = {
                 message_type: "comment",
                 type: "admin",
-                admin_id: employeeFallbackId || adminId,
+                admin_id: teammateAdminId || adminId,
                 body: prefixedBody,
               };
-              console.log(`Attributing reply as admin fallback (adminId: ${employeeFallbackId || adminId})`);
+              console.log(`Attributing reply as admin fallback (adminId: ${teammateAdminId || adminId})`);
             } else {
               console.error("No intercom_contact_id or admin_id available to forward reply");
               replyPayload = null as any;
             }
+
 
             if (replyPayload) {
               if (replyAttachmentUrls.length) {
@@ -730,17 +799,25 @@ Deno.serve(async (req) => {
                 { method: "POST", headers: intercomHeaders, body: JSON.stringify(replyPayload) }
               );
 
-              // If reply failed with user type, retry as admin (tickets may reject user-type replies)
+              // Retry paths: a user-type reply rejected by a ticket, or a
+              // teammate admin id Intercom won't post as (no active seat).
               if (!replyRes.ok) {
                 const errText = await replyRes.text();
                 console.error(`[ROUTING] Failed to forward reply to ${targetId} (${replyRes.status}): ${errText}`);
-                if (replyPayload.type === "user" && adminId) {
-                  console.log(`[ROUTING] Retrying as admin for ${targetId}`);
+                const retryAsRelayAdmin =
+                  adminId &&
+                  (replyPayload.type === "user" ||
+                    (replyPayload.type === "admin" && teammateAdminId && replyPayload.admin_id === teammateAdminId));
+                if (retryAsRelayAdmin) {
+                  if (replyPayload.type === "admin") {
+                    await recordRelayGap(`intercom_rejected_admin_id:${replyRes.status}`);
+                  }
+                  console.log(`[ROUTING] Retrying as relay admin for ${targetId}`);
                   const adminPayload = {
                     message_type: "comment",
                     type: "admin",
                     admin_id: adminId,
-                    body: `*[From: ${senderName || event.user} via Slack]*\n\n${replyBody}`,
+                    body: `*[From: ${relayTag} via Slack]*\n\n${replyBody}`,
                     ...(replyAttachmentUrls.length ? { attachment_urls: replyAttachmentUrls } : {}),
                   };
                   replyRes = await fetch(
@@ -749,6 +826,7 @@ Deno.serve(async (req) => {
                   );
                 }
               }
+
 
               if (!replyRes.ok) {
                 const errText2 = await replyRes.text();

@@ -1291,6 +1291,45 @@ export type Database = {
         }
         Relationships: []
       }
+      relay_attribution_gaps: {
+        Row: {
+          first_seen_at: string
+          last_conversation_id: string | null
+          last_seen_at: string
+          occurrences: number
+          reason: string
+          resolved_at: string | null
+          resolved_by: string | null
+          slack_display_name: string | null
+          slack_email: string | null
+          slack_user_id: string
+        }
+        Insert: {
+          first_seen_at?: string
+          last_conversation_id?: string | null
+          last_seen_at?: string
+          occurrences?: number
+          reason: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          slack_display_name?: string | null
+          slack_email?: string | null
+          slack_user_id: string
+        }
+        Update: {
+          first_seen_at?: string
+          last_conversation_id?: string | null
+          last_seen_at?: string
+          occurrences?: number
+          reason?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          slack_display_name?: string | null
+          slack_email?: string | null
+          slack_user_id?: string
+        }
+        Relationships: []
+      }
       settings: {
         Row: {
           admin_owner_map: string
