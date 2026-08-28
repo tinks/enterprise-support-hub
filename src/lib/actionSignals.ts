@@ -303,6 +303,9 @@ export const ACTION_SIGNALS: ActionSignal[] = [
         if (!target || !Number.isFinite(target.firstResponseS)) continue;
 
         const sla = computeSla(t.raw_payload, slaOpts, bh);
+        // Match the workbench: first-response is only measured on customer-initiated
+        // threads. An agent-initiated outbound has no customer demand to answer.
+        if (sla.initiatedBy !== "customer") continue;
         const answered =
           sla.firstSupportReplyFromInboxS != null || sla.firstSupportReplyFromInboxBusinessHoursS != null;
         if (answered) continue;
