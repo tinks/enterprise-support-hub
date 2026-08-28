@@ -783,17 +783,25 @@ Deno.serve(async (req) => {
                 { method: "POST", headers: intercomHeaders, body: JSON.stringify(replyPayload) }
               );
 
-              // If reply failed with user type, retry as admin (tickets may reject user-type replies)
+              // Retry paths: a user-type reply rejected by a ticket, or a
+              // teammate admin id Intercom won't post as (no active seat).
               if (!replyRes.ok) {
                 const errText = await replyRes.text();
                 console.error(`[ROUTING] Failed to forward reply to ${targetId} (${replyRes.status}): ${errText}`);
-                if (replyPayload.type === "user" && adminId) {
-                  console.log(`[ROUTING] Retrying as admin for ${targetId}`);
+                const retryAsRelayAdmin =
+                  adminId &&
+                  (replyPayload.type === "user" ||
+                    (replyPayload.type === "admin" && teammateAdminId && replyPayload.admin_id === teammateAdminId));
+                if (retryAsRelayAdmin) {
+                  if (replyPayload.type === "admin") {
+                    await recordRelayGap(`intercom_rejected_admin_id:${replyRes.status}`);
+                  }
+                  console.log(`[ROUTING] Retrying as relay admin for ${targetId}`);
                   const adminPayload = {
                     message_type: "comment",
                     type: "admin",
                     admin_id: adminId,
-                    body: `*[From: ${senderName || event.user} via Slack]*\n\n${replyBody}`,
+                    body: `*[From: ${relayTag} via Slack]*\n\n${replyBody}`,
                     ...(replyAttachmentUrls.length ? { attachment_urls: replyAttachmentUrls } : {}),
                   };
                   replyRes = await fetch(
@@ -802,6 +810,7 @@ Deno.serve(async (req) => {
                   );
                 }
               }
+
 
               if (!replyRes.ok) {
                 const errText2 = await replyRes.text();
