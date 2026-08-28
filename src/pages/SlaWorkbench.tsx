@@ -1723,10 +1723,11 @@ function ExcuseDialog({
         <DialogHeader>
           <DialogTitle>Excuse violation</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
-          <div className="text-xs text-muted-foreground truncate">
+        <div className="space-y-3 min-w-0">
+          <div className="w-full min-w-0 truncate text-xs text-muted-foreground">
             {target ? METRIC_LABELS[target.metric] : ""} · {target?.subject ?? target?.cid}
           </div>
+
           <div className="space-y-1">
             <label className="text-xs font-medium">Reason</label>
             <Select value={reason || undefined} onValueChange={(v) => setReason(v as SlaOverrideReason)}>
