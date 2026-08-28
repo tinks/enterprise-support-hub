@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { isFilterSafeEmail } from "../_shared/safe-email.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -173,7 +174,7 @@ Deno.serve(async (req) => {
       const resolvedOwner = adminOwnerMap[adminAssigneeId] || null;
 
       // Try linking to gmail first
-      if (contactEmail) {
+      if (contactEmail && isFilterSafeEmail(contactEmail)) {
         const emailLower = contactEmail.toLowerCase();
         const { data: gmailMatches } = await supabase
           .from("gmail_conversations")

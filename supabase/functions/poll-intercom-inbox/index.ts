@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { isFilterSafeEmail } from "../_shared/safe-email.ts";
 import { recordIntegrationHealth, classifyHttpStatus } from "../_shared/integration-health.ts";
 
 const corsHeaders = {
@@ -265,7 +266,7 @@ Deno.serve(async (req) => {
       const customFields = extractIntercomCustomFields(icData);
 
       // Cross-reference with gmail_conversations
-      if (contactEmail) {
+      if (contactEmail && isFilterSafeEmail(contactEmail)) {
         const emailLower = contactEmail.toLowerCase();
         const { data: gmailMatches } = await supabase
           .from("gmail_conversations")
