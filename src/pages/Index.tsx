@@ -29,6 +29,7 @@ interface SettingsData {
   id: string;
   monitored_channels: string;
   intercom_inbox_id: string;
+  sse_intercom_inbox_id: string;
   intercom_assignee_id: string;
   slack_bot_user_id: string;
   testing_mode: boolean;
@@ -297,6 +298,7 @@ const Index = () => {
       .update({
         monitored_channels: settings.monitored_channels,
         intercom_inbox_id: settings.intercom_inbox_id,
+        sse_intercom_inbox_id: settings.sse_intercom_inbox_id ?? "",
         intercom_assignee_id: settings.intercom_assignee_id,
         slack_bot_user_id: settings.slack_bot_user_id,
         testing_mode: settings.testing_mode,
@@ -537,6 +539,23 @@ const Index = () => {
                     )
                   }
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sse-inbox">Self-serve enterprise Inbox ID</Label>
+                <Input
+                  id="sse-inbox"
+                  placeholder="Leave blank until the SSE inbox exists"
+                  value={settings?.sse_intercom_inbox_id || ""}
+                  onChange={(e) =>
+                    setSettings((s) =>
+                      s ? { ...s, sse_intercom_inbox_id: e.target.value } : s
+                    )
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  Tickets assigned to this inbox are ingested as plan tier <strong>SSE</strong>: triage target only,
+                  no first-response, resolution or cadence commitments.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="assignee">Intercom Assignee ID (AI Bot)</Label>
