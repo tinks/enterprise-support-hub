@@ -316,7 +316,7 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
 
   const enriched = useMemo<SlaBatchEnriched[]>(
     () => (rosterLoaded && !policyLoading ? rows : []).map((r) => {
-      const opts = { supportEmails, supportAdminIds };
+      const opts = { supportEmails, supportAdminIds, supportSlackNames };
       // Pass 1 with the built-in calendar to derive the ticket's inbound anchor
       // (Enterprise-Inbox assignment, else created_at) — the anchor itself is a
       // wall-clock timestamp, so it does not depend on business hours.
@@ -335,7 +335,7 @@ export function useSlaBatch(options?: UseSlaBatchOptions): UseSlaBatch {
       const bucket = classifySlaBatchRow(r, sla, { testAccountKeys, showTestData });
       return { ...r, sla, origin, bucket, planTier, policy, policyFallback };
     }),
-    [rows, testAccountKeys, showTestData, rosterLoaded, supportEmails, supportAdminIds, configLoaded, policyLoading, resolveForAnchor],
+    [rows, testAccountKeys, showTestData, rosterLoaded, supportEmails, supportAdminIds, supportSlackNames, configLoaded, policyLoading, resolveForAnchor],
   );
 
   const activePolicy = useMemo(
