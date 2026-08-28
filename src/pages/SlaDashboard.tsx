@@ -241,6 +241,17 @@ export default function SlaDashboard() {
               </SelectContent>
             </Select>
             <span className="text-xs text-muted-foreground italic">{WINDOW_CAPTIONS[dateWindow]}</span>
+            <span className="text-xs uppercase tracking-wide text-muted-foreground ml-2">Plan</span>
+            <Select value={planFilter} onValueChange={(v) => setPlanFilter(v as "enterprise" | "sse" | "all")}>
+              <SelectTrigger className="h-8 w-[200px] text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="enterprise">Enterprise</SelectItem>
+                <SelectItem value="sse">Self-serve enterprise</SelectItem>
+                <SelectItem value="all">All plans</SelectItem>
+              </SelectContent>
+            </Select>
             <span className="text-xs uppercase tracking-wide text-muted-foreground ml-2">Customer</span>
             <Select value={customerFilter} onValueChange={setCustomerFilter}>
               <SelectTrigger className="h-8 w-[220px] text-sm">
@@ -267,6 +278,10 @@ export default function SlaDashboard() {
             </span>
             <span className="text-muted-foreground">
               Excluded: <span className="tabular-nums">{excluded.length}</span>
+            </span>
+            <span className="text-muted-foreground">
+              Self-serve enterprise in window: <span className="tabular-nums">{sseInWindow}</span>
+              {planFilter === "enterprise" && sseInWindow > 0 && " · not scored here (no SLA commitments)"}
             </span>
             <span className="text-muted-foreground">
               Internal / no-customer: <span className="tabular-nums">{noCustomer.length}</span>
