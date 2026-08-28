@@ -37,6 +37,17 @@ function firstDemandTs(sla: SlaResult): number | null {
   return p ? p.ts : null;
 }
 
+// The reply that ANSWERS the demand: first public support reply at/after the
+// demand point. An earlier outbound (the message that opened an agent-initiated
+// thread) answered nothing and must not count as a 0s first response.
+function responseTsFor(sla: SlaResult, demandS: number | null): number | null {
+  if (demandS == null) return null;
+  const p = sla.timeline.find(
+    (t) => t.isPublicReply && (t.actor === "human_admin" || t.actor === "sam_ai") && t.ts >= demandS,
+  );
+  return p ? p.ts : null;
+}
+
 
 type DiffRow = {
   row: SlaBatchEnriched;
@@ -62,7 +73,7 @@ export default function SlaFrtDiff() {
       const bh = r.policy.businessHours;
       const severity = parseSeverity(r.raw_payload?.custom_attributes?.["Severity"]);
       const demandS = firstDemandTs(sla);
-      const supportTs = sla.firstSupportReplyS;
+      const supportTs = responseTsFor(sla, demandS);
 
       const currentCalS = sla.firstSupportReplyFromInboxS;
       const currentBhS = sla.firstSupportReplyFromInboxBusinessHoursS;
@@ -71,7 +82,7 @@ export default function SlaFrtDiff() {
       let proposedBhS: number | null = null;
       if (demandS != null && supportTs != null) {
         proposedCalS = Math.max(0, supportTs - demandS);
-        proposedBhS = supportTs <= demandS ? 0 : businessHoursBetween(demandS, supportTs, bh);
+        proposedBhS = businessHoursBetween(demandS, supportTs, bh);
       }
 
       let currentMet: boolean | null = null;
@@ -126,6 +137,8 @@ export default function SlaFrtDiff() {
       toUnevaluable: rows.filter((r) => r.flip === "to_unevaluable").length,
       toEvaluable: rows.filter((r) => r.flip === "to_evaluable").length,
       noDemand: rows.filter((r) => r.demandS == null).length,
+      awaitingResponse: rows.filter((r) => r.demandS != null && r.proposedCalS == null).length,
+      proposedZero: rows.filter((r) => r.proposedBhS === 0).length,
     };
   }, [rows]);
 
@@ -181,6 +194,8 @@ export default function SlaFrtDiff() {
                 ["Breach → met", summary.breachToMet],
                 ["Met → breach", summary.metToBreach],
                 ["Becomes unevaluable", summary.toUnevaluable],
+                ["Awaiting first response", summary.awaitingResponse],
+                ["Proposed FRT = 0s", summary.proposedZero],
               ].map(([label, value]) => (
                 <Card key={String(label)}>
                   <CardContent className="pt-4">
