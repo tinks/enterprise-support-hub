@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import AppLayout from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { AlertTriangle, ArrowRight, Bell, CheckCircle2, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { formatDistanceToNowStrict } from "date-fns";
 import { useActionSignals, type SignalState } from "@/hooks/useActionSignals";
@@ -159,7 +161,7 @@ export default function ActionCenter() {
               <h1 className="text-2xl font-bold">Action center</h1>
             </div>
             <p className="text-sm text-muted-foreground mt-1">
-              {states.length} signals watched · {attentionCount} need attention
+              {states.length} signals watched · {attentionCount} need attention{states.filter((s) => s.muted).length > 0 ? ` · ${states.filter((s) => s.muted).length} muted` : ""}
               {errorCount > 0 ? ` · ${errorCount} unreadable` : ""}
               {lastLoadedAt ? ` · updated ${formatDistanceToNowStrict(new Date(lastLoadedAt))} ago` : ""}
             </p>
@@ -187,7 +189,7 @@ export default function ActionCenter() {
             </div>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {grouped.active.map((s) => (
-                <SignalCard key={s.signal.id} state={s} onGo={navigate} />
+                <SignalCard key={s.signal.id} state={s} onGo={navigate} onToggleMute={toggleMuted} />
               ))}
             </div>
           </section>
@@ -200,7 +202,7 @@ export default function ActionCenter() {
             </h2>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {g.items.map((s) => (
-                <SignalCard key={s.signal.id} state={s} onGo={navigate} />
+                <SignalCard key={s.signal.id} state={s} onGo={navigate} onToggleMute={toggleMuted} />
               ))}
             </div>
           </section>
