@@ -194,6 +194,8 @@ export default function SlaFrtDiff() {
                 ["Breach → met", summary.breachToMet],
                 ["Met → breach", summary.metToBreach],
                 ["Becomes unevaluable", summary.toUnevaluable],
+                ["Awaiting first response", summary.awaitingResponse],
+                ["Proposed FRT = 0s", summary.proposedZero],
               ].map(([label, value]) => (
                 <Card key={String(label)}>
                   <CardContent className="pt-4">
