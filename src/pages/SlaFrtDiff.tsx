@@ -73,7 +73,7 @@ export default function SlaFrtDiff() {
       const bh = r.policy.businessHours;
       const severity = parseSeverity(r.raw_payload?.custom_attributes?.["Severity"]);
       const demandS = firstDemandTs(sla);
-      const supportTs = sla.firstSupportReplyS;
+      const supportTs = responseTsFor(sla, demandS);
 
       const currentCalS = sla.firstSupportReplyFromInboxS;
       const currentBhS = sla.firstSupportReplyFromInboxBusinessHoursS;
@@ -82,7 +82,7 @@ export default function SlaFrtDiff() {
       let proposedBhS: number | null = null;
       if (demandS != null && supportTs != null) {
         proposedCalS = Math.max(0, supportTs - demandS);
-        proposedBhS = supportTs <= demandS ? 0 : businessHoursBetween(demandS, supportTs, bh);
+        proposedBhS = businessHoursBetween(demandS, supportTs, bh);
       }
 
       let currentMet: boolean | null = null;
