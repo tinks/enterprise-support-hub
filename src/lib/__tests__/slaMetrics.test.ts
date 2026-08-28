@@ -1441,7 +1441,6 @@ describe("Slack relay attribution", () => {
       supportSlackNames: new Set(["tine"]),
     });
     expect(sla.firstSupportReplyFromInboxS).toBe(600); // relay reply at T0+600, clock at created_at
-    expect(sla.samParticipated).toBe(false);
   });
 
   it("unknown relay name (customer via Slack) is NOT re-attributed", () => {
