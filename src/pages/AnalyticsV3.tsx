@@ -105,7 +105,7 @@ function formatDuration(seconds: number | null): string {
 }
 
 export default function AnalyticsV3() {
-  const [preset, setPreset] = useState<RangePreset>("30d");
+  const [preset, setPreset] = useState<RangePreset>("this_month");
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
   const [excludeRsaFalse, setExcludeRsaFalse] = useState(false);
