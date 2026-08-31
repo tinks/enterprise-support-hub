@@ -439,11 +439,10 @@ export default function TrendReport() {
         <p className="text-xs text-muted-foreground">
           Backlog is a <strong>state check at the last instant of the month</strong>: created by then and not closed at
           that moment. A ticket reopened on the 15th and closed again on the 16th is closed at month end, so it does not
-          count — reopens only affect backlog when the ticket is still sitting open. Closed counts every close that
-          landed in the month, even if the ticket reopened afterwards. Reopened is a separate monthly count of reopen
-          events detected in the month (one per ticket, since only the latest reopen is stored); the June backfill
-          falsely flagged 14 rows, which are excluded. Transferred-out tickets are excluded everywhere.
+          count — a reopen only affects backlog when the ticket is still sitting open. Closed counts every close that
+          landed in the month, even if the ticket reopened afterwards. Transferred-out tickets are excluded everywhere.
         </p>
+
 
 
 
