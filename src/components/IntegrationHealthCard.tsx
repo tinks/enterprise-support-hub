@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, CheckCircle2, AlertTriangle, ShieldAlert, Circle, Send } from "lucide-react";
+import { RefreshCw, CheckCircle2, AlertTriangle, ShieldAlert, Circle, Send, Play } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -59,6 +59,7 @@ export default function IntegrationHealthCard() {
   const [rows, setRows] = useState<HealthRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
+  const [running, setRunning] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -155,6 +156,19 @@ export default function IntegrationHealthCard() {
                   </p>
                 )}
               </div>
+              <div className="flex items-center gap-3 sm:justify-end">
+              {cfg.fn && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  onClick={() => runNow(cfg.fn!, cfg.label)}
+                  disabled={running === cfg.fn}
+                >
+                  <Play className={`h-3 w-3 ${running === cfg.fn ? "animate-pulse" : ""}`} />
+                  {running === cfg.fn ? "Running…" : "Run now"}
+                </Button>
+              )}
               <div className="text-right text-xs text-muted-foreground whitespace-nowrap">
                 {row?.last_success_at ? (
                   <>Last success {formatDistanceToNow(new Date(row.last_success_at), { addSuffix: true })}</>
@@ -164,6 +178,7 @@ export default function IntegrationHealthCard() {
                 {row?.last_failure_at && (sev === "error" || sev === "auth" || sev === "warn") && (
                   <div>Last failure {formatDistanceToNow(new Date(row.last_failure_at), { addSuffix: true })}</div>
                 )}
+              </div>
               </div>
             </div>
           );
