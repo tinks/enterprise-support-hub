@@ -500,8 +500,7 @@ export default function Escalations() {
                 <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={ANY}>Type: any</SelectItem>
-                  <SelectItem value="Bug">Bug</SelectItem>
-                  <SelectItem value="Feature Request">Feature Request</SelectItem>
+                  {typeOpts.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={ownerFilter} onValueChange={setOwnerFilter}>
