@@ -60,7 +60,7 @@ const METRIC_KEYS = [
   "avg_resolve",
   "median_resolve",
   "backlog",
-  "reopened",
+
 ] as const;
 type MetricKey = (typeof METRIC_KEYS)[number];
 
