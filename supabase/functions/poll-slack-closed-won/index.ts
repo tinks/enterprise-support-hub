@@ -149,14 +149,25 @@ Deno.serve(async (req) => {
       });
       if (cursor) params.set("cursor", cursor);
 
-      const res = await fetch(`${GATEWAY_URL}/conversations.history?${params}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "X-Connection-Api-Key": SLACK_API_KEY,
-        },
-      });
-      const body = await res.text();
+      // Slack rate-limits conversations.history (tier 3). Retry a 429 up to 3
+      // times honouring Retry-After instead of failing the whole daily run.
+      let res!: Response;
+      let body = "";
+      for (let attempt = 0; attempt < 4; attempt++) {
+        res = await fetch(`${GATEWAY_URL}/conversations.history?${params}`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "X-Connection-Api-Key": SLACK_API_KEY,
+          },
+        });
+        body = await res.text();
+        if (res.status !== 429 || attempt === 3) break;
+        const retryAfter = Number(res.headers.get("retry-after")) || (attempt + 1) * 5;
+        const waitMs = Math.min(retryAfter, 30) * 1000;
+        console.warn(`conversations.history rate limited; retrying in ${waitMs}ms (attempt ${attempt + 1})`);
+        await new Promise((r) => setTimeout(r, waitMs));
+      }
       let data: any;
       try { data = JSON.parse(body); } catch {
         if (!dryRun) {
