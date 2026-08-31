@@ -64,13 +64,51 @@ interface PersonRow {
 const roleBadge = (r: string) =>
   r === "admin" ? "default" : r === "editor" ? "secondary" : "outline";
 
+const TEAM_ROLES = ["support", "csm", "other", "ai"] as const;
+
 const People = () => {
   const { isAdmin, isLoading: adminLoading } = useIsAdmin();
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [authUsers, setAuthUsers] = useState<AuthUserRow[]>([]);
   const [teammates, setTeammates] = useState<TeammateRow[]>([]);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
   const [q, setQ] = useState("");
+
+  const setTeam = async (r: PersonRow, value: string) => {
+    const t = r.teammate;
+    setSavingKey(r.key);
+    try {
+      if (value === "none") {
+        if (!t) return;
+        const { error } = await supabase.from("teammates").update({ active: false }).eq("id", t.id);
+        if (error) throw error;
+        toast.success(`${t.name} marked inactive on the roster`);
+      } else if (t) {
+        const { error } = await supabase
+          .from("teammates")
+          .update({ role: value, active: true })
+          .eq("id", t.id);
+        if (error) throw error;
+        toast.success(`${t.name} set to ${value}`);
+      } else {
+        if (!r.email) return;
+        const local = r.email.split("@")[0].replace(/[._]/g, " ");
+        const name = local.replace(/\b\w/g, (c) => c.toUpperCase());
+        const { error } = await supabase
+          .from("teammates")
+          .insert({ name, email: r.email, role: value, active: true, show_dashboard: false });
+        if (error) throw error;
+        toast.success(`${name} added to the roster as ${value}`);
+      }
+      await load();
+    } catch (e) {
+      toast.error("Could not update roster: " + (e as Error).message);
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
 
   const load = async () => {
     setLoading(true);
