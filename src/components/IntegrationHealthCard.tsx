@@ -20,18 +20,19 @@ type HealthRow = {
 
 // Each integration has an expected freshness window. If last_success_at is older
 // than maxStaleMin AND we don't have a fresh failure, surface a "stale" warning.
-const INTEGRATIONS: Array<{ key: string; label: string; description: string; maxStaleMin: number }> = [
-  { key: "intercom_poll", label: "Intercom poll", description: "Pulls new tickets from the enterprise inbox (every 5 min).", maxStaleMin: 30 },
+// `fn` = edge function that is safe to re-run on demand (idempotent pollers).
+const INTEGRATIONS: Array<{ key: string; label: string; description: string; maxStaleMin: number; fn?: string }> = [
+  { key: "intercom_poll", label: "Intercom poll", description: "Pulls new tickets from the enterprise inbox (every 5 min).", maxStaleMin: 30, fn: "poll-intercom-inbox" },
   { key: "intercom_webhook", label: "Intercom webhook", description: "Live conversation/assignment events from Intercom.", maxStaleMin: 24 * 60 },
-  { key: "intercom_csat", label: "Intercom CSAT refresh", description: "Refreshes conversation ratings (hourly).", maxStaleMin: 3 * 60 },
+  { key: "intercom_csat", label: "Intercom CSAT refresh", description: "Refreshes conversation ratings (hourly).", maxStaleMin: 3 * 60, fn: "refresh-intercom-csat" },
   { key: "intercom_import", label: "Manual Intercom import", description: "On-demand imports from the Log Conversation form.", maxStaleMin: 30 * 24 * 60 },
-  { key: "gmail_poll", label: "Gmail poll", description: "Pulls support@ mail and reconciles to Intercom.", maxStaleMin: 30 },
-  { key: "inbox_v2_sync", label: "Inbox V2 sync", description: "Mirrors Intercom into the Inbox V2 sandbox (every 15 min).", maxStaleMin: 30 },
-  { key: "slack_closed_won_poll", label: "Closed-won account import", description: "Imports new customer accounts from Slack #closed-won (daily, 7-day lookback).", maxStaleMin: 36 * 60 },
-  { key: "parahelp_routing_sync", label: "Parahelp routing queue", description: "Pushes new customer domains to Parahelp email routing (API leg dormant until credentials exist; posts a pending digest to Slack).", maxStaleMin: 36 * 60 },
-  { key: "notion_registry_publish", label: "Notion domain page", description: "Mirrors the customer registry domain list to the Notion page Parahelp reads. Writes only when the domain set changed.", maxStaleMin: 36 * 60 },
-  { key: "reconcile-v3-open", label: "Transferred-out reconciliation", description: "Catches tickets that left the Enterprise Inbox and marks them transferred_out (hourly).", maxStaleMin: 180 },
-  { key: "intercom_fields_sync", label: "Intercom field options", description: "Caches the allowed product area / ticket type values from Intercom so drift against the Hub lists is visible (daily).", maxStaleMin: 48 * 60 },
+  { key: "gmail_poll", label: "Gmail poll", description: "Pulls support@ mail and reconciles to Intercom.", maxStaleMin: 30, fn: "poll-gmail" },
+  { key: "inbox_v2_sync", label: "Inbox V2 sync", description: "Mirrors Intercom into the Inbox V2 sandbox (every 15 min).", maxStaleMin: 30, fn: "sync-inbox-v2" },
+  { key: "slack_closed_won_poll", label: "Closed-won account import", description: "Imports new customer accounts from Slack #closed-won (daily, 7-day lookback).", maxStaleMin: 36 * 60, fn: "poll-slack-closed-won" },
+  { key: "parahelp_routing_sync", label: "Parahelp routing queue", description: "Pushes new customer domains to Parahelp email routing (API leg dormant until credentials exist; posts a pending digest to Slack).", maxStaleMin: 36 * 60, fn: "sync-parahelp-routing" },
+  { key: "notion_registry_publish", label: "Notion domain page", description: "Mirrors the customer registry domain list to the Notion page Parahelp reads. Writes only when the domain set changed.", maxStaleMin: 36 * 60, fn: "publish-registry-notion" },
+  { key: "reconcile-v3-open", label: "Transferred-out reconciliation", description: "Catches tickets that left the Enterprise Inbox and marks them transferred_out (hourly).", maxStaleMin: 180, fn: "reconcile-v3-open" },
+  { key: "intercom_fields_sync", label: "Intercom field options", description: "Caches the allowed product area / ticket type values from Intercom so drift against the Hub lists is visible (daily).", maxStaleMin: 48 * 60, fn: "sync-intercom-fields" },
 ];
 
 type Severity = "ok" | "warn" | "auth" | "error" | "unknown";
