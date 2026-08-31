@@ -530,6 +530,15 @@ export default function ResolutionAnatomy() {
                 </SelectContent>
               </Select>
             </div>
+            <label className="flex items-center gap-2 pb-2 text-xs cursor-pointer select-none">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-primary"
+                checked={excludeClosed}
+                onChange={(e) => setExcludeClosed(e.target.checked)}
+              />
+              <span>Measure long runners on the active clock (exclude closed time)</span>
+            </label>
             <Button variant="outline" size="sm" onClick={load} disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               <span className="ml-2">Refresh</span>
