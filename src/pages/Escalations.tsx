@@ -532,7 +532,14 @@ export default function Escalations() {
 
         {queue === "needs_linear" && (
           <p className="text-xs text-muted-foreground">
-            Every bug and feature request should have a Linear issue. These do not — link one from the row detail.
+            Every escalation candidate should have a Linear issue. These do not — link one from the row detail.
+          </p>
+        )}
+
+        {search.trim() && hiddenByState > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {hiddenByState} more {hiddenByState === 1 ? "hit is" : "hits are"} hidden by the state filter — switch to{" "}
+            <button className="underline" onClick={() => setStateFilter("all")}>State: all</button> to see {hiddenByState === 1 ? "it" : "them"}.
           </p>
         )}
 
