@@ -18,6 +18,7 @@ import {
   Wrench,
   Cog,
   Bell,
+  Search as SearchIcon,
   LucideIcon,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
