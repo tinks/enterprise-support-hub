@@ -63,6 +63,20 @@ function pct(part: number | null, total: number | null): number | null {
   return (part / total) * 100;
 }
 
+/**
+ * Active clock — wall clock with the time the ticket sat CLOSED removed.
+ * Nobody owed a reply during a closed stretch, so it is elapsed time we neither
+ * caused nor could shorten. Reported alongside the recorded clock, never instead
+ * of it.
+ */
+function activeOf(r: { anatomy: AnatomyResult }): number | null {
+  const a = r.anatomy;
+  if (a.totalS == null) return null;
+  return Math.max(0, a.totalS - (a.closedS ?? 0));
+}
+
+
+
 /** The four-way split as one stacked bar. */
 function SplitBar({ a }: { a: AnatomyResult }) {
   if (a.totalS == null || a.totalS === 0) return <span className="text-muted-foreground">—</span>;
