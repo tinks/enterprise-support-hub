@@ -49,7 +49,6 @@ type MonthBucket = {
   medResolve: number | null;
   p90Resolve: number | null;
   backlog: number;
-  reopened: number;
 };
 
 const METRIC_KEYS = [
@@ -60,7 +59,7 @@ const METRIC_KEYS = [
   "avg_resolve",
   "median_resolve",
   "backlog",
-  "reopened",
+
 ] as const;
 type MetricKey = (typeof METRIC_KEYS)[number];
 
@@ -72,7 +71,7 @@ const METRIC_LABELS: Record<MetricKey, string> = {
   avg_resolve: "Average time to resolve",
   median_resolve: "Median time to resolve",
   backlog: "Active backlog (open at month end)",
-  reopened: "Reopened tickets",
+
 };
 
 /** Months present in the window, oldest → newest, never earlier than the data floor. */
@@ -101,7 +100,7 @@ function fmtCell(metric: MetricKey, m: MonthBucket): string {
         ? formatDuration(m.medResolve)
         : `${formatDuration(m.medResolve)} · P90 ${formatDuration(m.p90Resolve)}`;
     case "backlog": return String(m.backlog);
-    case "reopened": return String(m.reopened);
+
   }
 }
 
@@ -188,7 +187,6 @@ export default function TrendReport() {
 
       let total = 0;
       let backlog = 0;
-      let reopened = 0;
       const closedRows: Row[] = [];
 
       for (const r of filtered) {
@@ -214,15 +212,9 @@ export default function TrendReport() {
         const closedByEnd = finalMs != null && finalMs <= endMs && !openNowAfterReopen;
         if (!transferred && createdMs != null && createdMs <= endMs && !closedByEnd) backlog++;
 
-        // Reopens are detected by the sync, not stamped by Intercom, so the
-        // initial June backfill flagged a batch of rows that never reopened.
-        // Only count a reopen Intercom itself corroborates (its own reopen
-        // counter moved) or one the ticket is still sitting in.
-        const corroboratedReopen =
-          r.lifecycle_status === "reopened_after_finalize" || (r.reopen_count_at_finalize ?? 0) > 0;
-        if (reopenMs != null && !transferred && corroboratedReopen && reopenMs >= startMs && reopenMs <= endMs) reopened++;
-
       }
+
+
 
 
       const closed = closedRows.length;
@@ -245,7 +237,6 @@ export default function TrendReport() {
         medResolve: median(times),
         p90Resolve: times.length >= 10 ? percentile(times, 90) : null,
         backlog,
-        reopened,
       };
     });
   }, [filtered, months]);
@@ -448,11 +439,10 @@ export default function TrendReport() {
         <p className="text-xs text-muted-foreground">
           Backlog is a <strong>state check at the last instant of the month</strong>: created by then and not closed at
           that moment. A ticket reopened on the 15th and closed again on the 16th is closed at month end, so it does not
-          count — reopens only affect backlog when the ticket is still sitting open. Closed counts every close that
-          landed in the month, even if the ticket reopened afterwards. Reopened is a separate monthly count of reopen
-          events detected in the month (one per ticket, since only the latest reopen is stored); the June backfill
-          falsely flagged 14 rows, which are excluded. Transferred-out tickets are excluded everywhere.
+          count — a reopen only affects backlog when the ticket is still sitting open. Closed counts every close that
+          landed in the month, even if the ticket reopened afterwards. Transferred-out tickets are excluded everywhere.
         </p>
+
 
 
 
