@@ -108,7 +108,7 @@ function ticketType(attrs: any): string | null {
 }
 
 /** Ticket types that are escalation candidates on their own. */
-const ESCALATION_TYPES = ["Bug", "Feature Request", "Issue", "Incident"];
+const ESCALATION_TYPES = ["Bug", "Feature Request", "Incident"];
 
 /**
  * Board population gate — shared by the row build and the batched notes prefetch
@@ -410,9 +410,9 @@ export default function Escalations() {
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-[380px] text-xs text-muted-foreground space-y-2">
                   <p>
-                    Intercom tickets typed <code>Bug</code>, <code>Feature Request</code>, <code>Issue</code> or{" "}
-                    <code>Incident</code> — plus any ticket of any type that already carries a Linear / Escalated Issue
-                    reference. Tracked against their Linear escalation until the customer has been notified. Oldest first.
+                    Intercom tickets typed <code>Bug</code>, <code>Feature Request</code> or <code>Incident</code> — plus
+                    any ticket of any type that already carries a Linear / Escalated Issue reference. Tracked against
+                    their Linear escalation until the customer has been notified. Oldest first.
                   </p>
                   <p>
                     Board state is independent of Intercom — a closed conversation stays here until it is marked
