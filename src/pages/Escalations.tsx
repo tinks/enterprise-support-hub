@@ -158,20 +158,15 @@ export default function Escalations() {
     ]);
     const loaded = (t.error ? [] : ((t.data ?? []) as Ticket[]));
     if (!t.error) setTickets(loaded);
+    const escMap = new Map<string, Escalation>();
     if (!e.error) {
-      const m = new Map<string, Escalation>();
-      for (const row of (e.data ?? []) as Escalation[]) m.set(row.intercom_conversation_id, row);
-      setEscalations(m);
+      for (const row of (e.data ?? []) as Escalation[]) escMap.set(row.intercom_conversation_id, row);
+      setEscalations(escMap);
     }
     // Notes for the qualifying population, batched — the detail sheet opens with
     // them already present and search can index them.
     const qualifying = loaded
-      .filter((x) => {
-        const tt = ticketType(x.custom_attributes);
-        return (tt === "Bug" || tt === "Feature Request")
-          && x.lifecycle_status !== "transferred_out"
-          && x.customer_resolution_method !== "not_enterprise";
-      })
+      .filter((x) => qualifies(x, escMap.get(x.intercom_conversation_id)?.linear_url_override ?? null))
       .map((x) => x.id);
     setNotes(await fetchV3Notes(qualifying));
     setLoading(false);
