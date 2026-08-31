@@ -150,8 +150,11 @@ export default function TrendReport() {
             .or(
               `intercom_created_at.gte.${startIso},` +
               `finalized_at.gte.${startIso},` +
-              `finalized_at.is.null`,
+              `last_reopened_at.gte.${startIso},` +
+              `finalized_at.is.null,` +
+              `lifecycle_status.eq.reopened_after_finalize`,
             )
+
             .order("intercom_created_at", { ascending: true })
             .range(offset, offset + PAGE - 1);
           if (error) throw error;
