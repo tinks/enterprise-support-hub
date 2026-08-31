@@ -346,6 +346,7 @@ export default function Escalations() {
       key: "type",
       header: "Type",
       width: "w-[120px]",
+      sortValue: (r) => r.type,
       cell: (r) => (
         <Badge variant={r.type === "Bug" || r.type === "Incident" ? "destructive" : "secondary"} className="text-[10px]">{r.type}</Badge>
       ),
@@ -354,6 +355,7 @@ export default function Escalations() {
       key: "linear",
       header: "Linear",
       width: "w-[190px]",
+      sortValue: (r) => r.linear.key ?? r.linear.raw ?? "zzz-missing",
       cellClassName: "text-xs",
       cell: (r) => {
         if (r.linear.url) {
@@ -388,6 +390,7 @@ export default function Escalations() {
       key: "hub_state",
       header: "Hub state",
       width: "w-[180px]",
+      sortValue: (r) => r.esc?.hub_state ?? null,
       cell: (r) => <div onClick={(e) => e.stopPropagation()}>{hubSelect(r)}</div>,
     },
     ageColumn<EscalationRow>((r) => r.createdMs),
