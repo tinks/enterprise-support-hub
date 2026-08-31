@@ -278,6 +278,7 @@ export default function ResolutionAnatomy() {
   // ---- Table ----------------------------------------------------------------
 
   const columns: IssueColumn<LongRow>[] = [
+    idColumn<LongRow>((r) => r.intercom_conversation_id),
     {
       key: "subject",
       header: "Subject",
@@ -285,10 +286,10 @@ export default function ResolutionAnatomy() {
       cell: (r) => (
         <div className="min-w-0">
           <div className="truncate">{displaySubject(r)}</div>
-          <div className="text-[11px] text-muted-foreground font-mono">{r.intercom_conversation_id}</div>
         </div>
       ),
     },
+
     {
       key: "total", header: "Total", width: "w-[90px]",
       sortValue: (r) => r.time_to_resolve_s ?? null,
