@@ -20,6 +20,8 @@ import {
 } from "@/lib/csat";
 import { CsatFilterMenu } from "@/components/csat/CsatFilterMenu";
 import { CsatOverrideDialog } from "@/components/csat/CsatOverrideDialog";
+import { IntercomIdChip } from "@/components/issues/IssueTable";
+import { Link } from "react-router-dom";
 
 const sel = (s: string): string => s;
 const SELECT_COLS = sel(
