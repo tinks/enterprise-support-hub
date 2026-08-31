@@ -2233,6 +2233,13 @@ export type Database = {
           schedule: string
         }[]
       }
+      esh_refresh_search_index: {
+        Args: { p_kinds?: string[] }
+        Returns: {
+          kind: string
+          rows_indexed: number
+        }[]
+      }
       esh_strip_html: { Args: { t: string }; Returns: string }
       has_role: {
         Args: {
