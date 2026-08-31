@@ -574,7 +574,19 @@ export default function ResolutionAnatomy() {
             <CardContent className="text-sm space-y-1">
               <Row label={`Median time to first close (n=${reopenDelta.n})`} value={formatDuration(reopenDelta.medFirst)} />
               <Row label="Median time to last close" value={formatDuration(reopenDelta.medLast)} />
+              <Row
+                label={`Long runners only because of a reopen`}
+                value={`${totals.crossedByReopen} of ${totals.n}`}
+              />
+              {totals.miscounted > 0 && (
+                <p className="pt-2 text-xs text-destructive">
+                  {totals.miscounted} ticket{totals.miscounted > 1 ? "s" : ""} in this cohort show
+                  reopens in the conversation payload while Intercom's reopen_count reads 0. Every
+                  reopen figure on this page is counted from the payload for that reason.
+                </p>
+              )}
             </CardContent>
+
           </Card>
         )}
 
