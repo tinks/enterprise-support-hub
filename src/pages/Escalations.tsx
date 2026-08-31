@@ -16,6 +16,7 @@ import { idColumn, subjectColumn, customerColumn, ageColumn } from "@/components
 import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { TicketNotes, fetchV3Notes, type TicketNote } from "@/components/issues/TicketNotes";
+import { useInitialQ } from "@/hooks/useInitialQ";
 
 
 type Ticket = {
@@ -133,7 +134,7 @@ export default function Escalations() {
   const { canEdit } = useCanEdit();
 
   const [queue, setQueue] = useState<Queue>("needs_linear");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(useInitialQ());
   const [stateFilter, setStateFilter] = useState<"active" | "all" | HubState>("active");
   const [typeFilter, setTypeFilter] = useState(ANY);
   const [ownerFilter, setOwnerFilter] = useState(ANY);

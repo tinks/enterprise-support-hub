@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
+import { useInitialQ } from "@/hooks/useInitialQ";
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -110,7 +111,7 @@ export default function Backlog() {
   const [fStatus, setFStatus] = useState<string>("all");
   const [fPriority, setFPriority] = useState<string>("all");
   const [fAssignee, setFAssignee] = useState<string>("all");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(useInitialQ());
   const [showDone, setShowDone] = useState(false);
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
