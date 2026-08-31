@@ -67,6 +67,9 @@ export type AnatomyResult = {
   /** Wall-clock seconds from conversation open to the FIRST close event. */
   timeToFirstCloseS: number | null;
 
+  /** Payload-derived open→close cycles. Authoritative over reopen_count_at_finalize. */
+  episodes: EpisodeResult;
+
   /** Set when the split could not be computed. */
   unavailableReason: string | null;
 };
@@ -86,6 +89,10 @@ const EMPTY: AnatomyResult = {
   customerReplyCount: 0,
   closedWithoutCustomerConfirm: null,
   timeToFirstCloseS: null,
+  episodes: {
+    episodes: [], reopens: [], reopenCount: 0, firstReopenBy: null,
+    firstCloseTs: null, timeToFirstCloseS: null, lastEpisodeS: null, betweenEpisodesS: 0,
+  },
   unavailableReason: "no_timeline",
 };
 
@@ -186,7 +193,8 @@ export function computeAnatomy(raw: any, opts: AnatomyOptions = {}): AnatomyResu
     if (s !== null) { lastSide = s; break; }
   }
 
-  const closeTsEvent = firstCloseTs(full);
+  const episodes = computeEpisodes(raw, opts);
+  const closeTsEvent = episodes.firstCloseTs ?? firstCloseTs(full);
 
   return {
     totalS,
@@ -205,6 +213,7 @@ export function computeAnatomy(raw: any, opts: AnatomyOptions = {}): AnatomyResu
     // spoke last and closed without them coming back.
     closedWithoutCustomerConfirm: lastSide === null ? null : lastSide === "customer",
     timeToFirstCloseS: closeTsEvent != null ? Math.max(0, closeTsEvent - startTs) : null,
+    episodes,
     unavailableReason: null,
   };
 }
