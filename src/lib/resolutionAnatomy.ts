@@ -240,6 +240,8 @@ export function computeAnatomy(raw: any, opts: AnatomyOptions = {}): AnatomyResu
     ourClockS,
     theirClockS,
     driftS,
+    closedS,
+
     ourClockBizS,
     theirClockBizS,
     longestGap,
