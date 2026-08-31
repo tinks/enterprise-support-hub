@@ -224,31 +224,53 @@ export default function Escalations() {
     () => Array.from(new Set(rows.map((r) => r.ticket.customer_key).filter(Boolean))).sort() as string[],
     [rows],
   );
+  /** Type filter options are built from the population, not a fixed pair. */
+  const typeOpts = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.type).filter(Boolean))).sort(),
+    [rows],
+  );
+
+  const matchesSearch = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (r: EscalationRow) => {
+      if (!q) return true;
+      const hay = [
+        displaySubject(r.ticket), r.ticket.subject, r.ticket.contact_name, r.ticket.contact_email,
+        r.ticket.intercom_conversation_id, r.linear.raw,
+        ...(notes.get(r.ticket.id) ?? []).map((n) => n.note_text),
+      ].filter(Boolean).join(" ").toLowerCase();
+      return hay.includes(q);
+    };
+  }, [search, notes]);
 
   /** Everything except the queue split — so each queue's count reflects the filters. */
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (stateFilter === "active" && TERMINAL.includes(r.hubState)) return false;
       if (stateFilter !== "active" && stateFilter !== "all" && r.hubState !== stateFilter) return false;
       if (typeFilter !== ANY && r.type !== typeFilter) return false;
       if (ownerFilter !== ANY && r.ticket.owner !== ownerFilter) return false;
       if (customerFilter !== ANY && r.ticket.customer_key !== customerFilter) return false;
-      if (q) {
-        const hay = [
-          displaySubject(r.ticket), r.ticket.subject, r.ticket.contact_name, r.ticket.contact_email,
-          r.ticket.intercom_conversation_id, r.linear.raw,
-          ...(notes.get(r.ticket.id) ?? []).map((n) => n.note_text),
-        ].filter(Boolean).join(" ").toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
+      return matchesSearch(r);
     });
-  }, [rows, search, stateFilter, typeFilter, ownerFilter, customerFilter, notes]);
+  }, [rows, matchesSearch, stateFilter, typeFilter, ownerFilter, customerFilter]);
 
   const needsLinear = useMemo(() => filtered.filter((r) => !r.hasLinear), [filtered]);
   const linked = useMemo(() => filtered.filter((r) => r.hasLinear), [filtered]);
   const visible = queue === "needs_linear" ? needsLinear : queue === "linked" ? linked : filtered;
+
+  /** Search hits hidden by the state filter — so "nothing found" is never a lie. */
+  const hiddenByState = useMemo(() => {
+    if (!search.trim() || stateFilter === "all") return 0;
+    return rows.filter((r) => {
+      if (typeFilter !== ANY && r.type !== typeFilter) return false;
+      if (ownerFilter !== ANY && r.ticket.owner !== ownerFilter) return false;
+      if (customerFilter !== ANY && r.ticket.customer_key !== customerFilter) return false;
+      if (!matchesSearch(r)) return false;
+      if (stateFilter === "active") return TERMINAL.includes(r.hubState);
+      return r.hubState !== stateFilter;
+    }).length;
+  }, [rows, matchesSearch, search, stateFilter, typeFilter, ownerFilter, customerFilter]);
 
   const dataAsOf = useMemo(() => {
     let newest: number | null = null;
