@@ -2038,3 +2038,27 @@ Unions two match paths: `websearch_to_tsquery` full-text against the tsvector, a
 Nav: top-level **Deep search**. Query box (deep-linkable via `?q=`), kind filter chips with per-kind hit counts, index size + last-refresh readout, Reindex now. Result rows link back into the existing pages by seeding their search box through `?q=` (`useInitialQ()` in Inbox v3, Dev escalations, Backlog) rather than adding new deep-link routes; v3 hits also carry the Intercom conversation link.
 
 **Verified 31 Aug 2026:** 997 rows indexed (629 v3 tickets, 253 customers, 43 backlog, 42 escalations, 25 notes, 5 severity proposals). `SCA-3522` returns the escalation and Intercom ticket #215475673305527 (matched from the message body). **UNVERIFIED:** the hourly cron firing in production, and phrase-query result quality at scale.
+
+## Resolution anatomy — why long tickets are long (`/resolution-anatomy`)
+
+Built because the average resolution time was climbing ~1 day/month with no way to say why. The distribution showed the cause is a **tail**, not a shift: Jun→Aug 2026 median resolution stayed ~4d while P90 went 11.8d → 17.5d, and tickets over 7 days account for ~75% of all resolution time.
+
+### Engine — `src/lib/resolutionAnatomy.ts`
+
+`computeAnatomy(raw_payload, { closedAtSec })` walks the same Intercom timeline the SLA engine reads (`extractTimeline` + `classifyActor` from `slaMetrics.ts`, reused unmodified) and attributes every gap between substantive messages to whoever owed the next move:
+
+- **our clock** — a customer message waiting on a human admin reply
+- **their clock** — our reply waiting on the customer
+- **silent drift** — nobody owed a move
+
+Actor mapping: `customer` and `shared_inbox` (B6 relay rule) are customer-side; `human_admin` is our side; `sam_ai` / `operator_bot` / `system` are **neutral** — an automated ack neither discharges our obligation nor puts the ball back with the customer, so a neutral part does not open or close a gap. Notes and state events are not substantive. Also returns `longestGap` (with who owed it), per-side business-hours seconds (Berlin, `DEFAULT_BUSINESS_HOURS`), reply counts, `closedWithoutCustomerConfirm`, and `timeToFirstCloseS`.
+
+`anatomyReconciles()` asserts the three buckets sum to wall clock; the page counts failures and prints a banner marking those splits UNVERIFIED. Nothing is persisted and no existing SLA/Analytics number changes — the split is derived on read.
+
+### Page — `src/pages/ResolutionAnatomy.tsx`
+
+Nav under Reports. Two-pass load: scalars for the whole finalized window (paged, no `raw_payload`), then `raw_payload` only for tickets over the long-runner threshold, in chunks of 40. Controls: months (1/2/3/6/12), threshold days (default 7), product area, type, owner, customer, reopened. Surfaces: three share cards + cohort counts, median split by month (stacked bars — which bucket is growing answers staffing vs customer responsiveness vs hygiene), **time to first close vs time to last close** (the headline metric is Intercom's time to *last* close, so a reopen re-clocks the whole ticket), top-10 rollups by product area / owner / customer, and a sortable long-runner table where each row opens a gap-by-gap timeline sheet.
+
+**Verified 31 Aug 2026** (3 months, >7d, 164 tickets, 0 reconciliation failures): our clock 25% (584d) vs their clock 75% (1760d); median time to first close 9d 22h vs last close 12d 0h; 136 of 164 closed with no customer reply after our last message; 48 reopened at least once. Worst areas by volume: Account Access and Permissions (24), SSO/SCIM/SAML (19).
+
+**UNVERIFIED / known limitation:** silent drift reads 0% across the whole cohort, because a gap is only "nobody owed a move" when the opening message is from a neutral actor — in practice someone always owes. The bucket is real in the model but effectively inert on this data; treat the split as two-way (us vs customer) until the drift definition is revisited.
