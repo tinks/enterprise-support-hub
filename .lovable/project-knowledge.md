@@ -2063,3 +2063,21 @@ Nav under Reports. Two-pass load: scalars for the whole finalized window (paged,
 **Verified 31 Aug 2026** (3 months, >7d, 164 tickets, 0 reconciliation failures): our clock 25% (584d) vs their clock 75% (1760d); median time to first close 9d 22h vs last close 12d 0h; 136 of 164 closed with no customer reply after our last message; 48 reopened at least once. Worst areas by volume: Account Access and Permissions (24), SSO/SCIM/SAML (19).
 
 **UNVERIFIED / known limitation:** silent drift reads 0% across the whole cohort, because a gap is only "nobody owed a move" when the opening message is from a neutral actor — in practice someone always owes. The bucket is real in the model but effectively inert on this data; treat the split as two-way (us vs customer) until the drift definition is revisited.
+
+## Intercom team names on the Transferred tab (31 Aug 2026)
+
+The Inbox v3 "Team Reassignment" tab rendered the raw `reassigned_team_id` (e.g. `7723970`) — technically true, operationally useless: nobody can say who owns a ticket from an integer.
+
+### `public.intercom_teams` — cached ID → name mirror
+
+Same pattern as `intercom_field_options`: a cache, not a hardcoded map, so a renamed or new Intercom team shows up on its own instead of silently disagreeing. Columns `(team_id, name, active, first_seen_at, last_seen_at)`; teams that vanish from Intercom are marked `active=false`, never deleted, so a team id still sitting on a historical transferred ticket stays explainable. Read-only to the app (RLS: select for authenticated; writes denied), written by the service role only.
+
+### Sync
+
+Folded into the existing daily `sync-intercom-fields` run (05:20 UTC) rather than a new cron: one Intercom-metadata job, one health row. It reads `GET /teams` and upserts each `(id, name)`.
+
+### Read path
+
+`src/hooks/useIntercomTeams.tsx` — one cached query exposing a `teamName(id)` lookup. `src/pages/InboxV3.tsx` Transferred table shows the name with the raw id as a tooltip, and falls back to the raw id when the cache has no row (never a blank cell, never a guess).
+
+**Verified 31 Aug 2026:** sync run live; `7723970` resolves to **Product Experience Specialists** and renders on the Transferred tab. **UNVERIFIED:** the `active=false` retirement path (no team has disappeared yet) and the cache-miss fallback (every id currently present resolves).
