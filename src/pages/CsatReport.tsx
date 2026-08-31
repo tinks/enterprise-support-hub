@@ -416,7 +416,7 @@ export default function CsatReport() {
                         </TableCell>
                         <TableCell className="text-left text-sm">
                           <Link
-                            to={`/inbox-v3?q=${encodeURIComponent(r.intercom_conversation_id)}`}
+                            to={`/inbox-v3?tab=${r.finalized_at ? "finalized" : "active"}&q=${encodeURIComponent(r.intercom_conversation_id)}`}
                             className="hover:underline"
                             title="Open in Inbox v3"
                           >
