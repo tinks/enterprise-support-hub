@@ -310,17 +310,30 @@ const People = () => {
                               )}
                             </TableCell>
                             <TableCell className="text-left">
-                              {t ? (
-                                <div className="flex items-center gap-1">
-                                  <Badge variant="outline">{t.role}</Badge>
-                                  {!t.active && (
-                                    <span className="text-xs text-muted-foreground">inactive</span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">—</span>
-                              )}
+                              <div className="flex items-center gap-1">
+                                <Select
+                                  value={t?.role ?? "none"}
+                                  disabled={savingKey === r.key || !r.email}
+                                  onValueChange={(v) => setTeam(r, v)}
+                                >
+                                  <SelectTrigger className="h-8 w-[110px]">
+                                    <SelectValue placeholder="—" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">—</SelectItem>
+                                    {TEAM_ROLES.map((role) => (
+                                      <SelectItem key={role} value={role}>
+                                        {role}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {t && !t.active && (
+                                  <span className="text-xs text-muted-foreground">inactive</span>
+                                )}
+                              </div>
                             </TableCell>
+
                             <TableCell className="text-left font-mono text-xs">
                               {t?.intercom_admin_id ?? "—"}
                             </TableCell>
