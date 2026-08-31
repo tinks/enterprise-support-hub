@@ -76,6 +76,24 @@ const People = () => {
   const [teammates, setTeammates] = useState<TeammateRow[]>([]);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [confirmBlock, setConfirmBlock] = useState<PersonRow | null>(null);
+
+  const callAccess = async (action: "block" | "unblock", r: PersonRow) => {
+    if (!r.email) return;
+    setSavingKey(r.key);
+    const { data, error } = await supabase.functions.invoke("hub-access-manage", {
+      body: { action, email: r.email },
+    });
+    const errMsg = error?.message ?? (data as any)?.error;
+    if (errMsg) toast.error(`${action} failed: ${errMsg}`);
+    else {
+      toast.success(`${action} complete for ${r.email}`);
+      await load();
+    }
+    setSavingKey(null);
+  };
+
+
 
   const setTeam = async (r: PersonRow, value: string) => {
     const t = r.teammate;
