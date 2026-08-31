@@ -2046,23 +2046,28 @@ Built because the average resolution time was climbing ~1 day/month with no way 
 
 ### Engine — `src/lib/resolutionAnatomy.ts`
 
-`computeAnatomy(raw_payload, { closedAtSec })` walks the same Intercom timeline the SLA engine reads (`extractTimeline` + `classifyActor` from `slaMetrics.ts`, reused unmodified) and attributes every gap between substantive messages to whoever owed the next move:
+`computeAnatomy(raw_payload, { closedAtSec })` walks the same Intercom timeline the SLA engine reads (`extractTimeline` + `classifyActor` from `slaMetrics.ts`, reused unmodified) and attributes every gap to whoever owed the next move:
 
 - **our clock** — a customer message waiting on a human admin reply
 - **their clock** — our reply waiting on the customer
-- **silent drift** — nobody owed a move
+- **closed** — the ticket was closed; nobody owed a reply until it was reopened
+- **silent drift** — the ticket was open and nobody owed a move
 
 Actor mapping: `customer` and `shared_inbox` (B6 relay rule) are customer-side; `human_admin` is our side; `sam_ai` / `operator_bot` / `system` are **neutral** — an automated ack neither discharges our obligation nor puts the ball back with the customer, so a neutral part does not open or close a gap. Notes and state events are not substantive. Also returns `longestGap` (with who owed it), per-side business-hours seconds (Berlin, `DEFAULT_BUSINESS_HOURS`), reply counts, `closedWithoutCustomerConfirm`, and `timeToFirstCloseS`.
 
-`anatomyReconciles()` asserts the three buckets sum to wall clock; the page counts failures and prints a banner marking those splits UNVERIFIED. Nothing is persisted and no existing SLA/Analytics number changes — the split is derived on read.
+**Closed-state attribution (31 Aug 2026).** The walk is now **event-driven over the full timeline**, not just substantive messages: a `close` part flushes the running segment and stops every clock; an explicit reopen part or the next substantive message after a close flushes the closed stretch and restarts the clock for whoever spoke. Before this, the stretch between a close and a much later reopen was charged to whichever side owed a reply at close time — ticket 215474664060068 showed a 4h 45m first close followed by a 32d 19h gap billed to *us* even though the ticket was shut. `OwedBy` gains `"closed"`, `AnatomyResult` gains `closedS`, and the segment list can now carry several segments per message (reply-wait → closed → post-reopen), which the timeline sheet renders as separate labelled gaps.
+
+`anatomyReconciles()` asserts the four buckets (`us + customer + closed + drift`) sum to wall clock; the page counts failures and prints a banner marking those splits UNVERIFIED. Nothing is persisted and no existing SLA/Analytics number changes — the split is derived on read.
+
 
 ### Page — `src/pages/ResolutionAnatomy.tsx`
 
-Nav under Reports. Two-pass load: scalars for the whole finalized window (paged, no `raw_payload`), then `raw_payload` only for tickets over the long-runner threshold, in chunks of 40. Controls: months (1/2/3/6/12), threshold days (default 7), product area, type, owner, customer, reopened. Surfaces: three share cards + cohort counts, median split by month (stacked bars — which bucket is growing answers staffing vs customer responsiveness vs hygiene), **time to first close vs time to last close** (the headline metric is Intercom's time to *last* close, so a reopen re-clocks the whole ticket), top-10 rollups by product area / owner / customer, and a sortable long-runner table where each row opens a gap-by-gap timeline sheet.
+Nav under Reports. Two-pass load: scalars for the whole finalized window (paged, no `raw_payload`), then `raw_payload` only for tickets over the long-runner threshold, in chunks of 40. Controls: months (1/2/3/6/12), threshold days (default 7), product area, type, owner, customer, reopened. Surfaces: four share cards (us / customer / **closed** / drift) + cohort counts, median split by month (four-series stacked bars — which bucket is growing answers staffing vs customer responsiveness vs hygiene vs reopen re-clocking), **time to first close vs time to last close** (the headline metric is Intercom's time to *last* close, so a reopen re-clocks the whole ticket), top-10 rollups by product area / owner / customer, and a sortable long-runner table where each row opens a gap-by-gap timeline sheet. The sheet lists every segment attached to a message, so a close shows as its own "Closed — nobody owed a reply" gap rather than being folded into someone's debt.
 
-**Verified 31 Aug 2026** (3 months, >7d, 164 tickets, 0 reconciliation failures): our clock 25% (584d) vs their clock 75% (1760d); median time to first close 9d 22h vs last close 12d 0h; 136 of 164 closed with no customer reply after our last message; 48 reopened at least once. Worst areas by volume: Account Access and Permissions (24), SSO/SCIM/SAML (19).
+**Verified 31 Aug 2026** (3 months, >7d, 164 tickets, 0 reconciliation failures, pre-closed-bucket): our clock 25% (584d) vs their clock 75% (1760d); median time to first close 9d 22h vs last close 12d 0h; 136 of 164 closed with no customer reply after our last message; 48 reopened at least once. Worst areas by volume: Account Access and Permissions (24), SSO/SCIM/SAML (19).
 
-**UNVERIFIED / known limitation:** silent drift reads 0% across the whole cohort, because a gap is only "nobody owed a move" when the opening message is from a neutral actor — in practice someone always owes. The bucket is real in the model but effectively inert on this data; treat the split as two-way (us vs customer) until the drift definition is revisited.
+**Verified 31 Aug 2026 (closed bucket):** 12 unit tests in `src/lib/__tests__/resolutionAnatomy.test.ts` pass, including a case where a 30-day closed stretch is fully attributed to `closedS` and reconciliation still holds. **UNVERIFIED:** the re-rendered population shares with the closed bucket live (the earlier 25/75 split above predates it), and silent drift, which previously read 0% across the cohort — some of what used to look like "nobody owed" or "we owed" now lands in `closed`, and the split should be re-read before it is quoted again.
+
 
 ## Intercom team names on the Transferred tab (31 Aug 2026)
 
