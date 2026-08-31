@@ -195,13 +195,9 @@ export default function Escalations() {
 
   const rows = useMemo(() => {
     return tickets
-      .filter((t) => {
-        const tt = ticketType(t.custom_attributes);
-        if (tt !== "Bug" && tt !== "Feature Request") return false;
-        if (t.lifecycle_status === "transferred_out") return false;
-        if (t.customer_resolution_method === "not_enterprise") return false;
-        return true;
-      })
+      .filter((t) =>
+        qualifies(t, escalations.get(t.intercom_conversation_id)?.linear_url_override ?? null),
+      )
       .map((t) => {
         const esc = escalations.get(t.intercom_conversation_id) ?? null;
         const hubState = (esc?.hub_state ?? "open") as HubState;
