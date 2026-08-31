@@ -205,13 +205,23 @@ export default function TrendReport() {
         if (!transferred && finalMs != null && finalMs >= startMs && finalMs <= endMs) closedRows.push(r);
 
         // Open at month end: existed by then, and either never closed, closed
-        // after month end, or closed and reopened again on or before month end.
-        const reopenedAfterClose = finalMs != null && reopenMs != null && reopenMs > finalMs;
-        const closedByEnd =
-          finalMs != null && finalMs <= endMs && !(reopenedAfterClose && reopenMs! <= endMs);
+        // after month end, or is currently sitting reopened after its last
+        // close (lifecycle says so) with that reopen landing on or before the
+        // month end. `finalized_at` is stale on those rows, so it alone cannot
+        // decide openness.
+        const openNowAfterReopen =
+          r.lifecycle_status === "reopened_after_finalize" && reopenMs != null && reopenMs <= endMs;
+        const closedByEnd = finalMs != null && finalMs <= endMs && !openNowAfterReopen;
         if (!transferred && createdMs != null && createdMs <= endMs && !closedByEnd) backlog++;
 
-        if (reopenMs != null && !transferred && reopenMs >= startMs && reopenMs <= endMs) reopened++;
+        // Reopens are detected by the sync, not stamped by Intercom, so the
+        // initial June backfill flagged a batch of rows that never reopened.
+        // Only count a reopen Intercom itself corroborates (its own reopen
+        // counter moved) or one the ticket is still sitting in.
+        const corroboratedReopen =
+          r.lifecycle_status === "reopened_after_finalize" || (r.reopen_count_at_finalize ?? 0) > 0;
+        if (reopenMs != null && !transferred && corroboratedReopen && reopenMs >= startMs && reopenMs <= endMs) reopened++;
+
       }
 
 
