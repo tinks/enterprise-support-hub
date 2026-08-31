@@ -2068,6 +2068,17 @@ Nav under Reports. Two-pass load: scalars for the whole finalized window (paged,
 
 **Verified 31 Aug 2026 (closed bucket):** 12 unit tests in `src/lib/__tests__/resolutionAnatomy.test.ts` pass, including a case where a 30-day closed stretch is fully attributed to `closedS` and reconciliation still holds. **UNVERIFIED:** the re-rendered population shares with the closed bucket live (the earlier 25/75 split above predates it), and silent drift, which previously read 0% across the cohort — some of what used to look like "nobody owed" or "we owed" now lands in `closed`, and the split should be re-read before it is quoted again.
 
+### Active clock — closed time removed (31 Aug 2026)
+
+Once closed time was bucketed separately, the next question was whether a ticket should still *count* as a long runner because of time nobody owed. The page now exposes an **active clock** = wall clock − `closedS`, purely on read (no schema change, no engine change, Intercom's own `time_to_resolve_s` is untouched and still the headline number everywhere else).
+
+- `activeOf()` in `src/pages/ResolutionAnatomy.tsx` derives the value; a sortable **Active** column shows it with the deduction inline (e.g. `−32d closed`).
+- Checkbox **"Measure long runners on the active clock (exclude closed time)"** re-applies the threshold to the active clock, so tickets that only cross 7d because of a dormant closed stretch drop out of the cohort *and* out of every downstream metric on the page.
+- Summary card **"Active clock — closed time removed"**: median recorded vs median active, total closed time in the cohort, and the count of tickets that are long runners *solely* because of closed time — the size of the distortion, stated rather than assumed.
+
+The toggle is off by default: the wall clock stays the reported truth unless someone deliberately asks the narrower question. **UNVERIFIED:** the live population numbers under the toggle (build + typecheck clean, but the cohort delta has not been read off production).
+
+
 
 ## Intercom team names on the Transferred tab (31 Aug 2026)
 
