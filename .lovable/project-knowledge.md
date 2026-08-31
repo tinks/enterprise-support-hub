@@ -2046,15 +2046,19 @@ Built because the average resolution time was climbing ~1 day/month with no way 
 
 ### Engine — `src/lib/resolutionAnatomy.ts`
 
-`computeAnatomy(raw_payload, { closedAtSec })` walks the same Intercom timeline the SLA engine reads (`extractTimeline` + `classifyActor` from `slaMetrics.ts`, reused unmodified) and attributes every gap between substantive messages to whoever owed the next move:
+`computeAnatomy(raw_payload, { closedAtSec })` walks the same Intercom timeline the SLA engine reads (`extractTimeline` + `classifyActor` from `slaMetrics.ts`, reused unmodified) and attributes every gap to whoever owed the next move:
 
 - **our clock** — a customer message waiting on a human admin reply
 - **their clock** — our reply waiting on the customer
-- **silent drift** — nobody owed a move
+- **closed** — the ticket was closed; nobody owed a reply until it was reopened
+- **silent drift** — the ticket was open and nobody owed a move
 
 Actor mapping: `customer` and `shared_inbox` (B6 relay rule) are customer-side; `human_admin` is our side; `sam_ai` / `operator_bot` / `system` are **neutral** — an automated ack neither discharges our obligation nor puts the ball back with the customer, so a neutral part does not open or close a gap. Notes and state events are not substantive. Also returns `longestGap` (with who owed it), per-side business-hours seconds (Berlin, `DEFAULT_BUSINESS_HOURS`), reply counts, `closedWithoutCustomerConfirm`, and `timeToFirstCloseS`.
 
-`anatomyReconciles()` asserts the three buckets sum to wall clock; the page counts failures and prints a banner marking those splits UNVERIFIED. Nothing is persisted and no existing SLA/Analytics number changes — the split is derived on read.
+**Closed-state attribution (31 Aug 2026).** The walk is now **event-driven over the full timeline**, not just substantive messages: a `close` part flushes the running segment and stops every clock; an explicit reopen part or the next substantive message after a close flushes the closed stretch and restarts the clock for whoever spoke. Before this, the stretch between a close and a much later reopen was charged to whichever side owed a reply at close time — ticket 215474664060068 showed a 4h 45m first close followed by a 32d 19h gap billed to *us* even though the ticket was shut. `OwedBy` gains `"closed"`, `AnatomyResult` gains `closedS`, and the segment list can now carry several segments per message (reply-wait → closed → post-reopen), which the timeline sheet renders as separate labelled gaps.
+
+`anatomyReconciles()` asserts the four buckets (`us + customer + closed + drift`) sum to wall clock; the page counts failures and prints a banner marking those splits UNVERIFIED. Nothing is persisted and no existing SLA/Analytics number changes — the split is derived on read.
+
 
 ### Page — `src/pages/ResolutionAnatomy.tsx`
 
