@@ -146,6 +146,52 @@ Deno.serve(async (req) => {
     perAttr[attrKey] = { seen: options, deactivated: stale, missing: false };
   }
 
+  // --- Teams cache -----------------------------------------------------
+  // Purely a display lookup (id -> name) for reassigned/transferred tickets.
+  // Never deletes: teams Intercom stops returning are marked inactive.
+  let teamsSynced = 0;
+  let teamsError: string | null = null;
+  try {
+    const tRes = await fetch(`${INTERCOM_BASE}/teams`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Intercom-Version": INTERCOM_VERSION,
+      },
+    });
+    const tText = await tRes.text();
+    if (!tRes.ok) {
+      teamsError = `HTTP ${tRes.status}: ${tText.slice(0, 200)}`;
+    } else {
+      const tPayload = JSON.parse(tText) as { teams?: Array<{ id?: unknown; name?: unknown }> };
+      const teams = (tPayload.teams ?? [])
+        .map((t) => ({ team_id: String(t.id ?? "").trim(), name: String(t.name ?? "").trim() }))
+        .filter((t) => t.team_id && t.name);
+      if (teams.length > 0) {
+        const { error } = await supabase.from("intercom_teams").upsert(
+          teams.map((t) => ({ ...t, active: true, last_seen_at: nowIso })),
+          { onConflict: "team_id" },
+        );
+        if (error) teamsError = error.message;
+        else {
+          teamsSynced = teams.length;
+          const ids = teams.map((t) => t.team_id);
+          const { data: cachedTeams } = await supabase
+            .from("intercom_teams")
+            .select("team_id, active");
+          const staleTeams = (cachedTeams ?? [])
+            .filter((r) => r.active && !ids.includes(r.team_id))
+            .map((r) => r.team_id);
+          if (staleTeams.length > 0) {
+            await supabase.from("intercom_teams").update({ active: false }).in("team_id", staleTeams);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    teamsError = e instanceof Error ? e.message : String(e);
+  }
+
   const anyMissing = Object.values(perAttr).some((p) => p.missing);
   await recordIntegrationHealth(
     supabase,
