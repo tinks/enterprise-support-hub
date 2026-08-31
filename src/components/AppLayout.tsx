@@ -90,6 +90,7 @@ const navEntries: NavEntry[] = [
     items: [
       { to: "/customers", label: "Customers" },
       { to: "/users", label: "Users", adminOnly: true },
+      { to: "/people", label: "People", adminOnly: true },
       { to: "/settings", label: "Settings" },
       { to: "/float-coverage", label: "Float coverage" },
       { to: "/sla-policy", label: "SLA Policy", adminOnly: true },
