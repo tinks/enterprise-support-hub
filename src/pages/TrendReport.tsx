@@ -148,7 +148,7 @@ export default function TrendReport() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,finalized_at,lifecycle_status,csat_rating,time_to_resolve_s,last_reopened_at,tags,rsa_override,customer_key")
+            .select("id,intercom_created_at,finalized_at,lifecycle_status,csat_rating,time_to_resolve_s,last_reopened_at,reopen_count_at_finalize,tags,rsa_override,customer_key")
             .or(
               `intercom_created_at.gte.${startIso},` +
               `finalized_at.gte.${startIso},` +
