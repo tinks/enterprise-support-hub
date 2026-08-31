@@ -82,6 +82,13 @@
     --input: 240 8% 16%;
     --ring: 0 100% 71%;
 
+    --chart-1: 0 100% 71%;
+    --chart-2: 255 82% 75%;
+    --chart-3: 310 70% 67%;
+    --chart-4: 190 65% 55%;
+    --chart-5: 35 90% 60%;
+
+
     --sidebar-background: 240 10% 8%;
     --sidebar-foreground: 30 20% 96%;
     --sidebar-primary: 0 100% 71%;
