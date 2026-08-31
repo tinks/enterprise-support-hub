@@ -348,6 +348,24 @@ export default function ResolutionAnatomy() {
     };
   }, [filtered]);
 
+  const activeDelta = useMemo(() => {
+    const rows = filtered.filter((r) => r.anatomy.totalS != null);
+    if (!rows.length) return null;
+    const recorded = rows.map((r) => r.anatomy.totalS!);
+    const active = rows.map((r) => activeOf(r)!);
+    const withClosed = rows.filter((r) => (r.anatomy.closedS ?? 0) > 0).length;
+    // Tickets that only clear the long-runner bar because of closed time.
+    const belowOnActive = rows.filter((r) => (activeOf(r) ?? 0) <= thresholdS).length;
+    return {
+      n: rows.length,
+      medRecorded: median(recorded),
+      medActive: median(active),
+      withClosed,
+      belowOnActive,
+    };
+  }, [filtered, thresholdS]);
+
+
   // ---- Table ----------------------------------------------------------------
 
   const columns: IssueColumn<LongRow>[] = [
