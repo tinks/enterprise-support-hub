@@ -92,10 +92,13 @@ export default function ResolutionAnatomy() {
   const [loading, setLoading] = useState(true);
   const [loadingLong, setLoadingLong] = useState(false);
   const [scalars, setScalars] = useState<ScalarRow[]>([]);
+  const [excludedCount, setExcludedCount] = useState(0);
+  const [testAccountKeys, setTestAccountKeys] = useState<Set<string>>(new Set());
   const [longRows, setLongRows] = useState<LongRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [reconFailures, setReconFailures] = useState(0);
   const [detail, setDetail] = useState<LongRow | null>(null);
+
 
   const [fArea, setFArea] = useState(ANY);
   const [fClass, setFClass] = useState(ANY);
