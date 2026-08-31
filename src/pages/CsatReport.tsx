@@ -138,7 +138,7 @@ export default function CsatReport() {
             .order("csat_rated_at", { ascending: false })
             .range(offset, offset + PAGE - 1);
           if (error) throw error;
-          const batch = (data ?? []) as Row[];
+          const batch = (data ?? []) as unknown as Row[];
           all.push(...batch);
           if (batch.length < PAGE) break;
           offset += PAGE;
