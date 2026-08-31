@@ -2233,6 +2233,20 @@ export type Database = {
           schedule: string
         }[]
       }
+      esh_deep_search: {
+        Args: { p_kinds?: string[]; p_limit?: number; p_q: string }
+        Returns: {
+          kind: string
+          match_mode: string
+          meta: Json
+          rank: number
+          ref_id: string
+          snippet: string
+          source_updated_at: string
+          title: string
+          url_path: string
+        }[]
+      }
       esh_refresh_search_index: {
         Args: { p_kinds?: string[] }
         Returns: {
