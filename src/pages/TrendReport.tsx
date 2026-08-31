@@ -214,13 +214,8 @@ export default function TrendReport() {
         const closedByEnd = finalMs != null && finalMs <= endMs && !openNowAfterReopen;
         if (!transferred && createdMs != null && createdMs <= endMs && !closedByEnd) backlog++;
 
-        // Reopens are detected by the sync, not stamped by Intercom, so the
-        // initial June backfill flagged a batch of rows that never reopened.
-        // Only count a reopen Intercom itself corroborates (its own reopen
-        // counter moved) or one the ticket is still sitting in.
-        const corroboratedReopen =
-          r.lifecycle_status === "reopened_after_finalize" || (r.reopen_count_at_finalize ?? 0) > 0;
-        if (reopenMs != null && !transferred && corroboratedReopen && reopenMs >= startMs && reopenMs <= endMs) reopened++;
+      }
+
 
       }
 
