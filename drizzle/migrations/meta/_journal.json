@@ -106,6 +106,13 @@
       "when": 1788182225676,
       "tag": "0014_esh_deep_search_rpc",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1788182294504,
+      "tag": "0015_esh_search_index_cron",
+      "breakpoints": true
     }
   ]
 }
