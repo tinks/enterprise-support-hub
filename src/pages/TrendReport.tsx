@@ -12,6 +12,8 @@ import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { CLEAN_DATA_START_DATE, CLEAN_DATA_START_LABEL } from "@/pages/inbox-v3/constants";
 import { effectiveRsa } from "@/pages/inbox-v3/rsa";
 import { median, percentile, formatDuration } from "@/lib/durationStats";
+import { summarizeCsat, isRatingCounted, useCsatFilters, useCsatOverrides } from "@/lib/csat";
+import { CsatFilterMenu } from "@/components/csat/CsatFilterMenu";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { toast } from "sonner";
 import {
@@ -24,6 +26,7 @@ type Row = {
   finalized_at: string | null;
   lifecycle_status: string;
   csat_rating: number | null;
+  csat_rater_is_internal: boolean | null;
   time_to_resolve_s: number | null;
   last_reopened_at: string | null;
   reopen_count_at_finalize: number | null;
@@ -45,6 +48,7 @@ type MonthBucket = {
   resolvedPct: number | null;
   avgCsat: number | null;
   csatN: number;
+  csatExcluded: number;
   avgResolve: number | null;
   medResolve: number | null;
   p90Resolve: number | null;
@@ -147,7 +151,7 @@ export default function TrendReport() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,finalized_at,lifecycle_status,csat_rating,time_to_resolve_s,last_reopened_at,reopen_count_at_finalize,tags,rsa_override,customer_key")
+            .select("id,intercom_created_at,finalized_at,lifecycle_status,csat_rating,csat_rater_is_internal,time_to_resolve_s,last_reopened_at,reopen_count_at_finalize,tags,rsa_override,customer_key")
             .or(
               `intercom_created_at.gte.${startIso},` +
               `finalized_at.gte.${startIso},` +
@@ -218,7 +222,10 @@ export default function TrendReport() {
 
 
       const closed = closedRows.length;
-      const ratings = closedRows.map((r) => r.csat_rating).filter((v): v is number => typeof v === "number");
+      const csatSummary = summarizeCsat(closedRows, csatOverrides, csatFilters);
+      const ratings = closedRows
+        .filter((r) => isRatingCounted(r, csatOverrides, csatFilters))
+        .map((r) => r.csat_rating as number);
       const times = closedRows
         .map((r) => r.time_to_resolve_s)
         .filter((v): v is number => typeof v === "number" && v > 0);
@@ -233,13 +240,14 @@ export default function TrendReport() {
         resolvedPct: total > 0 ? (closed / total) * 100 : null,
         avgCsat: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null,
         csatN: ratings.length,
+        csatExcluded: csatSummary.internalExcluded + csatSummary.overriddenExcluded,
         avgResolve: times.length ? times.reduce((a, b) => a + b, 0) / times.length : null,
         medResolve: median(times),
         p90Resolve: times.length >= 10 ? percentile(times, 90) : null,
         backlog,
       };
     });
-  }, [filtered, months]);
+  }, [filtered, months, csatOverrides, csatFilters]);
 
   const volumeChart = useMemo(
     () => buckets.map((b) => ({ month: b.label, Total: b.total, Closed: b.closed, Backlog: b.backlog })),
