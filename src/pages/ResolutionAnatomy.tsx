@@ -117,6 +117,18 @@ export default function ResolutionAnatomy() {
     setLoading(true);
     setError(null);
     try {
+      // Test/sandbox accounts, so the SLA-population predicate can be applied
+      // with the same inputs the SLA workbench uses.
+      const { data: accts } = await supabase
+        .from("v3_customer_accounts")
+        .select("account_key,is_test");
+      const testKeys = new Set<string>(
+        ((accts ?? []) as Array<{ account_key: string; is_test: boolean | null }>)
+          .filter((a) => a.is_test)
+          .map((a) => a.account_key),
+      );
+      setTestAccountKeys(testKeys);
+
       // Pass 1 — scalars only, for the cohort rollup. raw_payload is huge and
       // is fetched only for the long runners in pass 2.
       const all: ScalarRow[] = [];
@@ -135,12 +147,18 @@ export default function ResolutionAnatomy() {
         all.push(...page);
         if (page.length < PAGE) break;
       }
-      setScalars(all);
+      // Same population as the SLA surfaces: enterprise-fyi / enterprise-duplicate,
+      // merged tickets, RSA=false, non-enterprise / prospect dispositions and test
+      // accounts are NOT resolution work and must not shape the resolution curve.
+      const inScope = all.filter((r) => !isSlaExcluded(r, { testAccountKeys: testKeys }));
+      setExcludedCount(all.length - inScope.length);
+      setScalars(inScope);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load failed");
     } finally {
       setLoading(false);
     }
+
   }
 
   async function loadLong() {
