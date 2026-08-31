@@ -461,7 +461,33 @@ const People = () => {
           )}
         </div>
       </div>
+
+      <AlertDialog open={!!confirmBlock} onOpenChange={(o) => !o && setConfirmBlock(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove ESH access for {confirmBlock?.email}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Their Hub account is deleted and the roster row is marked blocked. Attribution history
+              and their roster entry are untouched. This can be undone with Unblock, which requires
+              re-provisioning.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const r = confirmBlock!;
+                setConfirmBlock(null);
+                callAccess("block", r);
+              }}
+            >
+              Remove access
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
+
   );
 };
 
