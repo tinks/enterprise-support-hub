@@ -320,22 +320,47 @@ const People = () => {
                               )}
                             </TableCell>
                             <TableCell className="text-left">
-                              {r.hasAccess ? (
-                                <Badge
-                                  variant={
-                                    r.accessStatus === "active"
-                                      ? "default"
-                                      : r.accessStatus === "blocked"
-                                        ? "destructive"
-                                        : "outline"
-                                  }
-                                >
-                                  {r.accessStatus}
-                                </Badge>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">no login</span>
-                              )}
+                              <div className="flex flex-col items-start gap-1">
+                                {r.hasAccess ? (
+                                  <Badge
+                                    variant={
+                                      r.accessStatus === "active"
+                                        ? "default"
+                                        : r.accessStatus === "blocked"
+                                          ? "destructive"
+                                          : "outline"
+                                    }
+                                  >
+                                    {r.accessStatus}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">no login</span>
+                                )}
+                                {r.email && r.hasAccess && r.accessStatus !== "blocked" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 px-2 text-xs"
+                                    disabled={savingKey === r.key}
+                                    onClick={() => setConfirmBlock(r)}
+                                  >
+                                    Remove access
+                                  </Button>
+                                )}
+                                {r.email && r.accessStatus === "blocked" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 px-2 text-xs"
+                                    disabled={savingKey === r.key}
+                                    onClick={() => callAccess("unblock", r)}
+                                  >
+                                    Unblock
+                                  </Button>
+                                )}
+                              </div>
                             </TableCell>
+
                             <TableCell className="text-left">
                               {r.roles.length ? (
                                 <div className="flex flex-wrap gap-1">
