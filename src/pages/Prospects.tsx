@@ -117,6 +117,8 @@ export default function Prospects() {
       header: "Status",
       width: "w-[120px]",
       cellClassName: "text-xs",
+      sortValue: (r) => `${r.lifecycle_status ?? ""} ${r.state ?? ""}`.trim(),
+
       cell: (r) => (
         <>
           {r.lifecycle_status}
