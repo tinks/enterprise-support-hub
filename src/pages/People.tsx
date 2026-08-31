@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { AlertTriangle, RefreshCw } from "lucide-react";
@@ -64,13 +66,51 @@ interface PersonRow {
 const roleBadge = (r: string) =>
   r === "admin" ? "default" : r === "editor" ? "secondary" : "outline";
 
+const TEAM_ROLES = ["support", "csm", "other", "ai"] as const;
+
 const People = () => {
   const { isAdmin, isLoading: adminLoading } = useIsAdmin();
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [authUsers, setAuthUsers] = useState<AuthUserRow[]>([]);
   const [teammates, setTeammates] = useState<TeammateRow[]>([]);
+  const [savingKey, setSavingKey] = useState<string | null>(null);
   const [q, setQ] = useState("");
+
+  const setTeam = async (r: PersonRow, value: string) => {
+    const t = r.teammate;
+    setSavingKey(r.key);
+    try {
+      if (value === "none") {
+        if (!t) return;
+        const { error } = await supabase.from("teammates").update({ active: false }).eq("id", t.id);
+        if (error) throw error;
+        toast.success(`${t.name} marked inactive on the roster`);
+      } else if (t) {
+        const { error } = await supabase
+          .from("teammates")
+          .update({ role: value, active: true })
+          .eq("id", t.id);
+        if (error) throw error;
+        toast.success(`${t.name} set to ${value}`);
+      } else {
+        if (!r.email) return;
+        const local = r.email.split("@")[0].replace(/[._]/g, " ");
+        const name = local.replace(/\b\w/g, (c) => c.toUpperCase());
+        const { error } = await supabase
+          .from("teammates")
+          .insert({ name, email: r.email, role: value, active: true, show_dashboard: false });
+        if (error) throw error;
+        toast.success(`${name} added to the roster as ${value}`);
+      }
+      await load();
+    } catch (e) {
+      toast.error("Could not update roster: " + (e as Error).message);
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
 
   const load = async () => {
     setLoading(true);
@@ -310,17 +350,30 @@ const People = () => {
                               )}
                             </TableCell>
                             <TableCell className="text-left">
-                              {t ? (
-                                <div className="flex items-center gap-1">
-                                  <Badge variant="outline">{t.role}</Badge>
-                                  {!t.active && (
-                                    <span className="text-xs text-muted-foreground">inactive</span>
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">—</span>
-                              )}
+                              <div className="flex items-center gap-1">
+                                <Select
+                                  value={t?.role ?? "none"}
+                                  disabled={savingKey === r.key || !r.email}
+                                  onValueChange={(v) => setTeam(r, v)}
+                                >
+                                  <SelectTrigger className="h-8 w-[110px]">
+                                    <SelectValue placeholder="—" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">—</SelectItem>
+                                    {TEAM_ROLES.map((role) => (
+                                      <SelectItem key={role} value={role}>
+                                        {role}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {t && !t.active && (
+                                  <span className="text-xs text-muted-foreground">inactive</span>
+                                )}
+                              </div>
                             </TableCell>
+
                             <TableCell className="text-left font-mono text-xs">
                               {t?.intercom_admin_id ?? "—"}
                             </TableCell>
