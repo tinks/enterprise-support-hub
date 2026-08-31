@@ -1,0 +1,47 @@
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: var(--font-sans); fill: hsl(var(--foreground)); }
+    .lbl { font-size: 14px; font-weight: 480; }
+    .sm { font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .bx { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .wire { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+    .zone { fill: none; stroke: hsl(var(--border)); stroke-width: 1; stroke-dasharray: 4 3; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8" fill="none" stroke="hsl(var(--muted-foreground))" stroke-width="1"/>
+    </marker>
+  </defs>
+
+  <rect class="bx" x="8" y="120" width="150" height="52" rx="8"/>
+  <text class="lbl" x="83" y="142" text-anchor="middle">v3 tickets</text>
+  <text class="sm" x="83" y="160" text-anchor="middle">not transferred_out</text>
+
+  <line class="wire" x1="158" y1="146" x2="212" y2="146" marker-end="url(#a)"/>
+
+  <rect class="zone" x="216" y="30" width="200" height="240" rx="8"/>
+  <text class="sm" x="226" y="48">population gate</text>
+
+  <rect class="bx" x="234" y="62" width="164" height="46" rx="8"/>
+  <text class="lbl" x="316" y="82" text-anchor="middle">Bug · Feature Request</text>
+  <text class="sm" x="316" y="99" text-anchor="middle">today — 21 linked</text>
+
+  <rect class="bx" x="234" y="122" width="164" height="46" rx="8" stroke="hsl(var(--accent))"/>
+  <text class="lbl" x="316" y="142" text-anchor="middle">+ Issue · Incident</text>
+  <text class="sm" x="316" y="159" text-anchor="middle">new</text>
+
+  <rect class="bx" x="234" y="182" width="164" height="60" rx="8" stroke="hsl(var(--accent))"/>
+  <text class="lbl" x="316" y="204" text-anchor="middle">+ any Linear ref</text>
+  <text class="sm" x="316" y="221" text-anchor="middle">Escalated Issue / Linear Issue</text>
+  <text class="sm" x="316" y="235" text-anchor="middle">/ Hub override — any type</text>
+
+  <line class="wire" x1="416" y1="146" x2="470" y2="146" marker-end="url(#a)"/>
+
+  <rect class="bx" x="474" y="96" width="158" height="46" rx="8"/>
+  <text class="lbl" x="553" y="116" text-anchor="middle">Needs Linear</text>
+  <text class="sm" x="553" y="133" text-anchor="middle">no link resolved</text>
+
+  <rect class="bx" x="474" y="156" width="158" height="46" rx="8"/>
+  <text class="lbl" x="553" y="176" text-anchor="middle">Linked escalations</text>
+  <text class="sm" x="553" y="193" text-anchor="middle">SCA-3522 lands here</text>
+</svg>
