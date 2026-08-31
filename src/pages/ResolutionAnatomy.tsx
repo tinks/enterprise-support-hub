@@ -63,6 +63,20 @@ function pct(part: number | null, total: number | null): number | null {
   return (part / total) * 100;
 }
 
+/**
+ * Active clock — wall clock with the time the ticket sat CLOSED removed.
+ * Nobody owed a reply during a closed stretch, so it is elapsed time we neither
+ * caused nor could shorten. Reported alongside the recorded clock, never instead
+ * of it.
+ */
+function activeOf(r: { anatomy: AnatomyResult }): number | null {
+  const a = r.anatomy;
+  if (a.totalS == null) return null;
+  return Math.max(0, a.totalS - (a.closedS ?? 0));
+}
+
+
+
 /** The four-way split as one stacked bar. */
 function SplitBar({ a }: { a: AnatomyResult }) {
   if (a.totalS == null || a.totalS === 0) return <span className="text-muted-foreground">—</span>;
@@ -116,6 +130,8 @@ export default function ResolutionAnatomy() {
   const [fOwner, setFOwner] = useState(ANY);
   const [fCustomer, setFCustomer] = useState(ANY);
   const [fReopened, setFReopened] = useState(ANY);
+  /** When on, the long-runner threshold is applied to the active clock (total − closed). */
+  const [excludeClosed, setExcludeClosed] = useState(false);
 
   const windowStart = useMemo(() => {
     const s = startOfMonth(subMonths(new Date(), months - 1));
@@ -232,8 +248,9 @@ export default function ResolutionAnatomy() {
     if (fReopened === "customer" && r.anatomy.episodes.firstReopenBy !== "customer") return false;
     if (fReopened === "admin" && r.anatomy.episodes.firstReopenBy !== "admin") return false;
     if (fReopened === "auto" && r.anatomy.episodes.firstReopenBy !== "auto") return false;
+    if (excludeClosed && (activeOf(r) ?? 0) <= thresholdS) return false;
     return true;
-  }), [longRows, fArea, fClass, fOwner, fCustomer, fReopened]);
+  }), [longRows, fArea, fClass, fOwner, fCustomer, fReopened, excludeClosed, thresholdS]);
 
   // ---- Cohort rollups -------------------------------------------------------
 
@@ -290,7 +307,7 @@ export default function ResolutionAnatomy() {
       ) miscounted++;
     }
     const total = us + them + drift + closed;
-    return { us, them, drift, closed, total, n, closedNoConfirm, reopened, crossedByReopen, miscounted };
+    return { us, them, drift, closed, total, active: us + them + drift, n, closedNoConfirm, reopened, crossedByReopen, miscounted };
   }, [filtered, thresholdS]);
 
 
@@ -331,6 +348,24 @@ export default function ResolutionAnatomy() {
     };
   }, [filtered]);
 
+  const activeDelta = useMemo(() => {
+    const rows = filtered.filter((r) => r.anatomy.totalS != null);
+    if (!rows.length) return null;
+    const recorded = rows.map((r) => r.anatomy.totalS!);
+    const active = rows.map((r) => activeOf(r)!);
+    const withClosed = rows.filter((r) => (r.anatomy.closedS ?? 0) > 0).length;
+    // Tickets that only clear the long-runner bar because of closed time.
+    const belowOnActive = rows.filter((r) => (activeOf(r) ?? 0) <= thresholdS).length;
+    return {
+      n: rows.length,
+      medRecorded: median(recorded),
+      medActive: median(active),
+      withClosed,
+      belowOnActive,
+    };
+  }, [filtered, thresholdS]);
+
+
   // ---- Table ----------------------------------------------------------------
 
   const columns: IssueColumn<LongRow>[] = [
@@ -350,6 +385,19 @@ export default function ResolutionAnatomy() {
       key: "total", header: "Total", width: "w-[90px]",
       sortValue: (r) => r.time_to_resolve_s ?? null,
       cell: (r) => <span className="tabular-nums">{formatDuration(r.time_to_resolve_s)}</span>,
+    },
+    {
+      key: "active", header: "Active", width: "w-[95px]",
+      headerTitle: "Wall clock minus time the ticket sat closed — nobody owed a reply then",
+      sortValue: (r) => activeOf(r),
+      cell: (r) => (
+        <div className="text-xs">
+          <div className="tabular-nums">{formatDuration(activeOf(r))}</div>
+          {(r.anatomy.closedS ?? 0) > 0 && (
+            <div className="text-muted-foreground">−{formatDuration(r.anatomy.closedS)} closed</div>
+          )}
+        </div>
+      ),
     },
     {
       key: "split", header: "Split", width: "w-[150px]", headerTitle: "Blue = our clock · grey = customer · red = silent drift",
@@ -482,6 +530,15 @@ export default function ResolutionAnatomy() {
                 </SelectContent>
               </Select>
             </div>
+            <label className="flex items-center gap-2 pb-2 text-xs cursor-pointer select-none">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-primary"
+                checked={excludeClosed}
+                onChange={(e) => setExcludeClosed(e.target.checked)}
+              />
+              <span>Measure long runners on the active clock (exclude closed time)</span>
+            </label>
             <Button variant="outline" size="sm" onClick={load} disabled={loading}>
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               <span className="ml-2">Refresh</span>
@@ -526,7 +583,9 @@ export default function ResolutionAnatomy() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">Cohort</CardTitle>
-              <CardDescription className="text-xs">Tickets over {thresholdDays}d</CardDescription>
+              <CardDescription className="text-xs">
+                Tickets over {thresholdDays}d {excludeClosed ? "of active clock" : "of wall clock"}
+              </CardDescription>
             </CardHeader>
             <CardContent className="pt-0 space-y-1 text-sm">
               <Row label="Tickets" value={String(totals.n)} />
@@ -539,6 +598,31 @@ export default function ResolutionAnatomy() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Active clock — closed time removed */}
+        {activeDelta && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Active clock — closed time removed</CardTitle>
+              <CardDescription>
+                A closed stretch before a reopen is elapsed time nobody owed a reply for. Active
+                clock = wall clock − closed. Shown alongside the recorded clock; it replaces no
+                existing metric.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm space-y-1">
+              <Row label={`Median recorded clock (n=${activeDelta.n})`} value={formatDuration(activeDelta.medRecorded)} />
+              <Row label="Median active clock" value={formatDuration(activeDelta.medActive)} />
+              <Row label="Total closed time in cohort" value={`${formatDuration(totals.closed)} (${share(totals.closed)} of elapsed)`} />
+              <Row label="Tickets with any closed time" value={`${activeDelta.withClosed} of ${activeDelta.n}`} />
+              <Row
+                label={`Over ${thresholdDays}d only because of closed time`}
+                value={excludeClosed ? "0 (filtered out)" : String(activeDelta.belowOnActive)}
+              />
+            </CardContent>
+          </Card>
+        )}
+
 
         {/* Month trend */}
         <Card>
