@@ -87,8 +87,14 @@ function formatDuration(seconds: number | null): string {
 }
 
 
+/** Optional ?tab= deep link so other pages can land on the right list. */
+function initialTab(): "finalized" | "active" | "transferred" {
+  const t = new URLSearchParams(window.location.search).get("tab");
+  return t === "finalized" || t === "transferred" ? t : "active";
+}
+
 export default function InboxV3() {
-  const [tab, setTab] = useState<"finalized" | "active" | "transferred">("active");
+  const [tab, setTab] = useState<"finalized" | "active" | "transferred">(initialTab);
 
   // Team Reassignment tab state (lifecycle_status = 'transferred_out')
   const [transferredRows, setTransferredRows] = useState<Ticket[]>([]);
