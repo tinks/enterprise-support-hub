@@ -419,6 +419,27 @@ export type Database = {
         }
         Relationships: []
       }
+      esh_trend_notes: {
+        Row: {
+          metric_key: string
+          note_text: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          metric_key: string
+          note_text?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          metric_key?: string
+          note_text?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       float_coverage_shifts: {
         Row: {
           active: boolean
