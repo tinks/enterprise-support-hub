@@ -290,6 +290,7 @@ export default function Triage() {
       header: "Plan",
       width: "w-[110px]",
       cellClassName: "text-xs",
+      sortValue: (r: TriageRow) => (r.planTier === "sse" ? "SSE" : "Enterprise"),
       cell: (r: TriageRow) =>
         r.planTier === "sse" ? (
           <span className="rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium">
@@ -306,6 +307,13 @@ export default function Triage() {
           header: "Missing",
           width: "w-[170px]",
           cellClassName: "text-xs",
+          sortValue: (r: TriageRow) => {
+            const gap = assignmentGap(r);
+            const parts: string[] = [];
+            if (gap) parts.push(ASSIGNMENT_GAP_LABEL[gap]);
+            if (!hasSeverityValue(r.custom_attributes)) parts.push("no severity");
+            return parts.join(" · ");
+          },
           cell: (r: TriageRow) => {
             const gap = assignmentGap(r);
             const parts: string[] = [];
@@ -318,6 +326,7 @@ export default function Triage() {
       key: "age_business",
       header: "Age (business)",
       width: "w-[170px]",
+      sortValue: (r) => r.businessS,
       cell: (r) => (
         <div className="flex items-center gap-2">
           <span className="font-medium tabular-nums">{r.businessS == null ? "—" : formatDuration(r.businessS)}</span>
@@ -333,6 +342,7 @@ export default function Triage() {
       key: "age_wall",
       header: "Elapsed (wall)",
       width: "w-[120px]",
+      sortValue: (r) => r.wallS,
       cellClassName: "text-xs text-muted-foreground tabular-nums",
       cell: (r) => (r.wallS == null ? "—" : formatDuration(r.wallS)),
     },
@@ -340,6 +350,7 @@ export default function Triage() {
       key: "anchor",
       header: "Anchor",
       width: "w-[170px]",
+      sortValue: (r) => r.anchorS,
       cellClassName: "text-xs",
       cell: (r) => (
         <div>
