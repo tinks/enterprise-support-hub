@@ -413,7 +413,7 @@ export default function Escalations() {
     {
       key: "dev_followup",
       header: "Dev follow-up",
-      width: "w-[130px]",
+      width: "w-[170px]",
       cellClassName: "text-xs tabular-nums",
       // Never-followed-up sorts as the oldest: that's the row that needs chasing.
       sortValue: (r) => {
@@ -422,15 +422,39 @@ export default function Escalations() {
       },
       cell: (r) => {
         const at = r.esc?.dev_followed_up_at;
-        if (!at) return <span className="text-muted-foreground">Never</span>;
-        const days = Math.floor((Date.now() - new Date(at).getTime()) / 86_400_000);
+        const days = at ? Math.floor((Date.now() - new Date(at).getTime()) / 86_400_000) : null;
+        const cid = r.ticket.intercom_conversation_id;
         return (
-          <div>
-            <div>{days === 0 ? "Today" : `${days}d ago`}</div>
-            <div className="text-[10px] text-muted-foreground">{format(new Date(at), "d MMM")}</div>
+          <div className="flex items-center gap-2">
+            <div className="min-w-[54px]">
+              {at ? (
+                <>
+                  <div>{days === 0 ? "Today" : `${days}d ago`}</div>
+                  <div className="text-[10px] text-muted-foreground">{format(new Date(at), "d MMM")}</div>
+                </>
+              ) : (
+                <span className="text-muted-foreground">Never</span>
+              )}
+            </div>
+            {canEdit && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 px-2 text-[11px]"
+                title={at ? "Mark followed up again (now)" : "Mark followed up now"}
+                disabled={saving === cid}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  markFollowedUp(cid);
+                }}
+              >
+                {saving === cid ? <Loader2 className="h-3 w-3 animate-spin" /> : at ? "Again" : "Mark"}
+              </Button>
+            )}
           </div>
         );
       },
+
     },
     ageColumn<EscalationRow>((r) => r.createdMs),
   ];
