@@ -16,6 +16,7 @@ import {
 import { CLEAN_DATA_START_DATE, CLEAN_DATA_START_LABEL } from "@/pages/inbox-v3/constants";
 import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 import { intercomUrl } from "@/lib/intercom";
+import { isSlaExcluded } from "@/lib/slaExclusions";
 import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
 import { idColumn } from "@/components/issues/issueColumns";
 
@@ -38,6 +39,9 @@ type ScalarRow = {
   intercom_closed_at: string | null;
   time_to_resolve_s: number | null;
   reopen_count_at_finalize: number | null;
+  tags: string[] | null;
+  rsa_override: boolean | null;
+  customer_resolution_method: string | null;
 };
 
 type LongRow = ScalarRow & { anatomy: AnatomyResult };
@@ -45,7 +49,8 @@ type LongRow = ScalarRow & { anatomy: AnatomyResult };
 const SCALAR_COLS =
   "id,intercom_conversation_id,subject,subject_override,owner,product_area,classification," +
   "customer_key,finalized_at,intercom_created_at,intercom_closed_at,time_to_resolve_s," +
-  "reopen_count_at_finalize";
+  "reopen_count_at_finalize,tags,rsa_override,customer_resolution_method";
+
 
 const ANY = "__any__";
 
@@ -88,10 +93,13 @@ export default function ResolutionAnatomy() {
   const [loading, setLoading] = useState(true);
   const [loadingLong, setLoadingLong] = useState(false);
   const [scalars, setScalars] = useState<ScalarRow[]>([]);
+  const [excludedCount, setExcludedCount] = useState(0);
+  const [testAccountKeys, setTestAccountKeys] = useState<Set<string>>(new Set());
   const [longRows, setLongRows] = useState<LongRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [reconFailures, setReconFailures] = useState(0);
   const [detail, setDetail] = useState<LongRow | null>(null);
+
 
   const [fArea, setFArea] = useState(ANY);
   const [fClass, setFClass] = useState(ANY);
@@ -110,6 +118,18 @@ export default function ResolutionAnatomy() {
     setLoading(true);
     setError(null);
     try {
+      // Test/sandbox accounts, so the SLA-population predicate can be applied
+      // with the same inputs the SLA workbench uses.
+      const { data: accts } = await supabase
+        .from("v3_customer_accounts")
+        .select("account_key,is_test");
+      const testKeys = new Set<string>(
+        ((accts ?? []) as Array<{ account_key: string; is_test: boolean | null }>)
+          .filter((a) => a.is_test)
+          .map((a) => a.account_key),
+      );
+      setTestAccountKeys(testKeys);
+
       // Pass 1 — scalars only, for the cohort rollup. raw_payload is huge and
       // is fetched only for the long runners in pass 2.
       const all: ScalarRow[] = [];
@@ -128,7 +148,12 @@ export default function ResolutionAnatomy() {
         all.push(...page);
         if (page.length < PAGE) break;
       }
-      setScalars(all);
+      // Same population as the SLA surfaces: enterprise-fyi / enterprise-duplicate,
+      // merged tickets, RSA=false, non-enterprise / prospect dispositions and test
+      // accounts are NOT resolution work and must not shape the resolution curve.
+      const inScope = all.filter((r) => !isSlaExcluded(r, { testAccountKeys: testKeys }));
+      setExcludedCount(all.length - inScope.length);
+      setScalars(inScope);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load failed");
     } finally {
@@ -417,6 +442,17 @@ export default function ResolutionAnatomy() {
             </Button>
           </CardContent>
         </Card>
+
+        {excludedCount > 0 && (
+          <Card>
+            <CardContent className="pt-6 text-xs text-muted-foreground">
+              {excludedCount} finalized ticket{excludedCount > 1 ? "s" : ""} in this window
+              excluded from the population (enterprise-fyi, enterprise-duplicate, merged,
+              RSA=false, non-enterprise / prospect dispositions, test accounts) — the same
+              predicate the SLA surfaces use.
+            </CardContent>
+          </Card>
+        )}
 
         {error && (
           <Card className="border-destructive">
