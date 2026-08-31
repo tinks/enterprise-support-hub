@@ -16,6 +16,7 @@ import {
 import { CLEAN_DATA_START_DATE, CLEAN_DATA_START_LABEL } from "@/pages/inbox-v3/constants";
 import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 import { intercomUrl } from "@/lib/intercom";
+import { isSlaExcluded } from "@/lib/slaExclusions";
 import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
 import { idColumn } from "@/components/issues/issueColumns";
 
@@ -158,7 +159,6 @@ export default function ResolutionAnatomy() {
     } finally {
       setLoading(false);
     }
-
   }
 
   async function loadLong() {
@@ -442,6 +442,17 @@ export default function ResolutionAnatomy() {
             </Button>
           </CardContent>
         </Card>
+
+        {excludedCount > 0 && (
+          <Card>
+            <CardContent className="pt-6 text-xs text-muted-foreground">
+              {excludedCount} finalized ticket{excludedCount > 1 ? "s" : ""} in this window
+              excluded from the population (enterprise-fyi, enterprise-duplicate, merged,
+              RSA=false, non-enterprise / prospect dispositions, test accounts) — the same
+              predicate the SLA surfaces use.
+            </CardContent>
+          </Card>
+        )}
 
         {error && (
           <Card className="border-destructive">
