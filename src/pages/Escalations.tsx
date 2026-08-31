@@ -148,6 +148,17 @@ export default function Escalations() {
   const [editingLink, setEditingLink] = useState(false);
 
   const { accountLabel } = useCustomerLabels();
+  const [me, setMe] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setMe(data.user?.email ?? null));
+  }, []);
+
+  /** Mark (or clear) the last time Dev was chased about this escalation. */
+  const markFollowedUp = (conversationId: string, clear = false) =>
+    upsert(conversationId, {
+      dev_followed_up_at: clear ? null : new Date().toISOString(),
+      dev_followed_up_by: clear ? null : me,
+    });
 
   const load = async () => {
     setLoading(true);
