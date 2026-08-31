@@ -21,6 +21,7 @@ import {
 import { CsatFilterMenu } from "@/components/csat/CsatFilterMenu";
 import { CsatOverrideDialog } from "@/components/csat/CsatOverrideDialog";
 import { IntercomIdChip } from "@/components/issues/IssueTable";
+import { SortableHead, useTableSort } from "@/components/issues/useTableSort";
 import { Link } from "react-router-dom";
 
 const sel = (s: string): string => s;
@@ -183,6 +184,18 @@ export default function CsatReport() {
     }
     return r;
   }, [rows, customerFilter, ratingFilter, q]);
+
+  const { sorted: sortedRows, sort, toggle } = useTableSort<Row>(scoped, {
+    rating: (r) => r.csat_rating,
+    subject: (r) => displaySubject(r),
+    intercom_id: (r) => r.intercom_conversation_id,
+    customer: (r) => accountLabel(r.customer_key),
+    rater: (r) => r.csat_rater_name ?? r.contact_name ?? r.csat_rater_email ?? r.contact_email,
+    remark: (r) => r.csat_remark,
+    rated_at: (r) => (r.csat_rated_at ? new Date(r.csat_rated_at).getTime() : null),
+    owner: (r) => r.owner,
+    counting: (r) => (isRatingCounted(r, csatOverrides, csatFilters) ? "Counted" : "Not counted"),
+  });
 
   const summary = useMemo(
     () => summarizeCsat(scoped, csatOverrides, csatFilters),
@@ -385,26 +398,26 @@ export default function CsatReport() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[80px]">Rating</TableHead>
-                    <TableHead className="min-w-[280px]">Subject</TableHead>
-                    <TableHead className="w-[140px]">Intercom ID</TableHead>
-                    <TableHead className="w-[160px]">Customer</TableHead>
-                    <TableHead className="min-w-[220px]">Rated by</TableHead>
-                    <TableHead className="min-w-[240px]">Remark</TableHead>
-                    <TableHead className="w-[120px]">Rated</TableHead>
-                    <TableHead className="w-[120px]">Owner</TableHead>
-                    <TableHead className="w-[180px]">Counting</TableHead>
+                    <SortableHead sortKey="rating" sort={sort} onToggle={toggle} className="w-[80px]">Rating</SortableHead>
+                    <SortableHead sortKey="subject" sort={sort} onToggle={toggle} className="min-w-[280px]">Subject</SortableHead>
+                    <SortableHead sortKey="intercom_id" sort={sort} onToggle={toggle} className="w-[140px]">Intercom ID</SortableHead>
+                    <SortableHead sortKey="customer" sort={sort} onToggle={toggle} className="w-[160px]">Customer</SortableHead>
+                    <SortableHead sortKey="rater" sort={sort} onToggle={toggle} className="min-w-[220px]">Rated by</SortableHead>
+                    <SortableHead sortKey="remark" sort={sort} onToggle={toggle} className="min-w-[240px]">Remark</SortableHead>
+                    <SortableHead sortKey="rated_at" sort={sort} onToggle={toggle} className="w-[120px]">Rated</SortableHead>
+                    <SortableHead sortKey="owner" sort={sort} onToggle={toggle} className="w-[120px]">Owner</SortableHead>
+                    <SortableHead sortKey="counting" sort={sort} onToggle={toggle} className="w-[180px]">Counting</SortableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {scoped.length === 0 && !loading && (
+                  {sortedRows.length === 0 && !loading && (
                     <TableRow>
                       <TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-10">
                         No rated tickets in this window.
                       </TableCell>
                     </TableRow>
                   )}
-                  {scoped.map((r) => {
+                  {sortedRows.map((r) => {
                     const overridden = csatOverrides.get(r.id) ?? null;
                     const counted = isRatingCounted(r, csatOverrides, csatFilters);
                     return (

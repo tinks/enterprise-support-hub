@@ -43,7 +43,7 @@ type Props<T> = {
   defaultSort?: SortState;
 };
 
-function compare(a: SortValue, b: SortValue): number {
+export function compare(a: SortValue, b: SortValue): number {
   const aNull = a === null || a === undefined || a === "";
   const bNull = b === null || b === undefined || b === "";
   if (aNull && bNull) return 0;
