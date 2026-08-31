@@ -563,7 +563,9 @@ export default function ResolutionAnatomy() {
                   <Legend />
                   <Bar dataKey="Our clock" stackId="a" fill="hsl(var(--primary))" />
                   <Bar dataKey="Their clock" stackId="a" fill="hsl(var(--muted-foreground))" />
+                  <Bar dataKey="Closed" stackId="a" fill="hsl(var(--muted-foreground) / 0.35)" />
                   <Bar dataKey="Silent drift" stackId="a" fill="hsl(var(--destructive))" />
+
                 </BarChart>
               </ResponsiveContainer>
             )}
