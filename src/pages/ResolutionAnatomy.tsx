@@ -307,7 +307,7 @@ export default function ResolutionAnatomy() {
       ) miscounted++;
     }
     const total = us + them + drift + closed;
-    return { us, them, drift, closed, total, n, closedNoConfirm, reopened, crossedByReopen, miscounted };
+    return { us, them, drift, closed, total, active: us + them + drift, n, closedNoConfirm, reopened, crossedByReopen, miscounted };
   }, [filtered, thresholdS]);
 
 
