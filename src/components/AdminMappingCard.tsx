@@ -15,7 +15,7 @@ type TeammateRole = "support" | "csm" | "other" | "ai";
 
 interface Teammate {
   id: string;
-  intercom_admin_id: string;
+  intercom_admin_id: string | null;
   email: string | null;
   name: string;
   /** Slack member ID (U…), used to @-mention on float coverage shifts. */
@@ -109,15 +109,23 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
   const addRow = async () => {
     const intercom_admin_id = newAdminId.trim();
     const name = newName.trim();
-    if (!intercom_admin_id || !name) {
-      toast.error("Admin ID and name are required");
+    if (!name) {
+      toast.error("Name is required");
+      return;
+    }
+    if (!intercom_admin_id && !RELAY_ONLY_ROLES.has(newRole)) {
+      toast.error("Admin ID is required for this role");
+      return;
+    }
+    if (!intercom_admin_id && !newSlackId.trim() && !newEmail.trim()) {
+      toast.error("A relay-only teammate needs a Slack ID or email");
       return;
     }
     setBusyId("new");
     const { data, error } = await supabase
       .from("teammates")
       .insert({
-        intercom_admin_id,
+        intercom_admin_id: intercom_admin_id || null,
         email: newEmail.trim() || null,
         name,
         slack_user_id: newSlackId.trim() || null,
@@ -146,15 +154,20 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
   };
 
   const saveRow = async (row: Teammate) => {
-    if (!row.intercom_admin_id.trim() || !row.name.trim()) {
-      toast.error("Admin ID and name are required");
+    const adminId = (row.intercom_admin_id ?? "").trim();
+    if (!row.name.trim()) {
+      toast.error("Name is required");
+      return;
+    }
+    if (!adminId && !RELAY_ONLY_ROLES.has(row.role)) {
+      toast.error("Admin ID is required for this role");
       return;
     }
     setBusyId(row.id);
     const { error } = await supabase
       .from("teammates")
       .update({
-        intercom_admin_id: row.intercom_admin_id.trim(),
+        intercom_admin_id: adminId || null,
         email: row.email?.trim() || null,
         name: row.name.trim(),
         slack_user_id: row.slack_user_id?.trim() || null,
@@ -253,7 +266,8 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
 
                 <Input
                   className="min-w-0"
-                  value={row.intercom_admin_id}
+                  value={row.intercom_admin_id ?? ""}
+                  placeholder={RELAY_ONLY_ROLES.has(row.role) ? "— relay only" : ""}
                   disabled={!isAdmin}
                   onChange={(e) => patchLocal(row.id, { intercom_admin_id: e.target.value })}
                 />
