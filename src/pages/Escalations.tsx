@@ -410,6 +410,28 @@ export default function Escalations() {
       sortValue: (r) => r.esc?.hub_state ?? null,
       cell: (r) => <div onClick={(e) => e.stopPropagation()}>{hubSelect(r)}</div>,
     },
+    {
+      key: "dev_followup",
+      header: "Dev follow-up",
+      width: "w-[130px]",
+      cellClassName: "text-xs tabular-nums",
+      // Never-followed-up sorts as the oldest: that's the row that needs chasing.
+      sortValue: (r) => {
+        const at = r.esc?.dev_followed_up_at;
+        return at ? Date.now() - new Date(at).getTime() : Number.MAX_SAFE_INTEGER;
+      },
+      cell: (r) => {
+        const at = r.esc?.dev_followed_up_at;
+        if (!at) return <span className="text-muted-foreground">Never</span>;
+        const days = Math.floor((Date.now() - new Date(at).getTime()) / 86_400_000);
+        return (
+          <div>
+            <div>{days === 0 ? "Today" : `${days}d ago`}</div>
+            <div className="text-[10px] text-muted-foreground">{format(new Date(at), "d MMM")}</div>
+          </div>
+        );
+      },
+    },
     ageColumn<EscalationRow>((r) => r.createdMs),
   ];
 
