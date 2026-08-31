@@ -113,6 +113,13 @@
       "when": 1788182294504,
       "tag": "0015_esh_search_index_cron",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1788182376867,
+      "tag": "0016_esh_search_index_cron_hourly",
+      "breakpoints": true
     }
   ]
 }
