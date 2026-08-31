@@ -346,7 +346,7 @@ export default function Escalations() {
       header: "Type",
       width: "w-[120px]",
       cell: (r) => (
-        <Badge variant={r.type === "Bug" ? "destructive" : "secondary"} className="text-[10px]">{r.type}</Badge>
+        <Badge variant={r.type === "Bug" || r.type === "Incident" ? "destructive" : "secondary"} className="text-[10px]">{r.type}</Badge>
       ),
     },
     {
