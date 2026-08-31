@@ -209,7 +209,7 @@ export default function Escalations() {
           hubState,
           linear,
           hasLinear: !!linear.url,
-          type: ticketType(t.custom_attributes) as "Bug" | "Feature Request",
+          type: ticketType(t.custom_attributes) ?? "—",
           createdMs,
         } as EscalationRow;
       })
