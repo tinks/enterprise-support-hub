@@ -18,6 +18,7 @@ import { displaySubject } from "@/lib/subjectDisplay";
 import { EditableSubject } from "@/components/issues/EditableSubject";
 import { intercomUrl } from "@/lib/intercom";
 import { IntercomIdChip } from "@/components/issues/IssueTable";
+import { useTableSort, SortableHead } from "@/components/issues/useTableSort";
 import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
 import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
 import { useInitialQ } from "@/hooks/useInitialQ";
