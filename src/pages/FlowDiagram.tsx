@@ -1108,12 +1108,14 @@ function buildNodes(
       position: { x: COL_W * -1.8, y: ROW_H * 4.6 },
       data: {
         label: "Resolution anatomy (/resolution-anatomy)",
-        desc: "Decomposes a long ticket's wall clock into our clock / their clock / silent drift, so a rising average can be explained instead of just reported. Read-only and derived on read.",
+        desc: "Decomposes a long ticket's wall clock into our clock / their clock / closed / silent drift, so a rising average can be explained instead of just reported. Read-only and derived on read.",
         icon: ClipboardList,
         details: [
           "WHY: Jun-Aug 2026 median resolution stayed ~4d while P90 went 11.8d -> 17.5d. The rising average is a tail, not a shift; tickets over 7 days carry ~75% of all resolution time.",
           "ENGINE: src/lib/resolutionAnatomy.ts computeAnatomy(raw_payload, {closedAtSec}) reuses extractTimeline + classifyActor + businessHoursBetween from slaMetrics.ts UNMODIFIED. customer/shared_inbox = customer side (B6 relay rule), human_admin = our side, sam_ai/operator_bot/system = NEUTRAL (an automated ack neither discharges our obligation nor returns the ball, so it opens/closes no gap). Notes and state events are not substantive. Returns longestGap + who owed it, business-hours seconds per side, reply counts, closedWithoutCustomerConfirm, timeToFirstCloseS.",
-          "RECONCILIATION: anatomyReconciles() asserts our+their+drift == wall clock; the page banners any failures and marks those splits UNVERIFIED. Nothing persisted, no existing SLA/Analytics number changed.",
+          "CLOSED BUCKET (31 Aug 2026): the walk is EVENT-DRIVEN over the full timeline, not just substantive messages. A close part stops every clock; an explicit reopen part or the next substantive message after a close restarts it. OwedBy gains 'closed', AnatomyResult gains closedS, and a single message can carry several segments (reply-wait -> closed -> post-reopen), rendered as separate labelled gaps in the timeline sheet. WHY: ticket 215474664060068 had a 4h 45m first close and then a 32d 19h gap billed to US while the ticket was shut - a debt we did not owe.",
+          "RECONCILIATION: anatomyReconciles() asserts us+customer+closed+drift == wall clock; the page banners any failures and marks those splits UNVERIFIED. Nothing persisted, no existing SLA/Analytics number changed.",
+
           "PAGE: two-pass load (scalars for the window, then raw_payload only for tickets over the threshold, 40 at a time). Median split by month, time to first close vs time to last close (headline metric is Intercom time to LAST close, so a reopen re-clocks the ticket), top-10 rollups by area/owner/customer, sortable long-runner table with a gap-by-gap timeline sheet.",
           "VERIFIED 31 Aug 2026 (3mo, >7d, n=164, 0 reconciliation failures): our clock 25% vs their clock 75%; median first close 9d 22h vs last close 12d 0h; 136/164 closed with no customer reply; 48 reopened. UNVERIFIED: silent drift reads 0% because a gap is only 'nobody owed' when the opening part is neutral - treat the split as two-way until that definition is revisited.",
         ],
