@@ -63,17 +63,18 @@ function pct(part: number | null, total: number | null): number | null {
   return (part / total) * 100;
 }
 
-/** The three-way split as one stacked bar. */
+/** The four-way split as one stacked bar. */
 function SplitBar({ a }: { a: AnatomyResult }) {
   if (a.totalS == null || a.totalS === 0) return <span className="text-muted-foreground">—</span>;
   const w = (v: number | null) => `${Math.max(0, ((v ?? 0) / a.totalS!) * 100)}%`;
   return (
     <div
       className="flex h-3 w-full overflow-hidden rounded-sm bg-muted"
-      title={`Us ${formatDuration(a.ourClockS)} · Customer ${formatDuration(a.theirClockS)} · Drift ${formatDuration(a.driftS)}`}
+      title={`Us ${formatDuration(a.ourClockS)} · Customer ${formatDuration(a.theirClockS)} · Closed ${formatDuration(a.closedS)} · Drift ${formatDuration(a.driftS)}`}
     >
       <div style={{ width: w(a.ourClockS) }} className="bg-primary" />
       <div style={{ width: w(a.theirClockS) }} className="bg-[hsl(var(--chart-2,220_10%_60%))] bg-muted-foreground/60" />
+      <div style={{ width: w(a.closedS) }} className="bg-muted-foreground/25" />
       <div style={{ width: w(a.driftS) }} className="bg-destructive/60" />
     </div>
   );
@@ -90,7 +91,9 @@ const OWED_LABEL: Record<OwedBy, string> = {
   us: "We owed a reply",
   customer: "Customer owed a reply",
   nobody: "Nobody was blocked",
+  closed: "Closed — nobody owed a reply",
 };
+
 
 export default function ResolutionAnatomy() {
   const { accountLabel } = useCustomerLabels();
