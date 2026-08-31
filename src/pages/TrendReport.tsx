@@ -101,7 +101,7 @@ function fmtCell(metric: MetricKey, m: MonthBucket): string {
         ? formatDuration(m.medResolve)
         : `${formatDuration(m.medResolve)} · P90 ${formatDuration(m.p90Resolve)}`;
     case "backlog": return String(m.backlog);
-    case "reopened": return String(m.reopened);
+
   }
 }
 
