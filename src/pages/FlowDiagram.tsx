@@ -1084,6 +1084,23 @@ function buildNodes(
       },
     },
     {
+      id: "csat-integrity",
+      type: "flowNode",
+      position: { x: COL_W * -1.8, y: ROW_H * 3.8 },
+      data: {
+        label: "CSAT integrity (rater identity + overrides)",
+        desc: "Makes a raw Intercom rating trustworthy without hiding it: name WHO rated, flag internal raters, and allow an attributed, visible suppression of a documented misfire. Nothing is edited or deleted.",
+        icon: ClipboardList,
+        details: [
+          "RATER IDENTITY: intercom_tickets_v3 gains csat_rater_contact_id / csat_rater_external_id / csat_rater_name / csat_rater_email / csat_rater_is_internal, filled by BEFORE INSERT/UPDATE trigger trg_v3_apply_csat_rater (public.v3_apply_csat_rater) from raw_payload.conversation_rating.contact. In every rated row observed the rater contact IS the ticket requester, so name/email mirror contact_name/contact_email. is_internal = email @lovable.dev OR email matches teammates.email OR external_id 'slack:<id>' matches teammates.slack_user_id. Backfill: 61 rated → 8 internal (avg 4.88) vs 53 external (avg 4.42) — the skew the feature exists to expose.",
+          "OVERRIDES: public.csat_overrides — one row per ticket_id (UNIQUE), action='exclude', reason NOT NULL (>=5 chars), original_rating, created_by / created_by_email, created_at. The rating is NEVER mutated; the override sits beside it, struck through with the reason and author shown. RLS: SELECT any authenticated; INSERT/UPDATE/DELETE gated on public.can_edit(auth.uid()). Motivating case: a 1-star for closing a duplicate the customer was told about.",
+          "ONE COUNTING AUTHORITY: src/lib/csat.ts — useCsatFilters (localStorage 'esh.csatFilters.v1', shared across surfaces; defaults exclude-internal ON, exclude-overridden ON), useCsatOverrides, isRatingCounted, summarizeCsat, csatExclusionNote. Every surface prints how many responses each rule removed — n never shrinks silently.",
+          "SURFACES: Analytics v3 (avg CSAT + response rate + per-customer CSAT, CsatFilterMenu in the header), Trend report (monthly avg with 'n excl.'), Customer report (CSAT positive card), Inbox v3 detail sheet (rater name/email, 'Internal rater' and 'Excluded' pills, CsatOverrideDialog). Legacy Slack/Gmail CSAT paths are untouched.",
+        ],
+        accent: "default",
+      },
+    },
+    {
       id: "customer-resolution",
       type: "flowNode",
       position: { x: COL_W * -0.6, y: ROW_H * 3.6 },

@@ -21,6 +21,8 @@ import { IntercomIdChip } from "@/components/issues/IssueTable";
 import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
 import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
 import { useInitialQ } from "@/hooks/useInitialQ";
+import { useCsatOverrides } from "@/lib/csat";
+import { CsatOverrideDialog } from "@/components/csat/CsatOverrideDialog";
 
 type Ticket = {
   id: string;
@@ -38,6 +40,9 @@ type Ticket = {
   rsa_override: boolean | null;
   csat_rating: number | null;
   csat_remark: string | null;
+  csat_rater_name: string | null;
+  csat_rater_email: string | null;
+  csat_rater_is_internal: boolean | null;
   time_to_resolve_s: number | null;
   intercom_created_at: string | null;
   intercom_updated_at: string | null;
@@ -127,6 +132,7 @@ export default function InboxV3() {
   const [rsaFilter, setRsaFilter] = useState<"all" | "required" | "not_required">("all");
   const [customerFilter, setCustomerFilter] = useState<string>(ANY);
   const [selected, setSelected] = useState<Ticket | null>(null);
+  const { overrides: csatOverrides, refresh: refreshCsatOverrides } = useCsatOverrides();
 
   // Override picker state (inside the sheet)
   const [overrideDraft, setOverrideDraft] = useState<string>("");
@@ -597,7 +603,49 @@ export default function InboxV3() {
                     <Field label="Product area" value={selected.product_area} />
                     <Field label="Classification" value={selected.classification} />
                     <Field label="Tags" value={(selected.tags || []).join(", ") || "—"} />
-                    <Field label="CSAT" value={selected.csat_rating ? `${CSAT_EMOJI[selected.csat_rating]} ${selected.csat_rating} — ${selected.csat_remark || ""}` : "—"} />
+                    <div className="grid grid-cols-[140px_1fr] gap-3 items-start">
+                      <dt className="text-xs text-muted-foreground">CSAT</dt>
+                      <dd className="text-sm space-y-2">
+                        {selected.csat_rating ? (
+                          <>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={csatOverrides.has(selected.id) ? "line-through text-muted-foreground" : ""}>
+                                {CSAT_EMOJI[selected.csat_rating]} {selected.csat_rating}
+                                {selected.csat_remark ? ` — ${selected.csat_remark}` : ""}
+                              </span>
+                              {selected.csat_rater_is_internal ? (
+                                <Badge variant="secondary" className="text-[10px]">Internal rater</Badge>
+                              ) : null}
+                              {csatOverrides.has(selected.id) ? (
+                                <Badge variant="outline" className="text-[10px]">Excluded</Badge>
+                              ) : null}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Rated by {selected.csat_rater_name ?? selected.contact_name ?? "—"}
+                              {selected.csat_rater_email ? ` · ${selected.csat_rater_email}` : ""}
+                            </div>
+                            {csatOverrides.has(selected.id) ? (
+                              <div className="rounded-md border border-border bg-muted/20 p-2 text-xs space-y-1">
+                                <div>{csatOverrides.get(selected.id)!.reason}</div>
+                                <div className="text-muted-foreground">
+                                  {csatOverrides.get(selected.id)!.created_by_email ?? "unknown"} ·{" "}
+                                  {format(new Date(csatOverrides.get(selected.id)!.created_at), "MMM d, yyyy")}
+                                </div>
+                              </div>
+                            ) : null}
+                            <CsatOverrideDialog
+                              ticketId={selected.id}
+                              conversationId={selected.intercom_conversation_id}
+                              rating={selected.csat_rating}
+                              existing={csatOverrides.get(selected.id) ?? null}
+                              onSaved={refreshCsatOverrides}
+                            />
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </dd>
+                    </div>
                     <Field label="Time to resolve" value={formatDuration(selected.time_to_resolve_s)} />
                   </>
                 ) : null}

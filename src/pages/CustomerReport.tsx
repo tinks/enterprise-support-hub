@@ -23,6 +23,8 @@ import {
 import { useSlaBatch, type SlaBatchEnriched } from "@/hooks/useSlaBatch";
 import { rowClosedAtMs } from "@/lib/slaWindow";
 import { cn } from "@/lib/utils";
+import { summarizeCsat, csatExclusionNote, useCsatFilters, useCsatOverrides } from "@/lib/csat";
+import { CsatFilterMenu } from "@/components/csat/CsatFilterMenu";
 
 // ---- Date range presets (local to this prototype) --------------------------
 type RangeKey = "month" | "last_month" | "30d" | "90d";
@@ -102,6 +104,8 @@ export default function CustomerReport() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [customer, setCustomer] = useState<string | null>(null);
   const [range, setRange] = useState<RangeKey>("month");
+  const [csatFilters, setCsatFilters] = useCsatFilters();
+  const { overrides: csatOverrides } = useCsatOverrides();
   const [showClosed, setShowClosed] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [openTickets, setOpenTickets] = useState<OpenTicket[]>([]);
@@ -133,7 +137,7 @@ export default function CustomerReport() {
       setOpenLoading(true);
       const { data } = await supabase
         .from("intercom_tickets_v3")
-        .select("id,intercom_conversation_id,subject,subject_override,intercom_created_at,intercom_updated_at,lifecycle_status,raw_payload")
+        .select("id,intercom_conversation_id,subject,subject_override,intercom_created_at,intercom_updated_at,lifecycle_status,csat_rating,csat_rater_is_internal,raw_payload")
         .eq("customer_key", customer)
         .in("lifecycle_status", ["open", "reopened_after_finalize"])
         .order("intercom_created_at", { ascending: false });
@@ -189,17 +193,22 @@ export default function CustomerReport() {
     };
   }, [scored]);
 
-  const csat = useMemo(() => {
-    const ratings: number[] = [];
-    for (const { row } of scored) {
-      const r = Number(row.raw_payload?.conversation_rating?.rating);
-      if (Number.isFinite(r) && r >= 1 && r <= 5) ratings.push(r);
-    }
-    if (ratings.length === 0) return { n: 0, pctPositive: null as number | null, avg: null as number | null };
-    const positive = ratings.filter((r) => r >= 4).length;
-    const avg = ratings.reduce((a, b) => a + b, 0) / ratings.length;
-    return { n: ratings.length, pctPositive: (positive / ratings.length) * 100, avg };
-  }, [scored]);
+  const csat = useMemo(
+    () => summarizeCsat(
+      scored.map(({ row }) => ({
+        id: row.id,
+        csat_rating: typeof (row as any).csat_rating === "number"
+          ? (row as any).csat_rating
+          : Number.isFinite(Number(row.raw_payload?.conversation_rating?.rating))
+            ? Number(row.raw_payload?.conversation_rating?.rating)
+            : null,
+        csat_rater_is_internal: (row as any).csat_rater_is_internal ?? null,
+      })),
+      csatOverrides,
+      csatFilters,
+    ),
+    [scored, csatOverrides, csatFilters],
+  );
 
   const escalated = useMemo(() => {
     type Row = {
@@ -351,9 +360,14 @@ export default function CustomerReport() {
                 emphasize
               />
               <StatCard title="Breaches" desc="First response + resolution" value={String(summary.breaches)} />
+              <div className="col-span-full flex justify-end">
+                <CsatFilterMenu filters={csatFilters} onChange={setCsatFilters} summary={csat} />
+              </div>
               <StatCard
                 title="CSAT positive"
-                desc={csat.n === 0 ? "0 responses" : `${csat.n} responses · avg ${csat.avg!.toFixed(1)}`}
+                desc={csat.n === 0
+                  ? "0 counted responses"
+                  : `${csat.n} responses · avg ${csat.avg!.toFixed(1)}${csatExclusionNote(csat) ? ` · ${csatExclusionNote(csat)}` : ""}`}
                 value={csat.pctPositive == null ? "n/a" : `${csat.pctPositive.toFixed(0)}%`}
               />
             </div>

@@ -698,6 +698,18 @@ Capture paths:
 
 Surfaced on `/stats` under "Customer satisfaction" with avg, total, response rate (ratings / resolved Intercom-linked conversations in scope), 1–5 distribution chart, and a click-through list of recent 1–2★ ratings.
 
+## CSAT rater identity and rating overrides (v3)
+
+Two things can make a raw Intercom rating misleading: the rater is internal, or the rating is a documented misfire. Neither is hidden.
+
+**Rater identity.** `intercom_tickets_v3` carries `csat_rater_contact_id`, `csat_rater_external_id`, `csat_rater_name`, `csat_rater_email`, `csat_rater_is_internal`, filled by the BEFORE INSERT/UPDATE trigger `trg_v3_apply_csat_rater` (function `public.v3_apply_csat_rater`) from `raw_payload.conversation_rating`. In every observed rated ticket the rater contact is the ticket requester, so name/email mirror `contact_name` / `contact_email`. `is_internal` is true when the contact email is `@lovable.dev`, matches a `teammates.email`, or the rating contact's `external_id` is `slack:<id>` matching `teammates.slack_user_id`. Backfill at build time: 61 rated tickets → 8 internal (avg 4.88), 53 external (avg 4.42).
+
+**Overrides.** `public.csat_overrides` (unique per `ticket_id`, `action = 'exclude'`, `reason` required ≥5 chars, `created_by` / `created_by_email`, `original_rating`). The rating itself is never edited or deleted — the override is an attributed, visible suppression shown next to the rating. RLS: read for all authenticated, insert/update/delete gated on `public.can_edit(auth.uid())`.
+
+**Counting authority.** `src/lib/csat.ts` is the single place that decides which ratings count: `useCsatFilters` (persisted in localStorage under `esh.csatFilters.v1`, shared across surfaces, defaults exclude-internal ON and exclude-overridden ON), `useCsatOverrides`, `summarizeCsat`, `isRatingCounted`, `csatExclusionNote`. Every surface reports how many responses each rule removed rather than silently shrinking `n`.
+
+Surfaces: Analytics v3 (average CSAT, response rate, per-customer CSAT, `CsatFilterMenu` in the filter bar), Trend report (monthly average with `n excl.`), Customer report (CSAT positive card), Inbox v3 detail sheet (rater name/email, "Internal rater" and "Excluded" pills, `CsatOverrideDialog`).
+
 ## Slack-side CSAT (Sam / Ask Lovable)
 
 `conversation_mappings` also has `csat_rating`, `csat_remark`, `csat_rated_at` plus `csat_prompt_ts`. When `intercom-webhook` resolves a Slack-originated conversation, it posts a second threaded message with five emoji buttons (😠 Terrible / 🙁 Bad / 😐 OK / 😀 Great / 🤩 Amazing, action_ids `csat_1`…`csat_5`) and stores the message ts in `csat_prompt_ts` (idempotent — skipped if already prompted/rated). `slack-interactions` records the rating, replaces the prompt with a thank-you, and opens an optional remark modal (`callback_id: csat_remark_modal`) on the first click. Ratings are merged into the same Stats card and a "Customer satisfaction" card on the conversation detail page.
