@@ -52,6 +52,9 @@ export type AnatomyResult = {
   ourClockS: number | null;
   theirClockS: number | null;
   driftS: number | null;
+  /** Time the conversation sat CLOSED before a reopen — nobody owed a reply. */
+  closedS: number | null;
+
   ourClockBizS: number | null;
   theirClockBizS: number | null;
 
