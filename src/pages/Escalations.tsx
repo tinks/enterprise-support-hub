@@ -107,6 +107,22 @@ function ticketType(attrs: any): string | null {
   return v == null ? null : String(v).trim();
 }
 
+/** Ticket types that are escalation candidates on their own. */
+const ESCALATION_TYPES = ["Bug", "Feature Request", "Issue", "Incident"];
+
+/**
+ * Board population gate — shared by the row build and the batched notes prefetch
+ * so the two can never drift. A ticket qualifies when its type is an escalation
+ * type, OR it already carries any Linear/Escalated Issue reference (any type).
+ */
+function qualifies(t: Ticket, override: string | null): boolean {
+  if (t.lifecycle_status === "transferred_out") return false;
+  if (t.customer_resolution_method === "not_enterprise") return false;
+  const tt = ticketType(t.custom_attributes);
+  if (tt && ESCALATION_TYPES.includes(tt)) return true;
+  return !!resolveLinear(t.custom_attributes, override).raw;
+}
+
 export default function Escalations() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [escalations, setEscalations] = useState<Map<string, Escalation>>(new Map());
