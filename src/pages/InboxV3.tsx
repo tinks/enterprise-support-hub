@@ -24,6 +24,7 @@ import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
 import { useInitialQ } from "@/hooks/useInitialQ";
 import { useCsatOverrides } from "@/lib/csat";
 import { CsatOverrideDialog } from "@/components/csat/CsatOverrideDialog";
+import { useIntercomTeams } from "@/hooks/useIntercomTeams";
 
 type Ticket = {
   id: string;
