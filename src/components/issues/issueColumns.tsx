@@ -12,6 +12,7 @@ export function idColumn<T>(get: (row: T) => string): IssueColumn<T> {
     key: "intercom_id",
     header: "Intercom ID",
     width: "w-[150px]",
+    sortValue: (r) => get(r),
     cell: (r) => <IntercomIdChip id={get(r)} />,
   };
 }
@@ -35,6 +36,7 @@ export function subjectColumn<T>(
     key: "subject",
     header: "Subject",
     cellClassName: "max-w-[380px]",
+    sortValue: (r) => (get(r) || "").toLowerCase(),
     cell: (r) =>
       edit ? (
         <EditableSubject
@@ -63,6 +65,7 @@ export function contactColumn<T>(
     header: "Contact",
     width: "w-[200px]",
     cellClassName: "text-xs",
+    sortValue: (r) => (getName(r) || getEmail(r) || "").toLowerCase(),
     cell: (r) => (
       <div className="min-w-0">
         <div className="truncate">{getName(r) || "—"}</div>
@@ -81,6 +84,7 @@ export function customerColumn<T>(
     key: "customer",
     header: "Customer",
     width: "w-[170px]",
+    sortValue: (r) => accountLabel(getKey(r)).toLowerCase(),
     cell: (r) => (
       <Badge variant="secondary" className="text-[10px]">
         {accountLabel(getKey(r))}
@@ -96,6 +100,7 @@ export function ownerColumn<T>(get: (row: T) => string | null): IssueColumn<T> {
     header: "Owner",
     width: "w-[120px]",
     cellClassName: "text-xs",
+    sortValue: (r) => (get(r) || "").toLowerCase(),
     cell: (r) => get(r) || "—",
   };
 }
@@ -110,6 +115,11 @@ export function ageColumn<T>(
     header: opts?.header ?? "Age",
     width: opts?.width ?? "w-[110px]",
     cellClassName: "text-xs tabular-nums",
+    // Oldest first when ascending: sort by age, not by timestamp.
+    sortValue: (r) => {
+      const ms = getCreatedMs(r);
+      return ms == null ? null : Date.now() - ms;
+    },
     cell: (r) => {
       const ms = getCreatedMs(r);
       if (ms == null) return "—";
