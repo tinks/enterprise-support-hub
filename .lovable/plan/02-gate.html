@@ -1,0 +1,47 @@
+<svg viewBox="0 0 640 280" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: var(--font-sans); fill: hsl(var(--foreground)); }
+    .lbl { font-size: 14px; font-weight: 480; }
+    .sm { font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .bx { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .wire { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+    .zone { fill: none; stroke: hsl(var(--border)); stroke-width: 1; stroke-dasharray: 4 3; }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8" fill="none" stroke="hsl(var(--muted-foreground))" stroke-width="1"/>
+    </marker>
+  </defs>
+
+  <rect class="bx" x="8" y="112" width="146" height="52" rx="8"/>
+  <text class="lbl" x="81" y="134" text-anchor="middle">v3 tickets</text>
+  <text class="sm" x="81" y="152" text-anchor="middle">enterprise, not transferred</text>
+
+  <line class="wire" x1="154" y1="138" x2="206" y2="138" marker-end="url(#a)"/>
+
+  <rect class="zone" x="210" y="26" width="196" height="228" rx="8"/>
+  <text class="sm" x="220" y="44">gate</text>
+
+  <rect class="bx" x="228" y="58" width="162" height="58" rx="8"/>
+  <text class="lbl" x="309" y="80" text-anchor="middle">Bug · Feature Request</text>
+  <text class="lbl" x="309" y="97" text-anchor="middle">· Incident</text>
+  <text class="sm" x="309" y="112" text-anchor="middle">44</text>
+
+  <rect class="bx" x="228" y="132" width="162" height="58" rx="8" stroke="hsl(var(--accent))"/>
+  <text class="lbl" x="309" y="154" text-anchor="middle">or has a Linear ref</text>
+  <text class="sm" x="309" y="171" text-anchor="middle">any type — 25</text>
+  <text class="sm" x="309" y="185" text-anchor="middle">SCA-3522 · CLO-1225</text>
+
+  <rect class="bx" x="228" y="204" width="162" height="34" rx="8" stroke="hsl(var(--border))" stroke-dasharray="4 3"/>
+  <text class="sm" x="309" y="225" text-anchor="middle">Issue / Question, unlinked — out</text>
+
+  <line class="wire" x1="406" y1="138" x2="458" y2="138" marker-end="url(#a)"/>
+
+  <rect class="bx" x="462" y="88" width="170" height="46" rx="8"/>
+  <text class="lbl" x="547" y="108" text-anchor="middle">Needs Linear · 19</text>
+  <text class="sm" x="547" y="125" text-anchor="middle">typed, not yet filed</text>
+
+  <rect class="bx" x="462" y="146" width="170" height="46" rx="8"/>
+  <text class="lbl" x="547" y="166" text-anchor="middle">Linked · 50</text>
+  <text class="sm" x="547" y="183" text-anchor="middle">25 typed + 25 by link</text>
+</svg>
