@@ -192,27 +192,26 @@ export default function TrendReport() {
       for (const r of filtered) {
         const createdMs = r.intercom_created_at ? new Date(r.intercom_created_at).getTime() : null;
         const finalMs = r.finalized_at ? new Date(r.finalized_at).getTime() : null;
+        const reopenMs = r.last_reopened_at ? new Date(r.last_reopened_at).getTime() : null;
+        const transferred = r.lifecycle_status === "transferred_out";
 
         if (createdMs != null && createdMs >= startMs && createdMs <= endMs) total++;
 
-        if (
-          r.lifecycle_status === "finalized" &&
-          finalMs != null && finalMs >= startMs && finalMs <= endMs
-        ) closedRows.push(r);
+        // Closed in this month = it reached a close inside the month. A later
+        // reopen does not erase that close, so we key off finalized_at rather
+        // than the row's current lifecycle_status.
+        if (!transferred && finalMs != null && finalMs >= startMs && finalMs <= endMs) closedRows.push(r);
 
-        // Open at month end: existed by then, not closed by then, and never
-        // handed off out of our scope.
-        if (
-          r.lifecycle_status !== "transferred_out" &&
-          createdMs != null && createdMs <= endMs &&
-          (finalMs == null || finalMs > endMs)
-        ) backlog++;
+        // Open at month end: existed by then, and either never closed, closed
+        // after month end, or closed and reopened again on or before month end.
+        const reopenedAfterClose = finalMs != null && reopenMs != null && reopenMs > finalMs;
+        const closedByEnd =
+          finalMs != null && finalMs <= endMs && !(reopenedAfterClose && reopenMs! <= endMs);
+        if (!transferred && createdMs != null && createdMs <= endMs && !closedByEnd) backlog++;
 
-        if (r.last_reopened_at) {
-          const t = new Date(r.last_reopened_at).getTime();
-          if (t >= startMs && t <= endMs) reopened++;
-        }
+        if (reopenMs != null && !transferred && reopenMs >= startMs && reopenMs <= endMs) reopened++;
       }
+
 
       const closed = closedRows.length;
       const ratings = closedRows.map((r) => r.csat_rating).filter((v): v is number => typeof v === "number");
