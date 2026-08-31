@@ -232,3 +232,126 @@ export function anatomyReconciles(a: AnatomyResult, toleranceS = 1): boolean {
   const sum = (a.ourClockS ?? 0) + (a.theirClockS ?? 0) + (a.driftS ?? 0);
   return Math.abs(sum - a.totalS) <= toleranceS;
 }
+
+// ---------------------------------------------------------------------------
+// Episodes and payload-derived reopen detection
+//
+// WHY: `reopen_count_at_finalize` is Intercom's own counter mirrored at
+// finalize time, and it demonstrably lies — ticket 215475075827273 carries
+// reopen_count 0 with five `close` parts and four reopens in its payload.
+// Any segmentation built on that column silently misfiles tickets, so the
+// reopen shape is derived here from the raw timeline instead.
+//
+// An EPISODE is one open→close cycle. Episode 1 runs from the conversation's
+// first message to the first close; each reopen starts the next episode.
+// ---------------------------------------------------------------------------
+
+export type ReopenBy = "customer" | "admin" | "auto" | "unknown";
+
+export type ReopenEvent = {
+  ts: number;
+  by: ReopenBy;
+  partType: string;
+};
+
+export type Episode = {
+  index: number;
+  startTs: number;
+  /** Close timestamp, or the conversation end when the episode never closed. */
+  endTs: number;
+  seconds: number;
+  closed: boolean;
+};
+
+export type EpisodeResult = {
+  episodes: Episode[];
+  reopens: ReopenEvent[];
+  /** Reopens counted from the payload — authoritative over reopen_count_at_finalize. */
+  reopenCount: number;
+  /** How the FIRST reopen happened; null when the ticket never reopened. */
+  firstReopenBy: ReopenBy | null;
+  firstCloseTs: number | null;
+  /** Seconds from first message to first close — the "real" resolution clock. */
+  timeToFirstCloseS: number | null;
+  /** Seconds inside the final episode: how long the last pass actually took. */
+  lastEpisodeS: number | null;
+  /** Seconds spent closed between episodes — time no one was working. */
+  betweenEpisodesS: number;
+};
+
+const CLOSE_PARTS = new Set(["close", "closed"]);
+const REOPEN_PARTS = new Set(["open", "opened", "assign_and_reopen", "note_and_reopen", "reopen"]);
+
+function reopenBy(p: TimelinePart): ReopenBy {
+  if (p.actor === "human_admin") return "admin";
+  if (p.actor === "customer" || p.actor === "shared_inbox") return "customer";
+  if (p.actor === "sam_ai" || p.actor === "operator_bot" || p.actor === "system") return "auto";
+  return "unknown";
+}
+
+export function computeEpisodes(raw: any, opts: AnatomyOptions = {}): EpisodeResult {
+  const timeline = extractTimeline(raw);
+  const empty: EpisodeResult = {
+    episodes: [], reopens: [], reopenCount: 0, firstReopenBy: null,
+    firstCloseTs: null, timeToFirstCloseS: null, lastEpisodeS: null, betweenEpisodesS: 0,
+  };
+  if (!timeline.length) return empty;
+
+  const startTs = timeline[0].ts;
+  const lastTs = timeline[timeline.length - 1].ts;
+  const endTs = typeof opts.closedAtSec === "number" && opts.closedAtSec > lastTs
+    ? opts.closedAtSec
+    : lastTs;
+
+  const episodes: Episode[] = [];
+  const reopens: ReopenEvent[] = [];
+  let epStart = startTs;
+  let open = true; // conversation starts open
+
+  for (const p of timeline) {
+    if (open && CLOSE_PARTS.has(p.partType)) {
+      episodes.push({
+        index: episodes.length + 1, startTs: epStart, endTs: p.ts,
+        seconds: Math.max(0, p.ts - epStart), closed: true,
+      });
+      open = false;
+      continue;
+    }
+    if (!open) {
+      // A reopen is either an explicit reopen part, or — because Intercom does
+      // not always emit one — the next substantive message after a close.
+      const explicit = REOPEN_PARTS.has(p.partType);
+      const spoke = isSubstantive(p);
+      if (!explicit && !spoke) continue;
+      reopens.push({ ts: p.ts, by: explicit ? reopenBy(p) : reopenBy(p), partType: p.partType });
+      epStart = p.ts;
+      open = true;
+    }
+  }
+
+  if (open) {
+    episodes.push({
+      index: episodes.length + 1, startTs: epStart, endTs,
+      seconds: Math.max(0, endTs - epStart), closed: false,
+    });
+  }
+
+  let between = 0;
+  for (let i = 1; i < episodes.length; i++) {
+    between += Math.max(0, episodes[i].startTs - episodes[i - 1].endTs);
+  }
+
+  const first = episodes[0] ?? null;
+  const last = episodes[episodes.length - 1] ?? null;
+
+  return {
+    episodes,
+    reopens,
+    reopenCount: reopens.length,
+    firstReopenBy: reopens.length ? reopens[0].by : null,
+    firstCloseTs: first && first.closed ? first.endTs : null,
+    timeToFirstCloseS: first && first.closed ? first.seconds : null,
+    lastEpisodeS: last ? last.seconds : null,
+    betweenEpisodesS: between,
+  };
+}
