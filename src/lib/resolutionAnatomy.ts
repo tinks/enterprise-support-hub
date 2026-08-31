@@ -83,6 +83,8 @@ const EMPTY: AnatomyResult = {
   ourClockS: null,
   theirClockS: null,
   driftS: null,
+  closedS: null,
+
   ourClockBizS: null,
   theirClockBizS: null,
   longestGap: null,
