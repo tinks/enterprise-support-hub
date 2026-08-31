@@ -464,6 +464,7 @@ export default function Escalations() {
                 }`}
               >
                 {label} · <span className="font-semibold">{count}</span>
+                {search.trim() ? <span className="ml-1 opacity-70">hits</span> : null}
               </button>
             ))}
           </div>
