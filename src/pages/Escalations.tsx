@@ -296,6 +296,9 @@ export default function Escalations() {
         patch.linear_url_override !== undefined ? patch.linear_url_override : existing?.linear_url_override ?? null,
       ...(patch.hub_state ? { state_changed_at: new Date().toISOString() } : {}),
       ...(patch.hub_state === "customer_notified" ? { notified_at: new Date().toISOString() } : {}),
+      ...(patch.dev_followed_up_at !== undefined
+        ? { dev_followed_up_at: patch.dev_followed_up_at, dev_followed_up_by: patch.dev_followed_up_by ?? null }
+        : {}),
     };
     const { data, error } = await supabase
       .from("dev_escalations")
