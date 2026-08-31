@@ -238,8 +238,9 @@ export default function AnalyticsV3() {
 
   // Active KPIs: snapshot of active backlog right now.
   const activeStats = useMemo(() => {
-    const openNow = filteredActiveRows.filter((r) => r.lifecycle_status === "open").length;
+    // "Open now" = every ticket still open in Intercom, no math: open + reopened-and-not-re-closed.
     const reopened = filteredActiveRows.filter((r) => r.lifecycle_status === "reopened_after_finalize").length;
+    const openNow = filteredActiveRows.length;
     const now = Date.now();
     let oldestAgeDays: number | null = null;
     for (const r of filteredActiveRows) {
