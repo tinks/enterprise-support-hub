@@ -634,6 +634,44 @@ export default function Escalations() {
               value={<div className="w-[200px]">{hubSelect(detail, "h-8 text-xs")}</div>}
             />
             <IssueField
+              label="Last followed up with Dev"
+              value={
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span>
+                    {detail.esc?.dev_followed_up_at
+                      ? `${format(new Date(detail.esc.dev_followed_up_at), "d MMM yyyy HH:mm")}${
+                          detail.esc.dev_followed_up_by ? ` · ${detail.esc.dev_followed_up_by}` : ""
+                        }`
+                      : "Never"}
+                  </span>
+                  {canEdit && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-xs"
+                        disabled={saving === detail.ticket.intercom_conversation_id}
+                        onClick={() => markFollowedUp(detail.ticket.intercom_conversation_id)}
+                      >
+                        Mark followed up now
+                      </Button>
+                      {detail.esc?.dev_followed_up_at && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs"
+                          disabled={saving === detail.ticket.intercom_conversation_id}
+                          onClick={() => markFollowedUp(detail.ticket.intercom_conversation_id, true)}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
+              }
+            />
+            <IssueField
               label="Linear issue"
               value={
                 editingLink ? (
