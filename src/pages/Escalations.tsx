@@ -58,7 +58,7 @@ type EscalationRow = {
   linear: { url: string | null; key: string | null; raw: string | null };
   /** True when a Linear issue is actually linked (a Slack permalink does not count). */
   hasLinear: boolean;
-  type: "Bug" | "Feature Request";
+  type: string;
   createdMs: number | null;
 };
 
@@ -107,6 +107,22 @@ function ticketType(attrs: any): string | null {
   return v == null ? null : String(v).trim();
 }
 
+/** Ticket types that are escalation candidates on their own. */
+const ESCALATION_TYPES = ["Bug", "Feature Request", "Issue", "Incident"];
+
+/**
+ * Board population gate — shared by the row build and the batched notes prefetch
+ * so the two can never drift. A ticket qualifies when its type is an escalation
+ * type, OR it already carries any Linear/Escalated Issue reference (any type).
+ */
+function qualifies(t: Ticket, override: string | null): boolean {
+  if (t.lifecycle_status === "transferred_out") return false;
+  if (t.customer_resolution_method === "not_enterprise") return false;
+  const tt = ticketType(t.custom_attributes);
+  if (tt && ESCALATION_TYPES.includes(tt)) return true;
+  return !!resolveLinear(t.custom_attributes, override).raw;
+}
+
 export default function Escalations() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [escalations, setEscalations] = useState<Map<string, Escalation>>(new Map());
@@ -142,20 +158,15 @@ export default function Escalations() {
     ]);
     const loaded = (t.error ? [] : ((t.data ?? []) as Ticket[]));
     if (!t.error) setTickets(loaded);
+    const escMap = new Map<string, Escalation>();
     if (!e.error) {
-      const m = new Map<string, Escalation>();
-      for (const row of (e.data ?? []) as Escalation[]) m.set(row.intercom_conversation_id, row);
-      setEscalations(m);
+      for (const row of (e.data ?? []) as Escalation[]) escMap.set(row.intercom_conversation_id, row);
+      setEscalations(escMap);
     }
     // Notes for the qualifying population, batched — the detail sheet opens with
     // them already present and search can index them.
     const qualifying = loaded
-      .filter((x) => {
-        const tt = ticketType(x.custom_attributes);
-        return (tt === "Bug" || tt === "Feature Request")
-          && x.lifecycle_status !== "transferred_out"
-          && x.customer_resolution_method !== "not_enterprise";
-      })
+      .filter((x) => qualifies(x, escMap.get(x.intercom_conversation_id)?.linear_url_override ?? null))
       .map((x) => x.id);
     setNotes(await fetchV3Notes(qualifying));
     setLoading(false);
@@ -184,13 +195,9 @@ export default function Escalations() {
 
   const rows = useMemo(() => {
     return tickets
-      .filter((t) => {
-        const tt = ticketType(t.custom_attributes);
-        if (tt !== "Bug" && tt !== "Feature Request") return false;
-        if (t.lifecycle_status === "transferred_out") return false;
-        if (t.customer_resolution_method === "not_enterprise") return false;
-        return true;
-      })
+      .filter((t) =>
+        qualifies(t, escalations.get(t.intercom_conversation_id)?.linear_url_override ?? null),
+      )
       .map((t) => {
         const esc = escalations.get(t.intercom_conversation_id) ?? null;
         const hubState = (esc?.hub_state ?? "open") as HubState;
@@ -202,7 +209,7 @@ export default function Escalations() {
           hubState,
           linear,
           hasLinear: !!linear.url,
-          type: ticketType(t.custom_attributes) as "Bug" | "Feature Request",
+          type: ticketType(t.custom_attributes) ?? "—",
           createdMs,
         } as EscalationRow;
       })
@@ -217,31 +224,53 @@ export default function Escalations() {
     () => Array.from(new Set(rows.map((r) => r.ticket.customer_key).filter(Boolean))).sort() as string[],
     [rows],
   );
+  /** Type filter options are built from the population, not a fixed pair. */
+  const typeOpts = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.type).filter(Boolean))).sort(),
+    [rows],
+  );
+
+  const matchesSearch = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (r: EscalationRow) => {
+      if (!q) return true;
+      const hay = [
+        displaySubject(r.ticket), r.ticket.subject, r.ticket.contact_name, r.ticket.contact_email,
+        r.ticket.intercom_conversation_id, r.linear.raw,
+        ...(notes.get(r.ticket.id) ?? []).map((n) => n.note_text),
+      ].filter(Boolean).join(" ").toLowerCase();
+      return hay.includes(q);
+    };
+  }, [search, notes]);
 
   /** Everything except the queue split — so each queue's count reflects the filters. */
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
     return rows.filter((r) => {
       if (stateFilter === "active" && TERMINAL.includes(r.hubState)) return false;
       if (stateFilter !== "active" && stateFilter !== "all" && r.hubState !== stateFilter) return false;
       if (typeFilter !== ANY && r.type !== typeFilter) return false;
       if (ownerFilter !== ANY && r.ticket.owner !== ownerFilter) return false;
       if (customerFilter !== ANY && r.ticket.customer_key !== customerFilter) return false;
-      if (q) {
-        const hay = [
-          displaySubject(r.ticket), r.ticket.subject, r.ticket.contact_name, r.ticket.contact_email,
-          r.ticket.intercom_conversation_id, r.linear.raw,
-          ...(notes.get(r.ticket.id) ?? []).map((n) => n.note_text),
-        ].filter(Boolean).join(" ").toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
+      return matchesSearch(r);
     });
-  }, [rows, search, stateFilter, typeFilter, ownerFilter, customerFilter, notes]);
+  }, [rows, matchesSearch, stateFilter, typeFilter, ownerFilter, customerFilter]);
 
   const needsLinear = useMemo(() => filtered.filter((r) => !r.hasLinear), [filtered]);
   const linked = useMemo(() => filtered.filter((r) => r.hasLinear), [filtered]);
   const visible = queue === "needs_linear" ? needsLinear : queue === "linked" ? linked : filtered;
+
+  /** Search hits hidden by the state filter — so "nothing found" is never a lie. */
+  const hiddenByState = useMemo(() => {
+    if (!search.trim() || stateFilter === "all") return 0;
+    return rows.filter((r) => {
+      if (typeFilter !== ANY && r.type !== typeFilter) return false;
+      if (ownerFilter !== ANY && r.ticket.owner !== ownerFilter) return false;
+      if (customerFilter !== ANY && r.ticket.customer_key !== customerFilter) return false;
+      if (!matchesSearch(r)) return false;
+      if (stateFilter === "active") return TERMINAL.includes(r.hubState);
+      return r.hubState !== stateFilter;
+    }).length;
+  }, [rows, matchesSearch, search, stateFilter, typeFilter, ownerFilter, customerFilter]);
 
   const dataAsOf = useMemo(() => {
     let newest: number | null = null;
@@ -317,7 +346,7 @@ export default function Escalations() {
       header: "Type",
       width: "w-[120px]",
       cell: (r) => (
-        <Badge variant={r.type === "Bug" ? "destructive" : "secondary"} className="text-[10px]">{r.type}</Badge>
+        <Badge variant={r.type === "Bug" || r.type === "Incident" ? "destructive" : "secondary"} className="text-[10px]">{r.type}</Badge>
       ),
     },
     {
@@ -381,8 +410,9 @@ export default function Escalations() {
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-[380px] text-xs text-muted-foreground space-y-2">
                   <p>
-                    Intercom tickets typed <code>Bug</code> or <code>Feature Request</code>, tracked against their Linear
-                    escalation until the customer has been notified. Oldest first.
+                    Intercom tickets typed <code>Bug</code>, <code>Feature Request</code>, <code>Issue</code> or{" "}
+                    <code>Incident</code> — plus any ticket of any type that already carries a Linear / Escalated Issue
+                    reference. Tracked against their Linear escalation until the customer has been notified. Oldest first.
                   </p>
                   <p>
                     Board state is independent of Intercom — a closed conversation stays here until it is marked
@@ -435,6 +465,7 @@ export default function Escalations() {
                 }`}
               >
                 {label} · <span className="font-semibold">{count}</span>
+                {search.trim() ? <span className="ml-1 opacity-70">hits</span> : null}
               </button>
             ))}
           </div>
@@ -471,8 +502,7 @@ export default function Escalations() {
                 <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={ANY}>Type: any</SelectItem>
-                  <SelectItem value="Bug">Bug</SelectItem>
-                  <SelectItem value="Feature Request">Feature Request</SelectItem>
+                  {typeOpts.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={ownerFilter} onValueChange={setOwnerFilter}>
@@ -503,7 +533,14 @@ export default function Escalations() {
 
         {queue === "needs_linear" && (
           <p className="text-xs text-muted-foreground">
-            Every bug and feature request should have a Linear issue. These do not — link one from the row detail.
+            Every escalation candidate should have a Linear issue. These do not — link one from the row detail.
+          </p>
+        )}
+
+        {search.trim() && hiddenByState > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {hiddenByState} more {hiddenByState === 1 ? "hit is" : "hits are"} hidden by the state filter — switch to{" "}
+            <button className="underline" onClick={() => setStateFilter("all")}>State: all</button> to see {hiddenByState === 1 ? "it" : "them"}.
           </p>
         )}
 
