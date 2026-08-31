@@ -205,5 +205,10 @@ Deno.serve(async (req) => {
       : null,
   );
 
-  return json({ ok: true, synced_at: nowIso, attributes: perAttr });
+  return json({
+    ok: true,
+    synced_at: nowIso,
+    attributes: perAttr,
+    teams: { synced: teamsSynced, error: teamsError },
+  });
 });
