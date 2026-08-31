@@ -229,7 +229,13 @@ export default function DeepSearch() {
                       <button
                         type="button"
                         className="text-sm font-medium text-left hover:underline"
-                        onClick={() => h.url_path && navigate(h.url_path)}
+                        onClick={() => {
+                          const path =
+                            h.kind === "backlog" && h.title
+                              ? `/backlog?q=${encodeURIComponent(h.title)}`
+                              : h.url_path;
+                          if (path) navigate(path);
+                        }}
                         disabled={!h.url_path}
                       >
                         {h.title || h.ref_id}
