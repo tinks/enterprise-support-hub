@@ -35,12 +35,15 @@ const INTEGRATIONS: Array<{ key: string; label: string; description: string; max
   { key: "intercom_fields_sync", label: "Intercom field options", description: "Caches the allowed product area / ticket type values from Intercom so drift against the Hub lists is visible (daily).", maxStaleMin: 48 * 60, fn: "sync-intercom-fields" },
 ];
 
-type Severity = "ok" | "warn" | "auth" | "error" | "unknown";
+type Severity = "ok" | "degraded" | "warn" | "auth" | "error" | "unknown";
 
 function severityFor(row: HealthRow | undefined, maxStaleMin: number): Severity {
   if (!row) return "unknown";
   if (row.last_status === "auth_error") return "auth";
   if (row.last_status === "error" && (row.consecutive_failures || 0) >= 2) return "error";
+  // One failure since the last success: not broken yet, but the Action Center
+  // counts any consecutive_failures > 0, so surface the same thing here.
+  if ((row.consecutive_failures || 0) > 0) return "degraded";
   const lastOk = row.last_success_at ? new Date(row.last_success_at).getTime() : 0;
   const ageMin = lastOk ? (Date.now() - lastOk) / 60000 : Infinity;
   if (ageMin > maxStaleMin) return "warn";
@@ -48,6 +51,7 @@ function severityFor(row: HealthRow | undefined, maxStaleMin: number): Severity 
 }
 
 const SEVERITY_META: Record<Severity, { label: string; className: string; Icon: typeof CheckCircle2 }> = {
+  degraded: { label: "Last run failed", className: "bg-amber-100 text-amber-800 border-amber-200", Icon: AlertTriangle },
   ok: { label: "Healthy", className: "bg-emerald-100 text-emerald-800 border-emerald-200", Icon: CheckCircle2 },
   warn: { label: "Stale", className: "bg-amber-100 text-amber-800 border-amber-200", Icon: AlertTriangle },
   auth: { label: "Auth error", className: "bg-red-100 text-red-800 border-red-200", Icon: ShieldAlert },
@@ -175,7 +179,7 @@ export default function IntegrationHealthCard() {
                 ) : (
                   <>No success recorded</>
                 )}
-                {row?.last_failure_at && (sev === "error" || sev === "auth" || sev === "warn") && (
+                {row?.last_failure_at && (sev === "error" || sev === "auth" || sev === "warn" || sev === "degraded") && (
                   <div>Last failure {formatDistanceToNow(new Date(row.last_failure_at), { addSuffix: true })}</div>
                 )}
               </div>
