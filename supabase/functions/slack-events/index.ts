@@ -737,8 +737,8 @@ Deno.serve(async (req) => {
             let replyPayload: Record<string, any>;
 
             if (isEmployee && adminId) {
-              if (!teammateAdminId) {
-                await recordRelayGap("no_intercom_admin_id");
+              if (!teammateAdminId && !teammateRole) {
+                await recordRelayGap("not_on_roster");
               }
               const prefixedBody = `*[From: ${relayTag} via Slack]*\n\n${replyBody}`;
               replyPayload = {
@@ -768,8 +768,8 @@ Deno.serve(async (req) => {
               };
               console.log(`Attributing reply as other user (${senderName || event.user})`);
             } else if (adminId) {
-              if (isEmployee && !teammateAdminId) {
-                await recordRelayGap("no_intercom_admin_id");
+              if (isEmployee && !teammateAdminId && !teammateRole) {
+                await recordRelayGap("not_on_roster");
               }
               const prefixedBody = senderName || senderEmail
                 ? `*[From: ${relayTag} via Slack]*\n\n${replyBody}`
