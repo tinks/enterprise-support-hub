@@ -249,9 +249,9 @@ const People = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[260px] text-left">Person</TableHead>
-                        <TableHead className="w-[120px] text-left">Access</TableHead>
-                        <TableHead className="w-[160px] text-left">Hub roles</TableHead>
-                        <TableHead className="w-[140px] text-left">Roster role</TableHead>
+                        <TableHead className="w-[120px] text-left">ESH access</TableHead>
+                        <TableHead className="w-[160px] text-left">ESH roles</TableHead>
+                        <TableHead className="w-[140px] text-left">Team</TableHead>
                         <TableHead className="w-[140px] text-left">Intercom ID</TableHead>
                         <TableHead className="w-[140px] text-left">Slack ID</TableHead>
                         <TableHead className="w-[110px] text-left">Dashboard</TableHead>
