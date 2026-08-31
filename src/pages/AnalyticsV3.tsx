@@ -364,7 +364,7 @@ export default function AnalyticsV3() {
         reopened: v.reopened,
       }))
       .sort((a, b) => (b.closed + b.open + b.reopened) - (a.closed + a.open + a.reopened));
-  }, [filteredRows, filteredActiveRows, range.from, range.to, accountLabel]);
+  }, [filteredRows, filteredActiveRows, range.from, range.to, accountLabel, csatOverrides, csatFilters]);
 
 
 
