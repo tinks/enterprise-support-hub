@@ -23,10 +23,17 @@ export function useTableSort<T>(
     if (!sort) return rows;
     const get = accessors[sort.key];
     if (!get) return rows;
+    const sign = sort.dir === "asc" ? 1 : -1;
+    const isNullish = (v: SortValue) => v === null || v === undefined || v === "";
     const copy = [...rows];
     copy.sort((a, b) => {
-      const r = compare(get(a), get(b));
-      return sort.dir === "asc" ? r : -r;
+      const av = get(a);
+      const bv = get(b);
+      // Nullish rows stay pinned to the bottom in both directions.
+      if (isNullish(av) && isNullish(bv)) return 0;
+      if (isNullish(av)) return 1;
+      if (isNullish(bv)) return -1;
+      return compare(av, bv) * sign;
     });
     return copy;
     // eslint-disable-next-line react-hooks/exhaustive-deps
