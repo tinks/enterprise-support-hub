@@ -116,6 +116,8 @@ export default function ResolutionAnatomy() {
   const [fOwner, setFOwner] = useState(ANY);
   const [fCustomer, setFCustomer] = useState(ANY);
   const [fReopened, setFReopened] = useState(ANY);
+  /** When on, the long-runner threshold is applied to the active clock (total − closed). */
+  const [excludeClosed, setExcludeClosed] = useState(false);
 
   const windowStart = useMemo(() => {
     const s = startOfMonth(subMonths(new Date(), months - 1));
