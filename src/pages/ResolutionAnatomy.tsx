@@ -238,13 +238,13 @@ export default function ResolutionAnatomy() {
   // ---- Cohort rollups -------------------------------------------------------
 
   const byMonth = useMemo(() => {
-    const buckets = new Map<string, { key: string; label: string; us: number[]; them: number[]; drift: number[]; n: number }>();
+    const buckets = new Map<string, { key: string; label: string; us: number[]; them: number[]; drift: number[]; closed: number[]; n: number }>();
     for (let i = months - 1; i >= 0; i--) {
       const anchor = subMonths(new Date(), i);
       const start = startOfMonth(anchor);
       if (endOfMonth(anchor) < CLEAN_DATA_START_DATE) continue;
       const key = format(start, "yyyy-MM");
-      buckets.set(key, { key, label: format(start, "MMM yyyy"), us: [], them: [], drift: [], n: 0 });
+      buckets.set(key, { key, label: format(start, "MMM yyyy"), us: [], them: [], drift: [], closed: [], n: 0 });
     }
     for (const r of filtered) {
       if (!r.finalized_at) continue;
@@ -255,18 +255,20 @@ export default function ResolutionAnatomy() {
       b.us.push((r.anatomy.ourClockS ?? 0) / 86400);
       b.them.push((r.anatomy.theirClockS ?? 0) / 86400);
       b.drift.push((r.anatomy.driftS ?? 0) / 86400);
+      b.closed.push((r.anatomy.closedS ?? 0) / 86400);
     }
     return [...buckets.values()].map((b) => ({
       label: b.label,
       n: b.n,
       "Our clock": Number((median(b.us) ?? 0).toFixed(2)),
       "Their clock": Number((median(b.them) ?? 0).toFixed(2)),
+      "Closed": Number((median(b.closed) ?? 0).toFixed(2)),
       "Silent drift": Number((median(b.drift) ?? 0).toFixed(2)),
     }));
   }, [filtered, months]);
 
   const totals = useMemo(() => {
-    let us = 0, them = 0, drift = 0, n = 0, closedNoConfirm = 0, reopened = 0;
+    let us = 0, them = 0, drift = 0, closed = 0, n = 0, closedNoConfirm = 0, reopened = 0;
     let crossedByReopen = 0, miscounted = 0;
     for (const r of filtered) {
       if (r.anatomy.totalS == null) continue;
@@ -274,6 +276,7 @@ export default function ResolutionAnatomy() {
       us += r.anatomy.ourClockS ?? 0;
       them += r.anatomy.theirClockS ?? 0;
       drift += r.anatomy.driftS ?? 0;
+      closed += r.anatomy.closedS ?? 0;
       if (r.anatomy.closedWithoutCustomerConfirm) closedNoConfirm++;
       if (r.anatomy.episodes.reopenCount > 0) reopened++;
       if (
@@ -286,9 +289,10 @@ export default function ResolutionAnatomy() {
         (r.reopen_count_at_finalize ?? 0) === 0
       ) miscounted++;
     }
-    const total = us + them + drift;
-    return { us, them, drift, total, n, closedNoConfirm, reopened, crossedByReopen, miscounted };
+    const total = us + them + drift + closed;
+    return { us, them, drift, closed, total, n, closedNoConfirm, reopened, crossedByReopen, miscounted };
   }, [filtered, thresholdS]);
+
 
   const cohortRollup = useMemo(() => {
     function group(keyFn: (r: LongRow) => string) {
