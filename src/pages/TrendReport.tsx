@@ -97,7 +97,9 @@ function fmtCell(metric: MetricKey, m: MonthBucket): string {
     case "total": return String(m.total);
     case "closed": return String(m.closed);
     case "resolved_pct": return m.resolvedPct == null ? "—" : `${m.resolvedPct.toFixed(0)}%`;
-    case "csat": return m.avgCsat == null ? "—" : `${m.avgCsat.toFixed(2)} (n=${m.csatN})`;
+    case "csat": return m.avgCsat == null
+      ? "—"
+      : `${m.avgCsat.toFixed(2)} (n=${m.csatN}${m.csatExcluded ? `, ${m.csatExcluded} excl.` : ""})`;
     case "avg_resolve": return formatDuration(m.avgResolve);
     case "median_resolve":
       return m.p90Resolve == null
@@ -112,6 +114,8 @@ export default function TrendReport() {
   const { canEdit } = useCanEdit();
   const [monthCount, setMonthCount] = useState(6);
   const [excludeRsaFalse, setExcludeRsaFalse] = useState(false);
+  const [csatFilters, setCsatFilters] = useCsatFilters();
+  const { overrides: csatOverrides } = useCsatOverrides();
   const [customerFilter, setCustomerFilter] = useState<string>("__any__");
   const [accounts, setAccounts] = useState<AccountOpt[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
@@ -342,6 +346,7 @@ export default function TrendReport() {
               <Switch id="rsa" checked={excludeRsaFalse} onCheckedChange={setExcludeRsaFalse} />
               <Label htmlFor="rsa" className="text-xs text-muted-foreground">Exclude RSA = false</Label>
             </div>
+            <CsatFilterMenu filters={csatFilters} onChange={setCsatFilters} />
             {loading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
           </CardContent>
         </Card>
