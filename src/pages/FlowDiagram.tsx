@@ -799,6 +799,24 @@ function buildNodes(
       },
     },
     {
+      id: "deep-search",
+      type: "flowNode",
+      position: { x: COL_W * 2.5, y: ROW_H * 2.9 },
+      data: {
+        label: "Deep search (/search)",
+        desc: "Hub-wide free-text search over everything the Hub knows: ticket message bodies, custom attributes (Linear / Escalated Issue), notes, escalations, backlog, the customer registry and severity rationales. Read-only \u2014 it is a derived index, never a source of truth.",
+        icon: ClipboardList,
+        details: [
+          "Index: public.esh_search_index (kind, ref_id, title, body, idents, meta, url_path, source_updated_at) with a generated tsvector (title/idents weight A, body weight B), a GIN tsv index and trigram GIN indexes on title + idents. Authenticated read-only; nothing writes to it except the refresh function.",
+          "Refresh: esh_refresh_search_index(p_kinds text[]) rebuilds per kind (delete + insert), stripping HTML from raw_payload->source->body and every conversation_parts body via esh_strip_html. Scheduled hourly at :07 (pg_cron job esh_refresh_search_index_hourly) with a 'Reindex now' button on the page. Deliberate cadence: the searched population is overwhelmingly older tickets, so up to one hour of staleness is acceptable and cheaper than a polling job.",
+          "Query: esh_deep_search(p_q, p_kinds, p_limit) unions websearch_to_tsquery full-text hits with an ident/title path (ILIKE + pg_trgm similarity) so an identifier like SCA-3522, an Intercom ID, an email or a Slack channel ID matches even when it is not a lexeme. Results carry a ts_headline snippet, the match mode (text vs id/name) and a url_path.",
+          "Result links seed the destination page's existing search box via ?q= (useInitialQ) \u2014 Inbox v3, Dev escalations and Backlog \u2014 rather than adding new deep-link routes; v3 hits also expose the Intercom conversation link.",
+          "Verified 31 Aug 2026: 997 rows indexed (629 v3 tickets, 253 customers, 43 backlog, 42 escalations, 25 notes, 5 severity proposals); 'SCA-3522' returns the escalation and its Intercom ticket #215475673305527 from the message body. UNVERIFIED: behaviour of the hourly cron in production and result quality on multi-word phrase queries at scale.",
+        ],
+        accent: "blue",
+      },
+    },
+    {
       id: "subject-override",
       type: "flowNode",
       position: { x: COL_W * 1.5, y: ROW_H * 2.9 },
