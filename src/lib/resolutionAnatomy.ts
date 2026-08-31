@@ -279,7 +279,7 @@ function makeSegment(
 /** Sums the three buckets — must equal totalS. Used by the reconciliation check. */
 export function anatomyReconciles(a: AnatomyResult, toleranceS = 1): boolean {
   if (a.totalS == null) return true;
-  const sum = (a.ourClockS ?? 0) + (a.theirClockS ?? 0) + (a.driftS ?? 0);
+  const sum = (a.ourClockS ?? 0) + (a.theirClockS ?? 0) + (a.driftS ?? 0) + (a.closedS ?? 0);
   return Math.abs(sum - a.totalS) <= toleranceS;
 }
 
