@@ -38,6 +38,9 @@ type ScalarRow = {
   intercom_closed_at: string | null;
   time_to_resolve_s: number | null;
   reopen_count_at_finalize: number | null;
+  tags: string[] | null;
+  rsa_override: boolean | null;
+  customer_resolution_method: string | null;
 };
 
 type LongRow = ScalarRow & { anatomy: AnatomyResult };
@@ -45,7 +48,8 @@ type LongRow = ScalarRow & { anatomy: AnatomyResult };
 const SCALAR_COLS =
   "id,intercom_conversation_id,subject,subject_override,owner,product_area,classification," +
   "customer_key,finalized_at,intercom_created_at,intercom_closed_at,time_to_resolve_s," +
-  "reopen_count_at_finalize";
+  "reopen_count_at_finalize,tags,rsa_override,customer_resolution_method";
+
 
 const ANY = "__any__";
 
