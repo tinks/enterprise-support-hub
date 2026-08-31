@@ -217,7 +217,6 @@ export default function TrendReport() {
       }
 
 
-      }
 
 
       const closed = closedRows.length;
