@@ -351,11 +351,11 @@ export default function TrendReport() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
-                  <RTooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="Total" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="Closed" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="Backlog" strokeWidth={2} dot={false} />
+                  <RTooltip contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12, color: "hsl(var(--popover-foreground))" }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Line type="monotone" dataKey="Total" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="Closed" stroke="hsl(var(--chart-2))" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="Backlog" stroke="hsl(var(--chart-4))" strokeWidth={2} strokeDasharray="5 3" dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>
