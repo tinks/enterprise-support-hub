@@ -63,17 +63,18 @@ function pct(part: number | null, total: number | null): number | null {
   return (part / total) * 100;
 }
 
-/** The three-way split as one stacked bar. */
+/** The four-way split as one stacked bar. */
 function SplitBar({ a }: { a: AnatomyResult }) {
   if (a.totalS == null || a.totalS === 0) return <span className="text-muted-foreground">—</span>;
   const w = (v: number | null) => `${Math.max(0, ((v ?? 0) / a.totalS!) * 100)}%`;
   return (
     <div
       className="flex h-3 w-full overflow-hidden rounded-sm bg-muted"
-      title={`Us ${formatDuration(a.ourClockS)} · Customer ${formatDuration(a.theirClockS)} · Drift ${formatDuration(a.driftS)}`}
+      title={`Us ${formatDuration(a.ourClockS)} · Customer ${formatDuration(a.theirClockS)} · Closed ${formatDuration(a.closedS)} · Drift ${formatDuration(a.driftS)}`}
     >
       <div style={{ width: w(a.ourClockS) }} className="bg-primary" />
       <div style={{ width: w(a.theirClockS) }} className="bg-[hsl(var(--chart-2,220_10%_60%))] bg-muted-foreground/60" />
+      <div style={{ width: w(a.closedS) }} className="bg-muted-foreground/25" />
       <div style={{ width: w(a.driftS) }} className="bg-destructive/60" />
     </div>
   );
@@ -90,7 +91,9 @@ const OWED_LABEL: Record<OwedBy, string> = {
   us: "We owed a reply",
   customer: "Customer owed a reply",
   nobody: "Nobody was blocked",
+  closed: "Closed — nobody owed a reply",
 };
+
 
 export default function ResolutionAnatomy() {
   const { accountLabel } = useCustomerLabels();
@@ -235,13 +238,13 @@ export default function ResolutionAnatomy() {
   // ---- Cohort rollups -------------------------------------------------------
 
   const byMonth = useMemo(() => {
-    const buckets = new Map<string, { key: string; label: string; us: number[]; them: number[]; drift: number[]; n: number }>();
+    const buckets = new Map<string, { key: string; label: string; us: number[]; them: number[]; drift: number[]; closed: number[]; n: number }>();
     for (let i = months - 1; i >= 0; i--) {
       const anchor = subMonths(new Date(), i);
       const start = startOfMonth(anchor);
       if (endOfMonth(anchor) < CLEAN_DATA_START_DATE) continue;
       const key = format(start, "yyyy-MM");
-      buckets.set(key, { key, label: format(start, "MMM yyyy"), us: [], them: [], drift: [], n: 0 });
+      buckets.set(key, { key, label: format(start, "MMM yyyy"), us: [], them: [], drift: [], closed: [], n: 0 });
     }
     for (const r of filtered) {
       if (!r.finalized_at) continue;
@@ -252,18 +255,20 @@ export default function ResolutionAnatomy() {
       b.us.push((r.anatomy.ourClockS ?? 0) / 86400);
       b.them.push((r.anatomy.theirClockS ?? 0) / 86400);
       b.drift.push((r.anatomy.driftS ?? 0) / 86400);
+      b.closed.push((r.anatomy.closedS ?? 0) / 86400);
     }
     return [...buckets.values()].map((b) => ({
       label: b.label,
       n: b.n,
       "Our clock": Number((median(b.us) ?? 0).toFixed(2)),
       "Their clock": Number((median(b.them) ?? 0).toFixed(2)),
+      "Closed": Number((median(b.closed) ?? 0).toFixed(2)),
       "Silent drift": Number((median(b.drift) ?? 0).toFixed(2)),
     }));
   }, [filtered, months]);
 
   const totals = useMemo(() => {
-    let us = 0, them = 0, drift = 0, n = 0, closedNoConfirm = 0, reopened = 0;
+    let us = 0, them = 0, drift = 0, closed = 0, n = 0, closedNoConfirm = 0, reopened = 0;
     let crossedByReopen = 0, miscounted = 0;
     for (const r of filtered) {
       if (r.anatomy.totalS == null) continue;
@@ -271,6 +276,7 @@ export default function ResolutionAnatomy() {
       us += r.anatomy.ourClockS ?? 0;
       them += r.anatomy.theirClockS ?? 0;
       drift += r.anatomy.driftS ?? 0;
+      closed += r.anatomy.closedS ?? 0;
       if (r.anatomy.closedWithoutCustomerConfirm) closedNoConfirm++;
       if (r.anatomy.episodes.reopenCount > 0) reopened++;
       if (
@@ -283,9 +289,10 @@ export default function ResolutionAnatomy() {
         (r.reopen_count_at_finalize ?? 0) === 0
       ) miscounted++;
     }
-    const total = us + them + drift;
-    return { us, them, drift, total, n, closedNoConfirm, reopened, crossedByReopen, miscounted };
+    const total = us + them + drift + closed;
+    return { us, them, drift, closed, total, n, closedNoConfirm, reopened, crossedByReopen, miscounted };
   }, [filtered, thresholdS]);
+
 
   const cohortRollup = useMemo(() => {
     function group(keyFn: (r: LongRow) => string) {
@@ -510,10 +517,12 @@ export default function ResolutionAnatomy() {
         )}
 
         {/* Headline split */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           <SplitCard title="Our clock" desc="Customer waited on us" value={totals.us} share={share(totals.us)} />
           <SplitCard title="Their clock" desc="We waited on the customer" value={totals.them} share={share(totals.them)} />
+          <SplitCard title="Closed" desc="Closed, before a reopen" value={totals.closed} share={share(totals.closed)} />
           <SplitCard title="Silent drift" desc="Nobody was blocked" value={totals.drift} share={share(totals.drift)} />
+
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">Cohort</CardTitle>
@@ -554,7 +563,9 @@ export default function ResolutionAnatomy() {
                   <Legend />
                   <Bar dataKey="Our clock" stackId="a" fill="hsl(var(--primary))" />
                   <Bar dataKey="Their clock" stackId="a" fill="hsl(var(--muted-foreground))" />
+                  <Bar dataKey="Closed" stackId="a" fill="hsl(var(--muted-foreground) / 0.35)" />
                   <Bar dataKey="Silent drift" stackId="a" fill="hsl(var(--destructive))" />
+
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -709,9 +720,14 @@ function TimelineSheet({ row, onClose }: { row: LongRow | null; onClose: () => v
   const a = row?.anatomy;
   const parts = a?.timeline ?? [];
   const gapByIndex = useMemo(() => {
-    const m = new Map<number, { seconds: number; owedBy: OwedBy }>();
-    for (const s of a?.segments ?? []) m.set(s.afterIndex, { seconds: s.seconds, owedBy: s.owedBy });
+    const m = new Map<number, { seconds: number; owedBy: OwedBy }[]>();
+    for (const s of a?.segments ?? []) {
+      const list = m.get(s.afterIndex) ?? [];
+      list.push({ seconds: s.seconds, owedBy: s.owedBy });
+      m.set(s.afterIndex, list);
+    }
     return m;
+
   }, [a]);
 
   // Segment indices point at the substantive-part list; map back to timeline order.
@@ -747,6 +763,7 @@ function TimelineSheet({ row, onClose }: { row: LongRow | null; onClose: () => v
               <div className="flex justify-between text-xs text-muted-foreground pt-1">
                 <span>Us {formatDuration(a.ourClockS)}</span>
                 <span>Customer {formatDuration(a.theirClockS)}</span>
+                <span>Closed {formatDuration(a.closedS)}</span>
                 <span>Drift {formatDuration(a.driftS)}</span>
               </div>
             </div>
@@ -754,7 +771,7 @@ function TimelineSheet({ row, onClose }: { row: LongRow | null; onClose: () => v
             <div className="mt-6 space-y-3">
               {substantiveIdx.map((tIdx, sIdx) => {
                 const p = parts[tIdx];
-                const gap = gapByIndex.get(sIdx);
+                const gaps = gapByIndex.get(sIdx) ?? [];
                 return (
                   <div key={tIdx} className="space-y-1">
                     <div className="flex items-baseline justify-between gap-2">
@@ -767,15 +784,16 @@ function TimelineSheet({ row, onClose }: { row: LongRow | null; onClose: () => v
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground line-clamp-3">{p.body || "—"}</div>
-                    {gap && (
-                      <div className="text-[11px] pl-2 border-l-2 border-border py-1">
+                    {gaps.map((gap, gi) => (
+                      <div key={gi} className="text-[11px] pl-2 border-l-2 border-border py-1">
                         <span className="tabular-nums font-medium">{formatDuration(gap.seconds)}</span>
                         <span className="text-muted-foreground"> · {OWED_LABEL[gap.owedBy]}</span>
                       </div>
-                    )}
+                    ))}
                   </div>
                 );
               })}
+
               {a.unavailableReason && (
                 <div className="text-xs text-muted-foreground">
                   No usable timeline on this conversation ({a.unavailableReason}).

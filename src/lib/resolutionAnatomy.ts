@@ -33,10 +33,10 @@ import {
   type TimelinePart,
 } from "@/lib/slaMetrics";
 
-export type OwedBy = "us" | "customer" | "nobody";
+export type OwedBy = "us" | "customer" | "nobody" | "closed";
 
 export type GapSegment = {
-  /** Index in the timeline of the part that OPENED the gap. -1 for the trailing drift. */
+  /** Index in the substantive-part list of the message that OPENED the gap. */
   afterIndex: number;
   startTs: number;
   endTs: number;
@@ -45,12 +45,16 @@ export type GapSegment = {
   owedBy: OwedBy;
 };
 
+
 export type AnatomyResult = {
   /** null when the conversation carries no usable timeline — never 0. */
   totalS: number | null;
   ourClockS: number | null;
   theirClockS: number | null;
   driftS: number | null;
+  /** Time the conversation sat CLOSED before a reopen — nobody owed a reply. */
+  closedS: number | null;
+
   ourClockBizS: number | null;
   theirClockBizS: number | null;
 
@@ -79,6 +83,8 @@ const EMPTY: AnatomyResult = {
   ourClockS: null,
   theirClockS: null,
   driftS: null,
+  closedS: null,
+
   ourClockBizS: null,
   theirClockBizS: null,
   longestGap: null,
@@ -138,40 +144,73 @@ export function computeAnatomy(raw: any, opts: AnatomyOptions = {}): AnatomyResu
     : lastTs;
   const totalS = Math.max(0, closeTs - startTs);
 
+  // Substantive-part index lookup, so segment.afterIndex stays aligned with the
+  // message list the UI renders.
+  const sIndexOf = new Map<TimelinePart, number>();
+  parts.forEach((p, i) => sIndexOf.set(p, i));
+
   const segments: GapSegment[] = [];
   // Who currently owes the next move; seeded by the opening message.
   let owed: OwedBy = side(parts[0].actor) ?? "nobody";
   let segStart = parts[0].ts;
   let segStartIndex = 0;
+  let isOpen = true;
 
-  for (let i = 1; i < parts.length; i++) {
-    const p = parts[i];
+  const flush = (endTs: number, owedBy: OwedBy) => {
+    if (endTs > segStart) segments.push(makeSegment(segStartIndex, segStart, endTs, owedBy, bh));
+    segStart = endTs;
+  };
+
+  for (const p of full) {
+    if (p.ts < parts[0].ts) continue;
+
+    // A close stops every clock: while the conversation is closed nobody owes a
+    // reply, so that stretch is its own bucket rather than someone's debt.
+    if (isOpen && CLOSE_PARTS.has(p.partType)) {
+      flush(p.ts, owed);
+      isOpen = false;
+      continue;
+    }
+
+    const substantive = isSubstantive(p);
+    if (!isOpen) {
+      if (!REOPEN_PARTS.has(p.partType) && !substantive) continue;
+      flush(p.ts, "closed");
+      isOpen = true;
+      // An explicit reopen part with no body still tells us who reopened.
+      if (!substantive) {
+        const rs = side(p.actor);
+        owed = rs ?? "nobody";
+        continue;
+      }
+    }
+
+    if (!substantive) continue;
     const s = side(p.actor);
     if (s === null) continue; // neutral part — clock keeps running for `owed`
-    if (p.ts > segStart) {
-      segments.push(makeSegment(segStartIndex, segStart, p.ts, owed, bh));
-    }
+    flush(p.ts, owed);
     owed = s;
-    segStart = p.ts;
-    segStartIndex = i;
+    segStartIndex = sIndexOf.get(p) ?? segStartIndex;
   }
 
-  // Trailing stretch from the last message to the close. Whoever owed a move
-  // still owed it; if nobody did, this is silent drift.
+  // Trailing stretch from the last event to the close.
   if (closeTs > segStart) {
-    segments.push(makeSegment(segStartIndex, segStart, closeTs, owed, bh));
+    segments.push(makeSegment(segStartIndex, segStart, closeTs, isOpen ? owed : "closed", bh));
   }
 
   let ourClockS = 0;
   let theirClockS = 0;
   let driftS = 0;
+  let closedS = 0;
   let ourClockBizS = 0;
   let theirClockBizS = 0;
   for (const s of segments) {
     if (s.owedBy === "us") { ourClockS += s.seconds; ourClockBizS += s.businessSeconds; }
     else if (s.owedBy === "customer") { theirClockS += s.seconds; theirClockBizS += s.businessSeconds; }
+    else if (s.owedBy === "closed") closedS += s.seconds;
     else driftS += s.seconds;
   }
+
 
   let longestGap: GapSegment | null = null;
   for (const s of segments) {
@@ -201,6 +240,8 @@ export function computeAnatomy(raw: any, opts: AnatomyOptions = {}): AnatomyResu
     ourClockS,
     theirClockS,
     driftS,
+    closedS,
+
     ourClockBizS,
     theirClockBizS,
     longestGap,
@@ -238,7 +279,7 @@ function makeSegment(
 /** Sums the three buckets — must equal totalS. Used by the reconciliation check. */
 export function anatomyReconciles(a: AnatomyResult, toleranceS = 1): boolean {
   if (a.totalS == null) return true;
-  const sum = (a.ourClockS ?? 0) + (a.theirClockS ?? 0) + (a.driftS ?? 0);
+  const sum = (a.ourClockS ?? 0) + (a.theirClockS ?? 0) + (a.driftS ?? 0) + (a.closedS ?? 0);
   return Math.abs(sum - a.totalS) <= toleranceS;
 }
 
