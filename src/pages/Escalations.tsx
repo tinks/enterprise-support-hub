@@ -58,7 +58,7 @@ type EscalationRow = {
   linear: { url: string | null; key: string | null; raw: string | null };
   /** True when a Linear issue is actually linked (a Slack permalink does not count). */
   hasLinear: boolean;
-  type: "Bug" | "Feature Request";
+  type: string;
   createdMs: number | null;
 };
 
