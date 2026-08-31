@@ -1,0 +1,54 @@
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" style="font-family: var(--font-sans)">
+  <style>
+    .lbl { fill: hsl(var(--foreground)); font-size: 14px; font-weight: 480; }
+    .note { fill: hsl(var(--muted-foreground)); font-size: 12px; }
+    .rail { stroke: hsl(var(--border)); stroke-width: 1; }
+    .box { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+    .quiet { fill: hsl(var(--muted)); }
+    .acc { fill: hsl(var(--accent)); }
+    .accs { stroke: hsl(var(--accent)); stroke-width: 1; fill: none; }
+    .accink { fill: hsl(var(--accent-foreground)); font-size: 12px; }
+  </style>
+
+  <text class="lbl" x="0" y="16">One ticket's wall clock, split by who owed the next move</text>
+
+  <!-- timeline rail -->
+  <line class="rail" x1="0" y1="72" x2="640" y2="72" />
+
+  <!-- segments -->
+  <rect class="quiet" x="0" y="52" width="90" height="40" rx="4" />
+  <rect class="acc" x="90" y="52" width="150" height="40" rx="4" opacity="0.85" />
+  <rect class="quiet" x="240" y="52" width="230" height="40" rx="4" />
+  <rect class="acc" x="470" y="52" width="60" height="40" rx="4" opacity="0.85" />
+  <rect class="quiet" x="530" y="52" width="110" height="40" rx="4" />
+
+  <text class="note" x="6" y="108">customer</text>
+  <text class="accink" x="96" y="108">waiting on us</text>
+  <text class="note" x="246" y="108">waiting on customer</text>
+  <text class="accink" x="474" y="108">us</text>
+  <text class="note" x="536" y="108">silent drift</text>
+
+  <text class="note" x="0" y="130">first reply</text>
+  <text class="note" x="470" y="130">last reply</text>
+  <text class="note" x="566" y="130">close</text>
+
+  <!-- three derived measures -->
+  <rect class="box" x="0" y="168" width="196" height="76" rx="8" />
+  <text class="lbl" x="14" y="196">Our clock</text>
+  <text class="note" x="14" y="216">time a customer message</text>
+  <text class="note" x="14" y="232">sat without our reply</text>
+
+  <rect class="box" x="222" y="168" width="196" height="76" rx="8" />
+  <text class="lbl" x="236" y="196">Their clock</text>
+  <text class="note" x="236" y="216">time our message sat</text>
+  <text class="note" x="236" y="232">without their answer</text>
+
+  <rect class="accs" x="444" y="168" width="196" height="76" rx="8" />
+  <text class="lbl" x="458" y="196">Silent drift</text>
+  <text class="note" x="458" y="216">no message either way</text>
+  <text class="note" x="458" y="232">before the close</text>
+
+  <circle class="acc" cx="466" cy="272" r="9" />
+  <text x="462" y="276" style="font-size:12px; fill: hsl(var(--accent-foreground))">1</text>
+  <text class="note" x="484" y="276">the bucket that says nobody was blocked, it just aged</text>
+</svg>
