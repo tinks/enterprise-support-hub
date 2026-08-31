@@ -89,6 +89,20 @@ export default function IntegrationHealthCard() {
     }
   }
 
+  async function runNow(fn: string, label: string) {
+    setRunning(fn);
+    try {
+      const { error } = await supabase.functions.invoke(fn, { body: {} });
+      if (error) throw error;
+      toast.success(`${label} ran successfully`);
+    } catch (e: any) {
+      toast.error(`${label} failed: ${e?.message || e}`);
+    } finally {
+      setRunning(null);
+      await load();
+    }
+  }
+
   useEffect(() => {
     load();
     const t = setInterval(load, 60_000);
