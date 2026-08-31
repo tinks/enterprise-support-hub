@@ -108,7 +108,7 @@ function ticketType(attrs: any): string | null {
 }
 
 /** Ticket types that are escalation candidates on their own. */
-const ESCALATION_TYPES = ["Bug", "Feature Request", "Issue", "Incident"];
+const ESCALATION_TYPES = ["Bug", "Feature Request", "Incident"];
 
 /**
  * Board population gate — shared by the row build and the batched notes prefetch
