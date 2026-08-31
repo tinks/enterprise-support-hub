@@ -23,6 +23,8 @@ import {
 import { useSlaBatch, type SlaBatchEnriched } from "@/hooks/useSlaBatch";
 import { rowClosedAtMs } from "@/lib/slaWindow";
 import { cn } from "@/lib/utils";
+import { summarizeCsat, csatExclusionNote, useCsatFilters, useCsatOverrides } from "@/lib/csat";
+import { CsatFilterMenu } from "@/components/csat/CsatFilterMenu";
 
 // ---- Date range presets (local to this prototype) --------------------------
 type RangeKey = "month" | "last_month" | "30d" | "90d";
@@ -102,6 +104,8 @@ export default function CustomerReport() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [customer, setCustomer] = useState<string | null>(null);
   const [range, setRange] = useState<RangeKey>("month");
+  const [csatFilters, setCsatFilters] = useCsatFilters();
+  const { overrides: csatOverrides } = useCsatOverrides();
   const [showClosed, setShowClosed] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [openTickets, setOpenTickets] = useState<OpenTicket[]>([]);
@@ -356,6 +360,9 @@ export default function CustomerReport() {
                 emphasize
               />
               <StatCard title="Breaches" desc="First response + resolution" value={String(summary.breaches)} />
+              <div className="col-span-full flex justify-end">
+                <CsatFilterMenu filters={csatFilters} onChange={setCsatFilters} summary={csat} />
+              </div>
               <StatCard
                 title="CSAT positive"
                 desc={csat.n === 0
