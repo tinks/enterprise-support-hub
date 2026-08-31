@@ -991,19 +991,31 @@ function Field({ label, value, mono }: { label: string; value: string | null; mo
 }
 
 function TransferredTable({ rows, loading, onSelect, accountLabel, onSubjectSaved }: { rows: Ticket[]; loading: boolean; onSubjectSaved: (t: Ticket, next: string | null) => void; onSelect: (t: Ticket) => void; accountLabel: (key: string | null) => string }) {
+  const { sorted, sort, toggle } = useTableSort<Ticket>(rows, {
+    intercom_id: (r) => r.intercom_conversation_id,
+    subject: (r) => displaySubject(r).toLowerCase(),
+    customer: (r) => (r.customer_key ? accountLabel(r.customer_key) : r.contact_domain || "").toLowerCase(),
+    time_in_inbox: (r) =>
+      r.transferred_at && r.intercom_created_at
+        ? Math.max(0, (new Date(r.transferred_at).getTime() - new Date(r.intercom_created_at).getTime()) / 1000)
+        : null,
+    reassigned_to: (r) => r.reassigned_team_id || "",
+    transferred: (r) => (r.transferred_at ? new Date(r.transferred_at).getTime() : null),
+  });
   return (
     <div className="rounded-md border border-border overflow-auto">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[150px]">Intercom ID</TableHead>
-            <TableHead className="w-[320px]">Subject</TableHead>
-            <TableHead className="w-[160px]">Customer</TableHead>
-            <TableHead className="w-[140px]">Time in inbox</TableHead>
-            <TableHead className="w-[160px]">Reassigned to</TableHead>
-            <TableHead className="w-[140px]">Transferred</TableHead>
+            <SortableHead sortKey="intercom_id" sort={sort} onToggle={toggle} className="w-[150px]">Intercom ID</SortableHead>
+            <SortableHead sortKey="subject" sort={sort} onToggle={toggle} className="w-[320px]">Subject</SortableHead>
+            <SortableHead sortKey="customer" sort={sort} onToggle={toggle} className="w-[160px]">Customer</SortableHead>
+            <SortableHead sortKey="time_in_inbox" sort={sort} onToggle={toggle} className="w-[140px]">Time in inbox</SortableHead>
+            <SortableHead sortKey="reassigned_to" sort={sort} onToggle={toggle} className="w-[160px]">Reassigned to</SortableHead>
+            <SortableHead sortKey="transferred" sort={sort} onToggle={toggle} className="w-[140px]">Transferred</SortableHead>
           </TableRow>
         </TableHeader>
+
         <TableBody>
           {loading && (
             <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
