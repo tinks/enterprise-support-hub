@@ -720,9 +720,14 @@ function TimelineSheet({ row, onClose }: { row: LongRow | null; onClose: () => v
   const a = row?.anatomy;
   const parts = a?.timeline ?? [];
   const gapByIndex = useMemo(() => {
-    const m = new Map<number, { seconds: number; owedBy: OwedBy }>();
-    for (const s of a?.segments ?? []) m.set(s.afterIndex, { seconds: s.seconds, owedBy: s.owedBy });
+    const m = new Map<number, { seconds: number; owedBy: OwedBy }[]>();
+    for (const s of a?.segments ?? []) {
+      const list = m.get(s.afterIndex) ?? [];
+      list.push({ seconds: s.seconds, owedBy: s.owedBy });
+      m.set(s.afterIndex, list);
+    }
     return m;
+
   }, [a]);
 
   // Segment indices point at the substantive-part list; map back to timeline order.
