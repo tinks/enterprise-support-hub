@@ -49,7 +49,6 @@ type MonthBucket = {
   medResolve: number | null;
   p90Resolve: number | null;
   backlog: number;
-  reopened: number;
 };
 
 const METRIC_KEYS = [
@@ -188,7 +187,6 @@ export default function TrendReport() {
 
       let total = 0;
       let backlog = 0;
-      let reopened = 0;
       const closedRows: Row[] = [];
 
       for (const r of filtered) {
@@ -239,7 +237,6 @@ export default function TrendReport() {
         medResolve: median(times),
         p90Resolve: times.length >= 10 ? percentile(times, 90) : null,
         backlog,
-        reopened,
       };
     });
   }, [filtered, months]);
