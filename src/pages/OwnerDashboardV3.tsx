@@ -149,6 +149,7 @@ const OwnerDashboardV3 = () => {
         header: "State",
         width: "w-[130px]",
         cellClassName: "text-xs",
+        sortValue: (r) => (r.lifecycle_status === "reopened_after_finalize" ? "Reopened" : r.state || "open"),
         cell: (r) =>
           r.lifecycle_status === "reopened_after_finalize" ? (
             <Badge variant="outline" className="text-[10px]">Reopened</Badge>
@@ -169,6 +170,7 @@ const OwnerDashboardV3 = () => {
         header: "Product area",
         width: "w-[150px]",
         cellClassName: "text-xs",
+        sortValue: (r) => r.product_area,
         cell: (r) => r.product_area || "—",
       },
       {
@@ -176,6 +178,7 @@ const OwnerDashboardV3 = () => {
         header: "Type",
         width: "w-[140px]",
         cellClassName: "text-xs",
+        sortValue: (r) => r.classification,
         cell: (r) => r.classification || "—",
       },
       {
@@ -183,6 +186,7 @@ const OwnerDashboardV3 = () => {
         header: "Tags",
         width: "w-[170px]",
         cellClassName: "text-xs",
+        sortValue: (r) => (r.tags && r.tags.length ? r.tags.join(", ") : null),
         cell: (r) =>
           r.tags && r.tags.length ? (
             <span className="text-muted-foreground truncate block">{r.tags.join(", ")}</span>
@@ -194,6 +198,7 @@ const OwnerDashboardV3 = () => {
         key: "csat",
         header: "CSAT",
         width: "w-[80px]",
+        sortValue: (r) => r.csat_rating,
         cellClassName: "text-xs tabular-nums",
         cell: (r) => (r.csat_rating == null ? "—" : String(r.csat_rating)),
       },
@@ -201,6 +206,7 @@ const OwnerDashboardV3 = () => {
         key: "resolve",
         header: "Resolve",
         width: "w-[100px]",
+        sortValue: (r) => r.time_to_resolve_s,
         cellClassName: "text-xs tabular-nums",
         cell: (r) => fmtDuration(r.time_to_resolve_s),
       },
@@ -208,6 +214,7 @@ const OwnerDashboardV3 = () => {
         key: "created",
         header: "Created",
         width: "w-[110px]",
+        sortValue: (r) => (r.intercom_created_at ? new Date(r.intercom_created_at).getTime() : null),
         cellClassName: "text-xs text-muted-foreground",
         cell: (r) => (r.intercom_created_at ? format(new Date(r.intercom_created_at), "d MMM yyyy") : "—"),
       },

@@ -110,13 +110,15 @@ export default function Prospects() {
     contactColumn<Ticket>((r) => r.contact_name, (r) => r.contact_email),
     customerColumn<Ticket>((r) => r.customer_key, accountLabel),
     ownerColumn<Ticket>((r) => r.owner),
-    { key: "domain", header: "Domain", width: "w-[160px]", cellClassName: "text-xs truncate", cell: (r) => r.contact_domain || "—" },
-    { key: "product_area", header: "Product area", width: "w-[140px]", cellClassName: "text-xs", cell: (r) => r.product_area || "—" },
+    { key: "domain", header: "Domain", width: "w-[160px]", cellClassName: "text-xs truncate", sortValue: (r) => r.contact_domain, cell: (r) => r.contact_domain || "—" },
+    { key: "product_area", header: "Product area", width: "w-[140px]", cellClassName: "text-xs", sortValue: (r) => r.product_area, cell: (r) => r.product_area || "—" },
     {
       key: "status",
       header: "Status",
       width: "w-[120px]",
       cellClassName: "text-xs",
+      sortValue: (r) => `${r.lifecycle_status ?? ""} ${r.state ?? ""}`.trim(),
+
       cell: (r) => (
         <>
           {r.lifecycle_status}
