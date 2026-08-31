@@ -360,6 +360,19 @@ export default function Escalations() {
     }),
     customerColumn<EscalationRow>((r) => r.ticket.customer_key, accountLabel),
     {
+      key: "owner",
+      header: "Owner",
+      width: "w-[120px]",
+      sortValue: (r) => r.ticket.owner ?? null,
+      cellClassName: "text-xs",
+      cell: (r) =>
+        r.ticket.owner ? (
+          <span className="truncate block">{r.ticket.owner}</span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
       key: "type",
       header: "Type",
       width: "w-[120px]",
