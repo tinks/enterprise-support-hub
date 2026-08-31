@@ -238,8 +238,9 @@ export default function AnalyticsV3() {
 
   // Active KPIs: snapshot of active backlog right now.
   const activeStats = useMemo(() => {
-    const openNow = filteredActiveRows.filter((r) => r.lifecycle_status === "open").length;
+    // "Open now" = every ticket still open in Intercom, no math: open + reopened-and-not-re-closed.
     const reopened = filteredActiveRows.filter((r) => r.lifecycle_status === "reopened_after_finalize").length;
+    const openNow = filteredActiveRows.length;
     const now = Date.now();
     let oldestAgeDays: number | null = null;
     for (const r of filteredActiveRows) {
@@ -494,9 +495,9 @@ export default function AnalyticsV3() {
 
         <div>
           <h2 className="text-sm font-semibold tracking-tight mb-2 text-muted-foreground uppercase">Active backlog</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Kpi title="Open now" value={loading ? "…" : activeStats.openNow.toLocaleString()} sub="lifecycle = open" loading={loading} small />
-            <Kpi title="Reopened" value={loading ? "…" : activeStats.reopened.toLocaleString()} sub="not re-finalized" loading={loading} small />
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <Kpi title="Open now" value={loading ? "…" : activeStats.openNow.toLocaleString()} sub={loading ? "open in Intercom" : `open in Intercom (incl. ${activeStats.reopened} reopened)`} loading={loading} small />
+
             <Kpi title="Oldest open age" value={loading ? "…" : activeStats.oldestAgeDays != null ? `${activeStats.oldestAgeDays}d` : "—"} sub="days since created" loading={loading} small />
             <Kpi title="Opened in range" value={loading ? "…" : activeStats.openedInRange.toLocaleString()} sub={`${rangeDays}d window`} loading={loading} small />
           </div>
