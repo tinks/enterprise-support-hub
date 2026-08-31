@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeAnatomy, anatomyReconciles } from "@/lib/resolutionAnatomy";
+import { computeAnatomy, anatomyReconciles, computeEpisodes } from "@/lib/resolutionAnatomy";
 
 const H = 3600;
 const D = 86400;
@@ -103,5 +103,50 @@ describe("computeAnatomy", () => {
     const a = computeAnatomy(raw, { closedAtSec: T0 + 4 * D });
     expect(a.ourClockBizS!).toBeGreaterThan(0);
     expect(a.ourClockBizS!).toBeLessThan(a.ourClockS!);
+  });
+});
+
+describe("computeEpisodes", () => {
+  const CLOSE = (at: number, author: any = ADMIN) => ({ at, author, type: "close", body: "" });
+
+  it("counts reopens from the payload even when Intercom emits no open part", () => {
+    const raw = conv(
+      [
+        { at: T0 + H, author: ADMIN },
+        CLOSE(T0 + 2 * H),
+        { at: T0 + 20 * D, author: CUSTOMER }, // speaks after close ⇒ reopen
+        { at: T0 + 20 * D + H, author: ADMIN },
+        CLOSE(T0 + 21 * D),
+      ],
+      { at: T0, author: CUSTOMER },
+    );
+    const e = computeEpisodes(raw, { closedAtSec: T0 + 21 * D });
+    expect(e.reopenCount).toBe(1);
+    expect(e.firstReopenBy).toBe("customer");
+    expect(e.episodes.length).toBe(2);
+    expect(e.timeToFirstCloseS).toBe(2 * H);
+    expect(e.betweenEpisodesS).toBe(20 * D - 2 * H);
+  });
+
+  it("labels an admin-driven reopen as ours", () => {
+    const raw = conv(
+      [CLOSE(T0 + H), { at: T0 + 10 * D, author: ADMIN }, CLOSE(T0 + 11 * D)],
+      { at: T0, author: CUSTOMER },
+    );
+    const e = computeEpisodes(raw, { closedAtSec: T0 + 11 * D });
+    expect(e.firstReopenBy).toBe("admin");
+    expect(e.reopenCount).toBe(1);
+  });
+
+  it("reports a single episode for a never-reopened ticket", () => {
+    const raw = conv([{ at: T0 + H, author: ADMIN }, CLOSE(T0 + 2 * H)], { at: T0, author: CUSTOMER });
+    const e = computeEpisodes(raw, { closedAtSec: T0 + 2 * H });
+    expect(e.reopenCount).toBe(0);
+    expect(e.firstReopenBy).toBeNull();
+    expect(e.betweenEpisodesS).toBe(0);
+  });
+
+  it("returns an empty result when there is no timeline", () => {
+    expect(computeEpisodes({}).episodes).toEqual([]);
   });
 });
