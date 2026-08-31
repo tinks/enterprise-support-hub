@@ -17,6 +17,8 @@ import { CLEAN_DATA_START_DATE, CLEAN_DATA_START_LABEL } from "@/pages/inbox-v3/
 import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 import { intercomUrl } from "@/lib/intercom";
 import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
+import { idColumn } from "@/components/issues/issueColumns";
+
 import { formatDuration, median } from "@/lib/durationStats";
 import {
   computeAnatomy, anatomyReconciles, type AnatomyResult, type OwedBy,
@@ -278,6 +280,7 @@ export default function ResolutionAnatomy() {
   // ---- Table ----------------------------------------------------------------
 
   const columns: IssueColumn<LongRow>[] = [
+    idColumn<LongRow>((r) => r.intercom_conversation_id),
     {
       key: "subject",
       header: "Subject",
@@ -285,10 +288,10 @@ export default function ResolutionAnatomy() {
       cell: (r) => (
         <div className="min-w-0">
           <div className="truncate">{displaySubject(r)}</div>
-          <div className="text-[11px] text-muted-foreground font-mono">{r.intercom_conversation_id}</div>
         </div>
       ),
     },
+
     {
       key: "total", header: "Total", width: "w-[90px]",
       sortValue: (r) => r.time_to_resolve_s ?? null,
