@@ -763,6 +763,7 @@ function TimelineSheet({ row, onClose }: { row: LongRow | null; onClose: () => v
               <div className="flex justify-between text-xs text-muted-foreground pt-1">
                 <span>Us {formatDuration(a.ourClockS)}</span>
                 <span>Customer {formatDuration(a.theirClockS)}</span>
+                <span>Closed {formatDuration(a.closedS)}</span>
                 <span>Drift {formatDuration(a.driftS)}</span>
               </div>
             </div>
@@ -770,7 +771,7 @@ function TimelineSheet({ row, onClose }: { row: LongRow | null; onClose: () => v
             <div className="mt-6 space-y-3">
               {substantiveIdx.map((tIdx, sIdx) => {
                 const p = parts[tIdx];
-                const gap = gapByIndex.get(sIdx);
+                const gaps = gapByIndex.get(sIdx) ?? [];
                 return (
                   <div key={tIdx} className="space-y-1">
                     <div className="flex items-baseline justify-between gap-2">
@@ -783,15 +784,16 @@ function TimelineSheet({ row, onClose }: { row: LongRow | null; onClose: () => v
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground line-clamp-3">{p.body || "—"}</div>
-                    {gap && (
-                      <div className="text-[11px] pl-2 border-l-2 border-border py-1">
+                    {gaps.map((gap, gi) => (
+                      <div key={gi} className="text-[11px] pl-2 border-l-2 border-border py-1">
                         <span className="tabular-nums font-medium">{formatDuration(gap.seconds)}</span>
                         <span className="text-muted-foreground"> · {OWED_LABEL[gap.owedBy]}</span>
                       </div>
-                    )}
+                    ))}
                   </div>
                 );
               })}
+
               {a.unavailableReason && (
                 <div className="text-xs text-muted-foreground">
                   No usable timeline on this conversation ({a.unavailableReason}).
