@@ -21,7 +21,16 @@ export type SlaExclusionOpts = {
   showTestData?: boolean;
 };
 
-export const RSA_FALSE_TAGS = ["enterprise-fyi", "enterprise-duplicate"] as const;
+// Tags that mark a ticket as outside the Enterprise support population.
+// `enterprise-not-enterprise` was previously only excluded via the
+// customer_resolution_method disposition, so tickets carrying the tag alone
+// still counted as resolution work. A manual rsa_override=true still wins.
+export const RSA_FALSE_TAGS = [
+  "enterprise-fyi",
+  "enterprise-duplicate",
+  "enterprise-not-enterprise",
+] as const;
+
 
 export const EXCLUDED_RESOLUTION_METHODS = [
   "not_enterprise",
