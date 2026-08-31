@@ -667,6 +667,12 @@ Deno.serve(async (req) => {
             // Resolve by slack_user_id FIRST (exact, survives Slack-profile
             // emails that differ from the roster email), then by email.
             let teammateAdminId: string | null = null;
+            // Roster row for the sender, regardless of whether they have an
+            // Intercom admin id. CSMs are relay-only (role='csm'): they are on
+            // the roster so we KNOW who they are, but they have no admin id and
+            // their replies never count as First Response (the SLA roster is
+            // role='support' only). A relay-only match is NOT a gap.
+            let teammateRole: string | null = null;
             {
               const pickId = (row: any) => {
                 const id = row?.intercom_admin_id;
@@ -674,22 +680,24 @@ Deno.serve(async (req) => {
               };
               const bySlack = await supabase
                 .from("teammates")
-                .select("intercom_admin_id,name,active")
+                .select("intercom_admin_id,name,active,role")
                 .eq("slack_user_id", event.user)
                 .eq("active", true)
                 .limit(1)
                 .maybeSingle();
-              teammateAdminId = pickId(bySlack.data);
-              if (!teammateAdminId && senderEmail) {
+              let row: any = bySlack.data ?? null;
+              if (!row && senderEmail) {
                 const byEmail = await supabase
                   .from("teammates")
-                  .select("intercom_admin_id,name,active")
+                  .select("intercom_admin_id,name,active,role")
                   .ilike("email", senderEmail)
                   .eq("active", true)
                   .limit(1)
                   .maybeSingle();
-                teammateAdminId = pickId(byEmail.data);
+                row = byEmail.data ?? null;
               }
+              teammateAdminId = pickId(row);
+              teammateRole = row?.role ? String(row.role) : null;
             }
 
 
@@ -729,8 +737,8 @@ Deno.serve(async (req) => {
             let replyPayload: Record<string, any>;
 
             if (isEmployee && adminId) {
-              if (!teammateAdminId) {
-                await recordRelayGap("no_intercom_admin_id");
+              if (!teammateAdminId && !teammateRole) {
+                await recordRelayGap("not_on_roster");
               }
               const prefixedBody = `*[From: ${relayTag} via Slack]*\n\n${replyBody}`;
               replyPayload = {
@@ -760,8 +768,8 @@ Deno.serve(async (req) => {
               };
               console.log(`Attributing reply as other user (${senderName || event.user})`);
             } else if (adminId) {
-              if (isEmployee && !teammateAdminId) {
-                await recordRelayGap("no_intercom_admin_id");
+              if (isEmployee && !teammateAdminId && !teammateRole) {
+                await recordRelayGap("not_on_roster");
               }
               const prefixedBody = senderName || senderEmail
                 ? `*[From: ${relayTag} via Slack]*\n\n${replyBody}`

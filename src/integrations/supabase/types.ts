@@ -1844,7 +1844,7 @@ export type Database = {
           created_at: string
           email: string | null
           id: string
-          intercom_admin_id: string
+          intercom_admin_id: string | null
           name: string
           role: string
           show_dashboard: boolean
@@ -1856,7 +1856,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
-          intercom_admin_id: string
+          intercom_admin_id?: string | null
           name: string
           role: string
           show_dashboard?: boolean
@@ -1868,7 +1868,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
-          intercom_admin_id?: string
+          intercom_admin_id?: string | null
           name?: string
           role?: string
           show_dashboard?: boolean
