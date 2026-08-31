@@ -257,16 +257,9 @@ const People = () => {
               <h1 className="text-2xl font-bold text-foreground">People</h1>
               <p className="text-sm text-muted-foreground">
                 One row per person: Hub access on the left, ticket attribution on the right.
-                Read-only — edit access under{" "}
-                <Link to="/users" className="underline">
-                  Users
-                </Link>{" "}
-                and attribution under{" "}
-                <Link to="/settings" className="underline">
-                  Settings &rsaquo; Teammates
-                </Link>
-                .
+                Intercom and Slack IDs are read-only here.
               </p>
+
             </div>
             {isAdmin && (
               <div className="flex items-center gap-2">
