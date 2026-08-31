@@ -72,7 +72,7 @@ const METRIC_LABELS: Record<MetricKey, string> = {
   avg_resolve: "Average time to resolve",
   median_resolve: "Median time to resolve",
   backlog: "Active backlog (open at month end)",
-  reopened: "Reopened tickets",
+
 };
 
 /** Months present in the window, oldest → newest, never earlier than the data floor. */
