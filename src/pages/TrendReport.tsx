@@ -26,6 +26,8 @@ type Row = {
   csat_rating: number | null;
   time_to_resolve_s: number | null;
   last_reopened_at: string | null;
+  reopen_count_at_finalize: number | null;
+
   tags: string[] | null;
   rsa_override: boolean | null;
   customer_key: string | null;
@@ -146,7 +148,7 @@ export default function TrendReport() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,finalized_at,lifecycle_status,csat_rating,time_to_resolve_s,last_reopened_at,tags,rsa_override,customer_key")
+            .select("id,intercom_created_at,finalized_at,lifecycle_status,csat_rating,time_to_resolve_s,last_reopened_at,reopen_count_at_finalize,tags,rsa_override,customer_key")
             .or(
               `intercom_created_at.gte.${startIso},` +
               `finalized_at.gte.${startIso},` +
@@ -203,13 +205,23 @@ export default function TrendReport() {
         if (!transferred && finalMs != null && finalMs >= startMs && finalMs <= endMs) closedRows.push(r);
 
         // Open at month end: existed by then, and either never closed, closed
-        // after month end, or closed and reopened again on or before month end.
-        const reopenedAfterClose = finalMs != null && reopenMs != null && reopenMs > finalMs;
-        const closedByEnd =
-          finalMs != null && finalMs <= endMs && !(reopenedAfterClose && reopenMs! <= endMs);
+        // after month end, or is currently sitting reopened after its last
+        // close (lifecycle says so) with that reopen landing on or before the
+        // month end. `finalized_at` is stale on those rows, so it alone cannot
+        // decide openness.
+        const openNowAfterReopen =
+          r.lifecycle_status === "reopened_after_finalize" && reopenMs != null && reopenMs <= endMs;
+        const closedByEnd = finalMs != null && finalMs <= endMs && !openNowAfterReopen;
         if (!transferred && createdMs != null && createdMs <= endMs && !closedByEnd) backlog++;
 
-        if (reopenMs != null && !transferred && reopenMs >= startMs && reopenMs <= endMs) reopened++;
+        // Reopens are detected by the sync, not stamped by Intercom, so the
+        // initial June backfill flagged a batch of rows that never reopened.
+        // Only count a reopen Intercom itself corroborates (its own reopen
+        // counter moved) or one the ticket is still sitting in.
+        const corroboratedReopen =
+          r.lifecycle_status === "reopened_after_finalize" || (r.reopen_count_at_finalize ?? 0) > 0;
+        if (reopenMs != null && !transferred && corroboratedReopen && reopenMs >= startMs && reopenMs <= endMs) reopened++;
+
       }
 
 
@@ -434,13 +446,15 @@ export default function TrendReport() {
         </Card>
 
         <p className="text-xs text-muted-foreground">
-          Backlog is <strong>open at month end</strong>: created by then, and not closed by then — a ticket that was
-          closed and later reopened counts as open again from its reopen date. Closed counts every close that landed in
-          the month, even if the ticket was reopened afterwards. Reopened counts tickets whose <em>last</em> reopen fell
-          inside the month (one per ticket, so a ticket reopened twice in a month counts once). Transferred-out tickets
-          are excluded everywhere. These are event-derived, so they differ from the "right now" snapshots in earlier
-          Notion write-ups.
+          Backlog is <strong>open at month end</strong>: created by then and not closed by then, plus tickets still
+          sitting reopened after their last close. For the current month it matches Analytics v3's "Open now" +
+          "Reopened". Closed counts every close that landed in the month, even if the ticket was reopened afterwards.
+          Reopened counts <em>reopen events the sync detected</em> in the month, and only those Intercom's own reopen
+          counter corroborates — the June backfill falsely flagged 14 rows, which are excluded. It is one per ticket
+          (only the latest reopen is stored) and is a flow, so it reads higher than the point-in-time "currently
+          reopened" snapshot in earlier Notion write-ups. Transferred-out tickets are excluded everywhere.
         </p>
+
 
       </div>
     </AppLayout>
