@@ -495,7 +495,7 @@ export default function AnalyticsV3() {
 
         <div>
           <h2 className="text-sm font-semibold tracking-tight mb-2 text-muted-foreground uppercase">Active backlog</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <Kpi title="Open now" value={loading ? "…" : activeStats.openNow.toLocaleString()} sub={loading ? "open in Intercom" : `open in Intercom (incl. ${activeStats.reopened} reopened)`} loading={loading} small />
 
             <Kpi title="Oldest open age" value={loading ? "…" : activeStats.oldestAgeDays != null ? `${activeStats.oldestAgeDays}d` : "—"} sub="days since created" loading={loading} small />
