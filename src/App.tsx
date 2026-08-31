@@ -29,6 +29,7 @@ import SlaDashboard from "./pages/SlaDashboard";
 import SlaReport from "./pages/SlaReport";
 import TrendReport from "./pages/TrendReport";
 import CsatReport from "./pages/CsatReport";
+import ResolutionAnatomy from "./pages/ResolutionAnatomy";
 import { Navigate } from "react-router-dom";
 import Customers from "./pages/Customers";
 import CustomerReport from "./pages/CustomerReport";
@@ -99,6 +100,7 @@ const App = () => (
           <Route path="/sla-report" element={<ProtectedRoute><SlaReport /></ProtectedRoute>} />
           <Route path="/csat-report" element={<ProtectedRoute><CsatReport /></ProtectedRoute>} />
           <Route path="/trend-report" element={<ProtectedRoute><TrendReport /></ProtectedRoute>} />
+          <Route path="/resolution-anatomy" element={<ProtectedRoute><ResolutionAnatomy /></ProtectedRoute>} />
 
           <Route path="/sla-workbench" element={<ProtectedRoute><SlaWorkbench /></ProtectedRoute>} />
 
