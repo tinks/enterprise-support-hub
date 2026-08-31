@@ -387,6 +387,19 @@ export default function ResolutionAnatomy() {
       cell: (r) => <span className="tabular-nums">{formatDuration(r.time_to_resolve_s)}</span>,
     },
     {
+      key: "active", header: "Active", width: "w-[95px]",
+      headerTitle: "Wall clock minus time the ticket sat closed — nobody owed a reply then",
+      sortValue: (r) => activeOf(r),
+      cell: (r) => (
+        <div className="text-xs">
+          <div className="tabular-nums">{formatDuration(activeOf(r))}</div>
+          {(r.anatomy.closedS ?? 0) > 0 && (
+            <div className="text-muted-foreground">−{formatDuration(r.anatomy.closedS)} closed</div>
+          )}
+        </div>
+      ),
+    },
+    {
       key: "split", header: "Split", width: "w-[150px]", headerTitle: "Blue = our clock · grey = customer · red = silent drift",
       sortValue: (r) => pct(r.anatomy.ourClockS, r.anatomy.totalS),
       cell: (r) => <SplitBar a={r.anatomy} />,
