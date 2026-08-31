@@ -434,11 +434,14 @@ export default function TrendReport() {
         </Card>
 
         <p className="text-xs text-muted-foreground">
-          Backlog is <strong>open at month end</strong> (created by then, not closed by then, excluding transferred-out),
-          and reopened counts tickets whose last reopen fell inside the month. Both differ from the "right now" snapshots
-          recorded in earlier Notion write-ups, so historical columns may not match those numbers — compare before relying
-          on them.
+          Backlog is <strong>open at month end</strong>: created by then, and not closed by then — a ticket that was
+          closed and later reopened counts as open again from its reopen date. Closed counts every close that landed in
+          the month, even if the ticket was reopened afterwards. Reopened counts tickets whose <em>last</em> reopen fell
+          inside the month (one per ticket, so a ticket reopened twice in a month counts once). Transferred-out tickets
+          are excluded everywhere. These are event-derived, so they differ from the "right now" snapshots in earlier
+          Notion write-ups.
         </p>
+
       </div>
     </AppLayout>
   );
