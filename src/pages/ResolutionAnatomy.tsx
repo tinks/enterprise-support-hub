@@ -79,6 +79,13 @@ function SplitBar({ a }: { a: AnatomyResult }) {
   );
 }
 
+const REOPEN_BY_LABEL: Record<string, string> = {
+  customer: "by customer",
+  admin: "by us",
+  auto: "by bot / system",
+  unknown: "unknown",
+};
+
 const OWED_LABEL: Record<OwedBy, string> = {
   us: "We owed a reply",
   customer: "Customer owed a reply",
@@ -215,8 +222,13 @@ export default function ResolutionAnatomy() {
     if (fClass !== ANY && (r.classification ?? "") !== fClass) return false;
     if (fOwner !== ANY && (r.owner ?? "") !== fOwner) return false;
     if (fCustomer !== ANY && (r.customer_key ?? "") !== fCustomer) return false;
-    if (fReopened === "yes" && !(r.reopen_count_at_finalize ?? 0)) return false;
-    if (fReopened === "no" && (r.reopen_count_at_finalize ?? 0) > 0) return false;
+    // Payload-derived, not reopen_count_at_finalize — that column undercounts.
+    const rc = r.anatomy.episodes.reopenCount;
+    if (fReopened === "yes" && !rc) return false;
+    if (fReopened === "no" && rc > 0) return false;
+    if (fReopened === "customer" && r.anatomy.episodes.firstReopenBy !== "customer") return false;
+    if (fReopened === "admin" && r.anatomy.episodes.firstReopenBy !== "admin") return false;
+    if (fReopened === "auto" && r.anatomy.episodes.firstReopenBy !== "auto") return false;
     return true;
   }), [longRows, fArea, fClass, fOwner, fCustomer, fReopened]);
 
@@ -252,6 +264,7 @@ export default function ResolutionAnatomy() {
 
   const totals = useMemo(() => {
     let us = 0, them = 0, drift = 0, n = 0, closedNoConfirm = 0, reopened = 0;
+    let crossedByReopen = 0, miscounted = 0;
     for (const r of filtered) {
       if (r.anatomy.totalS == null) continue;
       n++;
@@ -259,11 +272,20 @@ export default function ResolutionAnatomy() {
       them += r.anatomy.theirClockS ?? 0;
       drift += r.anatomy.driftS ?? 0;
       if (r.anatomy.closedWithoutCustomerConfirm) closedNoConfirm++;
-      if ((r.reopen_count_at_finalize ?? 0) > 0) reopened++;
+      if (r.anatomy.episodes.reopenCount > 0) reopened++;
+      if (
+        r.anatomy.episodes.reopenCount > 0 &&
+        r.anatomy.episodes.timeToFirstCloseS != null &&
+        r.anatomy.episodes.timeToFirstCloseS <= thresholdS
+      ) crossedByReopen++;
+      if (
+        r.anatomy.episodes.reopenCount > 0 &&
+        (r.reopen_count_at_finalize ?? 0) === 0
+      ) miscounted++;
     }
     const total = us + them + drift;
-    return { us, them, drift, total, n, closedNoConfirm, reopened };
-  }, [filtered]);
+    return { us, them, drift, total, n, closedNoConfirm, reopened, crossedByReopen, miscounted };
+  }, [filtered, thresholdS]);
 
   const cohortRollup = useMemo(() => {
     function group(keyFn: (r: LongRow) => string) {
@@ -292,8 +314,8 @@ export default function ResolutionAnatomy() {
     // Where time_to_last_close and time-to-first-close diverge, the headline
     // metric is partly measuring reopen behaviour rather than resolution speed.
     const pairs = filtered
-      .filter((r) => r.anatomy.timeToFirstCloseS != null && r.time_to_resolve_s != null)
-      .map((r) => ({ first: r.anatomy.timeToFirstCloseS!, last: r.time_to_resolve_s! }));
+      .filter((r) => r.anatomy.episodes.timeToFirstCloseS != null && r.time_to_resolve_s != null)
+      .map((r) => ({ first: r.anatomy.episodes.timeToFirstCloseS!, last: r.time_to_resolve_s! }));
     if (!pairs.length) return null;
     return {
       n: pairs.length,
@@ -360,9 +382,23 @@ export default function ResolutionAnatomy() {
       cell: (r) => <span className="tabular-nums text-xs">{r.anatomy.adminReplyCount}↔{r.anatomy.customerReplyCount}</span>,
     },
     {
-      key: "reopened", header: "Reopens", width: "w-[80px]",
-      sortValue: (r) => r.reopen_count_at_finalize ?? 0,
-      cell: (r) => <span className="tabular-nums">{r.reopen_count_at_finalize ?? 0}</span>,
+      key: "firstclose", header: "First close", width: "w-[100px]",
+      headerTitle: "Time from open to the FIRST close — the resolution clock before any reopen",
+      sortValue: (r) => r.anatomy.episodes.timeToFirstCloseS ?? null,
+      cell: (r) => <span className="tabular-nums">{formatDuration(r.anatomy.episodes.timeToFirstCloseS)}</span>,
+    },
+    {
+      key: "reopened", header: "Reopens", width: "w-[90px]",
+      headerTitle: "Counted from the conversation payload, not Intercom's reopen_count",
+      sortValue: (r) => r.anatomy.episodes.reopenCount,
+      cell: (r) => (
+        <div className="text-xs">
+          <div className="tabular-nums">{r.anatomy.episodes.reopenCount}</div>
+          {r.anatomy.episodes.firstReopenBy && (
+            <div className="text-muted-foreground">{REOPEN_BY_LABEL[r.anatomy.episodes.firstReopenBy]}</div>
+          )}
+        </div>
+      ),
     },
     {
       key: "area", header: "Product area", width: "w-[160px]",
@@ -428,11 +464,14 @@ export default function ResolutionAnatomy() {
             <div className="space-y-1">
               <Label className="text-xs">Reopened</Label>
               <Select value={fReopened} onValueChange={setFReopened}>
-                <SelectTrigger className="w-[110px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-[190px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value={ANY}>Any</SelectItem>
                   <SelectItem value="yes">Reopened</SelectItem>
                   <SelectItem value="no">Never</SelectItem>
+                  <SelectItem value="customer">Reopened by customer</SelectItem>
+                  <SelectItem value="admin">Reopened by us</SelectItem>
+                  <SelectItem value="auto">Reopened by bot / system</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -447,7 +486,7 @@ export default function ResolutionAnatomy() {
           <Card>
             <CardContent className="pt-6 text-xs text-muted-foreground">
               {excludedCount} finalized ticket{excludedCount > 1 ? "s" : ""} in this window
-              excluded from the population (enterprise-fyi, enterprise-duplicate, merged,
+              excluded from the population (enterprise-fyi, enterprise-duplicate, enterprise-not-enterprise, merged,
               RSA=false, non-enterprise / prospect dispositions, test accounts) — the same
               predicate the SLA surfaces use.
             </CardContent>
@@ -484,6 +523,10 @@ export default function ResolutionAnatomy() {
               <Row label="Tickets" value={String(totals.n)} />
               <Row label="Closed with no customer reply" value={String(totals.closedNoConfirm)} />
               <Row label="Reopened at least once" value={String(totals.reopened)} />
+              <Row
+                label={`Over ${thresholdDays}d only because of a reopen`}
+                value={String(totals.crossedByReopen)}
+              />
             </CardContent>
           </Card>
         </div>
