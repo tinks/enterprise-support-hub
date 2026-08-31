@@ -20,6 +20,8 @@ import {
 } from "@/lib/csat";
 import { CsatFilterMenu } from "@/components/csat/CsatFilterMenu";
 import { CsatOverrideDialog } from "@/components/csat/CsatOverrideDialog";
+import { IntercomIdChip } from "@/components/issues/IssueTable";
+import { Link } from "react-router-dom";
 
 const sel = (s: string): string => s;
 const SELECT_COLS = sel(
@@ -412,8 +414,16 @@ export default function CsatReport() {
                             {CSAT_EMOJI[r.csat_rating ?? 0]} {r.csat_rating}
                           </span>
                         </TableCell>
-                        <TableCell className="text-left text-sm">{displaySubject(r)}</TableCell>
-                        <TableCell className="text-left text-xs font-mono select-all">{r.intercom_conversation_id}</TableCell>
+                        <TableCell className="text-left text-sm">
+                          <Link
+                            to={`/inbox-v3?q=${encodeURIComponent(r.intercom_conversation_id)}`}
+                            className="hover:underline"
+                            title="Open in Inbox v3"
+                          >
+                            {displaySubject(r)}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-left"><IntercomIdChip id={r.intercom_conversation_id} /></TableCell>
                         <TableCell className="text-left text-xs">{accountLabel(r.customer_key)}</TableCell>
                         <TableCell className="text-left text-xs">
                           <div>{r.csat_rater_name ?? r.contact_name ?? "—"}</div>
