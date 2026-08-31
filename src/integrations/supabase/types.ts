@@ -227,6 +227,53 @@ export type Database = {
         }
         Relationships: []
       }
+      csat_overrides: {
+        Row: {
+          action: string
+          created_at: string
+          created_by: string | null
+          created_by_email: string | null
+          id: string
+          intercom_conversation_id: string | null
+          original_rating: number | null
+          reason: string
+          ticket_id: string
+          updated_at: string
+        }
+        Insert: {
+          action?: string
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          id?: string
+          intercom_conversation_id?: string | null
+          original_rating?: number | null
+          reason: string
+          ticket_id: string
+          updated_at?: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          created_by?: string | null
+          created_by_email?: string | null
+          id?: string
+          intercom_conversation_id?: string | null
+          original_rating?: number | null
+          reason?: string
+          ticket_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "csat_overrides_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: true
+            referencedRelation: "intercom_tickets_v3"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dev_escalations: {
         Row: {
           created_at: string
@@ -878,6 +925,11 @@ export type Database = {
           contact_name: string | null
           created_at: string
           csat_rated_at: string | null
+          csat_rater_contact_id: string | null
+          csat_rater_email: string | null
+          csat_rater_external_id: string | null
+          csat_rater_is_internal: boolean | null
+          csat_rater_name: string | null
           csat_rating: number | null
           csat_remark: string | null
           custom_attributes: Json | null
@@ -933,6 +985,11 @@ export type Database = {
           contact_name?: string | null
           created_at?: string
           csat_rated_at?: string | null
+          csat_rater_contact_id?: string | null
+          csat_rater_email?: string | null
+          csat_rater_external_id?: string | null
+          csat_rater_is_internal?: boolean | null
+          csat_rater_name?: string | null
           csat_rating?: number | null
           csat_remark?: string | null
           custom_attributes?: Json | null
@@ -988,6 +1045,11 @@ export type Database = {
           contact_name?: string | null
           created_at?: string
           csat_rated_at?: string | null
+          csat_rater_contact_id?: string | null
+          csat_rater_email?: string | null
+          csat_rater_external_id?: string | null
+          csat_rater_is_internal?: boolean | null
+          csat_rater_name?: string | null
           csat_rating?: number | null
           csat_remark?: string | null
           custom_attributes?: Json | null
