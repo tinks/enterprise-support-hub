@@ -21,6 +21,13 @@ import {
 import { CsatFilterMenu } from "@/components/csat/CsatFilterMenu";
 import { CsatOverrideDialog } from "@/components/csat/CsatOverrideDialog";
 
+const sel = (s: string): string => s;
+const SELECT_COLS = sel(
+  "id,intercom_conversation_id,subject,subject_override,csat_rating,csat_remark,csat_rated_at," +
+  "csat_rater_name,csat_rater_email,csat_rater_is_internal,contact_name,contact_email," +
+  "customer_key,owner,classification,finalized_at,intercom_created_at",
+);
+
 const CSAT_EMOJI: Record<number, string> = { 1: "😠", 2: "🙁", 3: "😐", 4: "😀", 5: "🤩" };
 
 type Row = {
@@ -124,11 +131,7 @@ export default function CsatReport() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select(
-              "id,intercom_conversation_id,subject,subject_override,csat_rating,csat_remark,csat_rated_at," +
-              "csat_rater_name,csat_rater_email,csat_rater_is_internal,contact_name,contact_email," +
-              "customer_key,owner,classification,finalized_at,intercom_created_at",
-            )
+            .select(SELECT_COLS)
             .not("csat_rating", "is", null)
             .gte("csat_rated_at", fromIso)
             .lte("csat_rated_at", toIso)
