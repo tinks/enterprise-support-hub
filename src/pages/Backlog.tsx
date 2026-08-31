@@ -20,6 +20,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useInitialQ } from "@/hooks/useInitialQ";
 import { ChevronDown, ChevronRight, Loader2, Plus, Trash2 } from "lucide-react";
 
 // ---- Vocabulary (single source of truth for labels/emoji) -----------------
@@ -110,7 +111,7 @@ export default function Backlog() {
   const [fStatus, setFStatus] = useState<string>("all");
   const [fPriority, setFPriority] = useState<string>("all");
   const [fAssignee, setFAssignee] = useState<string>("all");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(useInitialQ());
   const [showDone, setShowDone] = useState(false);
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});

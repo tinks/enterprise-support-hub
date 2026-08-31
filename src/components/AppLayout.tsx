@@ -18,6 +18,7 @@ import {
   Wrench,
   Cog,
   Bell,
+  Search as SearchIcon,
   LucideIcon,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -45,6 +46,7 @@ const navEntries: NavEntry[] = [
       { to: "/sla-report", label: "SLA Report" },
     ],
   },
+  { kind: "link", to: "/search", icon: SearchIcon, label: "Deep search" },
   { kind: "link", to: "/customer-report", icon: Beaker, label: "Customer report" },
   {
     kind: "group",

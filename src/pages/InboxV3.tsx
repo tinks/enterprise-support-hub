@@ -20,6 +20,7 @@ import { intercomUrl } from "@/lib/intercom";
 import { IntercomIdChip } from "@/components/issues/IssueTable";
 import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
 import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
+import { useInitialQ } from "@/hooks/useInitialQ";
 
 type Ticket = {
   id: string;
@@ -120,7 +121,7 @@ export default function InboxV3() {
   }, [accounts]);
 
   // Shared filters
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(useInitialQ());
   const [owner, setOwner] = useState<string>(ANY);
   const [pa, setPa] = useState<string>(ANY);
   const [rsaFilter, setRsaFilter] = useState<"all" | "required" | "not_required">("all");

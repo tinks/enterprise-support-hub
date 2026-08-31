@@ -41,6 +41,7 @@ import Triage from "./pages/Triage";
 import Escalations from "./pages/Escalations";
 import ActionCenter from "./pages/ActionCenter";
 import Users from "./pages/Users";
+import DeepSearch from "./pages/DeepSearch";
 import { ActionSignalsProvider } from "./hooks/useActionSignals";
 
 
@@ -79,6 +80,7 @@ const App = () => (
           <Route path="/test-review" element={<EditorRoute><TestChannelReview /></EditorRoute>} />
           <Route path="/settings" element={<EditorRoute><Index /></EditorRoute>} />
           <Route path="/users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
+          <Route path="/search" element={<ProtectedRoute><DeepSearch /></ProtectedRoute>} />
           <Route path="/backlog" element={<EditorRoute><Backlog /></EditorRoute>} />
           <Route path="/prospects" element={<ProtectedRoute><Prospects /></ProtectedRoute>} />
           <Route path="/sla-what-if" element={<ProtectedRoute><SlaWhatIf /></ProtectedRoute>} />

@@ -332,6 +332,45 @@ export type Database = {
         }
         Relationships: []
       }
+      esh_search_index: {
+        Row: {
+          body: string | null
+          idents: string | null
+          indexed_at: string
+          kind: string
+          meta: Json
+          ref_id: string
+          source_updated_at: string | null
+          title: string | null
+          tsv: unknown
+          url_path: string | null
+        }
+        Insert: {
+          body?: string | null
+          idents?: string | null
+          indexed_at?: string
+          kind: string
+          meta?: Json
+          ref_id: string
+          source_updated_at?: string | null
+          title?: string | null
+          tsv?: unknown
+          url_path?: string | null
+        }
+        Update: {
+          body?: string | null
+          idents?: string | null
+          indexed_at?: string
+          kind?: string
+          meta?: Json
+          ref_id?: string
+          source_updated_at?: string | null
+          title?: string | null
+          tsv?: unknown
+          url_path?: string | null
+        }
+        Relationships: []
+      }
       esh_ticket_actions: {
         Row: {
           action: string
@@ -2194,6 +2233,28 @@ export type Database = {
           schedule: string
         }[]
       }
+      esh_deep_search: {
+        Args: { p_kinds?: string[]; p_limit?: number; p_q: string }
+        Returns: {
+          kind: string
+          match_mode: string
+          meta: Json
+          rank: number
+          ref_id: string
+          snippet: string
+          source_updated_at: string
+          title: string
+          url_path: string
+        }[]
+      }
+      esh_refresh_search_index: {
+        Args: { p_kinds?: string[] }
+        Returns: {
+          kind: string
+          rows_indexed: number
+        }[]
+      }
+      esh_strip_html: { Args: { t: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -2225,6 +2286,8 @@ export type Database = {
           reason_code: string
         }[]
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       v3_accounts_usage: {
         Args: never
         Returns: {

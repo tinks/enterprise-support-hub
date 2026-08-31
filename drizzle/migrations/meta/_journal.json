@@ -85,6 +85,41 @@
       "when": 1787949351199,
       "tag": "0011_create_relay_attribution_gaps",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788182149463,
+      "tag": "0012_esh_search_index_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788182199477,
+      "tag": "0013_esh_refresh_search_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1788182225676,
+      "tag": "0014_esh_deep_search_rpc",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1788182294504,
+      "tag": "0015_esh_search_index_cron",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1788182376867,
+      "tag": "0016_esh_search_index_cron_hourly",
+      "breakpoints": true
     }
   ]
 }
