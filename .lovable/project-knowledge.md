@@ -1999,3 +1999,27 @@ Re-checked against current code, not assumed: `gmail_callback_xss` (the callback
 ### Verification status
 
 Guard logic and call-site placement reviewed in code; build clean. **UNVERIFIED**: no live ticket has yet arrived with a reserved-character contact email, so the rejection branch has not been exercised against production data.
+
+## Deep search — Hub-wide free-text search (`/search`)
+
+A read-only search surface over everything the Hub knows, built because identifiers like a Linear key (`SCA-3522`) or a phrase from a message were only findable if the page you happened to be on already filtered on that field.
+
+### Index — `public.esh_search_index`
+
+Columns `kind`, `ref_id` (composite PK), `title`, `body`, `idents`, `meta jsonb`, `url_path`, `source_updated_at`, `indexed_at`, plus a generated `tsvector` (`title`/`idents` weight A, `body` weight B). GIN index on the tsvector; trigram GIN (`pg_trgm`) on `title` and `idents`. Authenticated **read-only**; only the refresh function writes.
+
+Six kinds: `v3_ticket` (subject + subject_override, every `conversation_parts` body and the source body with HTML stripped, custom attributes flattened, tags, CSAT remark), `note` (`conversation_notes`), `escalation` (`dev_escalations` + Linear metadata), `backlog` (`esh_backlog_items`), `customer` (`v3_customer_accounts`, incl. domains/aliases), `severity_proposal` (rationale, evidence, override reason note).
+
+### Refresh — `esh_refresh_search_index(p_kinds text[])`
+
+Security definer, rebuilds per kind (delete + insert) and returns per-kind row counts. HTML is stripped by `esh_strip_html()`. Scheduled **hourly at :07** (`esh_refresh_search_index_hourly`), plus a **Reindex now** button on the page. Cadence is deliberate: the searched population is overwhelmingly older/closed tickets, so up to an hour of staleness is acceptable and cheaper than sub-hourly polling.
+
+### Query — `esh_deep_search(p_q, p_kinds, p_limit)`
+
+Unions two match paths: `websearch_to_tsquery` full-text against the tsvector, and an identifier path (`ILIKE` + `pg_trgm` similarity on `idents`/`title`) so an Intercom ID, Linear key, email, customer key or Slack channel ID matches even when it is not a lexeme. Returns a `ts_headline` snippet (matches marked `<< >>` and highlighted in the UI), `match_mode` (`text` vs `ident`), `meta` and `url_path`; capped at 500.
+
+### UI — `src/pages/DeepSearch.tsx`
+
+Nav: top-level **Deep search**. Query box (deep-linkable via `?q=`), kind filter chips with per-kind hit counts, index size + last-refresh readout, Reindex now. Result rows link back into the existing pages by seeding their search box through `?q=` (`useInitialQ()` in Inbox v3, Dev escalations, Backlog) rather than adding new deep-link routes; v3 hits also carry the Intercom conversation link.
+
+**Verified 31 Aug 2026:** 997 rows indexed (629 v3 tickets, 253 customers, 43 backlog, 42 escalations, 25 notes, 5 severity proposals). `SCA-3522` returns the escalation and Intercom ticket #215475673305527 (matched from the message body). **UNVERIFIED:** the hourly cron firing in production, and phrase-query result quality at scale.
