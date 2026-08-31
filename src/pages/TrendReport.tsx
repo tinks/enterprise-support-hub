@@ -26,6 +26,8 @@ type Row = {
   csat_rating: number | null;
   time_to_resolve_s: number | null;
   last_reopened_at: string | null;
+  reopen_count_at_finalize: number | null;
+
   tags: string[] | null;
   rsa_override: boolean | null;
   customer_key: string | null;
