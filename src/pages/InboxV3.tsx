@@ -18,6 +18,7 @@ import { displaySubject } from "@/lib/subjectDisplay";
 import { EditableSubject } from "@/components/issues/EditableSubject";
 import { intercomUrl } from "@/lib/intercom";
 import { IntercomIdChip } from "@/components/issues/IssueTable";
+import { useTableSort, SortableHead } from "@/components/issues/useTableSort";
 import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
 import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
 import { useInitialQ } from "@/hooks/useInitialQ";
@@ -780,25 +781,40 @@ function RsaBadge({ t, onCycle }: { t: Ticket; onCycle: (t: Ticket) => void }) {
 }
 
 function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, accountLabel, onSubjectSaved }: { rows: Ticket[]; loading: boolean; onSubjectSaved: (t: Ticket, next: string | null) => void; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void; onMarkFinalized: (t: Ticket) => void; accountLabel: (key: string | null) => string }) {
+  const { sorted, sort, toggle } = useTableSort<Ticket>(rows, {
+    intercom_id: (r) => r.intercom_conversation_id,
+    subject: (r) => displaySubject(r).toLowerCase(),
+    contact: (r) => (r.contact_name || r.contact_email || "").toLowerCase(),
+    customer: (r) => accountLabel(r.customer_key).toLowerCase(),
+    owner: (r) => (r.owner || "").toLowerCase(),
+    product_area: (r) => r.product_area || "",
+    classification: (r) => r.classification || "",
+    state: (r) => r.state || "",
+    lifecycle: (r) => r.lifecycle_status || "",
+    rsa: (r) => effectiveRsa(r).value,
+    csat: (r) => r.csat_rating ?? null,
+    resolve: (r) => r.time_to_resolve_s ?? null,
+  });
   return (
     <div className="rounded-md border border-border overflow-auto">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[140px]">Intercom ID</TableHead>
-            <TableHead className="w-[320px]">Subject</TableHead>
-            <TableHead className="w-[180px]">Contact</TableHead>
-            <TableHead className="w-[140px]">Customer</TableHead>
-            <TableHead className="w-[120px]">Owner</TableHead>
-            <TableHead className="w-[160px]">Product area</TableHead>
-            <TableHead className="w-[140px]">Classification</TableHead>
-            <TableHead className="w-[100px]" title="Live state from Intercom (last sync). Drift vs Lifecycle indicates an unprocessed reopen.">State</TableHead>
-            <TableHead className="w-[120px]">Lifecycle</TableHead>
-            <TableHead className="w-[90px]">RSA</TableHead>
-            <TableHead className="w-[120px]">CSAT</TableHead>
-            <TableHead className="w-[120px]">Resolve</TableHead>
+            <SortableHead sortKey="intercom_id" sort={sort} onToggle={toggle} className="w-[140px]">Intercom ID</SortableHead>
+            <SortableHead sortKey="subject" sort={sort} onToggle={toggle} className="w-[320px]">Subject</SortableHead>
+            <SortableHead sortKey="contact" sort={sort} onToggle={toggle} className="w-[180px]">Contact</SortableHead>
+            <SortableHead sortKey="customer" sort={sort} onToggle={toggle} className="w-[140px]">Customer</SortableHead>
+            <SortableHead sortKey="owner" sort={sort} onToggle={toggle} className="w-[120px]">Owner</SortableHead>
+            <SortableHead sortKey="product_area" sort={sort} onToggle={toggle} className="w-[160px]">Product area</SortableHead>
+            <SortableHead sortKey="classification" sort={sort} onToggle={toggle} className="w-[140px]">Classification</SortableHead>
+            <SortableHead sortKey="state" sort={sort} onToggle={toggle} className="w-[100px]">State</SortableHead>
+            <SortableHead sortKey="lifecycle" sort={sort} onToggle={toggle} className="w-[120px]">Lifecycle</SortableHead>
+            <SortableHead sortKey="rsa" sort={sort} onToggle={toggle} className="w-[90px]">RSA</SortableHead>
+            <SortableHead sortKey="csat" sort={sort} onToggle={toggle} className="w-[120px]">CSAT</SortableHead>
+            <SortableHead sortKey="resolve" sort={sort} onToggle={toggle} className="w-[120px]">Resolve</SortableHead>
           </TableRow>
         </TableHeader>
+
         <TableBody>
           {loading && (
             <TableRow><TableCell colSpan={12} className="text-center py-6 text-muted-foreground">
@@ -810,7 +826,7 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, 
               No rows match the current filters.
             </TableCell></TableRow>
           )}
-          {!loading && rows.map((r) => (
+          {!loading && sorted.map((r) => (
             <TableRow key={r.id} className="cursor-pointer" onClick={() => onSelect(r)}>
               <TableCell><IntercomIdChip id={r.intercom_conversation_id} /></TableCell>
               <TableCell className="max-w-[320px]" onClick={(e) => e.stopPropagation()}>
@@ -872,23 +888,36 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, 
 
 function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, accountLabel, onSubjectSaved }: { rows: Ticket[]; loading: boolean; onSubjectSaved: (t: Ticket, next: string | null) => void; onSelect: (t: Ticket) => void; onCycleRsa: (t: Ticket) => void; onMarkFinalized: (t: Ticket) => void; accountLabel: (key: string | null) => string }) {
   const now = Date.now();
+  const { sorted, sort, toggle } = useTableSort<Ticket>(rows, {
+    intercom_id: (r) => r.intercom_conversation_id,
+    subject: (r) => displaySubject(r).toLowerCase(),
+    contact: (r) => (r.contact_name || r.contact_email || "").toLowerCase(),
+    customer: (r) => accountLabel(r.customer_key).toLowerCase(),
+    owner: (r) => (r.owner || "").toLowerCase(),
+    state: (r) => r.state || "",
+    lifecycle: (r) => r.lifecycle_status || "",
+    rsa: (r) => effectiveRsa(r).value,
+    last_update: (r) => (r.intercom_updated_at ? new Date(r.intercom_updated_at).getTime() : null),
+    age: (r) => (r.intercom_created_at ? now - new Date(r.intercom_created_at).getTime() : null),
+  });
   return (
     <div className="rounded-md border border-border overflow-auto">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[140px]">Intercom ID</TableHead>
-            <TableHead className="w-[360px]">Subject</TableHead>
-            <TableHead className="w-[200px]">Contact</TableHead>
-            <TableHead className="w-[140px]">Customer</TableHead>
-            <TableHead className="w-[120px]">Owner</TableHead>
-            <TableHead className="w-[100px]">State</TableHead>
-            <TableHead className="w-[140px]">Lifecycle</TableHead>
-            <TableHead className="w-[90px]">RSA</TableHead>
-            <TableHead className="w-[120px]">Last update</TableHead>
-            <TableHead className="w-[80px]">Age</TableHead>
+            <SortableHead sortKey="intercom_id" sort={sort} onToggle={toggle} className="w-[140px]">Intercom ID</SortableHead>
+            <SortableHead sortKey="subject" sort={sort} onToggle={toggle} className="w-[360px]">Subject</SortableHead>
+            <SortableHead sortKey="contact" sort={sort} onToggle={toggle} className="w-[200px]">Contact</SortableHead>
+            <SortableHead sortKey="customer" sort={sort} onToggle={toggle} className="w-[140px]">Customer</SortableHead>
+            <SortableHead sortKey="owner" sort={sort} onToggle={toggle} className="w-[120px]">Owner</SortableHead>
+            <SortableHead sortKey="state" sort={sort} onToggle={toggle} className="w-[100px]">State</SortableHead>
+            <SortableHead sortKey="lifecycle" sort={sort} onToggle={toggle} className="w-[140px]">Lifecycle</SortableHead>
+            <SortableHead sortKey="rsa" sort={sort} onToggle={toggle} className="w-[90px]">RSA</SortableHead>
+            <SortableHead sortKey="last_update" sort={sort} onToggle={toggle} className="w-[120px]">Last update</SortableHead>
+            <SortableHead sortKey="age" sort={sort} onToggle={toggle} className="w-[80px]">Age</SortableHead>
           </TableRow>
         </TableHeader>
+
         <TableBody>
           {loading && (
             <TableRow><TableCell colSpan={10} className="text-center py-6 text-muted-foreground">
@@ -900,7 +929,7 @@ function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, acc
               No active tickets match the current filters.
             </TableCell></TableRow>
           )}
-          {!loading && rows.map((r) => {
+          {!loading && sorted.map((r) => {
             const ageDays = r.intercom_created_at
               ? differenceInDays(now, new Date(r.intercom_created_at).getTime())
               : null;
@@ -963,19 +992,31 @@ function Field({ label, value, mono }: { label: string; value: string | null; mo
 }
 
 function TransferredTable({ rows, loading, onSelect, accountLabel, onSubjectSaved }: { rows: Ticket[]; loading: boolean; onSubjectSaved: (t: Ticket, next: string | null) => void; onSelect: (t: Ticket) => void; accountLabel: (key: string | null) => string }) {
+  const { sorted, sort, toggle } = useTableSort<Ticket>(rows, {
+    intercom_id: (r) => r.intercom_conversation_id,
+    subject: (r) => displaySubject(r).toLowerCase(),
+    customer: (r) => (r.customer_key ? accountLabel(r.customer_key) : r.contact_domain || "").toLowerCase(),
+    time_in_inbox: (r) =>
+      r.transferred_at && r.intercom_created_at
+        ? Math.max(0, (new Date(r.transferred_at).getTime() - new Date(r.intercom_created_at).getTime()) / 1000)
+        : null,
+    reassigned_to: (r) => r.reassigned_team_id || "",
+    transferred: (r) => (r.transferred_at ? new Date(r.transferred_at).getTime() : null),
+  });
   return (
     <div className="rounded-md border border-border overflow-auto">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[150px]">Intercom ID</TableHead>
-            <TableHead className="w-[320px]">Subject</TableHead>
-            <TableHead className="w-[160px]">Customer</TableHead>
-            <TableHead className="w-[140px]">Time in inbox</TableHead>
-            <TableHead className="w-[160px]">Reassigned to</TableHead>
-            <TableHead className="w-[140px]">Transferred</TableHead>
+            <SortableHead sortKey="intercom_id" sort={sort} onToggle={toggle} className="w-[150px]">Intercom ID</SortableHead>
+            <SortableHead sortKey="subject" sort={sort} onToggle={toggle} className="w-[320px]">Subject</SortableHead>
+            <SortableHead sortKey="customer" sort={sort} onToggle={toggle} className="w-[160px]">Customer</SortableHead>
+            <SortableHead sortKey="time_in_inbox" sort={sort} onToggle={toggle} className="w-[140px]">Time in inbox</SortableHead>
+            <SortableHead sortKey="reassigned_to" sort={sort} onToggle={toggle} className="w-[160px]">Reassigned to</SortableHead>
+            <SortableHead sortKey="transferred" sort={sort} onToggle={toggle} className="w-[140px]">Transferred</SortableHead>
           </TableRow>
         </TableHeader>
+
         <TableBody>
           {loading && (
             <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">
@@ -987,7 +1028,7 @@ function TransferredTable({ rows, loading, onSelect, accountLabel, onSubjectSave
               No reassigned tickets.
             </TableCell></TableRow>
           )}
-          {!loading && rows.map((r) => {
+          {!loading && sorted.map((r) => {
             // Proxy: we don't yet record inbox-entry time, so measure from conversation creation.
             const inboxS =
               r.transferred_at && r.intercom_created_at
