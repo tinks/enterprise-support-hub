@@ -446,14 +446,14 @@ export default function TrendReport() {
         </Card>
 
         <p className="text-xs text-muted-foreground">
-          Backlog is <strong>open at month end</strong>: created by then and not closed by then, plus tickets still
-          sitting reopened after their last close. For the current month it matches Analytics v3's "Open now" +
-          "Reopened". Closed counts every close that landed in the month, even if the ticket was reopened afterwards.
-          Reopened counts <em>reopen events the sync detected</em> in the month, and only those Intercom's own reopen
-          counter corroborates — the June backfill falsely flagged 14 rows, which are excluded. It is one per ticket
-          (only the latest reopen is stored) and is a flow, so it reads higher than the point-in-time "currently
-          reopened" snapshot in earlier Notion write-ups. Transferred-out tickets are excluded everywhere.
+          Backlog is a <strong>state check at the last instant of the month</strong>: created by then and not closed at
+          that moment. A ticket reopened on the 15th and closed again on the 16th is closed at month end, so it does not
+          count — reopens only affect backlog when the ticket is still sitting open. Closed counts every close that
+          landed in the month, even if the ticket reopened afterwards. Reopened is a separate monthly count of reopen
+          events detected in the month (one per ticket, since only the latest reopen is stored); the June backfill
+          falsely flagged 14 rows, which are excluded. Transferred-out tickets are excluded everywhere.
         </p>
+
 
 
       </div>
