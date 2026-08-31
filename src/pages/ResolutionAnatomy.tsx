@@ -234,8 +234,9 @@ export default function ResolutionAnatomy() {
     if (fReopened === "customer" && r.anatomy.episodes.firstReopenBy !== "customer") return false;
     if (fReopened === "admin" && r.anatomy.episodes.firstReopenBy !== "admin") return false;
     if (fReopened === "auto" && r.anatomy.episodes.firstReopenBy !== "auto") return false;
+    if (excludeClosed && (activeOf(r) ?? 0) <= thresholdS) return false;
     return true;
-  }), [longRows, fArea, fClass, fOwner, fCustomer, fReopened]);
+  }), [longRows, fArea, fClass, fOwner, fCustomer, fReopened, excludeClosed, thresholdS]);
 
   // ---- Cohort rollups -------------------------------------------------------
 
