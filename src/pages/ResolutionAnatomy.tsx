@@ -122,7 +122,7 @@ export default function ResolutionAnatomy() {
           .order("finalized_at", { ascending: false })
           .range(from, from + PAGE - 1);
         if (error) throw error;
-        const page = (data ?? []) as ScalarRow[];
+        const page = (data ?? []) as unknown as ScalarRow[];
         all.push(...page);
         if (page.length < PAGE) break;
       }
