@@ -1,2 +1,3 @@
 - [v3 Customer slices](mem://features/v3-customer-slices) — account/domain mapping, personal-email allowlist, override UI, Top customers table, and the three-place lockstep contract
 - [ESH write rollout](mem://features/esh-write-rollout) — Step-by-step plan for working tickets in the Hub: write-through via esh-write-action, kill switch, per-step negative tests
+- [Sortable table headers](mem://preferences/sortable-table-headers) — default convention: every data table gets sortable headers, implemented once in IssueTable
