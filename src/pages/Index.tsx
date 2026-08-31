@@ -637,8 +637,9 @@ const Index = () => {
         {/* Intercom field options (drift only, no validation change) */}
         <IntercomFieldOptionsCard />
 
-        {/* Admin Mapping Card */}
-        <AdminMappingCard settings={settings} setSettings={setSettings} onSave={saveSettings} />
+        {/* Teammates table hidden — superseded by Admin → People. Component kept for rollback. */}
+        {false && <AdminMappingCard settings={settings} setSettings={setSettings} onSave={saveSettings} />}
+
 
         {/* Slack channel → account mapping */}
         <SlackChannelAccountMapCard />
