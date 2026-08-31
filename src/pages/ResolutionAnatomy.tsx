@@ -17,6 +17,8 @@ import { CLEAN_DATA_START_DATE, CLEAN_DATA_START_LABEL } from "@/pages/inbox-v3/
 import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 import { intercomUrl } from "@/lib/intercom";
 import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
+import { idColumn } from "@/components/issues/issueColumns";
+
 import { formatDuration, median } from "@/lib/durationStats";
 import {
   computeAnatomy, anatomyReconciles, type AnatomyResult, type OwedBy,
