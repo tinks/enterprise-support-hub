@@ -33,10 +33,10 @@ import {
   type TimelinePart,
 } from "@/lib/slaMetrics";
 
-export type OwedBy = "us" | "customer" | "nobody";
+export type OwedBy = "us" | "customer" | "nobody" | "closed";
 
 export type GapSegment = {
-  /** Index in the timeline of the part that OPENED the gap. -1 for the trailing drift. */
+  /** Index in the substantive-part list of the message that OPENED the gap. */
   afterIndex: number;
   startTs: number;
   endTs: number;
@@ -44,6 +44,7 @@ export type GapSegment = {
   businessSeconds: number;
   owedBy: OwedBy;
 };
+
 
 export type AnatomyResult = {
   /** null when the conversation carries no usable timeline — never 0. */
