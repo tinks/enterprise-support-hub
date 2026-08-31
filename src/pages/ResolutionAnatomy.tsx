@@ -517,10 +517,12 @@ export default function ResolutionAnatomy() {
         )}
 
         {/* Headline split */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           <SplitCard title="Our clock" desc="Customer waited on us" value={totals.us} share={share(totals.us)} />
           <SplitCard title="Their clock" desc="We waited on the customer" value={totals.them} share={share(totals.them)} />
+          <SplitCard title="Closed" desc="Closed, before a reopen" value={totals.closed} share={share(totals.closed)} />
           <SplitCard title="Silent drift" desc="Nobody was blocked" value={totals.drift} share={share(totals.drift)} />
+
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">Cohort</CardTitle>
