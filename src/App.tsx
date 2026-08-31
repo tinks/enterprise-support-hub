@@ -29,6 +29,7 @@ import SlaDashboard from "./pages/SlaDashboard";
 import SlaReport from "./pages/SlaReport";
 import TrendReport from "./pages/TrendReport";
 import CsatReport from "./pages/CsatReport";
+import ResolutionAnatomy from "./pages/ResolutionAnatomy";
 import { Navigate } from "react-router-dom";
 import Customers from "./pages/Customers";
 import CustomerReport from "./pages/CustomerReport";
