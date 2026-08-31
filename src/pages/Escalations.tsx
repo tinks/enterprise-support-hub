@@ -50,6 +50,9 @@ type Escalation = {
   linear_state: string | null;
   linear_assignee: string | null;
   linear_synced_at: string | null;
+  /** Last time someone chased Dev about this escalation (Hub-owned). */
+  dev_followed_up_at: string | null;
+  dev_followed_up_by: string | null;
 };
 
 type EscalationRow = {
@@ -145,6 +148,17 @@ export default function Escalations() {
   const [editingLink, setEditingLink] = useState(false);
 
   const { accountLabel } = useCustomerLabels();
+  const [me, setMe] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setMe(data.user?.email ?? null));
+  }, []);
+
+  /** Mark (or clear) the last time Dev was chased about this escalation. */
+  const markFollowedUp = (conversationId: string, clear = false) =>
+    upsert(conversationId, {
+      dev_followed_up_at: clear ? null : new Date().toISOString(),
+      dev_followed_up_by: clear ? null : me,
+    });
 
   const load = async () => {
     setLoading(true);
@@ -293,6 +307,9 @@ export default function Escalations() {
         patch.linear_url_override !== undefined ? patch.linear_url_override : existing?.linear_url_override ?? null,
       ...(patch.hub_state ? { state_changed_at: new Date().toISOString() } : {}),
       ...(patch.hub_state === "customer_notified" ? { notified_at: new Date().toISOString() } : {}),
+      ...(patch.dev_followed_up_at !== undefined
+        ? { dev_followed_up_at: patch.dev_followed_up_at, dev_followed_up_by: patch.dev_followed_up_by ?? null }
+        : {}),
     };
     const { data, error } = await supabase
       .from("dev_escalations")
@@ -392,6 +409,28 @@ export default function Escalations() {
       width: "w-[180px]",
       sortValue: (r) => r.esc?.hub_state ?? null,
       cell: (r) => <div onClick={(e) => e.stopPropagation()}>{hubSelect(r)}</div>,
+    },
+    {
+      key: "dev_followup",
+      header: "Dev follow-up",
+      width: "w-[130px]",
+      cellClassName: "text-xs tabular-nums",
+      // Never-followed-up sorts as the oldest: that's the row that needs chasing.
+      sortValue: (r) => {
+        const at = r.esc?.dev_followed_up_at;
+        return at ? Date.now() - new Date(at).getTime() : Number.MAX_SAFE_INTEGER;
+      },
+      cell: (r) => {
+        const at = r.esc?.dev_followed_up_at;
+        if (!at) return <span className="text-muted-foreground">Never</span>;
+        const days = Math.floor((Date.now() - new Date(at).getTime()) / 86_400_000);
+        return (
+          <div>
+            <div>{days === 0 ? "Today" : `${days}d ago`}</div>
+            <div className="text-[10px] text-muted-foreground">{format(new Date(at), "d MMM")}</div>
+          </div>
+        );
+      },
     },
     ageColumn<EscalationRow>((r) => r.createdMs),
   ];
@@ -593,6 +632,44 @@ export default function Escalations() {
             <IssueField
               label="Hub state"
               value={<div className="w-[200px]">{hubSelect(detail, "h-8 text-xs")}</div>}
+            />
+            <IssueField
+              label="Last followed up with Dev"
+              value={
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span>
+                    {detail.esc?.dev_followed_up_at
+                      ? `${format(new Date(detail.esc.dev_followed_up_at), "d MMM yyyy HH:mm")}${
+                          detail.esc.dev_followed_up_by ? ` · ${detail.esc.dev_followed_up_by}` : ""
+                        }`
+                      : "Never"}
+                  </span>
+                  {canEdit && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-6 text-xs"
+                        disabled={saving === detail.ticket.intercom_conversation_id}
+                        onClick={() => markFollowedUp(detail.ticket.intercom_conversation_id)}
+                      >
+                        Mark followed up now
+                      </Button>
+                      {detail.esc?.dev_followed_up_at && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs"
+                          disabled={saving === detail.ticket.intercom_conversation_id}
+                          onClick={() => markFollowedUp(detail.ticket.intercom_conversation_id, true)}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </>
+                  )}
+                </div>
+              }
             />
             <IssueField
               label="Linear issue"
