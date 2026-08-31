@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { toast } from "sonner";
 
-type TeammateRole = "support" | "other" | "ai";
+type TeammateRole = "support" | "csm" | "other" | "ai";
 
 interface Teammate {
   id: string;
@@ -43,7 +43,15 @@ interface AdminMappingCardProps {
   onSave: () => void;
 }
 
-const ROLES: TeammateRole[] = ["support", "other", "ai"];
+const ROLES: TeammateRole[] = ["support", "csm", "other", "ai"];
+
+/**
+ * Roles that are relay-only: on the roster so Slack replies resolve to a known
+ * person (no Action Center identity gap), but with no Intercom admin id and —
+ * critically — never counted for First Response. Only role='support' drives the
+ * FRT clock (see useSlaBatch).
+ */
+const RELAY_ONLY_ROLES = new Set<TeammateRole>(["csm", "other"]);
 
 const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
   const { isAdmin } = useIsAdmin();
