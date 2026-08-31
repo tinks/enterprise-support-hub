@@ -185,6 +185,18 @@ export default function CsatReport() {
     return r;
   }, [rows, customerFilter, ratingFilter, q]);
 
+  const { sorted: sortedRows, sort, toggle } = useTableSort<Row>(scoped, {
+    rating: (r) => r.csat_rating,
+    subject: (r) => displaySubject(r),
+    intercom_id: (r) => r.intercom_conversation_id,
+    customer: (r) => accountLabel(r.customer_key),
+    rater: (r) => r.csat_rater_name ?? r.contact_name ?? r.csat_rater_email ?? r.contact_email,
+    remark: (r) => r.csat_remark,
+    rated_at: (r) => (r.csat_rated_at ? new Date(r.csat_rated_at).getTime() : null),
+    owner: (r) => r.owner,
+    counting: (r) => (isRatingCounted(r, csatOverrides, csatFilters) ? "Counted" : "Not counted"),
+  });
+
   const summary = useMemo(
     () => summarizeCsat(scoped, csatOverrides, csatFilters),
     [scoped, csatOverrides, csatFilters],
