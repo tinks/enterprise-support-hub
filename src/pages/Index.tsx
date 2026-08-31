@@ -414,18 +414,19 @@ const Index = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between gap-4">
             <div>
-              <CardTitle className="text-lg">User access</CardTitle>
+              <CardTitle className="text-lg">People</CardTitle>
               <CardDescription>
-                Access roster and roles have moved to Admin → Users.
+                Access, roles and teammate attribution now live on Admin → People.
               </CardDescription>
             </div>
             <Button variant="outline" size="sm" asChild>
-              <a href="/users">
-                Open Users <ArrowRight className="h-3 w-3 ml-1" />
+              <a href="/people">
+                Open People <ArrowRight className="h-3 w-3 ml-1" />
               </a>
             </Button>
           </CardHeader>
         </Card>
+
 
 
 
@@ -636,8 +637,9 @@ const Index = () => {
         {/* Intercom field options (drift only, no validation change) */}
         <IntercomFieldOptionsCard />
 
-        {/* Admin Mapping Card */}
-        <AdminMappingCard settings={settings} setSettings={setSettings} onSave={saveSettings} />
+        {/* Teammates table hidden — superseded by Admin → People. Component kept for rollback. */}
+        {false && <AdminMappingCard settings={settings} setSettings={setSettings} onSave={saveSettings} />}
+
 
         {/* Slack channel → account mapping */}
         <SlackChannelAccountMapCard />
