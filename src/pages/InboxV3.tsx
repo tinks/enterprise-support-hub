@@ -825,7 +825,7 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, 
               No rows match the current filters.
             </TableCell></TableRow>
           )}
-          {!loading && rows.map((r) => (
+          {!loading && sorted.map((r) => (
             <TableRow key={r.id} className="cursor-pointer" onClick={() => onSelect(r)}>
               <TableCell><IntercomIdChip id={r.intercom_conversation_id} /></TableCell>
               <TableCell className="max-w-[320px]" onClick={(e) => e.stopPropagation()}>
@@ -915,7 +915,7 @@ function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, acc
               No active tickets match the current filters.
             </TableCell></TableRow>
           )}
-          {!loading && rows.map((r) => {
+          {!loading && sorted.map((r) => {
             const ageDays = r.intercom_created_at
               ? differenceInDays(now, new Date(r.intercom_created_at).getTime())
               : null;
@@ -1002,7 +1002,7 @@ function TransferredTable({ rows, loading, onSelect, accountLabel, onSubjectSave
               No reassigned tickets.
             </TableCell></TableRow>
           )}
-          {!loading && rows.map((r) => {
+          {!loading && sorted.map((r) => {
             // Proxy: we don't yet record inbox-entry time, so measure from conversation creation.
             const inboxS =
               r.transferred_at && r.intercom_created_at
