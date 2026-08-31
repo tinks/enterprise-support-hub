@@ -27,6 +27,7 @@ import Changelog from "./pages/Changelog";
 import SlaWorkbench from "./pages/SlaWorkbench";
 import SlaDashboard from "./pages/SlaDashboard";
 import SlaReport from "./pages/SlaReport";
+import TrendReport from "./pages/TrendReport";
 import { Navigate } from "react-router-dom";
 import Customers from "./pages/Customers";
 import CustomerReport from "./pages/CustomerReport";
@@ -95,6 +96,8 @@ const App = () => (
           <Route path="/changelog" element={<ProtectedRoute><Changelog /></ProtectedRoute>} />
           <Route path="/sla" element={<ProtectedRoute><SlaDashboard /></ProtectedRoute>} />
           <Route path="/sla-report" element={<ProtectedRoute><SlaReport /></ProtectedRoute>} />
+          <Route path="/trend-report" element={<ProtectedRoute><TrendReport /></ProtectedRoute>} />
+
           <Route path="/sla-workbench" element={<ProtectedRoute><SlaWorkbench /></ProtectedRoute>} />
 
           <Route path="/sla-test" element={<Navigate to="/sla" replace />} />

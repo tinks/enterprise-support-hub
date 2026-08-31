@@ -42,6 +42,7 @@ const navEntries: NavEntry[] = [
     items: [
       { to: "/", label: "Analytics", end: true },
       { to: "/analytics-v3", label: "Analytics v3" },
+      { to: "/trend-report", label: "Trend report (v3)" },
       { to: "/insights", label: "Insights" },
       { to: "/sla-report", label: "SLA Report" },
     ],
