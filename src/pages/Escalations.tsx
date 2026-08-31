@@ -50,6 +50,9 @@ type Escalation = {
   linear_state: string | null;
   linear_assignee: string | null;
   linear_synced_at: string | null;
+  /** Last time someone chased Dev about this escalation (Hub-owned). */
+  dev_followed_up_at: string | null;
+  dev_followed_up_by: string | null;
 };
 
 type EscalationRow = {
