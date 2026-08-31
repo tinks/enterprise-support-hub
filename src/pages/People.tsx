@@ -9,6 +9,17 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
@@ -76,6 +87,24 @@ const People = () => {
   const [teammates, setTeammates] = useState<TeammateRow[]>([]);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [confirmBlock, setConfirmBlock] = useState<PersonRow | null>(null);
+
+  const callAccess = async (action: "block" | "unblock", r: PersonRow) => {
+    if (!r.email) return;
+    setSavingKey(r.key);
+    const { data, error } = await supabase.functions.invoke("hub-access-manage", {
+      body: { action, email: r.email },
+    });
+    const errMsg = error?.message ?? (data as any)?.error;
+    if (errMsg) toast.error(`${action} failed: ${errMsg}`);
+    else {
+      toast.success(`${action} complete for ${r.email}`);
+      await load();
+    }
+    setSavingKey(null);
+  };
+
+
 
   const setTeam = async (r: PersonRow, value: string) => {
     const t = r.teammate;
@@ -320,22 +349,47 @@ const People = () => {
                               )}
                             </TableCell>
                             <TableCell className="text-left">
-                              {r.hasAccess ? (
-                                <Badge
-                                  variant={
-                                    r.accessStatus === "active"
-                                      ? "default"
-                                      : r.accessStatus === "blocked"
-                                        ? "destructive"
-                                        : "outline"
-                                  }
-                                >
-                                  {r.accessStatus}
-                                </Badge>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">no login</span>
-                              )}
+                              <div className="flex flex-col items-start gap-1">
+                                {r.hasAccess ? (
+                                  <Badge
+                                    variant={
+                                      r.accessStatus === "active"
+                                        ? "default"
+                                        : r.accessStatus === "blocked"
+                                          ? "destructive"
+                                          : "outline"
+                                    }
+                                  >
+                                    {r.accessStatus}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">no login</span>
+                                )}
+                                {r.email && r.hasAccess && r.accessStatus !== "blocked" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 px-2 text-xs"
+                                    disabled={savingKey === r.key}
+                                    onClick={() => setConfirmBlock(r)}
+                                  >
+                                    Remove access
+                                  </Button>
+                                )}
+                                {r.email && r.accessStatus === "blocked" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 px-2 text-xs"
+                                    disabled={savingKey === r.key}
+                                    onClick={() => callAccess("unblock", r)}
+                                  >
+                                    Unblock
+                                  </Button>
+                                )}
+                              </div>
                             </TableCell>
+
                             <TableCell className="text-left">
                               {r.roles.length ? (
                                 <div className="flex flex-wrap gap-1">
@@ -418,7 +472,33 @@ const People = () => {
           )}
         </div>
       </div>
+
+      <AlertDialog open={!!confirmBlock} onOpenChange={(o) => !o && setConfirmBlock(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove ESH access for {confirmBlock?.email}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Their Hub account is deleted and the roster row is marked blocked. Attribution history
+              and their roster entry are untouched. This can be undone with Unblock, which requires
+              re-provisioning.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const r = confirmBlock!;
+                setConfirmBlock(null);
+                callAccess("block", r);
+              }}
+            >
+              Remove access
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
+
   );
 };
 
