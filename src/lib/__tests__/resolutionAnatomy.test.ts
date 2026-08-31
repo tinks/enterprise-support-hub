@@ -150,3 +150,23 @@ describe("computeEpisodes", () => {
     expect(computeEpisodes({}).episodes).toEqual([]);
   });
 });
+
+describe("closed time", () => {
+  it("does not charge us for the stretch while the ticket was closed", () => {
+    // customer speaks, we close 3 min later without replying, customer reopens 30d on.
+    const raw = conv(
+      [
+        { at: T0 + H, author: ADMIN },
+        { at: T0 + 2 * H, author: CUSTOMER },
+        { at: T0 + 2 * H + 180, author: ADMIN, type: "close", body: "" },
+        { at: T0 + 30 * D, author: CUSTOMER },
+        { at: T0 + 30 * D + H, author: ADMIN },
+      ],
+      { at: T0, author: CUSTOMER },
+    );
+    const a = computeAnatomy(raw, { closedAtSec: T0 + 30 * D + H });
+    expect(a.closedS).toBe(30 * D - 2 * H - 180);
+    expect(a.ourClockS).toBe(H + 180 + H); // open→reply, reply→close, reopen→reply
+    expect(anatomyReconciles(a)).toBe(true);
+  });
+});
