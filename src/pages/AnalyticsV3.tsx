@@ -22,6 +22,8 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Info } from "lucide-react";
 import { median, percentile, formatDuration } from "@/lib/durationStats";
+import { summarizeCsat, useCsatFilters, useCsatOverrides } from "@/lib/csat";
+import { CsatFilterMenu } from "@/components/csat/CsatFilterMenu";
 
 
 type Row = {
@@ -32,6 +34,7 @@ type Row = {
   lifecycle_status: string;
   state: string | null;
   csat_rating: number | null;
+  csat_rater_is_internal: boolean | null;
   time_to_resolve_s: number | null;
   admin_assignee_id: string | null;
   tags: string[] | null;
@@ -86,6 +89,8 @@ export default function AnalyticsV3() {
   const [customFrom, setCustomFrom] = useState<Date | undefined>();
   const [customTo, setCustomTo] = useState<Date | undefined>();
   const [excludeRsaFalse, setExcludeRsaFalse] = useState(false);
+  const [csatFilters, setCsatFilters] = useCsatFilters();
+  const { overrides: csatOverrides } = useCsatOverrides();
   const [rows, setRows] = useState<Row[]>([]);
 
   const [activeRows, setActiveRows] = useState<ActiveRow[]>([]);
@@ -137,7 +142,7 @@ export default function AnalyticsV3() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,intercom_closed_at,finalized_at,lifecycle_status,state,csat_rating,time_to_resolve_s,admin_assignee_id,tags,rsa_override,customer_key,customer_kind")
+            .select("id,intercom_created_at,intercom_closed_at,finalized_at,lifecycle_status,state,csat_rating,csat_rater_is_internal,time_to_resolve_s,admin_assignee_id,tags,rsa_override,customer_key,customer_kind")
             .or(
               `and(intercom_created_at.gte.${fromIso},intercom_created_at.lte.${toIso}),` +
               `and(finalized_at.gte.${fromIso},finalized_at.lte.${toIso})`,
@@ -219,21 +224,23 @@ export default function AnalyticsV3() {
       return t >= fromMs && t <= toMs;
     });
     const total = inRange.length;
-    const ratings = inRange.map((r) => r.csat_rating).filter((v): v is number => typeof v === "number");
-    const avgCsat = ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null;
-    const responseRate = total > 0 ? (ratings.length / total) * 100 : null;
+    // CSAT counts only ratings that survive the shared filters (internal raters,
+    // reasoned overrides). Raw counts stay visible via `csat`.
+    const csat = summarizeCsat(inRange, csatOverrides, csatFilters);
+    const avgCsat = csat.avg;
+    const responseRate = total > 0 ? (csat.n / total) * 100 : null;
     const closeTimes = inRange
       .map((r) => r.time_to_resolve_s)
       .filter((v): v is number => typeof v === "number" && v > 0);
     const avgClose = closeTimes.length ? closeTimes.reduce((a, b) => a + b, 0) / closeTimes.length : null;
     return {
-      total, avgCsat, ratedN: ratings.length, closedDenominator: total, responseRate,
+      total, avgCsat, ratedN: csat.n, csat, closedDenominator: total, responseRate,
       medClose: median(closeTimes), closeN: closeTimes.length,
       avgClose,
       p90Close: closeTimes.length >= 10 ? percentile(closeTimes, 90) : null,
       p90Eligible: closeTimes.length >= 10,
     };
-  }, [filteredRows, range.from, range.to]);
+  }, [filteredRows, range.from, range.to, csatOverrides, csatFilters]);
 
 
   // Active KPIs: snapshot of active backlog right now.
@@ -334,7 +341,11 @@ export default function AnalyticsV3() {
       if (t < fromMs || t > toMs) continue;
       const a = get(r.customer_key ?? "unknown");
       a.closed++;
-      if (typeof r.csat_rating === "number") { a.csatSum += r.csat_rating; a.csatN++; }
+      if (typeof r.csat_rating === "number"
+          && !(csatFilters.excludeInternal && r.csat_rater_is_internal === true)
+          && !(csatFilters.excludeOverridden && csatOverrides.has(r.id))) {
+        a.csatSum += r.csat_rating; a.csatN++;
+      }
       if (typeof r.time_to_resolve_s === "number" && r.time_to_resolve_s > 0) a.resolveTimes.push(r.time_to_resolve_s);
     }
     for (const r of filteredActiveRows) {
@@ -432,6 +443,8 @@ export default function AnalyticsV3() {
               )}
             </label>
 
+            <CsatFilterMenu filters={csatFilters} onChange={setCsatFilters} summary={stats.csat} />
+
           </CardContent>
         </Card>
 
@@ -460,6 +473,11 @@ export default function AnalyticsV3() {
                   {stats.responseRate != null
                     ? `${stats.responseRate.toFixed(0)}% response rate (${stats.ratedN.toLocaleString()} rated / ${stats.closedDenominator.toLocaleString()} closed)`
                     : `n = ${stats.ratedN.toLocaleString()} rated`}
+                  {stats.csat.internalExcluded + stats.csat.overriddenExcluded > 0 && (
+                    <span className="block">
+                      excl. {stats.csat.internalExcluded} internal · {stats.csat.overriddenExcluded} overridden
+                    </span>
+                  )}
                 </span>
               }
               tooltip="CSAT averages can skew toward extremes when response rates are low. Treat anything under ~30% response with caution."
