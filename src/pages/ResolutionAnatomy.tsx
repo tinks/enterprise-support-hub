@@ -583,7 +583,9 @@ export default function ResolutionAnatomy() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">Cohort</CardTitle>
-              <CardDescription className="text-xs">Tickets over {thresholdDays}d</CardDescription>
+              <CardDescription className="text-xs">
+                Tickets over {thresholdDays}d {excludeClosed ? "of active clock" : "of wall clock"}
+              </CardDescription>
             </CardHeader>
             <CardContent className="pt-0 space-y-1 text-sm">
               <Row label="Tickets" value={String(totals.n)} />
@@ -596,6 +598,31 @@ export default function ResolutionAnatomy() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Active clock — closed time removed */}
+        {activeDelta && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Active clock — closed time removed</CardTitle>
+              <CardDescription>
+                A closed stretch before a reopen is elapsed time nobody owed a reply for. Active
+                clock = wall clock − closed. Shown alongside the recorded clock; it replaces no
+                existing metric.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm space-y-1">
+              <Row label={`Median recorded clock (n=${activeDelta.n})`} value={formatDuration(activeDelta.medRecorded)} />
+              <Row label="Median active clock" value={formatDuration(activeDelta.medActive)} />
+              <Row label="Total closed time in cohort" value={`${formatDuration(totals.closed)} (${share(totals.closed)} of elapsed)`} />
+              <Row label="Tickets with any closed time" value={`${activeDelta.withClosed} of ${activeDelta.n}`} />
+              <Row
+                label={`Over ${thresholdDays}d only because of closed time`}
+                value={excludeClosed ? "0 (filtered out)" : String(activeDelta.belowOnActive)}
+              />
+            </CardContent>
+          </Card>
+        )}
+
 
         {/* Month trend */}
         <Card>
