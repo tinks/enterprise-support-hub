@@ -24,6 +24,7 @@ import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
 import { useInitialQ } from "@/hooks/useInitialQ";
 import { useCsatOverrides } from "@/lib/csat";
 import { CsatOverrideDialog } from "@/components/csat/CsatOverrideDialog";
+import { useIntercomTeams } from "@/hooks/useIntercomTeams";
 
 type Ticket = {
   id: string;
@@ -992,6 +993,7 @@ function Field({ label, value, mono }: { label: string; value: string | null; mo
 }
 
 function TransferredTable({ rows, loading, onSelect, accountLabel, onSubjectSaved }: { rows: Ticket[]; loading: boolean; onSubjectSaved: (t: Ticket, next: string | null) => void; onSelect: (t: Ticket) => void; accountLabel: (key: string | null) => string }) {
+  const { teamLabel } = useIntercomTeams();
   const { sorted, sort, toggle } = useTableSort<Ticket>(rows, {
     intercom_id: (r) => r.intercom_conversation_id,
     subject: (r) => displaySubject(r).toLowerCase(),
@@ -1000,7 +1002,7 @@ function TransferredTable({ rows, loading, onSelect, accountLabel, onSubjectSave
       r.transferred_at && r.intercom_created_at
         ? Math.max(0, (new Date(r.transferred_at).getTime() - new Date(r.intercom_created_at).getTime()) / 1000)
         : null,
-    reassigned_to: (r) => r.reassigned_team_id || "",
+    reassigned_to: (r) => (r.reassigned_team_id ? teamLabel(r.reassigned_team_id).toLowerCase() : ""),
     transferred: (r) => (r.transferred_at ? new Date(r.transferred_at).getTime() : null),
   });
   return (
@@ -1046,7 +1048,9 @@ function TransferredTable({ rows, loading, onSelect, accountLabel, onSubjectSave
                   </Badge>
                 </TableCell>
                 <TableCell className="tabular-nums text-xs">{formatDuration(inboxS)}</TableCell>
-                <TableCell className="font-mono text-xs">{r.reassigned_team_id || "—"}</TableCell>
+                <TableCell className="text-xs" title={r.reassigned_team_id || undefined}>
+                  {teamLabel(r.reassigned_team_id)}
+                </TableCell>
                 <TableCell className="text-xs text-muted-foreground">
                   {r.transferred_at ? format(new Date(r.transferred_at), "MMM d, yyyy") : "—"}
                 </TableCell>

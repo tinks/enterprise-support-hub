@@ -922,6 +922,30 @@ export type Database = {
         }
         Relationships: []
       }
+      intercom_teams: {
+        Row: {
+          active: boolean
+          first_seen_at: string
+          last_seen_at: string
+          name: string
+          team_id: string
+        }
+        Insert: {
+          active?: boolean
+          first_seen_at?: string
+          last_seen_at?: string
+          name: string
+          team_id: string
+        }
+        Update: {
+          active?: boolean
+          first_seen_at?: string
+          last_seen_at?: string
+          name?: string
+          team_id?: string
+        }
+        Relationships: []
+      }
       intercom_tickets_v3: {
         Row: {
           admin_assignee_id: string | null
