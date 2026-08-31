@@ -251,16 +251,20 @@ export default function DeepSearch() {
                         <span>{new Date(h.source_updated_at).toLocaleDateString()}</span>
                       )}
                       {intercomId && (
-                        <a
-                          href={`https://app.intercom.com/a/inbox/_/inbox/conversation/${intercomId}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 hover:underline"
-                        >
-                          Intercom <ExternalLink className="h-3 w-3" />
-                        </a>
+                        <>
+                          <span className="font-mono">ID {intercomId}</span>
+                          <a
+                            href={`https://app.intercom.com/a/inbox/_/inbox/conversation/${intercomId}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 hover:underline"
+                          >
+                            Intercom <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </>
                       )}
                     </div>
+
                   </div>
                   {h.snippet && <Snippet text={h.snippet} />}
                 </CardContent>
