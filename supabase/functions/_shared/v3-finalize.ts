@@ -217,7 +217,7 @@ export async function finalizeConversation(params: {
     // Active resolution clock — dormant/closed time excluded. Same rule as the
     // frontend engine (both call `_shared/sla-core.ts`). Recomputed on every
     // finalize, so a real reopen refreshes it.
-    ...activeClockFields(icData, params.roster),
+    ...activeClockFields(icData, params.roster, clockEscalation),
   };
 
   const { data: upserted, error } = await supabase
