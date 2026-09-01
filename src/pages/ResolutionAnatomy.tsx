@@ -46,10 +46,13 @@ type ScalarRow = {
 
 type LongRow = ScalarRow & { anatomy: AnatomyResult };
 
+import { PlanScopeSelect } from "@/components/PlanScopeSelect";
+import { inPlanScope, type PlanScope } from "@/lib/planTier";
+
 const SCALAR_COLS =
   "id,intercom_conversation_id,subject,subject_override,owner,product_area,classification," +
   "customer_key,finalized_at,intercom_created_at,intercom_closed_at,time_to_resolve_s," +
-  "reopen_count_at_finalize,tags,rsa_override,customer_resolution_method";
+  "reopen_count_at_finalize,tags,rsa_override,customer_resolution_method,plan_tier";
 
 
 const ANY = "__any__";
@@ -120,6 +123,7 @@ export default function ResolutionAnatomy() {
   const [excludedCount, setExcludedCount] = useState(0);
   const [testAccountKeys, setTestAccountKeys] = useState<Set<string>>(new Set());
   const [longRows, setLongRows] = useState<LongRow[]>([]);
+  const [planScope, setPlanScope] = useState<PlanScope>("all");
   const [error, setError] = useState<string | null>(null);
   const [reconFailures, setReconFailures] = useState(0);
   const [detail, setDetail] = useState<LongRow | null>(null);
@@ -492,6 +496,10 @@ export default function ResolutionAnatomy() {
 
         <Card>
           <CardContent className="pt-6 flex flex-wrap items-end gap-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Plan</Label>
+              <PlanScopeSelect value={planScope} onChange={setPlanScope} className="w-[200px]" />
+            </div>
             <div className="space-y-1">
               <Label className="text-xs">Months</Label>
               <Select value={String(months)} onValueChange={(v) => setMonths(Number(v))}>

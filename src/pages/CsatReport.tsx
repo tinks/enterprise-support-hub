@@ -24,11 +24,14 @@ import { IntercomIdChip } from "@/components/issues/IssueTable";
 import { SortableHead, useTableSort } from "@/components/issues/useTableSort";
 import { Link } from "react-router-dom";
 
+import { PlanScopeSelect } from "@/components/PlanScopeSelect";
+import { inPlanScope, type PlanScope } from "@/lib/planTier";
+
 const sel = (s: string): string => s;
 const SELECT_COLS = sel(
   "id,intercom_conversation_id,subject,subject_override,csat_rating,csat_remark,csat_rated_at," +
   "csat_rater_name,csat_rater_email,csat_rater_is_internal,contact_name,contact_email," +
-  "customer_key,owner,classification,finalized_at,intercom_created_at",
+  "customer_key,owner,classification,finalized_at,intercom_created_at,plan_tier",
 );
 
 const CSAT_EMOJI: Record<number, string> = { 1: "😠", 2: "🙁", 3: "😐", 4: "😀", 5: "🤩" };
@@ -91,6 +94,8 @@ export default function CsatReport() {
   const [closedInRange, setClosedInRange] = useState<number>(0);
   const [accounts, setAccounts] = useState<AccountOpt[]>([]);
   const [customerFilter, setCustomerFilter] = useState<string>("__any__");
+  // CSAT applies to both plans, so the default scope is All plans.
+  const [planScope, setPlanScope] = useState<PlanScope>("all");
   const [ratingFilter, setRatingFilter] = useState<string>("__any__");
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
@@ -171,6 +176,7 @@ export default function CsatReport() {
 
   const scoped = useMemo(() => {
     let r = rows;
+    if (planScope !== "all") r = r.filter((x) => inPlanScope((x as any).plan_tier, planScope));
     if (customerFilter !== "__any__") r = r.filter((x) => x.customer_key === customerFilter);
     if (ratingFilter !== "__any__") r = r.filter((x) => String(x.csat_rating) === ratingFilter);
     const needle = q.trim().toLowerCase();
@@ -301,6 +307,7 @@ export default function CsatReport() {
               {format(range.from, "MMM d, yyyy")} → {format(range.to, "MMM d, yyyy")}
             </div>
 
+            <PlanScopeSelect value={planScope} onChange={setPlanScope} className="w-[200px] h-9 text-xs" />
             <Select value={customerFilter} onValueChange={setCustomerFilter}>
               <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue placeholder="Customer" /></SelectTrigger>
               <SelectContent>
