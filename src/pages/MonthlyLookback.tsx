@@ -918,13 +918,19 @@ export default function MonthlyLookback() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-5">
               {[
                 { label: "Changelog entries", value: String(changelog.length) },
                 { label: "Escalations opened", value: String(escStats.opened) },
                 { label: "Escalations closed", value: String(escStats.closed) },
                 { label: "Open at month end", value: String(escStats.openAtEnd) },
+                {
+                  label: "Escalated to engineering",
+                  value: `${escToEng.cur} / ${escToEng.closedN}`,
+                  sub: `${pct(escToEng.cur, escToEng.closedN)} of closed · ${prevLabel} ${escToEng.prev}${escToEng.unset ? ` · ${escToEng.unset} unset` : ""}`,
+                },
               ].map((s) => (
+
                 <div key={s.label} className="rounded-lg border p-3">
                   <div className="text-xs text-muted-foreground">{s.label}</div>
                   <div className="text-2xl font-semibold mt-1">{s.value}</div>
