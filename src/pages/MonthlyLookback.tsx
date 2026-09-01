@@ -265,15 +265,33 @@ export default function MonthlyLookback() {
   const prevClosed = useMemo(() => prev.filter((r) => r.finalized_at), [prev]);
   const stillOpen = useMemo(() => cur.filter((r) => !r.finalized_at), [cur]);
 
-  // Sam is the AI agent: it never sees the closure form, so a Sam-owned ticket
-  // missing area/type is not a human closure-rule leak. Counted separately so
-  // the number is visible rather than silently dropped.
+  // Closure-rule leaks check all four Hub-owned Intercom attributes, not just
+  // the two that have dedicated columns. Sam is the AI agent: it never sees the
+  // closure form, so a Sam-owned ticket missing fields is not a human leak.
+  // Counted separately so the number is visible rather than silently dropped.
+  const missingFields = (r: Row): string[] => {
+    const out: string[] = [];
+    if (!attr(r, ATTR_SEVERITY)) out.push("severity");
+    if (!r.product_area) out.push("product area");
+    if (!r.classification) out.push("ticket type");
+    if (!attr(r, ATTR_ESCALATED)) out.push("escalated to engineering");
+    return out;
+  };
   const allGapRows = useMemo(
-    () => curClosed.filter((r) => !r.product_area || !r.classification),
+    () => curClosed.filter((r) => missingFields(r).length > 0),
     [curClosed],
   );
   const gapRows = useMemo(() => allGapRows.filter((r) => r.owner !== "Sam"), [allGapRows]);
   const samGapCount = allGapRows.length - gapRows.length;
+
+  // Escalated-to-engineering cut over closed tickets, this month vs prior.
+  const escToEng = useMemo(() => {
+    const yes = (list: Row[]) => list.filter((r) => attr(r, ATTR_ESCALATED).toLowerCase() === "yes").length;
+    const unset = curClosed.filter((r) => !attr(r, ATTR_ESCALATED)).length;
+    return { cur: yes(curClosed), prev: yes(prevClosed), unset, closedN: curClosed.length };
+  }, [curClosed, prevClosed]);
+
+
 
 
   // Theme mix runs over CLOSED tickets only. Product area and ticket type are
