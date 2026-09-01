@@ -602,6 +602,9 @@ export default function MonthlyLookback() {
               </SelectContent>
             </Select>
             <CsatFilterMenu filters={csatFilters} onChange={setCsatFilters} />
+            <Button variant="outline" size="sm" onClick={copySlack} disabled={loading}>
+              {copiedSlack ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />} Copy Slack summary
+            </Button>
             <Button variant="outline" size="sm" onClick={copyNarrative} disabled={loading}>
               {copied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />} Copy as narrative
             </Button>
