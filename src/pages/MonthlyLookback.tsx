@@ -250,10 +250,16 @@ export default function MonthlyLookback() {
   const prevClosed = useMemo(() => prev.filter((r) => r.finalized_at), [prev]);
   const stillOpen = useMemo(() => cur.filter((r) => !r.finalized_at), [cur]);
 
-  const gapRows = useMemo(
+  // Sam is the AI agent: it never sees the closure form, so a Sam-owned ticket
+  // missing area/type is not a human closure-rule leak. Counted separately so
+  // the number is visible rather than silently dropped.
+  const allGapRows = useMemo(
     () => curClosed.filter((r) => !r.product_area || !r.classification),
     [curClosed],
   );
+  const gapRows = useMemo(() => allGapRows.filter((r) => r.owner !== "Sam"), [allGapRows]);
+  const samGapCount = allGapRows.length - gapRows.length;
+
 
   // Theme mix runs over CLOSED tickets only. Product area and ticket type are
   // set at closure, so an open ticket has no theme yet — mixing them in would
@@ -481,7 +487,7 @@ export default function MonthlyLookback() {
     L.push(`- Dev escalations: ${escStats.opened} opened, ${escStats.closed} closed, ${escStats.openAtEnd} open at month end.`);
     if (notes.shipped) L.push("", notes.shipped);
     L.push("", "## Data quality", "");
-    L.push(`- ${gapRows.length} of ${curClosed.length} closed tickets are missing product area or ticket type (${pct(gapRows.length, curClosed.length)}).`);
+    L.push(`- ${gapRows.length} of ${curClosed.length} closed tickets are missing product area or ticket type (${pct(gapRows.length, curClosed.length)})${samGapCount ? `, excluding ${samGapCount} Sam-owned ticket${samGapCount === 1 ? "" : "s"} that never pass through the closure form` : ""}.`);
     L.push("", "## What to watch", "");
     L.push(notes.watch || "- (add commentary)");
     return L.join("\n");
@@ -860,8 +866,11 @@ export default function MonthlyLookback() {
             <CardDescription>
               Closed tickets from {monthLabel} that are still missing product area or ticket type. Product area and
               ticket type are meant to be required at closure, so each of these is a ticket that closed through a path
-              that skipped the form — clean these rather than caveating the month.
+              that skipped the form — clean these rather than caveating the month. Sam-owned tickets are excluded:
+              the AI agent never sees the closure form
+              {samGapCount ? `, and ${samGapCount} such ticket${samGapCount === 1 ? " is" : "s are"} filtered out this month` : ""}.
             </CardDescription>
+
           </CardHeader>
           <CardContent>
             {gapRows.length === 0 ? (
