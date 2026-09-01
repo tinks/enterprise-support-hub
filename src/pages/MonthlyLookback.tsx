@@ -64,6 +64,11 @@ const SECTIONS = [
 type SectionKey = (typeof SECTIONS)[number]["key"];
 
 const UNSET = "— not set —";
+const PLAN_LABEL: Record<"all" | "enterprise" | "sse", string> = {
+  all: "All plans",
+  enterprise: "Enterprise",
+  sse: "Self-serve Enterprise",
+};
 const intercomUrl = (id: string) => `https://app.intercom.com/a/inbox/_/inbox/conversation/${id}`;
 
 function monthOptions(): { key: string; label: string }[] {
@@ -130,6 +135,7 @@ export default function MonthlyLookback() {
   const { overrides: csatOverrides } = useCsatOverrides();
   const [closedByTicket, setClosedByTicket] = useState<Record<string, number> | null>(null);
   const [activeLoading, setActiveLoading] = useState(false);
+  const [planScope, setPlanScope] = useState<"all" | "enterprise" | "sse">("all");
 
   const monthStart = useMemo(() => startOfMonth(new Date(`${month}-01T00:00:00Z`)), [month]);
   const monthEnd = useMemo(() => endOfMonth(monthStart), [monthStart]);
@@ -219,10 +225,18 @@ export default function MonthlyLookback() {
     return t >= start.getTime() && t <= end.getTime();
   };
 
-  const curAll = useMemo(() => rows.filter((r) => inMonth(r, monthStart, monthEnd)), [rows, monthStart, monthEnd]);
+  // Plan scope: "all" | "enterprise" | "sse". Applied before every other cut,
+  // so headline, themes, spikes, customers, quality and the narrative all run
+  // over the same population.
+  const inPlan = (r: Row) => planScope === "all" || (r.plan_tier || "enterprise") === planScope;
+
+  const curAll = useMemo(
+    () => rows.filter((r) => inMonth(r, monthStart, monthEnd) && inPlan(r)),
+    [rows, monthStart, monthEnd, planScope],
+  );
   const prevAll = useMemo(
-    () => rows.filter((r) => inMonth(r, prevStart, endOfMonth(prevStart))),
-    [rows, prevStart],
+    () => rows.filter((r) => inMonth(r, prevStart, endOfMonth(prevStart)) && inPlan(r)),
+    [rows, prevStart, planScope],
   );
 
   // Reporting population: created in the month, inside the Enterprise support
@@ -429,9 +443,11 @@ export default function MonthlyLookback() {
 
   const narrative = useMemo(() => {
     const L: string[] = [];
-    L.push(`# Enterprise support lookback — ${monthLabel}`);
+    L.push(`# ${PLAN_LABEL[planScope]} support lookback — ${monthLabel}`);
     L.push("");
-    L.push(`**Volume.** ${curAll.length} tickets created (${cur.length} in the Enterprise reporting population after exclusions), vs ${prevAll.length} in ${prevLabel} — ${deltaLabel(curAll.length, prevAll.length)}. ${curClosed.length} closed, ${stillOpen.length} still open at time of writing.`);
+    L.push(`_Plan scope: ${PLAN_LABEL[planScope]}${planScope === "all" ? " (Enterprise + Self-serve Enterprise)" : " inbox only"}._`);
+    L.push("");
+    L.push(`**Volume.** ${curAll.length} tickets created (${cur.length} in the reporting population after exclusions), vs ${prevAll.length} in ${prevLabel} — ${deltaLabel(curAll.length, prevAll.length)}. ${curClosed.length} closed, ${stillOpen.length} still open at time of writing.`);
     if (notes.headline) L.push("", notes.headline);
     L.push("", "## Theme trends", "");
     L.push(`Themes are set at closure, so the mix below is over the ${curClosed.length} closed tickets (${prevLabel}: ${prevClosed.length}).`, "");
@@ -472,7 +488,7 @@ export default function MonthlyLookback() {
   }, [
     monthLabel, prevLabel, curAll.length, prevAll.length, cur.length, curClosed, stillOpen.length,
     areaMix, typeMix, spikes, concentration, planMix, accountRows, quality, activeStats,
-    changelog.length, shippedByArea, escStats, gapRows.length, notes,
+    changelog.length, shippedByArea, escStats, gapRows.length, notes, planScope,
   ]);
 
   const copyNarrative = async () => {
@@ -505,10 +521,20 @@ export default function MonthlyLookback() {
             <p className="text-sm text-muted-foreground mt-1">
               Narrative month review: theme trends, customer cuts, spikes, and what shipped. Built from{" "}
               <code className="text-xs">intercom_tickets_v3</code> with the shared exclusion, CSAT and resolution
-              engines, so it cannot drift from Analytics v3. Data floor: {CLEAN_DATA_START_LABEL}.
+              engines, so it cannot drift from Analytics v3. Data floor: {CLEAN_DATA_START_LABEL}. Plan scope:{" "}
+              <span className="font-medium text-foreground">{PLAN_LABEL[planScope]}</span> — every section below and the
+              copy-out follow it.
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Select value={planScope} onValueChange={(v) => setPlanScope(v as typeof planScope)}>
+              <SelectTrigger className="w-[220px] h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All plans</SelectItem>
+                <SelectItem value="enterprise">Enterprise inbox</SelectItem>
+                <SelectItem value="sse">Self-serve Enterprise inbox</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={month} onValueChange={setMonth}>
               <SelectTrigger className="w-[180px] h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
