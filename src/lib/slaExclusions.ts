@@ -12,6 +12,8 @@ export type SlaExclusionRow = {
   rsa_override: boolean | null;
   customer_resolution_method: string | null;
   customer_key?: string | null;
+  /** Hub-only per-ticket test designation (intercom_tickets_v3.is_test_ticket). */
+  is_test_ticket?: boolean | null;
 };
 
 export type SlaExclusionOpts = {
@@ -46,7 +48,9 @@ export function isSlaExcluded(row: SlaExclusionRow, opts?: SlaExclusionOpts): bo
   const tags = Array.isArray(row.tags) ? row.tags : [];
   const hasTag = (t: string) => tags.includes(t);
 
-  const isTest = !!(row.customer_key && opts?.testAccountKeys?.has(row.customer_key));
+  const isTest =
+    row.is_test_ticket === true ||
+    !!(row.customer_key && opts?.testAccountKeys?.has(row.customer_key));
   if (isTest && !opts?.showTestData) return true;
 
   return (

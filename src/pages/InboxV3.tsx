@@ -151,6 +151,7 @@ export default function InboxV3() {
   const [overrideDraft, setOverrideDraft] = useState<string>("");
   const [overrideReason, setOverrideReason] = useState<string>("");
   const [savingOverride, setSavingOverride] = useState(false);
+  const [savingTest, setSavingTest] = useState(false);
 
   useEffect(() => {
     setOverrideDraft(selected?.customer_override_key ?? "");
@@ -317,6 +318,32 @@ export default function InboxV3() {
       setSelected(fresh as Ticket);
     }
     toast({ title: "Reset to auto-derived" });
+  };
+
+  const toggleTestTicket = async (t: Ticket) => {
+    const next = !(t as any).is_test_ticket;
+    setSavingTest(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    const { error } = await supabase
+      .from("intercom_tickets_v3")
+      .update({
+        is_test_ticket: next,
+        test_marked_by: next ? (session?.user?.id ?? null) : null,
+        test_marked_at: next ? new Date().toISOString() : null,
+      })
+      .eq("id", t.id);
+    setSavingTest(false);
+    if (error) {
+      toast({ title: "Couldn't update test flag", description: error.message, variant: "destructive" });
+      return;
+    }
+    const apply = (rows: Ticket[]) =>
+      rows.map((r) => (r.id === t.id ? ({ ...r, is_test_ticket: next } as Ticket) : r));
+    setFinalizedRows(apply);
+    setActiveRows(apply);
+    setTransferredRows(apply);
+    setSelected((cur) => (cur && cur.id === t.id ? ({ ...cur, is_test_ticket: next } as Ticket) : cur));
+    toast({ title: next ? "Marked as test ticket" : "Test flag cleared" });
   };
 
   const patchSubject = (t: Ticket, next: string | null) => {
@@ -579,6 +606,24 @@ export default function InboxV3() {
                   label="Plan"
                   value={planTierOf(selected.plan_tier) === "sse" ? "Self-serve Enterprise (no first-response SLA, 1h triage)" : "Enterprise"}
                 />
+                <div className="grid grid-cols-[140px_1fr] gap-3 items-center">
+                  <dt className="text-xs text-muted-foreground">Test ticket</dt>
+                  <dd className="text-sm flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant={(selected as any).is_test_ticket ? "default" : "outline"}
+                      className="h-7 px-2 text-xs"
+                      disabled={savingTest}
+                      onClick={() => toggleTestTicket(selected)}
+                    >
+                      {(selected as any).is_test_ticket ? "Marked as test" : "Mark as test"}
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                      Hub-only. Hidden from reporting and Action Center unless "Show test data" is on.
+                    </span>
+                  </dd>
+                </div>
+
                 <div className="grid grid-cols-[140px_1fr] gap-3 items-start">
                   <dt className="text-xs text-muted-foreground">Severity AI</dt>
                   <dd>
