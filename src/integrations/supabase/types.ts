@@ -385,6 +385,30 @@ export type Database = {
         }
         Relationships: []
       }
+      esh_lookback_notes: {
+        Row: {
+          month: string
+          note_text: string
+          section_key: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          month: string
+          note_text?: string
+          section_key: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          month?: string
+          note_text?: string
+          section_key?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       esh_search_index: {
         Row: {
           body: string | null
