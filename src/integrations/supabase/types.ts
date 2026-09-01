@@ -1021,6 +1021,9 @@ export type Database = {
           resolution_active_bh_s: number | null
           resolution_active_s: number | null
           resolution_closed_s: number | null
+          resolution_customer_wait_bh_s: number | null
+          resolution_customer_wait_s: number | null
+          resolution_window_s: number | null
           rsa_override: boolean | null
           silent_update_count: number
           sla_clock_start_at: string | null
@@ -1091,6 +1094,9 @@ export type Database = {
           resolution_active_bh_s?: number | null
           resolution_active_s?: number | null
           resolution_closed_s?: number | null
+          resolution_customer_wait_bh_s?: number | null
+          resolution_customer_wait_s?: number | null
+          resolution_window_s?: number | null
           rsa_override?: boolean | null
           silent_update_count?: number
           sla_clock_start_at?: string | null
@@ -1161,6 +1167,9 @@ export type Database = {
           resolution_active_bh_s?: number | null
           resolution_active_s?: number | null
           resolution_closed_s?: number | null
+          resolution_customer_wait_bh_s?: number | null
+          resolution_customer_wait_s?: number | null
+          resolution_window_s?: number | null
           rsa_override?: boolean | null
           silent_update_count?: number
           sla_clock_start_at?: string | null
