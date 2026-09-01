@@ -146,7 +146,7 @@ const OwnerDashboardV3 = () => {
         width: "w-[110px]",
         cellClassName: "text-xs",
         sortValue: (r) => planTierOf((r as any).plan_tier),
-        cell: (r) => <PlanBadge tier={(r as any).plan_tier} />,
+        cell: (r) => <PlanBadge value={(r as any).plan_tier} />,
       },
     ],
     [accountLabel],
