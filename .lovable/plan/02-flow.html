@@ -1,0 +1,49 @@
+<svg viewBox="0 0 640 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Escalation flow before and after removing ticket conversion">
+  <style>
+    text { font-family: var(--font-sans); fill: hsl(var(--foreground)); }
+    .lbl { font-size: 14px; font-weight: 480; }
+    .sm { font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .box { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .zone { fill: none; stroke: hsl(var(--border)); stroke-width: 1; stroke-dasharray: 4 3; }
+    .wire { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; marker-end: url(#chev); }
+    .gone { stroke: hsl(var(--border)); stroke-width: 1; fill: none; stroke-dasharray: 4 3; }
+    .acc { fill: none; stroke: hsl(var(--accent)); stroke-width: 1; }
+  </style>
+  <defs>
+    <marker id="chev" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M1 1 L6 4 L1 7" fill="none" stroke="hsl(var(--muted-foreground))" stroke-width="1"/>
+    </marker>
+  </defs>
+
+  <text class="sm" x="8" y="18">today</text>
+  <rect class="zone" x="4" y="26" width="632" height="104" rx="8"/>
+  <rect class="box" x="20" y="52" width="120" height="46" rx="8"/>
+  <text class="lbl" x="80" y="80" text-anchor="middle">Conversation</text>
+  <line class="wire" x1="140" y1="75" x2="196" y2="75"/>
+  <rect class="box" x="200" y="52" width="130" height="46" rx="8"/>
+  <text class="lbl" x="265" y="72" text-anchor="middle">Escalate</text>
+  <text class="sm" x="265" y="88" text-anchor="middle">reassign to inbox</text>
+  <line class="wire" x1="330" y1="75" x2="386" y2="75"/>
+  <rect class="box" x="390" y="52" width="120" height="46" rx="8"/>
+  <text class="lbl" x="450" y="72" text-anchor="middle">convert</text>
+  <text class="sm" x="450" y="88" text-anchor="middle">ticket_type_id 1</text>
+  <line class="wire" x1="510" y1="75" x2="556" y2="75"/>
+  <rect class="box" x="560" y="52" width="60" height="46" rx="8"/>
+  <text class="lbl" x="590" y="80" text-anchor="middle">Ticket</text>
+
+  <text class="sm" x="8" y="176">after</text>
+  <rect class="zone" x="4" y="184" width="632" height="104" rx="8"/>
+  <rect class="box" x="20" y="210" width="120" height="46" rx="8"/>
+  <text class="lbl" x="80" y="238" text-anchor="middle">Conversation</text>
+  <line class="wire" x1="140" y1="233" x2="196" y2="233"/>
+  <rect class="acc" x="200" y="210" width="130" height="46" rx="8"/>
+  <text class="lbl" x="265" y="230" text-anchor="middle">Escalate</text>
+  <text class="sm" x="265" y="246" text-anchor="middle">reassign to inbox</text>
+  <line class="gone" x1="330" y1="233" x2="386" y2="233"/>
+  <rect class="zone" x="390" y="210" width="120" height="46" rx="8"/>
+  <text class="sm" x="450" y="230" text-anchor="middle">convert removed</text>
+  <text class="sm" x="450" y="246" text-anchor="middle">3 call sites</text>
+  <line class="gone" x1="510" y1="233" x2="556" y2="233"/>
+  <rect class="zone" x="560" y="210" width="60" height="46" rx="8"/>
+  <text class="sm" x="590" y="238" text-anchor="middle">never</text>
+</svg>
