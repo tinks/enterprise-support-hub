@@ -20,6 +20,8 @@ import {
 } from "@/lib/slaMetrics";
 
 import { rowClosedAtMs } from "@/lib/slaWindow";
+import { PlanScopeSelect } from "@/components/PlanScopeSelect";
+import { PLAN_LABEL, inPlanScope, type PlanScope } from "@/lib/planTier";
 
 // ---------------------------------------------------------------------------
 // READ-ONLY Monthly SLA Report. This is a DATA-BACKED PROPOSAL: the targets in
@@ -106,6 +108,9 @@ function pctText(p: number | null) {
 
 export default function SlaReport() {
   const [showTestData, setShowTestData] = useState(false);
+  // SSE carries NO first-response commitment, so mixing it into compliance rates
+  // understates them. The SLA surfaces therefore default to Enterprise only.
+  const [planScope, setPlanScope] = useState<PlanScope>("enterprise");
   const now = new Date();
   const months = useMemo(() => monthOptions(now), [now.getFullYear(), now.getMonth()]);
   const [month, setMonth] = useState(months[0].value);
@@ -119,10 +124,11 @@ export default function SlaReport() {
     return t != null && t >= start && t < end;
   };
 
-  const population = useMemo(() => inScope.filter(inMonth), [inScope, start, end]);
-  const monthExcluded = useMemo(() => excluded.filter(inMonth), [excluded, start, end]);
-  const monthNoCustomer = useMemo(() => noCustomer.filter(inMonth), [noCustomer, start, end]);
-  const monthManual = useMemo(() => manuallyLogged.filter(inMonth), [manuallyLogged, start, end]);
+  const inPlan = <T extends { plan_tier?: string | null }>(r: T) => inPlanScope(r.plan_tier, planScope);
+  const population = useMemo(() => inScope.filter((r) => inMonth(r) && inPlan(r)), [inScope, start, end, planScope]);
+  const monthExcluded = useMemo(() => excluded.filter((r) => inMonth(r) && inPlan(r)), [excluded, start, end, planScope]);
+  const monthNoCustomer = useMemo(() => noCustomer.filter((r) => inMonth(r) && inPlan(r)), [noCustomer, start, end, planScope]);
+  const monthManual = useMemo(() => manuallyLogged.filter((r) => inMonth(r) && inPlan(r)), [manuallyLogged, start, end, planScope]);
 
   // Severity split — unclassified rows stay in the population but cannot be scored.
   const { bySev, unclassified, scored } = useMemo(() => {
@@ -254,10 +260,12 @@ export default function SlaReport() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Monthly SLA Report</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Read-only. Population = all Enterprise tickets finalized in the selected month (no owner filter).
+              Read-only. Population = all tickets finalized in the selected month (no owner filter). Plan scope:{" "}
+              <span className="font-medium text-foreground">{PLAN_LABEL[planScope]}</span>.
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <PlanScopeSelect value={planScope} onChange={setPlanScope} className="w-[220px] h-10" />
             <Select value={month} onValueChange={setMonth}>
               <SelectTrigger className="w-[190px]"><SelectValue /></SelectTrigger>
               <SelectContent>
