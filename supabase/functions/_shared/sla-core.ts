@@ -446,28 +446,33 @@ export function computeClosedDormant(
   return total;
 }
 
+/** A half-open [startS, endS) stretch where the ball was NOT with us. */
+export type WaitSegment = { startS: number; endS: number };
+
 /**
- * Waiting-on-customer seconds inside the resolution window — the exact mirror
- * of `computeResolutionActive`: it accumulates the stretches where the ball is
- * NOT with us AND the ticket is NOT closed. Same actor rules, same window, so
- * active + closed + customer_wait == window by construction.
+ * The waiting-on-customer stretches inside the resolution window — the exact
+ * mirror of `computeResolutionActive`: the ball is NOT with us AND the ticket
+ * is NOT closed. Same actor rules, same window, so
+ * active + closed + wait == window by construction.
+ *
+ * Returned as segments (rather than a sum) so the engineering-wait bucket can
+ * be carved out of exactly this time and never out of active or closed time.
  */
-export function computeCustomerWait(
+export function customerWaitSegments(
   timeline: TimelinePart[],
   slaClockStartS: number | null,
   closeAtS: number | null,
-  clip: (a: number, b: number) => number,
-): number | null {
+): WaitSegment[] | null {
   if (slaClockStartS == null || closeAtS == null) return null;
-  if (closeAtS < slaClockStartS) return 0;
-  let total = 0;
+  if (closeAtS < slaClockStartS) return [];
+  const segments: WaitSegment[] = [];
   // State at the clock start: ball with us, ticket open.
   let ballWithUs = true;
   let closed = false;
   let segStart: number | null = null; // start of the current waiting-on-customer stretch
   const endWait = (at: number) => {
     if (segStart != null) {
-      total += clip(segStart, at);
+      if (at > segStart) segments.push({ startS: segStart, endS: at });
       segStart = null;
     }
   };
@@ -497,6 +502,126 @@ export function computeCustomerWait(
     }
   }
   if (!ballWithUs && !closed) endWait(closeAtS);
+  return segments;
+}
+
+/** Total waiting-on-customer seconds (engineering wait NOT yet carved out). */
+export function computeCustomerWait(
+  timeline: TimelinePart[],
+  slaClockStartS: number | null,
+  closeAtS: number | null,
+  clip: (a: number, b: number) => number,
+): number | null {
+  const segs = customerWaitSegments(timeline, slaClockStartS, closeAtS);
+  if (segs == null) return null;
+  let total = 0;
+  for (const s of segs) total += clip(s.startS, s.endS);
+  return total;
+}
+
+// ============================================================================
+// Engineering wait — "looks like waiting on the customer, is actually on us"
+// ============================================================================
+
+/** Intercom custom attributes that carry the Linear reference. */
+export const LINEAR_ATTRIBUTE_NAMES: ReadonlySet<string> = new Set([
+  "Escalated Issue",
+  "Linear Issue",
+]);
+
+export type EngWaitSource = "attribute_event" | "dev_escalation_row" | "linear_created";
+
+/** Escalation facts that live outside the Intercom payload (Linear / Hub board). */
+export type EngEscalation = {
+  /** dev_escalations.created_at (seconds) — when the Hub first saw the escalation. */
+  escalationRowAtS?: number | null;
+  linearCreatedAtS?: number | null;
+  linearCompletedAtS?: number | null;
+  linearCanceledAtS?: number | null;
+};
+
+/**
+ * Earliest moment the ticket carried a Linear reference, read from the
+ * timestamped `conversation_attribute_updated_by_admin` parts in the payload.
+ */
+export function findLinearAttributeTs(timeline: TimelinePart[]): number | null {
+  let best: number | null = null;
+  for (const p of timeline) {
+    if (p.partType !== "conversation_attribute_updated_by_admin") continue;
+    const name = String(p.eventDetails?.attribute?.name ?? "");
+    if (!LINEAR_ATTRIBUTE_NAMES.has(name)) continue;
+    const value = String(p.eventDetails?.value?.name ?? "").trim();
+    if (!value) continue; // clearing the attribute does not open a window
+    if (best == null || p.ts < best) best = p.ts;
+  }
+  return best;
+}
+
+export type EngWaitWindow = {
+  startS: number | null;
+  endS: number | null;
+  source: EngWaitSource | null;
+};
+
+/**
+ * Resolve the engineering-wait window: from the first evidence the ticket was
+ * handed to engineering, until the Linear issue was completed/canceled (else
+ * the ticket close). Clamped into the resolution window.
+ */
+export function resolveEngWaitWindow(
+  timeline: TimelinePart[],
+  slaClockStartS: number | null,
+  closeAtS: number | null,
+  esc?: EngEscalation | null,
+): EngWaitWindow {
+  const none: EngWaitWindow = { startS: null, endS: null, source: null };
+  if (slaClockStartS == null || closeAtS == null) return none;
+
+  const attrTs = findLinearAttributeTs(timeline);
+  let startS: number | null = null;
+  let source: EngWaitSource | null = null;
+  if (attrTs != null) {
+    startS = attrTs;
+    source = "attribute_event";
+  } else if (esc?.escalationRowAtS != null) {
+    startS = esc.escalationRowAtS;
+    source = "dev_escalation_row";
+  } else if (esc?.linearCreatedAtS != null) {
+    startS = esc.linearCreatedAtS;
+    source = "linear_created";
+  }
+  if (startS == null) return none;
+
+  const done = [esc?.linearCompletedAtS, esc?.linearCanceledAtS].filter(
+    (v): v is number => typeof v === "number",
+  );
+  const linearDoneS = done.length ? Math.min(...done) : null;
+  let endS = linearDoneS != null ? Math.min(linearDoneS, closeAtS) : closeAtS;
+
+  startS = Math.max(startS, slaClockStartS);
+  if (startS > closeAtS) return none; // reference attached after the ticket closed
+  if (endS < startS) endS = startS;
+  return { startS, endS, source };
+}
+
+/**
+ * Engineering-wait seconds = the intersection of the engineering-wait window
+ * with the waiting-on-customer segments. Active and closed time are never
+ * reclassified.
+ */
+export function computeEngineeringWait(
+  segments: WaitSegment[] | null,
+  window: EngWaitWindow,
+  clip: (a: number, b: number) => number,
+): number | null {
+  if (segments == null) return null;
+  if (window.startS == null || window.endS == null) return 0;
+  let total = 0;
+  for (const s of segments) {
+    const a = Math.max(s.startS, window.startS);
+    const b = Math.min(s.endS, window.endS);
+    if (b > a) total += clip(a, b);
+  }
   return total;
 }
 
