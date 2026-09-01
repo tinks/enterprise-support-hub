@@ -963,24 +963,24 @@ export default function MonthlyLookback() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Closure-rule leaks</CardTitle>
             <CardDescription>
-              Closed tickets from {monthLabel} that are still missing product area or ticket type. Product area and
-              ticket type are meant to be required at closure, so each of these is a ticket that closed through a path
-              that skipped the form — clean these rather than caveating the month. Sam-owned tickets are excluded:
-              the AI agent never sees the closure form
+              Closed tickets from {monthLabel} missing any of the four Intercom attributes the Hub owns: severity,
+              affected product area, ticket type, escalated to engineering. These are meant to be set at closure, so
+              each of these closed through a path that skipped the form — clean these rather than caveating the month.
+              Sam-owned tickets are excluded: the AI agent never sees the closure form
               {samGapCount ? `, and ${samGapCount} such ticket${samGapCount === 1 ? " is" : "s are"} filtered out this month` : ""}.
             </CardDescription>
 
           </CardHeader>
           <CardContent>
             {gapRows.length === 0 ? (
-              <div className="text-sm text-muted-foreground">Every closed ticket in {monthLabel} carries both fields.</div>
+              <div className="text-sm text-muted-foreground">Every closed ticket in {monthLabel} carries all four fields.</div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Subject</TableHead>
                     <TableHead className="w-[170px]">Intercom</TableHead>
-                    <TableHead className="w-[180px]">Missing</TableHead>
+                    <TableHead className="w-[260px]">Missing</TableHead>
                     <TableHead className="w-[140px]">Owner</TableHead>
                     <TableHead className="w-[150px]">Closed</TableHead>
                   </TableRow>
@@ -999,9 +999,8 @@ export default function MonthlyLookback() {
                           {r.intercom_conversation_id} <ExternalLink className="h-3 w-3" />
                         </a>
                       </TableCell>
-                      <TableCell className="text-sm">
-                        {[!r.product_area && "product area", !r.classification && "ticket type"].filter(Boolean).join(" + ")}
-                      </TableCell>
+                      <TableCell className="text-sm">{missingFields(r).join(" + ")}</TableCell>
+
                       <TableCell className="text-sm text-muted-foreground">{r.owner || "—"}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {r.finalized_at ? format(new Date(r.finalized_at), "MMM d, HH:mm") : "—"}
