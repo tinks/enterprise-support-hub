@@ -1198,6 +1198,21 @@ A second commercial tier ships alongside standard Enterprise: **self-serve enter
 
 **UNVERIFIED:** no SSE inbox id is configured yet and no SSE ticket exists, so the ingest path, the `sse` policy resolution and the SSE triage band have **not** been exercised against real data — only unit-tested and type-checked (118 SLA tests green).
 
+
+#### SSE as a first-class cut across find / report / watch (1 Sep 2026)
+
+The SSE inbox is now configured (`11433093`) and carrying tickets, so plan tier stops being an ingest detail and becomes a visible dimension everywhere.
+
+**Shared primitives.** `src/lib/planTier.ts` (`PlanTier`, `PlanScope`, `PLAN_LABEL`, `planTierOf`, `inPlanScope`) and `src/components/PlanScopeSelect.tsx` (`PlanScopeSelect` selector, `PlanBadge` pill). Every surface below uses these — no page normalizes `plan_tier` on its own.
+
+**Find.** Inbox v3 gains a `Plan` filter, a sortable `Plan` column on both the Active and Finalized tables, and a Plan field in the detail sheet (SSE reads *"no first-response SLA, 1h triage"*). Owner dashboards v3 carry the same sortable `Plan` column.
+
+**Report.** Plan scope selectors: Monthly Lookback, Monthly SLA Report, SLA Workbench and SLA Dashboard default to **Enterprise**; CSAT Report, Trend Report, Analytics v3 and Resolution Anatomy default to **All plans** (those metrics are plan-neutral). Under the SSE scope the Monthly SLA Report **hides** §2 headline, §3a/§3b by-severity and §4 breaches behind an explicit banner rather than reporting 0% — a target that does not exist can be neither met nor breached; §2b triage, §3c cadence, §5 source mix and §6 data quality still render.
+
+**Watch.** `src/lib/actionSignals.ts` drops the blanket `SUPPRESS_SSE` flag. Queue signals (`untriaged`, `unassigned_tickets`) now cover **every** plan. SLA-risk signals (`first_response_risk`) stay Enterprise-only via `enterpriseOnly()`, because SSE has no FR commitment. New signal **`sse_triage_risk`** ("SSE triage past 1h", family `sla`, route `/triage`): SSE tickets still open with no Severity more than 3600 s after `intercom_created_at`, listing the offending Intercom ids.
+
+**UNVERIFIED:** 3 SSE tickets exist at time of writing, so the SSE-scoped report panels and `sse_triage_risk`'s non-zero path have not been exercised at volume; type-check green, no runtime check of the non-zero triage-risk branch.
+
 ### Compliance evaluation — policy targets (DATA), `parseSeverity`, `evaluateCompliance`
 
 **Targets are no longer hardcoded.** Since the SLA-policy-config build (see *"SLA policy config — admin-editable, effective-dated targets"* below), every SLA target and the business-hours calendar live in `sla_policy_versions` / `sla_policy_targets` and are resolved **per ticket** by its inbound anchor. `SLA_TARGETS`, `CADENCE_TARGETS`, `TRIAGE_TARGET_S` and `DEFAULT_BUSINESS_HOURS` in `src/lib/slaMetrics.ts` are **retained as the built-in fallback/default only** — used when the config fails to load, is empty, or a ticket predates every version, and always with a loud `PolicyFallbackBanner`.
