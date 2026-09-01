@@ -2114,8 +2114,24 @@ Product area and ticket type are set at **closure**, so `buildMix` runs over clo
 
 `public.esh_lookback_notes` stores one commentary row per `(month, section)`. Reads open to authenticated; writes gated by `can_edit()`, matching `sla_violation_overrides`.
 
+### Closure-rule leaks check all four Hub-owned attributes
+
+The Hub owns exactly four Intercom custom attributes: **Severity**, **Affected Product Area**, **Ticket type**, **Escalated to Engineering**. Area and type also land on dedicated columns (`product_area`, `classification`); severity and the escalation flag live only in `custom_attributes`. `missingFields(row)` checks all four and the leak table prints which ones are blank per ticket, so a leak is actionable rather than a bare count.
+
+The bot-written `Product Area` / `Type` attributes seen on some conversations belong to a **different taxonomy owned elsewhere** — they are deliberately never read from and never backfilled into the Hub fields, because the vocabularies do not map.
+
+Sam-owned tickets are excluded from the leak list (the AI agent never sees the closure form) and counted separately as `samGapCount`, so the exclusion is visible rather than silent.
+
+### Escalated to Engineering cut
+
+A stat card in "Shipped and process" reports, over closed tickets: Yes count, share of closed, prior-month comparison, and how many closed with the flag unset. It is part of the narrative export.
+
+### Plan scope and Slack summary
+
+A global **All / Enterprise / SSE** selector scopes every derivation on the page and both exports, so an Enterprise review never mixes in Self-Serve Enterprise tickets. "Copy Slack summary" emits an mrkdwn digest — key metrics with MoM arrows, top 3 areas / types / customers, up to 5 recent changelog entries — under the same plan scope and CSAT integrity filters as the page.
+
 ### Active clock is opt-in
 
 The active clock (wall clock minus closed time) needs `raw_payload`, so it is **not** loaded by default. A "Load active clock" button batch-fetches payloads and runs `computeAnatomy` from `src/lib/resolutionAnatomy.ts` only when asked; the default page load stays scalar-only.
 
-**Verified 1 Sep 2026** (August, ultrawide viewport): 242 created / 181 population / 146 closed / 35 open / 94% categorised; theme mix renders over 146 closed against 138 in July with no `— not set —` inflation; median resolve 82.8h vs 91.4h, P90 265.9h vs 446.7h, reopens 13% vs 20%, CSAT 4.47 (n=17). The 9 closed tickets missing area or type were bulk-closed through an automated path that bypasses the mandatory closure form. **UNVERIFIED:** per-section note saving and the copy-out under a read-only role.
+**Verified 1 Sep 2026** (August, ultrawide viewport): 242 created / 181 population / 146 closed / 35 open / 94% categorised; theme mix renders over 146 closed against 138 in July with no `— not set —` inflation; median resolve 82.8h vs 91.4h, P90 265.9h vs 446.7h, reopens 13% vs 20%, CSAT 4.47 (n=17). Four-field coverage over the 197 finalized August tickets: Severity 193, Affected Product Area 190, Ticket type 190, Escalated to Engineering 186 (154 No / 32 Yes / 11 unset). The closed tickets missing area or type were bulk-closed through an automated path that bypasses the mandatory closure form. **UNVERIFIED:** per-section note saving and the copy-out under a read-only role; the Slack summary and the plan-scope switch have not been re-verified since the four-field leak change.
