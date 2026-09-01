@@ -49,7 +49,10 @@ function extractKey(raw: string | null | undefined): string | null {
 
 const ISSUE_QUERY = `query($team:String!,$num:Float!){
   issues(filter:{team:{key:{eq:$team}}, number:{eq:$num}}, first:1){
-    nodes{ identifier title url state{name type} assignee{name} }
+    nodes{
+      identifier title url state{name type} assignee{name}
+      createdAt startedAt completedAt canceledAt
+    }
   }
 }`;
 
@@ -107,7 +110,16 @@ Deno.serve(async (req) => {
   const uniqueKeys = Array.from(new Set(capped.map((p) => p.key)));
 
   // 2. Fetch each distinct key from Linear once.
-  const found = new Map<string, { title: string; state: string; assignee: string | null }>();
+  const found = new Map<string, {
+    title: string;
+    state: string;
+    stateType: string | null;
+    assignee: string | null;
+    createdAt: string | null;
+    startedAt: string | null;
+    completedAt: string | null;
+    canceledAt: string | null;
+  }>();
   const notFound: string[] = [];
   let gatewayError: string | null = null;
 
@@ -150,7 +162,12 @@ Deno.serve(async (req) => {
     found.set(key, {
       title: node.title ?? "",
       state: node.state?.name ?? "",
+      stateType: node.state?.type ?? null,
       assignee: node.assignee?.name ?? null,
+      createdAt: node.createdAt ?? null,
+      startedAt: node.startedAt ?? null,
+      completedAt: node.completedAt ?? null,
+      canceledAt: node.canceledAt ?? null,
     });
   }
 
@@ -171,6 +188,12 @@ Deno.serve(async (req) => {
         linear_title: issue.title,
         linear_state: issue.state,
         linear_assignee: issue.assignee,
+        linear_state_type: issue.stateType,
+        // Timestamps feed the engineering-wait clock (Engine v3).
+        linear_created_at: issue.createdAt,
+        linear_started_at: issue.startedAt,
+        linear_completed_at: issue.completedAt,
+        linear_canceled_at: issue.canceledAt,
         linear_synced_at: nowIso,
       };
     });
