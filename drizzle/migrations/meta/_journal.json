@@ -183,6 +183,13 @@
       "when": 1788298603091,
       "tag": "0025_add_customer_wait_clock_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1788303452862,
+      "tag": "0026_eng_wait_clock_columns",
+      "breakpoints": true
     }
   ]
 }

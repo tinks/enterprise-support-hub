@@ -284,8 +284,13 @@ export type Database = {
           id: string
           intercom_conversation_id: string
           linear_assignee: string | null
+          linear_canceled_at: string | null
+          linear_completed_at: string | null
+          linear_created_at: string | null
           linear_key: string | null
+          linear_started_at: string | null
           linear_state: string | null
+          linear_state_type: string | null
           linear_synced_at: string | null
           linear_title: string | null
           linear_url_override: string | null
@@ -304,8 +309,13 @@ export type Database = {
           id?: string
           intercom_conversation_id: string
           linear_assignee?: string | null
+          linear_canceled_at?: string | null
+          linear_completed_at?: string | null
+          linear_created_at?: string | null
           linear_key?: string | null
+          linear_started_at?: string | null
           linear_state?: string | null
+          linear_state_type?: string | null
           linear_synced_at?: string | null
           linear_title?: string | null
           linear_url_override?: string | null
@@ -324,8 +334,13 @@ export type Database = {
           id?: string
           intercom_conversation_id?: string
           linear_assignee?: string | null
+          linear_canceled_at?: string | null
+          linear_completed_at?: string | null
+          linear_created_at?: string | null
           linear_key?: string | null
+          linear_started_at?: string | null
           linear_state?: string | null
+          linear_state_type?: string | null
           linear_synced_at?: string | null
           linear_title?: string | null
           linear_url_override?: string | null
@@ -998,6 +1013,9 @@ export type Database = {
           customer_override_reason: string | null
           customer_resolution_method: string | null
           customer_source: string | null
+          eng_wait_end_at: string | null
+          eng_wait_source: string | null
+          eng_wait_start_at: string | null
           finalized_at: string | null
           id: string
           intercom_closed_at: string | null
@@ -1023,6 +1041,8 @@ export type Database = {
           resolution_closed_s: number | null
           resolution_customer_wait_bh_s: number | null
           resolution_customer_wait_s: number | null
+          resolution_eng_wait_bh_s: number | null
+          resolution_eng_wait_s: number | null
           resolution_window_s: number | null
           rsa_override: boolean | null
           silent_update_count: number
@@ -1071,6 +1091,9 @@ export type Database = {
           customer_override_reason?: string | null
           customer_resolution_method?: string | null
           customer_source?: string | null
+          eng_wait_end_at?: string | null
+          eng_wait_source?: string | null
+          eng_wait_start_at?: string | null
           finalized_at?: string | null
           id?: string
           intercom_closed_at?: string | null
@@ -1096,6 +1119,8 @@ export type Database = {
           resolution_closed_s?: number | null
           resolution_customer_wait_bh_s?: number | null
           resolution_customer_wait_s?: number | null
+          resolution_eng_wait_bh_s?: number | null
+          resolution_eng_wait_s?: number | null
           resolution_window_s?: number | null
           rsa_override?: boolean | null
           silent_update_count?: number
@@ -1144,6 +1169,9 @@ export type Database = {
           customer_override_reason?: string | null
           customer_resolution_method?: string | null
           customer_source?: string | null
+          eng_wait_end_at?: string | null
+          eng_wait_source?: string | null
+          eng_wait_start_at?: string | null
           finalized_at?: string | null
           id?: string
           intercom_closed_at?: string | null
@@ -1169,6 +1197,8 @@ export type Database = {
           resolution_closed_s?: number | null
           resolution_customer_wait_bh_s?: number | null
           resolution_customer_wait_s?: number | null
+          resolution_eng_wait_bh_s?: number | null
+          resolution_eng_wait_s?: number | null
           resolution_window_s?: number | null
           rsa_override?: boolean | null
           silent_update_count?: number
