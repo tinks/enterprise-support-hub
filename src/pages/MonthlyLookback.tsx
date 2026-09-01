@@ -866,8 +866,11 @@ export default function MonthlyLookback() {
             <CardDescription>
               Closed tickets from {monthLabel} that are still missing product area or ticket type. Product area and
               ticket type are meant to be required at closure, so each of these is a ticket that closed through a path
-              that skipped the form — clean these rather than caveating the month.
+              that skipped the form — clean these rather than caveating the month. Sam-owned tickets are excluded:
+              the AI agent never sees the closure form
+              {samGapCount ? `, and ${samGapCount} such ticket${samGapCount === 1 ? " is" : "s are"} filtered out this month` : ""}.
             </CardDescription>
+
           </CardHeader>
           <CardContent>
             {gapRows.length === 0 ? (
