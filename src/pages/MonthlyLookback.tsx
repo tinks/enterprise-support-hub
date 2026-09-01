@@ -529,7 +529,8 @@ export default function MonthlyLookback() {
   }, [
     monthLabel, prevLabel, curAll.length, prevAll.length, cur.length, curClosed, stillOpen.length,
     areaMix, typeMix, spikes, concentration, planMix, accountRows, quality, activeStats,
-    changelog.length, shippedByArea, escStats, gapRows.length, notes, planScope,
+    changelog.length, shippedByArea, escStats, escToEng, gapRows.length, notes, planScope,
+
   ]);
 
   // Slack mrkdwn digest: short, copy/paste-ready. Same numbers as the narrative,
