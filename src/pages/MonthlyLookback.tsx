@@ -181,7 +181,7 @@ export default function MonthlyLookback() {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
             .select(
-              "id,intercom_conversation_id,subject,subject_override,product_area,classification,tags,plan_tier,owner,customer_key,customer_resolution_method,rsa_override,lifecycle_status,state,intercom_created_at,finalized_at,transferred_at,time_to_resolve_s,time_to_first_admin_reply_s,reopen_count,csat_rating,csat_rater_is_internal",
+              "id,intercom_conversation_id,subject,subject_override,product_area,classification,tags,plan_tier,owner,customer_key,customer_resolution_method,rsa_override,lifecycle_status,state,intercom_created_at,finalized_at,transferred_at,time_to_resolve_s,time_to_first_admin_reply_s,reopen_count,csat_rating,csat_rater_is_internal,custom_attributes",
             )
             .gte("intercom_created_at", fromIso)
             .lte("intercom_created_at", toIso)
