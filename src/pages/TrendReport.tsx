@@ -188,9 +188,10 @@ export default function TrendReport() {
 
   const filtered = useMemo(() => {
     let r = excludeRsaFalse ? rows.filter((x) => effectiveRsa(x).value === "required") : rows;
+    if (planScope !== "all") r = r.filter((x) => inPlanScope((x as any).plan_tier, planScope));
     if (customerFilter !== "__any__") r = r.filter((x) => x.customer_key === customerFilter);
     return r;
-  }, [rows, excludeRsaFalse, customerFilter]);
+  }, [rows, excludeRsaFalse, customerFilter, planScope]);
 
   const buckets = useMemo<MonthBucket[]>(() => {
     return months.map((m) => {

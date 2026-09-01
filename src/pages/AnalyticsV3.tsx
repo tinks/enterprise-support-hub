@@ -195,14 +195,16 @@ export default function AnalyticsV3() {
   // per-engineer breakdown all agree on what counts as "Required Support Action".
   const filteredRows = useMemo(() => {
     let r = excludeRsaFalse ? rows.filter((x) => effectiveRsa(x).value === "required") : rows;
+    if (planScope !== "all") r = r.filter((x) => inPlanScope((x as any).plan_tier, planScope));
     if (customerFilter !== "__any__") r = r.filter((x) => x.customer_key === customerFilter);
     return r;
-  }, [rows, excludeRsaFalse, customerFilter]);
+  }, [rows, excludeRsaFalse, customerFilter, planScope]);
   const filteredActiveRows = useMemo(() => {
     let r = excludeRsaFalse ? activeRows.filter((x) => effectiveRsa(x).value === "required") : activeRows;
+    if (planScope !== "all") r = r.filter((x) => inPlanScope((x as any).plan_tier, planScope));
     if (customerFilter !== "__any__") r = r.filter((x) => x.customer_key === customerFilter);
     return r;
-  }, [activeRows, excludeRsaFalse, customerFilter]);
+  }, [activeRows, excludeRsaFalse, customerFilter, planScope]);
   const rsaHiddenInRange = useMemo(() => {
     if (!excludeRsaFalse) return 0;
     const fromMs = range.from.getTime();
