@@ -1,0 +1,51 @@
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: var(--font-sans); fill: hsl(var(--foreground)); font-size: 14px; font-weight: 480; }
+    .s { font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .m { font-family: var(--font-mono); font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .b { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .z { fill: none; stroke: hsl(var(--border)); stroke-width: 1; stroke-dasharray: 4 3; }
+    .w { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+    .acc { fill: none; stroke: hsl(var(--accent)); stroke-width: 1; }
+  </style>
+  <defs>
+    <marker id="a" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 z" fill="hsl(var(--muted-foreground))"/>
+    </marker>
+  </defs>
+
+  <text x="0" y="16" class="s">one shared rule, three writers</text>
+
+  <rect x="0" y="34" width="180" height="52" rx="8" class="acc"/>
+  <text x="16" y="58">Active-clock module</text>
+  <text x="16" y="76" class="m">shared/activeClock.ts</text>
+
+  <path class="w" d="M180,60 L250,60" marker-end="url(#a)"/>
+  <path class="w" d="M90,86 L90,140 L250,140" marker-end="url(#a)"/>
+  <path class="w" d="M90,86 L90,220 L250,220" marker-end="url(#a)"/>
+
+  <rect x="250" y="34" width="200" height="52" rx="8" class="b"/>
+  <text x="266" y="58">Finalize writer</text>
+  <text x="266" y="76" class="s">on close / reopen</text>
+
+  <rect x="250" y="114" width="200" height="52" rx="8" class="b"/>
+  <text x="266" y="138">Backfill function</text>
+  <text x="266" y="156" class="s">from stored payloads, 587 rows</text>
+
+  <rect x="250" y="194" width="200" height="52" rx="8" class="b"/>
+  <text x="266" y="218">SLA engine (live)</text>
+  <text x="266" y="236" class="s">workbench, what-if</text>
+
+  <path class="w" d="M450,60 L520,60 L520,116" marker-end="url(#a)"/>
+  <path class="w" d="M450,140 L520,140" marker-end="url(#a)"/>
+
+  <rect x="500" y="114" width="140" height="52" rx="8" class="acc"/>
+  <text x="516" y="138">Persisted column</text>
+  <text x="516" y="156" class="m">resolution_active_s</text>
+
+  <path class="w" d="M570,166 L570,214" marker-end="url(#a)"/>
+  <rect x="470" y="214" width="170" height="66" rx="8" class="b"/>
+  <text x="486" y="238">Reports read this</text>
+  <text x="486" y="256" class="s">analytics, trend,</text>
+  <text x="486" y="272" class="s">lookback, dashboards</text>
+</svg>
