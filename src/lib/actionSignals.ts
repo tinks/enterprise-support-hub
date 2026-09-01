@@ -11,6 +11,7 @@ import {
   type SlaPolicyVersionRow,
 } from "@/lib/slaMetrics";
 import { isSlaExcluded } from "@/lib/slaExclusions";
+import { showTestDataNow } from "@/lib/testTickets";
 import { isUnassigned, assignmentGap, ASSIGNMENT_GAP_LABEL } from "@/lib/triageQueues";
 
 
@@ -139,12 +140,12 @@ export const ACTION_SIGNALS: ActionSignal[] = [
     meaning:
       "Open tickets with no Severity set in Intercom. Covers every plan — Enterprise and Self-serve Enterprise alike.",
     load: async () => {
-      const res = await (
-        supabase
-          .from("intercom_tickets_v3")
-          .select("custom_attributes,intercom_created_at")
-          .in("lifecycle_status", ["open", "reopened_after_finalize"])
-      ).limit(1000);
+      let q = supabase
+        .from("intercom_tickets_v3")
+        .select("custom_attributes,intercom_created_at")
+        .in("lifecycle_status", ["open", "reopened_after_finalize"]);
+      if (!showTestDataNow()) q = q.eq("is_test_ticket", false);
+      const res = await q.limit(1000);
       const rows = unwrap<Array<{ custom_attributes: any; intercom_created_at: string | null }>>(res as any);
       const open = rows.filter((r) => !hasSeverity(r.custom_attributes));
       return { count: open.length, oldestAt: minIso(open.map((r) => r.intercom_created_at)) };
@@ -164,7 +165,7 @@ export const ACTION_SIGNALS: ActionSignal[] = [
           supabase
             .from("intercom_tickets_v3")
             .select(
-              "intercom_conversation_id,admin_assignee_id,owner,intercom_created_at,tags,rsa_override,customer_resolution_method,customer_key",
+              "intercom_conversation_id,admin_assignee_id,owner,intercom_created_at,tags,rsa_override,customer_resolution_method,customer_key,is_test_ticket",
             )
             .in("lifecycle_status", ["open", "reopened_after_finalize"])
         ).limit(1000),
@@ -180,13 +181,15 @@ export const ACTION_SIGNALS: ActionSignal[] = [
           rsa_override: boolean | null;
           customer_resolution_method: string | null;
           customer_key: string | null;
+          is_test_ticket: boolean | null;
         }>
       >(ticketsRes as any);
       const testAccountKeys = new Set(
         unwrap<Array<{ account_key: string }>>(testRes as any).map((r) => r.account_key),
       );
+      const showTestData = showTestDataNow();
       const hits = rows.filter(
-        (r) => !isSlaExcluded(r, { testAccountKeys }) && isUnassigned(r),
+        (r) => !isSlaExcluded(r, { testAccountKeys, showTestData }) && isUnassigned(r),
       );
       return {
         count: hits.length,
@@ -227,12 +230,14 @@ export const ACTION_SIGNALS: ActionSignal[] = [
     meaning:
       "Self-serve Enterprise tickets still open with no Severity set more than 1 hour after they arrived. SSE has no first-response or resolution SLA, so triage is the only clock it carries.",
     load: async () => {
-      const res = await sseOnly(
+      let sseQ = sseOnly(
         supabase
           .from("intercom_tickets_v3")
           .select("intercom_conversation_id,custom_attributes,intercom_created_at")
           .in("lifecycle_status", ["open", "reopened_after_finalize"]),
-      ).limit(1000);
+      );
+      if (!showTestDataNow()) sseQ = sseQ.eq("is_test_ticket", false);
+      const res = await sseQ.limit(1000);
       const rows = unwrap<
         Array<{ intercom_conversation_id: string; custom_attributes: any; intercom_created_at: string | null }>
       >(res as any);
@@ -270,7 +275,7 @@ export const ACTION_SIGNALS: ActionSignal[] = [
           supabase
             .from("intercom_tickets_v3")
             .select(
-              "intercom_conversation_id,custom_attributes,intercom_created_at,raw_payload,tags,rsa_override,customer_resolution_method,customer_key",
+              "intercom_conversation_id,custom_attributes,intercom_created_at,raw_payload,tags,rsa_override,customer_resolution_method,customer_key,is_test_ticket",
             )
             .in("lifecycle_status", ["open", "reopened_after_finalize"]),
         ).limit(1000),
@@ -314,6 +319,7 @@ export const ACTION_SIGNALS: ActionSignal[] = [
           rsa_override: boolean | null;
           customer_resolution_method: string | null;
           customer_key: string | null;
+          is_test_ticket: boolean | null;
         }>
       >(ticketsRes as any);
       const overrides = unwrap<Array<{ intercom_conversation_id: string; metric: string }>>(
@@ -334,7 +340,7 @@ export const ACTION_SIGNALS: ActionSignal[] = [
       for (const t of tickets) {
         if (excused.has(t.intercom_conversation_id)) continue;
         // Same population rules as the SLA workbench (classifySlaBatchRow).
-        if (isSlaExcluded(t, { testAccountKeys })) continue;
+        if (isSlaExcluded(t, { testAccountKeys, showTestData: showTestDataNow() })) continue;
         const severity = parseSeverity(t.custom_attributes?.["Severity"]);
         if (severity == null) continue; // unclassified is the Triage signal's job
 

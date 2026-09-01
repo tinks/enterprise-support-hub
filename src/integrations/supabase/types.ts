@@ -1002,6 +1002,7 @@ export type Database = {
           intercom_conversation_id: string
           intercom_created_at: string | null
           intercom_updated_at: string | null
+          is_test_ticket: boolean
           last_full_fetch_at: string | null
           last_reopened_at: string | null
           last_silent_change: Json | null
@@ -1025,6 +1026,9 @@ export type Database = {
           subject_override_by: string | null
           tags: string[]
           team_assignee_id: string | null
+          test_marked_at: string | null
+          test_marked_by: string | null
+          test_marked_reason: string | null
           time_to_first_admin_reply_s: number | null
           time_to_resolve_s: number | null
           transferred_at: string | null
@@ -1062,6 +1066,7 @@ export type Database = {
           intercom_conversation_id: string
           intercom_created_at?: string | null
           intercom_updated_at?: string | null
+          is_test_ticket?: boolean
           last_full_fetch_at?: string | null
           last_reopened_at?: string | null
           last_silent_change?: Json | null
@@ -1085,6 +1090,9 @@ export type Database = {
           subject_override_by?: string | null
           tags?: string[]
           team_assignee_id?: string | null
+          test_marked_at?: string | null
+          test_marked_by?: string | null
+          test_marked_reason?: string | null
           time_to_first_admin_reply_s?: number | null
           time_to_resolve_s?: number | null
           transferred_at?: string | null
@@ -1122,6 +1130,7 @@ export type Database = {
           intercom_conversation_id?: string
           intercom_created_at?: string | null
           intercom_updated_at?: string | null
+          is_test_ticket?: boolean
           last_full_fetch_at?: string | null
           last_reopened_at?: string | null
           last_silent_change?: Json | null
@@ -1145,6 +1154,9 @@ export type Database = {
           subject_override_by?: string | null
           tags?: string[]
           team_assignee_id?: string | null
+          test_marked_at?: string | null
+          test_marked_by?: string | null
+          test_marked_reason?: string | null
           time_to_first_admin_reply_s?: number | null
           time_to_resolve_s?: number | null
           transferred_at?: string | null

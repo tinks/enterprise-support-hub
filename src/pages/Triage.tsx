@@ -20,6 +20,7 @@ import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
 
 import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
 
+import { showTestDataNow } from "@/lib/testTickets";
 import { useSearchParams } from "react-router-dom";
 import {
   inTriageMode,
@@ -144,13 +145,14 @@ export default function Triage() {
   const load = async () => {
     lastFetchRef.current = Date.now();
     setLoading(true);
-    const { data, error } = await supabase
+    let q = supabase
       .from("intercom_tickets_v3")
       .select(
-        "id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,owner,admin_assignee_id,customer_key,custom_attributes,intercom_created_at,last_synced_at,raw_payload,plan_tier",
+        "id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,owner,admin_assignee_id,customer_key,custom_attributes,intercom_created_at,last_synced_at,raw_payload,plan_tier,is_test_ticket",
       )
-      .in("lifecycle_status", ["open", "reopened_after_finalize"])
-      .limit(1000);
+      .in("lifecycle_status", ["open", "reopened_after_finalize"]);
+    if (!showTestDataNow()) q = q.eq("is_test_ticket", false);
+    const { data, error } = await q.limit(1000);
     if (!error) setRows((data ?? []) as Row[]);
     setLoading(false);
     setNowS(Math.floor(Date.now() / 1000));
