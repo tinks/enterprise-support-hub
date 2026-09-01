@@ -131,6 +131,7 @@ export default function MonthlyLookback() {
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [copiedSlack, setCopiedSlack] = useState(false);
   const [csatFilters, setCsatFilters] = useCsatFilters();
   const { overrides: csatOverrides } = useCsatOverrides();
   const [closedByTicket, setClosedByTicket] = useState<Record<string, number> | null>(null);
@@ -497,12 +498,65 @@ export default function MonthlyLookback() {
     changelog.length, shippedByArea, escStats, gapRows.length, notes, planScope,
   ]);
 
+  // Slack mrkdwn digest: short, copy/paste-ready. Same numbers as the narrative,
+  // trimmed to the top 3 areas, types and accounts plus up to 5 shipped items.
+  const slackPost = useMemo(() => {
+    const L: string[] = [];
+    const topAreas = areaMix.filter((m) => m.name !== UNSET).slice(0, 3);
+    const topTypes = typeMix.filter((m) => m.name !== UNSET).slice(0, 3);
+    const topAccounts = accountRows.filter((a) => a.key !== "unresolved").slice(0, 3);
+    const shipped = [...changelog]
+      .sort((a, b) => (b.entry_date || "").localeCompare(a.entry_date || ""))
+      .slice(0, 5);
+    const arrow = (c: number, p: number) => (c === p ? "→" : c > p ? "▲" : "▼");
+
+    L.push(`*${monthLabel} enterprise support summary* — ${PLAN_LABEL[planScope]}`);
+    L.push("");
+    L.push("*Key metrics* (vs " + prevLabel + ")");
+    L.push(`• Tickets created: *${curAll.length}* ${arrow(curAll.length, prevAll.length)} (${prevLabel} ${prevAll.length}, ${deltaLabel(curAll.length, prevAll.length)})`);
+    L.push(`• Closed: *${curClosed.length}* · still open: ${stillOpen.length}`);
+    L.push(`• Median resolve: *${formatDuration(quality.medResolve)}* ${arrow(quality.prevMedResolve ?? 0, quality.medResolve ?? 0)} (${prevLabel} ${formatDuration(quality.prevMedResolve)})`);
+    L.push(`• Median first reply: *${formatDuration(quality.medFrt)}*`);
+    L.push(`• CSAT: *${quality.avgCsat == null ? "—" : quality.avgCsat.toFixed(2)}* (n=${quality.csatN}) · reopened ${pct(quality.reopened, quality.closedN)}`);
+    L.push("");
+    L.push("*Top issue areas* (closed tickets)");
+    if (!topAreas.length) L.push("• No categorised closed tickets this month.");
+    for (const m of topAreas) L.push(`• ${m.name}: *${m.cur}* (${m.share.toFixed(0)}%, ${prevLabel} ${m.prev})`);
+    L.push("");
+    L.push("*Top ticket types*");
+    if (!topTypes.length) L.push("• Not set on closed tickets this month.");
+    for (const m of topTypes) L.push(`• ${m.name}: *${m.cur}* (${prevLabel} ${m.prev})`);
+    L.push("");
+    L.push("*Top customers*");
+    if (!topAccounts.length) L.push("• No attributed accounts this month.");
+    for (const a of topAccounts) L.push(`• ${a.label}: *${a.cur}* (${prevLabel} ${a.prev})`);
+    L.push(`_${concentration.accounts} accounts total; top 5 drove ${pct(concentration.top5, cur.length)} of volume._`);
+    L.push("");
+    L.push("*What shipped*");
+    if (!shipped.length) L.push("• No changelog entries this month.");
+    for (const c of shipped) L.push(`• ${c.title}${c.area ? ` (${c.area})` : ""}`);
+    if (changelog.length > shipped.length) L.push(`_+${changelog.length - shipped.length} more changelog entries._`);
+    if (notes.watch) L.push("", "*What to watch*", notes.watch);
+    return L.join("\n");
+  }, [
+    monthLabel, prevLabel, planScope, curAll.length, prevAll.length, curClosed.length, stillOpen.length,
+    quality, areaMix, typeMix, accountRows, concentration, cur.length, changelog, notes.watch,
+  ]);
+
   const copyNarrative = async () => {
     await navigator.clipboard.writeText(narrative);
     setCopied(true);
     toast.success("Lookback copied — paste into Slack or Notion");
     setTimeout(() => setCopied(false), 1800);
   };
+
+  const copySlack = async () => {
+    await navigator.clipboard.writeText(slackPost);
+    setCopiedSlack(true);
+    toast.success("Slack summary copied");
+    setTimeout(() => setCopiedSlack(false), 1800);
+  };
+
 
   const NoteBox = ({ section }: { section: SectionKey }) => (
     <Textarea
@@ -548,6 +602,9 @@ export default function MonthlyLookback() {
               </SelectContent>
             </Select>
             <CsatFilterMenu filters={csatFilters} onChange={setCsatFilters} />
+            <Button variant="outline" size="sm" onClick={copySlack} disabled={loading}>
+              {copiedSlack ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />} Copy Slack summary
+            </Button>
             <Button variant="outline" size="sm" onClick={copyNarrative} disabled={loading}>
               {copied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />} Copy as narrative
             </Button>
@@ -922,6 +979,29 @@ export default function MonthlyLookback() {
             <CardDescription>Your commentary; it travels with the numbers in the copy-out.</CardDescription>
           </CardHeader>
           <CardContent><NoteBox section="watch" /></CardContent>
+        </Card>
+
+        {/* Slack summary preview */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-base">Slack summary</CardTitle>
+                <CardDescription>
+                  Short copy/paste post: key metrics with the change vs {prevLabel}, top 3 issue areas, ticket types and
+                  customers, and up to 5 recent changelog items. Follows the plan scope and CSAT filters above.
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={copySlack} disabled={loading}>
+                {copiedSlack ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />} Copy
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <pre className="text-xs whitespace-pre-wrap font-mono bg-muted/40 rounded-md p-3 leading-relaxed">
+              {slackPost}
+            </pre>
+          </CardContent>
         </Card>
       </div>
     </AppLayout>
