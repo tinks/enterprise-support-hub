@@ -1,0 +1,52 @@
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: var(--font-sans); fill: hsl(var(--foreground)); }
+    .lbl { font-size: 14px; font-weight: 480; }
+    .sm { font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .mono { font-family: var(--font-mono); font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .box { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .zone { fill: none; stroke: hsl(var(--border)); stroke-width: 1; stroke-dasharray: 4 3; }
+    .acc { fill: none; stroke: hsl(var(--accent)); stroke-width: 1; }
+    .accfill { fill: hsl(var(--accent)); }
+    .accink { fill: hsl(var(--accent-foreground)); font-size: 11px; font-family: var(--font-sans); }
+  </style>
+
+  <text class="sm" x="16" y="20">one surface</text>
+
+  <!-- headline -->
+  <rect class="acc" x="16" y="34" width="290" height="72" rx="8"/>
+  <text class="lbl" x="32" y="60">Resolution (active)</text>
+  <text class="sm" x="32" y="80">headline · charts · exports · Slack summary</text>
+  <text class="mono" x="32" y="98">resolution_active_s</text>
+  <circle class="accfill" cx="290" cy="48" r="9"/>
+  <text class="accink" x="290" y="52" text-anchor="middle">1</text>
+
+  <!-- secondary -->
+  <rect class="box" x="16" y="126" width="290" height="72" rx="8"/>
+  <text class="lbl" x="32" y="152">Elapsed (raw)</text>
+  <text class="sm" x="32" y="172">tooltip · drill-down · export column</text>
+  <text class="mono" x="32" y="190">time_to_resolve_s</text>
+  <circle class="accfill" cx="290" cy="140" r="9"/>
+  <text class="accink" x="290" y="144" text-anchor="middle">2</text>
+
+  <!-- never zone -->
+  <rect class="zone" x="16" y="218" width="290" height="60" rx="8"/>
+  <text class="sm" x="32" y="242">never: headline, chart series beside active,</text>
+  <text class="sm" x="32" y="260">Slack summary, or an unlabelled "resolution time"</text>
+  <text class="sm" x="290" y="234" text-anchor="end">✕</text>
+
+  <!-- ledger -->
+  <line x1="346" y1="34" x2="346" y2="278" stroke="hsl(var(--border))" stroke-width="1"/>
+  <circle class="accfill" cx="374" cy="48" r="9"/>
+  <text class="accink" x="374" y="52" text-anchor="middle">1</text>
+  <text class="sm" x="394" y="46">Excludes closed and waiting-on-customer</text>
+  <text class="sm" x="394" y="64">time. This is what the org reports and</text>
+  <text class="sm" x="394" y="82">what month-over-month compares.</text>
+
+  <circle class="accfill" cx="374" cy="140" r="9"/>
+  <text class="accink" x="374" y="144" text-anchor="middle">2</text>
+  <text class="sm" x="394" y="138">Calendar elapsed — the same number</text>
+  <text class="sm" x="394" y="156">Intercom reports. Kept so a Hub figure</text>
+  <text class="sm" x="394" y="174">can always be reconciled against Intercom,</text>
+  <text class="sm" x="394" y="192">not defended.</text>
+</svg>
