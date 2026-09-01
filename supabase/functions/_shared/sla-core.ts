@@ -446,12 +446,66 @@ export function computeClosedDormant(
   return total;
 }
 
+/**
+ * Waiting-on-customer seconds inside the resolution window — the exact mirror
+ * of `computeResolutionActive`: it accumulates the stretches where the ball is
+ * NOT with us AND the ticket is NOT closed. Same actor rules, same window, so
+ * active + closed + customer_wait == window by construction.
+ */
+export function computeCustomerWait(
+  timeline: TimelinePart[],
+  slaClockStartS: number | null,
+  closeAtS: number | null,
+  clip: (a: number, b: number) => number,
+): number | null {
+  if (slaClockStartS == null || closeAtS == null) return null;
+  if (closeAtS < slaClockStartS) return 0;
+  let total = 0;
+  // State at the clock start: ball with us, ticket open.
+  let ballWithUs = true;
+  let closed = false;
+  let segStart: number | null = null; // start of the current waiting-on-customer stretch
+  const closeWait = (at: number) => {
+    if (segStart != null) {
+      total += clip(segStart, at);
+      segStart = null;
+    }
+  };
+  for (const p of timeline) {
+    if (p.ts < slaClockStartS || p.ts > closeAtS) continue;
+    if (p.partType === "close") {
+      closeWait(p.ts);
+      closed = true;
+      ballWithUs = false;
+      continue;
+    }
+    if (p.actor === "customer" || p.actor === "shared_inbox") {
+      // Customer returns the ball (and reopens the wait window if closed).
+      closeWait(p.ts);
+      closed = false;
+      ballWithUs = true;
+    } else if (p.isPublicReply && (p.actor === "human_admin" || p.actor === "sam_ai")) {
+      if (closed) continue; // dormant time belongs to resolution_closed_s
+      if (ballWithUs) {
+        ballWithUs = false;
+        segStart = p.ts;
+      }
+    }
+  }
+  if (!ballWithUs && !closed) closeWait(closeAtS);
+  return total;
+}
+
 export type ActiveClockResult = {
   slaClockStartS: number | null;
   closeAtS: number | null;
   resolutionActiveS: number | null;
   resolutionActiveBhS: number | null;
   resolutionClosedS: number | null;
+  resolutionCustomerWaitS: number | null;
+  resolutionCustomerWaitBhS: number | null;
+  /** close_at − sla_clock_start: the denominator active/closed/wait sum to. */
+  resolutionWindowS: number | null;
   rawResolveS: number | null;
   partsCount: number;
   engineVersion: number;
