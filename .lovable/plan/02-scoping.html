@@ -1,0 +1,56 @@
+<svg viewBox="0 0 640 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Plan tier flows from ingest into filters, reports and alerts">
+  <style>
+    text { font-family: var(--font-sans); fill: hsl(var(--foreground)); }
+    .lbl { font-size: 14px; font-weight: 480; }
+    .sm { font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .mono { font-family: var(--font-mono); font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .box { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .zone { fill: none; stroke: hsl(var(--border)); stroke-width: 1; stroke-dasharray: 4 3; }
+    .wire { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; marker-end: url(#a); }
+    .acc { fill: none; stroke: hsl(var(--accent)); stroke-width: 1; }
+    .accfill { fill: hsl(var(--accent)); }
+    .accink { fill: hsl(var(--accent-foreground)); font-size: 11px; font-family: var(--font-sans); }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0 L8 4 L0 8 z" fill="hsl(var(--muted-foreground))"/>
+    </marker>
+  </defs>
+
+  <rect class="box" x="12" y="128" width="150" height="62" rx="8"/>
+  <text class="lbl" x="26" y="152">Intercom inboxes</text>
+  <text class="mono" x="26" y="172">plan_tier at ingest</text>
+
+  <line class="wire" x1="162" y1="159" x2="212" y2="159"/>
+
+  <rect class="zone" x="212" y="24" width="416" height="288" rx="8"/>
+  <text class="sm" x="224" y="44">hub surfaces, all reading plan_tier</text>
+
+  <rect class="box" x="232" y="58" width="180" height="58" rx="8"/>
+  <text class="lbl" x="246" y="80">Find</text>
+  <text class="sm" x="246" y="100">Inbox v3 plan column + filter</text>
+
+  <rect class="box" x="232" y="132" width="180" height="58" rx="8"/>
+  <text class="lbl" x="246" y="154">Report</text>
+  <text class="sm" x="246" y="174">shared plan scope selector</text>
+
+  <rect class="acc" x="232" y="206" width="180" height="58" rx="8"/>
+  <text class="lbl" x="246" y="228">Watch</text>
+  <text class="sm" x="246" y="248">SSE triage risk signal</text>
+
+  <rect class="box" x="452" y="58" width="156" height="58" rx="8"/>
+  <text class="lbl" x="466" y="80">Enterprise</text>
+  <text class="sm" x="466" y="100">SLA + 30 min triage</text>
+
+  <rect class="box" x="452" y="132" width="156" height="58" rx="8"/>
+  <text class="lbl" x="466" y="154">Self-serve enterprise</text>
+  <text class="sm" x="466" y="174">no SLA, 60 min triage</text>
+
+  <line class="wire" x1="412" y1="87" x2="452" y2="87"/>
+  <line class="wire" x1="412" y1="161" x2="452" y2="161"/>
+  <line class="wire" x1="412" y1="235" x2="452" y2="180"/>
+
+  <circle class="accfill" cx="470" cy="230" r="9"/>
+  <text class="accink" x="466.5" y="234">1</text>
+  <text class="sm" x="486" y="234">SLA panels hide, not zero, on SSE scope</text>
+</svg>
