@@ -529,7 +529,7 @@ function buildNodes(
       position: { x: COL_W, y: ROW_H * 5.9 },
       data: {
         label: "6b. 👎 Escalate to human",
-        desc: "User requests human support. Converts conversation to ticket.",
+        desc: "User requests human support. Reassigns to the enterprise inbox — stays a Conversation.",
         icon: ThumbsDown,
         edgeFunction: "slack-interactions",
         details: [
