@@ -518,9 +518,11 @@ export default function MonthlyLookback() {
     L.push(`- ${changelog.length} changelog entries recorded this month.`);
     for (const [area, items] of shippedByArea.slice(0, 8)) L.push(`- ${area}: ${items.length} — ${items.slice(0, 4).map((i) => i.title).join("; ")}`);
     L.push(`- Dev escalations: ${escStats.opened} opened, ${escStats.closed} closed, ${escStats.openAtEnd} open at month end.`);
+    L.push(`- Escalated to engineering: ${escToEng.cur} of ${escToEng.closedN} closed tickets (${pct(escToEng.cur, escToEng.closedN)}), ${prevLabel} ${escToEng.prev}${escToEng.unset ? ` · ${escToEng.unset} closed without the flag set` : ""}.`);
     if (notes.shipped) L.push("", notes.shipped);
     L.push("", "## Data quality", "");
-    L.push(`- ${gapRows.length} of ${curClosed.length} closed tickets are missing product area or ticket type (${pct(gapRows.length, curClosed.length)})${samGapCount ? `, excluding ${samGapCount} Sam-owned ticket${samGapCount === 1 ? "" : "s"} that never pass through the closure form` : ""}.`);
+    L.push(`- ${gapRows.length} of ${curClosed.length} closed tickets are missing at least one of severity, product area, ticket type or escalated to engineering (${pct(gapRows.length, curClosed.length)})${samGapCount ? `, excluding ${samGapCount} Sam-owned ticket${samGapCount === 1 ? "" : "s"} that never pass through the closure form` : ""}.`);
+
     L.push("", "## What to watch", "");
     L.push(notes.watch || "- (add commentary)");
     return L.join("\n");
