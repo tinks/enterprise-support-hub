@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, RefreshCw, Copy, Check, Beaker, ExternalLink, Timer } from "lucide-react";
+import { Loader2, RefreshCw, Copy, Check, Beaker, ExternalLink } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from "date-fns";
 import { CLEAN_DATA_START_DATE, CLEAN_DATA_START_LABEL } from "@/pages/inbox-v3/constants";
 import { median, percentile, formatDuration } from "@/lib/durationStats";
@@ -168,7 +168,6 @@ export default function MonthlyLookback() {
     (async () => {
       setLoading(true);
       setError(null);
-      setClosedByTicket(null);
       try {
         const fromIso = prevStart.toISOString();
         const toIso = monthEnd.toISOString();
