@@ -46,7 +46,21 @@ type Row = {
   reopen_count: number | null;
   csat_rating: number | null;
   csat_rater_is_internal: boolean | null;
+  custom_attributes: Record<string, unknown> | null;
 };
+
+// The four Intercom custom attributes the Hub owns. Product area and ticket
+// type also land on dedicated columns; severity and the engineering-escalation
+// flag live only in custom_attributes.
+const ATTR_SEVERITY = "Severity";
+const ATTR_ESCALATED = "Escalated to Engineering";
+
+function attr(r: Row, key: string): string {
+  const v = (r.custom_attributes ?? {})[key];
+  if (v === null || v === undefined) return "";
+  return String(v).trim();
+}
+
 
 type Account = { account_key: string; label: string; is_test: boolean };
 type ChangelogRow = { id: string; entry_date: string; title: string; area: string | null; tags: string[] | null };
@@ -167,7 +181,7 @@ export default function MonthlyLookback() {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
             .select(
-              "id,intercom_conversation_id,subject,subject_override,product_area,classification,tags,plan_tier,owner,customer_key,customer_resolution_method,rsa_override,lifecycle_status,state,intercom_created_at,finalized_at,transferred_at,time_to_resolve_s,time_to_first_admin_reply_s,reopen_count,csat_rating,csat_rater_is_internal",
+              "id,intercom_conversation_id,subject,subject_override,product_area,classification,tags,plan_tier,owner,customer_key,customer_resolution_method,rsa_override,lifecycle_status,state,intercom_created_at,finalized_at,transferred_at,time_to_resolve_s,time_to_first_admin_reply_s,reopen_count,csat_rating,csat_rater_is_internal,custom_attributes",
             )
             .gte("intercom_created_at", fromIso)
             .lte("intercom_created_at", toIso)
@@ -251,15 +265,33 @@ export default function MonthlyLookback() {
   const prevClosed = useMemo(() => prev.filter((r) => r.finalized_at), [prev]);
   const stillOpen = useMemo(() => cur.filter((r) => !r.finalized_at), [cur]);
 
-  // Sam is the AI agent: it never sees the closure form, so a Sam-owned ticket
-  // missing area/type is not a human closure-rule leak. Counted separately so
-  // the number is visible rather than silently dropped.
+  // Closure-rule leaks check all four Hub-owned Intercom attributes, not just
+  // the two that have dedicated columns. Sam is the AI agent: it never sees the
+  // closure form, so a Sam-owned ticket missing fields is not a human leak.
+  // Counted separately so the number is visible rather than silently dropped.
+  const missingFields = (r: Row): string[] => {
+    const out: string[] = [];
+    if (!attr(r, ATTR_SEVERITY)) out.push("severity");
+    if (!r.product_area) out.push("product area");
+    if (!r.classification) out.push("ticket type");
+    if (!attr(r, ATTR_ESCALATED)) out.push("escalated to engineering");
+    return out;
+  };
   const allGapRows = useMemo(
-    () => curClosed.filter((r) => !r.product_area || !r.classification),
+    () => curClosed.filter((r) => missingFields(r).length > 0),
     [curClosed],
   );
   const gapRows = useMemo(() => allGapRows.filter((r) => r.owner !== "Sam"), [allGapRows]);
   const samGapCount = allGapRows.length - gapRows.length;
+
+  // Escalated-to-engineering cut over closed tickets, this month vs prior.
+  const escToEng = useMemo(() => {
+    const yes = (list: Row[]) => list.filter((r) => attr(r, ATTR_ESCALATED).toLowerCase() === "yes").length;
+    const unset = curClosed.filter((r) => !attr(r, ATTR_ESCALATED)).length;
+    return { cur: yes(curClosed), prev: yes(prevClosed), unset, closedN: curClosed.length };
+  }, [curClosed, prevClosed]);
+
+
 
 
   // Theme mix runs over CLOSED tickets only. Product area and ticket type are
@@ -486,16 +518,19 @@ export default function MonthlyLookback() {
     L.push(`- ${changelog.length} changelog entries recorded this month.`);
     for (const [area, items] of shippedByArea.slice(0, 8)) L.push(`- ${area}: ${items.length} — ${items.slice(0, 4).map((i) => i.title).join("; ")}`);
     L.push(`- Dev escalations: ${escStats.opened} opened, ${escStats.closed} closed, ${escStats.openAtEnd} open at month end.`);
+    L.push(`- Escalated to engineering: ${escToEng.cur} of ${escToEng.closedN} closed tickets (${pct(escToEng.cur, escToEng.closedN)}), ${prevLabel} ${escToEng.prev}${escToEng.unset ? ` · ${escToEng.unset} closed without the flag set` : ""}.`);
     if (notes.shipped) L.push("", notes.shipped);
     L.push("", "## Data quality", "");
-    L.push(`- ${gapRows.length} of ${curClosed.length} closed tickets are missing product area or ticket type (${pct(gapRows.length, curClosed.length)})${samGapCount ? `, excluding ${samGapCount} Sam-owned ticket${samGapCount === 1 ? "" : "s"} that never pass through the closure form` : ""}.`);
+    L.push(`- ${gapRows.length} of ${curClosed.length} closed tickets are missing at least one of severity, product area, ticket type or escalated to engineering (${pct(gapRows.length, curClosed.length)})${samGapCount ? `, excluding ${samGapCount} Sam-owned ticket${samGapCount === 1 ? "" : "s"} that never pass through the closure form` : ""}.`);
+
     L.push("", "## What to watch", "");
     L.push(notes.watch || "- (add commentary)");
     return L.join("\n");
   }, [
     monthLabel, prevLabel, curAll.length, prevAll.length, cur.length, curClosed, stillOpen.length,
     areaMix, typeMix, spikes, concentration, planMix, accountRows, quality, activeStats,
-    changelog.length, shippedByArea, escStats, gapRows.length, notes, planScope,
+    changelog.length, shippedByArea, escStats, escToEng, gapRows.length, notes, planScope,
+
   ]);
 
   // Slack mrkdwn digest: short, copy/paste-ready. Same numbers as the narrative,
@@ -883,17 +918,24 @@ export default function MonthlyLookback() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-5">
               {[
                 { label: "Changelog entries", value: String(changelog.length) },
                 { label: "Escalations opened", value: String(escStats.opened) },
                 { label: "Escalations closed", value: String(escStats.closed) },
                 { label: "Open at month end", value: String(escStats.openAtEnd) },
+                {
+                  label: "Escalated to engineering",
+                  value: `${escToEng.cur} / ${escToEng.closedN}`,
+                  sub: `${pct(escToEng.cur, escToEng.closedN)} of closed · ${prevLabel} ${escToEng.prev}${escToEng.unset ? ` · ${escToEng.unset} unset` : ""}`,
+                },
               ].map((s) => (
                 <div key={s.label} className="rounded-lg border p-3">
                   <div className="text-xs text-muted-foreground">{s.label}</div>
                   <div className="text-2xl font-semibold mt-1">{s.value}</div>
+                  {"sub" in s && s.sub ? <div className="text-[11px] text-muted-foreground mt-1">{s.sub}</div> : null}
                 </div>
+
               ))}
             </div>
             <div className="space-y-3">
@@ -921,24 +963,24 @@ export default function MonthlyLookback() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Closure-rule leaks</CardTitle>
             <CardDescription>
-              Closed tickets from {monthLabel} that are still missing product area or ticket type. Product area and
-              ticket type are meant to be required at closure, so each of these is a ticket that closed through a path
-              that skipped the form — clean these rather than caveating the month. Sam-owned tickets are excluded:
-              the AI agent never sees the closure form
+              Closed tickets from {monthLabel} missing any of the four Intercom attributes the Hub owns: severity,
+              affected product area, ticket type, escalated to engineering. These are meant to be set at closure, so
+              each of these closed through a path that skipped the form — clean these rather than caveating the month.
+              Sam-owned tickets are excluded: the AI agent never sees the closure form
               {samGapCount ? `, and ${samGapCount} such ticket${samGapCount === 1 ? " is" : "s are"} filtered out this month` : ""}.
             </CardDescription>
 
           </CardHeader>
           <CardContent>
             {gapRows.length === 0 ? (
-              <div className="text-sm text-muted-foreground">Every closed ticket in {monthLabel} carries both fields.</div>
+              <div className="text-sm text-muted-foreground">Every closed ticket in {monthLabel} carries all four fields.</div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Subject</TableHead>
                     <TableHead className="w-[170px]">Intercom</TableHead>
-                    <TableHead className="w-[180px]">Missing</TableHead>
+                    <TableHead className="w-[260px]">Missing</TableHead>
                     <TableHead className="w-[140px]">Owner</TableHead>
                     <TableHead className="w-[150px]">Closed</TableHead>
                   </TableRow>
@@ -957,9 +999,8 @@ export default function MonthlyLookback() {
                           {r.intercom_conversation_id} <ExternalLink className="h-3 w-3" />
                         </a>
                       </TableCell>
-                      <TableCell className="text-sm">
-                        {[!r.product_area && "product area", !r.classification && "ticket type"].filter(Boolean).join(" + ")}
-                      </TableCell>
+                      <TableCell className="text-sm">{missingFields(r).join(" + ")}</TableCell>
+
                       <TableCell className="text-sm text-muted-foreground">{r.owner || "—"}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {r.finalized_at ? format(new Date(r.finalized_at), "MMM d, HH:mm") : "—"}
