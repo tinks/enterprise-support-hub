@@ -2175,3 +2175,17 @@ The "Load active clock" button is gone. Quality reads the persisted `intercom_ti
 **Zero-active rows are real, not a bug.** 19 finalized tickets have 0 active seconds: we replied instantly (or an internal teammate commented as a user) and the customer never returned, so the in-our-court clock never resumed. They are counted in the population and surfaced as a "n at 0h active" note, never hidden.
 
 **UNVERIFIED:** the SQL replication of `src/lib/slaExclusions.ts` used for the Monthly lookback cross-check is approximate (4-ticket delta); 2 finalized rows remain not computable and are excluded from every median.
+
+## Customer-wait clock — three-way split (engine v2, 1 Sep 2026)
+
+**Problem.** The active clock deducted two things — closed time and waiting-on-customer time — but only closed time was persisted. Customer wait existed solely as the residual `raw − active − closed`, and that residual is untrustworthy: raw comes from Intercom's `time_to_last_close` while active and closed are walked from the timeline, so clock-start differences, rounding, and payload gaps all landed in the same bucket. "The customer was slow" and "we sat on it" were not distinguishable from stored data.
+
+**Schema** (`intercom_tickets_v3`, all nullable, additive): `resolution_customer_wait_s`, `resolution_customer_wait_bh_s`, `resolution_window_s`. The window column is `close_at − sla_clock_start` — the engine's own denominator.
+
+**Identity.** `resolution_active_s + resolution_closed_s + resolution_customer_wait_s = resolution_window_s`, by construction: all four come from one timeline walk in `_shared/sla-core.ts`. Any drift is an engine bug, not a source mismatch, and is assertable in SQL. Raw stays deliberately **outside** the identity as the Intercom reconciliation value.
+
+**Engine.** `computeCustomerWait(timeline, slaClockStartS, closeAtS, clip)` is the exact mirror of `computeResolutionActive`: it accumulates the stretches where the ball is **not** with us **and** the ticket is **not** closed. Same actor rules (`customer` and `shared_inbox` return the ball; our public reply hands it away; a `close` stops both open clocks). Any non-close part ends dormancy, matching `computeClosedDormant`, so no second is stranded between the three buckets. `ACTIVE_CLOCK_ENGINE_VERSION` is bumped 1 → 2; `activeClockFields` (finalize) and `backfill-v3-active-clock` write the new columns.
+
+**Verified 1 Sep 2026** after a forced re-backfill of all 592 finalized rows: identity violations **0**; nulls unchanged at **2** (the same not-computable rows); `resolution_active_s`, `_bh_s` and `_closed_s` byte-identical to their pre-backfill snapshot on all 592 rows (**0 changed**) — the refactor did not move the existing metric. Population medians: **active 2.25h vs customer wait 49.97h**; totals **2,417.7 ticket-days of customer wait vs 86.8 ticket-days of closed time**, confirming the residual was dominated by customer wait and never a safe proxy.
+
+**Not yet done.** No reporting surface reads the new columns — Analytics v3, Trend report and Resolution anatomy are a separate pass. Business-hours customer wait is stored for symmetry but is arguable (a 02:00 Berlin customer reply contributes zero); report on the raw-seconds column.
