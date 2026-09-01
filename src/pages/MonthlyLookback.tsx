@@ -46,7 +46,21 @@ type Row = {
   reopen_count: number | null;
   csat_rating: number | null;
   csat_rater_is_internal: boolean | null;
+  custom_attributes: Record<string, unknown> | null;
 };
+
+// The four Intercom custom attributes the Hub owns. Product area and ticket
+// type also land on dedicated columns; severity and the engineering-escalation
+// flag live only in custom_attributes.
+const ATTR_SEVERITY = "Severity";
+const ATTR_ESCALATED = "Escalated to Engineering";
+
+function attr(r: Row, key: string): string {
+  const v = (r.custom_attributes ?? {})[key];
+  if (v === null || v === undefined) return "";
+  return String(v).trim();
+}
+
 
 type Account = { account_key: string; label: string; is_test: boolean };
 type ChangelogRow = { id: string; entry_date: string; title: string; area: string | null; tags: string[] | null };
