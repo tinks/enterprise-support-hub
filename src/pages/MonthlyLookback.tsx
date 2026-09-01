@@ -261,7 +261,7 @@ export default function MonthlyLookback() {
       }))
       .filter((m) => Math.abs(m.shareDelta) >= 3 || (m.isNew && m.cur >= 3))
       .sort((a, b) => Math.abs(b.shareDelta) - Math.abs(a.shareDelta));
-  }, [areaMix, cur.length, prev.length]);
+  }, [areaMix, curClosed.length, prevClosed.length]);
 
   const accountRows = useMemo(() => {
     const m = new Map<string, { key: string; label: string; cur: number; prev: number }>();
