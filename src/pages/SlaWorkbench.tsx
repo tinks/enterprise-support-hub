@@ -46,6 +46,8 @@ import {
   BUILTIN_POLICY,
   BUILTIN_SSE_POLICY,
 } from "@/hooks/useSlaBatch";
+import { PlanScopeSelect } from "@/components/PlanScopeSelect";
+import { PLAN_LABEL, inPlanScope, type PlanScope } from "@/lib/planTier";
 
 /** Business-day length for the given policy's calendar — drives "Nbd" rendering. */
 const bizDay = (p: SlaPolicy) => businessDaySeconds(p.businessHours);
@@ -697,6 +699,9 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [dateWindow, setDateWindow] = useState<DateWindow>("month");
   const [customerFilter, setCustomerFilter] = useState<string>(ALL_CUSTOMERS);
+  // SSE has no FR/resolution commitment, so the default population is Enterprise
+  // only — otherwise unscoreable rows would drag compliance down silently.
+  const [planScope, setPlanScope] = useState<PlanScope>("enterprise");
 
   const enriched: CorrectedEnriched[] = useMemo(
     () => rows.map((r) => {
@@ -748,14 +753,18 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
     return opts;
   }, [inScopeDate, customerLabels]);
 
-  // Compose customer filter on top of date filter.
+  // Compose plan scope + customer filter on top of date filter.
+  const inScopePlan = useMemo(
+    () => inScopeDate.filter((r) => inPlanScope(r.plan_tier, planScope)),
+    [inScopeDate, planScope],
+  );
   const filteredInScope = useMemo(() => {
-    if (customerFilter === ALL_CUSTOMERS) return inScopeDate;
+    if (customerFilter === ALL_CUSTOMERS) return inScopePlan;
     if (customerFilter === UNATTRIBUTED) {
-      return inScopeDate.filter((r) => !r.customer_key || !r.customer_key.trim());
+      return inScopePlan.filter((r) => !r.customer_key || !r.customer_key.trim());
     }
-    return inScopeDate.filter((r) => r.customer_key === customerFilter);
-  }, [inScopeDate, customerFilter]);
+    return inScopePlan.filter((r) => r.customer_key === customerFilter);
+  }, [inScopePlan, customerFilter]);
 
   const selectedCustomerLabel =
     customerFilter === ALL_CUSTOMERS
@@ -862,6 +871,8 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
           </SelectContent>
         </Select>
         <span className="text-xs text-muted-foreground italic">{WINDOW_CAPTIONS[dateWindow]}</span>
+        <span className="text-xs uppercase tracking-wide text-muted-foreground ml-2">Plan</span>
+        <PlanScopeSelect value={planScope} onChange={setPlanScope} className="h-8 w-[200px] text-sm" />
         <span className="text-xs uppercase tracking-wide text-muted-foreground ml-2">Customer</span>
         <Select value={customerFilter} onValueChange={setCustomerFilter}>
           <SelectTrigger className="h-8 w-[220px] text-sm">
@@ -879,6 +890,7 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
       <div className="text-sm text-muted-foreground">
         <span className="font-semibold text-foreground">In-scope: {filteredInScope.length}</span>
         <span className="text-muted-foreground"> · {WINDOW_CAPTIONS[dateWindow]}</span>
+        <span className="text-muted-foreground"> · plan: <span className="text-foreground font-medium">{PLAN_LABEL[planScope]}</span></span>
         {selectedCustomerLabel && (
           <span className="text-muted-foreground"> · customer: <span className="text-foreground font-medium">{selectedCustomerLabel}</span></span>
         )}
