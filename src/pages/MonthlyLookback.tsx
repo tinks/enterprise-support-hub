@@ -24,6 +24,7 @@ import { PLAN_LABEL, planScopeNote, inPlanScope, type PlanScope } from "@/lib/pl
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, CartesianGrid, Legend,
 } from "recharts";
+import { ACTIVE_LABEL, RAW_LABEL, ACTIVE_TOOLTIP, collectActive, collectRaw, notComputableNote } from "@/lib/resolutionDisplay";
 
 type Row = {
   id: string;
@@ -44,6 +45,8 @@ type Row = {
   finalized_at: string | null;
   transferred_at: string | null;
   time_to_resolve_s: number | null;
+  resolution_active_s: number | null;
+  active_clock_engine_version: number | null;
   time_to_first_admin_reply_s: number | null;
   reopen_count: number | null;
   csat_rating: number | null;
@@ -145,8 +148,6 @@ export default function MonthlyLookback() {
   const [copiedSlack, setCopiedSlack] = useState(false);
   const [csatFilters, setCsatFilters] = useCsatFilters();
   const { overrides: csatOverrides } = useCsatOverrides();
-  const [closedByTicket, setClosedByTicket] = useState<Record<string, number> | null>(null);
-  const [activeLoading, setActiveLoading] = useState(false);
   const [planScope, setPlanScope] = useState<PlanScope>("all");
 
   const monthStart = useMemo(() => startOfMonth(new Date(`${month}-01T00:00:00Z`)), [month]);
@@ -178,7 +179,7 @@ export default function MonthlyLookback() {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
             .select(
-              "id,intercom_conversation_id,subject,subject_override,product_area,classification,tags,plan_tier,owner,customer_key,customer_resolution_method,rsa_override,lifecycle_status,state,intercom_created_at,finalized_at,transferred_at,time_to_resolve_s,time_to_first_admin_reply_s,reopen_count,csat_rating,csat_rater_is_internal,custom_attributes",
+              "id,intercom_conversation_id,subject,subject_override,product_area,classification,tags,plan_tier,owner,customer_key,customer_resolution_method,rsa_override,lifecycle_status,state,intercom_created_at,finalized_at,transferred_at,time_to_resolve_s,resolution_active_s,active_clock_engine_version,time_to_first_admin_reply_s,reopen_count,csat_rating,csat_rater_is_internal,custom_attributes",
             )
             .gte("intercom_created_at", fromIso)
             .lte("intercom_created_at", toIso)
@@ -339,8 +340,12 @@ export default function MonthlyLookback() {
   }, [cur]);
 
   const quality = useMemo(() => {
-    const times = curClosed.map((r) => r.time_to_resolve_s).filter((v): v is number => typeof v === "number" && v > 0);
-    const prevTimes = prevClosed.map((r) => r.time_to_resolve_s).filter((v): v is number => typeof v === "number" && v > 0);
+    // Headline = persisted ACTIVE clock; no manual load, no client recompute.
+    const active = collectActive(curClosed);
+    const prevActive = collectActive(prevClosed);
+    const times = active.values;
+    const prevTimes = prevActive.values;
+    const rawTimes = collectRaw(curClosed);
     const frt = cur.map((r) => r.time_to_first_admin_reply_s).filter((v): v is number => typeof v === "number" && v > 0);
     const csat = summarizeCsat(curClosed as any, csatOverrides, csatFilters);
     const ratings = curClosed
@@ -357,53 +362,13 @@ export default function MonthlyLookback() {
       csatExcluded: csat.internalExcluded + csat.overriddenExcluded,
       reopened,
       closedN: curClosed.length,
+      notComputable: active.notComputable,
+      zeroActive: active.zeroActive,
+      medRaw: median(rawTimes),
+      prevNotComputable: prevActive.notComputable,
     };
   }, [cur, curClosed, prevClosed, csatOverrides, csatFilters]);
 
-  const activeStats = useMemo(() => {
-    if (!closedByTicket) return null;
-    const vals: number[] = [];
-    let removed = 0;
-    for (const r of curClosed) {
-      const total = r.time_to_resolve_s;
-      if (typeof total !== "number" || total <= 0) continue;
-      const closedS = closedByTicket[r.intercom_conversation_id] ?? 0;
-      removed += closedS;
-      vals.push(Math.max(0, total - closedS));
-    }
-    return { med: median(vals), p90: vals.length >= 10 ? percentile(vals, 90) : null, removed, n: vals.length };
-  }, [closedByTicket, curClosed]);
-
-  const loadActiveClock = async () => {
-    setActiveLoading(true);
-    try {
-      const ids = curClosed.map((r) => r.id);
-      const out: Record<string, number> = {};
-      const CHUNK = 40;
-      for (let i = 0; i < ids.length; i += CHUNK) {
-        const slice = ids.slice(i, i + CHUNK);
-        const { data, error } = await supabase
-          .from("intercom_tickets_v3")
-          .select("intercom_conversation_id,raw_payload")
-          .in("id", slice);
-        if (error) throw error;
-        for (const r of data ?? []) {
-          try {
-            const a = computeAnatomy((r as any).raw_payload);
-            out[(r as any).intercom_conversation_id] = a.closedS ?? 0;
-          } catch {
-            /* a payload we can't walk contributes no closed time */
-          }
-        }
-      }
-      setClosedByTicket(out);
-      toast.success("Active clock computed from payload timelines");
-    } catch (e: any) {
-      toast.error(`Active clock failed: ${e?.message ?? e}`);
-    } finally {
-      setActiveLoading(false);
-    }
-  };
 
   const shippedByArea = useMemo(() => {
     const m = new Map<string, ChangelogRow[]>();
@@ -505,8 +470,8 @@ export default function MonthlyLookback() {
     L.push("- Customer size and lifecycle stage are not tracked in the account registry, so no claim is made about them.");
     if (notes.customers) L.push("", notes.customers);
     L.push("", "## Quality", "");
-    L.push(`- Median time to resolve ${formatDuration(quality.medResolve)}${quality.p90Resolve ? ` · P90 ${formatDuration(quality.p90Resolve)}` : ""} (${prevLabel} median ${formatDuration(quality.prevMedResolve)}).`);
-    if (activeStats) L.push(`- Active clock (closed time removed): median ${formatDuration(activeStats.med)}${activeStats.p90 ? ` · P90 ${formatDuration(activeStats.p90)}` : ""}.`);
+    L.push(`- Median resolution (active) ${formatDuration(quality.medResolve)}${quality.p90Resolve ? ` · P90 ${formatDuration(quality.p90Resolve)}` : ""} (${prevLabel} median ${formatDuration(quality.prevMedResolve)}). Active excludes closed and waiting-on-customer time; elapsed (raw) median was ${formatDuration(quality.medRaw)}.`);
+    if (quality.notComputable > 0) L.push(`- ${notComputableNote(quality.notComputable)} closed tickets have no computable active clock and are excluded from the median.`);
     L.push(`- Median time to first reply ${formatDuration(quality.medFrt)}.`);
     L.push(`- CSAT ${quality.avgCsat == null ? "—" : quality.avgCsat.toFixed(2)} (n=${quality.csatN}${quality.csatExcluded ? `, ${quality.csatExcluded} excluded as internal or overridden` : ""}).`);
     L.push(`- ${quality.reopened} of ${quality.closedN} closed tickets were reopened at least once (${pct(quality.reopened, quality.closedN)}).`);
@@ -525,7 +490,7 @@ export default function MonthlyLookback() {
     return L.join("\n");
   }, [
     monthLabel, prevLabel, curAll.length, prevAll.length, cur.length, curClosed, stillOpen.length,
-    areaMix, typeMix, spikes, concentration, planMix, accountRows, quality, activeStats,
+    areaMix, typeMix, spikes, concentration, planMix, accountRows, quality,
     changelog.length, shippedByArea, escStats, escToEng, gapRows.length, notes, planScope,
 
   ]);
@@ -547,7 +512,7 @@ export default function MonthlyLookback() {
     L.push("*Key metrics* (vs " + prevLabel + ")");
     L.push(`• Tickets created: *${curAll.length}* ${arrow(curAll.length, prevAll.length)} (${prevLabel} ${prevAll.length}, ${deltaLabel(curAll.length, prevAll.length)})`);
     L.push(`• Closed: *${curClosed.length}* · still open: ${stillOpen.length}`);
-    L.push(`• Median resolve: *${formatDuration(quality.medResolve)}* ${arrow(quality.prevMedResolve ?? 0, quality.medResolve ?? 0)} (${prevLabel} ${formatDuration(quality.prevMedResolve)})`);
+    L.push(`• Median resolution (active): *${formatDuration(quality.medResolve)}* ${arrow(quality.prevMedResolve ?? 0, quality.medResolve ?? 0)} (${prevLabel} ${formatDuration(quality.prevMedResolve)})`);
     L.push(`• Median first reply: *${formatDuration(quality.medFrt)}*`);
     L.push(`• CSAT: *${quality.avgCsat == null ? "—" : quality.avgCsat.toFixed(2)}* (n=${quality.csatN}) · reopened ${pct(quality.reopened, quality.closedN)}`);
     L.push("");
@@ -857,21 +822,17 @@ export default function MonthlyLookback() {
               <div>
                 <CardTitle className="text-base">Quality</CardTitle>
                 <CardDescription>
-                  Resolution, first reply, reopens and CSAT over tickets created in {monthLabel}. CSAT applies the shared
+                  Resolution (active), first reply, reopens and CSAT over tickets created in {monthLabel}. CSAT applies the shared
                   integrity rules (internal raters and overrides removed).
                 </CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={loadActiveClock} disabled={activeLoading || !curClosed.length}>
-                {activeLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Timer className="h-4 w-4 mr-2" />}
-                Load active clock
-              </Button>
             </div>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               {[
-                { label: "Median resolve", value: formatDuration(quality.medResolve), sub: `${prevLabel}: ${formatDuration(quality.prevMedResolve)}` },
-                { label: "P90 resolve", value: formatDuration(quality.p90Resolve), sub: quality.p90Resolve == null ? "needs 10+ closed" : `${quality.closedN} closed` },
+                { label: `Median ${ACTIVE_LABEL.toLowerCase()}`, value: formatDuration(quality.medResolve), sub: `${prevLabel}: ${formatDuration(quality.prevMedResolve)} · raw ${formatDuration(quality.medRaw)}` },
+                { label: "P90 resolve (active)", value: formatDuration(quality.p90Resolve), sub: quality.p90Resolve == null ? "needs 10+ closed" : `${quality.closedN} closed` },
                 { label: "Median first reply", value: formatDuration(quality.medFrt), sub: "time to first admin reply" },
                 { label: "CSAT", value: quality.avgCsat == null ? "—" : quality.avgCsat.toFixed(2), sub: `n=${quality.csatN}${quality.csatExcluded ? ` · ${quality.csatExcluded} excluded` : ""}` },
                 { label: "Reopened", value: `${quality.reopened}`, sub: `${pct(quality.reopened, quality.closedN)} of closed` },
@@ -884,17 +845,15 @@ export default function MonthlyLookback() {
               ))}
             </div>
 
-            {activeStats && (
-              <div className="mt-4 rounded-lg border p-3 text-sm">
-                <div className="font-medium">Active clock — closed time removed</div>
-                <div className="text-muted-foreground mt-1">
-                  Median {formatDuration(activeStats.med)}
-                  {activeStats.p90 ? ` · P90 ${formatDuration(activeStats.p90)}` : ""} over {activeStats.n} tickets.{" "}
-                  {formatDuration(activeStats.removed)} of closed-then-reopened time removed in total, derived from the
-                  payload timelines by the resolution-anatomy engine.
-                </div>
+            <div className="mt-4 rounded-lg border p-3 text-sm">
+              <div className="font-medium">{ACTIVE_LABEL}</div>
+              <div className="text-muted-foreground mt-1">
+                {ACTIVE_TOOLTIP} {RAW_LABEL} median for the same population is{" "}
+                {formatDuration(quality.medRaw)}, kept for reconciliation against Intercom.
+                {quality.notComputable > 0 ? ` ${notComputableNote(quality.notComputable)}, excluded from the median.` : ""}
+                {quality.zeroActive > 0 ? ` ${quality.zeroActive} closed at 0h active (replied instantly, customer never returned).` : ""}
               </div>
-            )}
+            </div>
             <NoteBox section="quality" />
           </CardContent>
         </Card>
