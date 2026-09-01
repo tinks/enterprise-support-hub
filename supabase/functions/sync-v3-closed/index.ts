@@ -38,6 +38,8 @@ import {
 } from "../_shared/v3.ts";
 import { syncTicketAttributes } from "../_shared/v3-attributes.ts";
 import { writeV3Signals } from "../_shared/v3-signals.ts";
+import { activeClockFields } from "../_shared/v3-finalize.ts";
+import { loadSupportRoster, registerConfiguredAnchors } from "../_shared/sla-roster.ts";
 import { resolveInboxes, inboxSearchClause } from "../_shared/v3-inboxes.ts";
 
 Deno.serve(async (req) => {
@@ -74,6 +76,10 @@ Deno.serve(async (req) => {
 
   let adminOwnerMap: Record<string, string> = {};
   try { adminOwnerMap = JSON.parse(settings.admin_owner_map || "{}"); } catch { /* */ }
+
+  // Support roster + SSE anchor for the active-clock computation.
+  await registerConfiguredAnchors(supabase);
+  const roster = await loadSupportRoster(supabase);
 
   // -------------------------------------------------------------------------
   // Resolve search window (unix seconds)
@@ -364,6 +370,8 @@ Deno.serve(async (req) => {
         last_full_fetch_at: new Date().toISOString(),
         raw_payload: icData,
         reopen_count_at_finalize: Number(icData?.statistics?.count_reopens ?? 0),
+        // Active resolution clock (dormant/closed time excluded) — shared rule.
+        ...activeClockFields(icData, roster),
       };
 
       const { data: upserted, error } = await supabase

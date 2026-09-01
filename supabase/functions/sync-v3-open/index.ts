@@ -25,6 +25,7 @@ import {
   V3_CORS_HEADERS,
 } from "../_shared/v3.ts";
 import { finalizeConversation } from "../_shared/v3-finalize.ts";
+import { loadSupportRoster, registerConfiguredAnchors } from "../_shared/sla-roster.ts";
 import { syncTicketAttributes } from "../_shared/v3-attributes.ts";
 import { writeV3Signals } from "../_shared/v3-signals.ts";
 import { notifyNewTicket } from "../_shared/new-ticket-alert.ts";
@@ -56,6 +57,10 @@ Deno.serve(async (req) => {
 
   let adminOwnerMap: Record<string, string> = {};
   try { adminOwnerMap = JSON.parse(settings.admin_owner_map || "{}"); } catch {}
+
+  // Support roster + SSE anchor for the active-clock computation at finalize.
+  await registerConfiguredAnchors(supabase);
+  const roster = await loadSupportRoster(supabase);
 
   const sinceTs = Math.max(
     Math.floor((Date.now() - windowHours * 3600 * 1000) / 1000),
@@ -208,6 +213,7 @@ Deno.serve(async (req) => {
           inboxes,
           adminOwnerMap,
           existing: null,
+          roster,
         });
         if (result.kind === "inserted" || result.kind === "updated") ticketsFinalized++;
         else if (result.kind === "skipped") skipped++;
@@ -314,6 +320,7 @@ Deno.serve(async (req) => {
           inboxes,
           adminOwnerMap,
           existing: existingRow ? { id: existingRow.id } : null,
+          roster,
         });
         if (result.kind === "inserted" || result.kind === "updated") ticketsFinalized++;
         else if (result.kind === "skipped") skipped++;
