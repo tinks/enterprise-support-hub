@@ -544,14 +544,23 @@ export type EngEscalation = {
  * Earliest moment the ticket carried a Linear reference, read from the
  * timestamped `conversation_attribute_updated_by_admin` parts in the payload.
  */
+export function isLinearReferenceValue(raw: unknown): boolean {
+  const s = String(raw ?? "").trim();
+  if (!s) return false;
+  // The "Escalated Issue" field also holds Slack links and free text; only a
+  // real Linear issue reference may open an engineering-wait window.
+  if (/linear\.app\/[^/\s]+\/issue\/[A-Z][A-Z0-9]*-\d+/i.test(s)) return true;
+  return /^[A-Z][A-Z0-9]*-\d+$/i.test(s);
+}
+
 export function findLinearAttributeTs(timeline: TimelinePart[]): number | null {
   let best: number | null = null;
   for (const p of timeline) {
     if (p.partType !== "conversation_attribute_updated_by_admin") continue;
     const name = String(p.eventDetails?.attribute?.name ?? "");
     if (!LINEAR_ATTRIBUTE_NAMES.has(name)) continue;
-    const value = String(p.eventDetails?.value?.name ?? "").trim();
-    if (!value) continue; // clearing the attribute does not open a window
+    // Clearing the attribute, or a non-Linear value, does not open a window.
+    if (!isLinearReferenceValue(p.eventDetails?.value?.name)) continue;
     if (best == null || p.ts < best) best = p.ts;
   }
   return best;
