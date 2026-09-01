@@ -124,6 +124,9 @@ export default function SlaReport() {
     return t != null && t >= start && t < end;
   };
 
+  // SSE has no first-response or resolution commitment, so on that scope the
+  // compliance panels are replaced by an explicit note rather than showing 0%.
+  const sseScope = planScope === "sse";
   const inPlan = <T extends { plan_tier?: string | null }>(r: T) => inPlanScope(r.plan_tier, planScope);
   const population = useMemo(() => inScope.filter((r) => inMonth(r) && inPlan(r)), [inScope, start, end, planScope]);
   const monthExcluded = useMemo(() => excluded.filter((r) => inMonth(r) && inPlan(r)), [excluded, start, end, planScope]);
@@ -330,7 +333,22 @@ export default function SlaReport() {
           </CardContent>
         </Card>
 
+        {sseScope && (
+          <Card className="border-amber-500/40 bg-amber-500/5">
+            <CardHeader>
+              <CardTitle className="text-base">No SLA commitment on this plan</CardTitle>
+              <CardDescription className="text-xs">
+                Self-serve Enterprise carries no first-response or resolution SLA. The compliance sections
+                (§2 headline, §3a/§3b by severity, §4 breaches) are hidden rather than reported as 0% —
+                a target that does not exist cannot be met or breached. Triage (§2b, 1 hour target),
+                cadence (§3c), source mix (§5) and the data-quality footer (§6) still apply and are shown below.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )}
+
         {/* §2 Headline */}
+        {!sseScope && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">§2 Headline — vs PROPOSED targets</CardTitle>
@@ -356,6 +374,7 @@ export default function SlaReport() {
             })}
           </CardContent>
         </Card>
+        )}
 
         {/* §2b Triage time — MEASURE-FIRST, no target */}
         <Card>
@@ -479,18 +498,22 @@ export default function SlaReport() {
 
 
 
-        <SeverityTable activePolicy={activePolicy}
-          title="§3a First Response by Severity"
-          metric="first_response"
-          bySev={bySev}
-          isExcused={isExcused}
-        />
-        <SeverityTable activePolicy={activePolicy}
-          title="§3b Resolution by Severity"
-          metric="resolution"
-          bySev={bySev}
-          isExcused={isExcused}
-        />
+        {!sseScope && (
+          <>
+            <SeverityTable activePolicy={activePolicy}
+              title="§3a First Response by Severity"
+              metric="first_response"
+              bySev={bySev}
+              isExcused={isExcused}
+            />
+            <SeverityTable activePolicy={activePolicy}
+              title="§3b Resolution by Severity"
+              metric="resolution"
+              bySev={bySev}
+              isExcused={isExcused}
+            />
+          </>
+        )}
 
         {/* §3c Communication cadence — PROVISIONAL, Sev1/Sev2 only */}
         <Card>
@@ -573,6 +596,7 @@ export default function SlaReport() {
 
 
         {/* §4 Breaches */}
+        {!sseScope && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">§4 Breaches vs PROPOSED targets</CardTitle>
@@ -594,6 +618,7 @@ export default function SlaReport() {
           </CardContent>
 
         </Card>
+        )}
 
         {/* §5 By Source */}
         <Card>
