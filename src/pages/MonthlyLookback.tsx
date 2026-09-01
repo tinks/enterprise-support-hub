@@ -14,7 +14,6 @@ import { median, percentile, formatDuration } from "@/lib/durationStats";
 import { summarizeCsat, isRatingCounted, useCsatFilters, useCsatOverrides } from "@/lib/csat";
 import { CsatFilterMenu } from "@/components/csat/CsatFilterMenu";
 import { isSlaExcluded } from "@/lib/slaExclusions";
-import { computeAnatomy } from "@/lib/resolutionAnatomy";
 import { useTableSort, SortableHead } from "@/components/issues/useTableSort";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { toast } from "sonner";
