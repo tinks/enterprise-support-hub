@@ -631,9 +631,15 @@ export type ActiveClockResult = {
   resolutionActiveS: number | null;
   resolutionActiveBhS: number | null;
   resolutionClosedS: number | null;
+  /** Waiting on the customer, with engineering wait already carved out. */
   resolutionCustomerWaitS: number | null;
   resolutionCustomerWaitBhS: number | null;
-  /** close_at − sla_clock_start: the denominator active/closed/wait sum to. */
+  resolutionEngWaitS: number | null;
+  resolutionEngWaitBhS: number | null;
+  engWaitStartS: number | null;
+  engWaitEndS: number | null;
+  engWaitSource: EngWaitSource | null;
+  /** close_at − sla_clock_start: active + closed + wait + eng_wait sum to it. */
   resolutionWindowS: number | null;
   rawResolveS: number | null;
   partsCount: number;
@@ -647,7 +653,12 @@ export type ActiveClockResult = {
  */
 export function computeActiveClock(
   conversation: any,
-  opts?: { roster?: SupportRoster; businessHours?: BusinessHoursConfig },
+  opts?: {
+    roster?: SupportRoster;
+    businessHours?: BusinessHoursConfig;
+    /** Linear / Hub escalation facts for this conversation, when known. */
+    escalation?: EngEscalation | null;
+  },
 ): ActiveClockResult {
   const businessHours = opts?.businessHours ?? DEFAULT_BUSINESS_HOURS;
   const timeline = reattributeRelay(extractTimeline(conversation), opts?.roster);
@@ -659,34 +670,31 @@ export function computeActiveClock(
   const rawResolveS =
     typeof stats?.time_to_last_close === "number" ? stats.time_to_last_close : null;
 
+  const wall = (a: number, b: number) => Math.max(0, b - a);
+  const bh = (a: number, b: number) => businessHoursBetween(a, b, businessHours);
+
+  const waitSegs = customerWaitSegments(timeline, slaClockStartS, closeAtS);
+  const engWindow = resolveEngWaitWindow(timeline, slaClockStartS, closeAtS, opts?.escalation);
+  const waitTotalS = waitSegs == null ? null : waitSegs.reduce((n, s) => n + wall(s.startS, s.endS), 0);
+  const waitTotalBhS = waitSegs == null ? null : waitSegs.reduce((n, s) => n + bh(s.startS, s.endS), 0);
+  const engS = computeEngineeringWait(waitSegs, engWindow, wall);
+  const engBhS = computeEngineeringWait(waitSegs, engWindow, bh);
+
   return {
     slaClockStartS,
     closeAtS,
-    resolutionActiveS: computeResolutionActive(
-      timeline,
-      slaClockStartS,
-      closeAtS,
-      (a, b) => Math.max(0, b - a),
-    ),
-    resolutionActiveBhS: computeResolutionActive(
-      timeline,
-      slaClockStartS,
-      closeAtS,
-      (a, b) => businessHoursBetween(a, b, businessHours),
-    ),
+    resolutionActiveS: computeResolutionActive(timeline, slaClockStartS, closeAtS, wall),
+    resolutionActiveBhS: computeResolutionActive(timeline, slaClockStartS, closeAtS, bh),
     resolutionClosedS: computeClosedDormant(timeline, slaClockStartS, closeAtS),
-    resolutionCustomerWaitS: computeCustomerWait(
-      timeline,
-      slaClockStartS,
-      closeAtS,
-      (a, b) => Math.max(0, b - a),
-    ),
-    resolutionCustomerWaitBhS: computeCustomerWait(
-      timeline,
-      slaClockStartS,
-      closeAtS,
-      (a, b) => businessHoursBetween(a, b, businessHours),
-    ),
+    resolutionCustomerWaitS:
+      waitTotalS == null ? null : Math.max(0, waitTotalS - (engS ?? 0)),
+    resolutionCustomerWaitBhS:
+      waitTotalBhS == null ? null : Math.max(0, waitTotalBhS - (engBhS ?? 0)),
+    resolutionEngWaitS: engS,
+    resolutionEngWaitBhS: engBhS,
+    engWaitStartS: (engS ?? 0) > 0 ? engWindow.startS : null,
+    engWaitEndS: (engS ?? 0) > 0 ? engWindow.endS : null,
+    engWaitSource: (engS ?? 0) > 0 ? engWindow.source : null,
     resolutionWindowS:
       slaClockStartS != null && closeAtS != null
         ? Math.max(0, closeAtS - slaClockStartS)
