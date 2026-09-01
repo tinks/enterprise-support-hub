@@ -25,6 +25,8 @@ import { useInitialQ } from "@/hooks/useInitialQ";
 import { useCsatOverrides } from "@/lib/csat";
 import { CsatOverrideDialog } from "@/components/csat/CsatOverrideDialog";
 import { useIntercomTeams } from "@/hooks/useIntercomTeams";
+import { PlanBadge } from "@/components/PlanScopeSelect";
+import { PLAN_LABEL, planTierOf, inPlanScope, type PlanScope } from "@/lib/planTier";
 
 type Ticket = {
   id: string;
@@ -63,6 +65,8 @@ type Ticket = {
   transferred_at: string | null;
   reassigned_team_id: string | null;
   custom_attributes: Record<string, unknown> | null;
+  /** 'enterprise' (default) or 'sse' — set at ingest from the Intercom inbox. */
+  plan_tier: string | null;
 };
 
 /** Linear-bearing Intercom custom attributes, searchable in the Inbox v3 filter. */
@@ -139,6 +143,7 @@ export default function InboxV3() {
   const [pa, setPa] = useState<string>(ANY);
   const [rsaFilter, setRsaFilter] = useState<"all" | "required" | "not_required">("all");
   const [customerFilter, setCustomerFilter] = useState<string>(ANY);
+  const [planScope, setPlanScope] = useState<PlanScope>("all");
   const [selected, setSelected] = useState<Ticket | null>(null);
   const { overrides: csatOverrides, refresh: refreshCsatOverrides } = useCsatOverrides();
 
@@ -348,6 +353,7 @@ export default function InboxV3() {
       if (owner !== ANY && r.owner !== owner) return false;
       if (tab === "finalized" && pa !== ANY && r.product_area !== pa) return false;
       if (customerFilter !== ANY && r.customer_key !== customerFilter) return false;
+      if (!inPlanScope(r.plan_tier, planScope)) return false;
       if (rsaFilter !== "all") {
         const v = effectiveRsa(r).value;
         if (rsaFilter === "required" && v !== "required") return false;
@@ -360,7 +366,7 @@ export default function InboxV3() {
       }
       return true;
     });
-  }, [currentRows, search, owner, pa, tab, rsaFilter, customerFilter]);
+  }, [currentRows, search, owner, pa, tab, rsaFilter, customerFilter, planScope]);
 
   const lastSync = useMemo(() => {
     const ts = currentRows.map((r) => r.last_synced_at).filter(Boolean).sort().pop();
@@ -494,6 +500,14 @@ export default function InboxV3() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={planScope} onValueChange={(v) => setPlanScope(v as PlanScope)}>
+              <SelectTrigger className="h-9 w-[200px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Plan: any</SelectItem>
+                <SelectItem value="enterprise">{PLAN_LABEL.enterprise}</SelectItem>
+                <SelectItem value="sse">{PLAN_LABEL.sse}</SelectItem>
+              </SelectContent>
+            </Select>
             <span className="text-xs text-muted-foreground ml-2">{filtered.length} of {currentRows.length}</span>
           </div>
 
@@ -561,6 +575,10 @@ export default function InboxV3() {
                 </div>
                 <Field label="State" value={selected.state} />
                 <Field label="Owner" value={selected.owner} />
+                <Field
+                  label="Plan"
+                  value={planTierOf(selected.plan_tier) === "sse" ? "Self-serve Enterprise (no first-response SLA, 1h triage)" : "Enterprise"}
+                />
                 <div className="grid grid-cols-[140px_1fr] gap-3 items-start">
                   <dt className="text-xs text-muted-foreground">Severity AI</dt>
                   <dd>
@@ -788,6 +806,7 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, 
     contact: (r) => (r.contact_name || r.contact_email || "").toLowerCase(),
     customer: (r) => accountLabel(r.customer_key).toLowerCase(),
     owner: (r) => (r.owner || "").toLowerCase(),
+    plan: (r) => planTierOf(r.plan_tier),
     product_area: (r) => r.product_area || "",
     classification: (r) => r.classification || "",
     state: (r) => r.state || "",
@@ -806,6 +825,7 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, 
             <SortableHead sortKey="contact" sort={sort} onToggle={toggle} className="w-[180px]">Contact</SortableHead>
             <SortableHead sortKey="customer" sort={sort} onToggle={toggle} className="w-[140px]">Customer</SortableHead>
             <SortableHead sortKey="owner" sort={sort} onToggle={toggle} className="w-[120px]">Owner</SortableHead>
+            <SortableHead sortKey="plan" sort={sort} onToggle={toggle} className="w-[100px]">Plan</SortableHead>
             <SortableHead sortKey="product_area" sort={sort} onToggle={toggle} className="w-[160px]">Product area</SortableHead>
             <SortableHead sortKey="classification" sort={sort} onToggle={toggle} className="w-[140px]">Classification</SortableHead>
             <SortableHead sortKey="state" sort={sort} onToggle={toggle} className="w-[100px]">State</SortableHead>
@@ -818,12 +838,12 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, 
 
         <TableBody>
           {loading && (
-            <TableRow><TableCell colSpan={12} className="text-center py-6 text-muted-foreground">
+            <TableRow><TableCell colSpan={13} className="text-center py-6 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
             </TableCell></TableRow>
           )}
           {!loading && rows.length === 0 && (
-            <TableRow><TableCell colSpan={12} className="text-center py-6 text-muted-foreground">
+            <TableRow><TableCell colSpan={13} className="text-center py-6 text-muted-foreground">
               No rows match the current filters.
             </TableCell></TableRow>
           )}
@@ -841,6 +861,7 @@ function FinalizedTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, 
                 <Badge variant="secondary" className="text-xs">{accountLabel(r.customer_key)}</Badge>
               </TableCell>
               <TableCell>{r.owner || "—"}</TableCell>
+              <TableCell><PlanBadge value={r.plan_tier} /></TableCell>
               <TableCell>{r.product_area || "—"}</TableCell>
               <TableCell>{r.classification || "—"}</TableCell>
               <TableCell className="text-xs">
@@ -895,6 +916,7 @@ function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, acc
     contact: (r) => (r.contact_name || r.contact_email || "").toLowerCase(),
     customer: (r) => accountLabel(r.customer_key).toLowerCase(),
     owner: (r) => (r.owner || "").toLowerCase(),
+    plan: (r) => planTierOf(r.plan_tier),
     state: (r) => r.state || "",
     lifecycle: (r) => r.lifecycle_status || "",
     rsa: (r) => effectiveRsa(r).value,
@@ -911,6 +933,7 @@ function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, acc
             <SortableHead sortKey="contact" sort={sort} onToggle={toggle} className="w-[200px]">Contact</SortableHead>
             <SortableHead sortKey="customer" sort={sort} onToggle={toggle} className="w-[140px]">Customer</SortableHead>
             <SortableHead sortKey="owner" sort={sort} onToggle={toggle} className="w-[120px]">Owner</SortableHead>
+            <SortableHead sortKey="plan" sort={sort} onToggle={toggle} className="w-[100px]">Plan</SortableHead>
             <SortableHead sortKey="state" sort={sort} onToggle={toggle} className="w-[100px]">State</SortableHead>
             <SortableHead sortKey="lifecycle" sort={sort} onToggle={toggle} className="w-[140px]">Lifecycle</SortableHead>
             <SortableHead sortKey="rsa" sort={sort} onToggle={toggle} className="w-[90px]">RSA</SortableHead>
@@ -921,12 +944,12 @@ function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, acc
 
         <TableBody>
           {loading && (
-            <TableRow><TableCell colSpan={10} className="text-center py-6 text-muted-foreground">
+            <TableRow><TableCell colSpan={11} className="text-center py-6 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin inline mr-2" /> Loading…
             </TableCell></TableRow>
           )}
           {!loading && rows.length === 0 && (
-            <TableRow><TableCell colSpan={10} className="text-center py-6 text-muted-foreground">
+            <TableRow><TableCell colSpan={11} className="text-center py-6 text-muted-foreground">
               No active tickets match the current filters.
             </TableCell></TableRow>
           )}
@@ -948,6 +971,7 @@ function ActiveTable({ rows, loading, onSelect, onCycleRsa, onMarkFinalized, acc
                   <Badge variant="secondary" className="text-xs">{accountLabel(r.customer_key)}</Badge>
                 </TableCell>
                 <TableCell>{r.owner || "—"}</TableCell>
+                <TableCell><PlanBadge value={r.plan_tier} /></TableCell>
                 <TableCell className="text-xs">{r.state || "—"}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1">

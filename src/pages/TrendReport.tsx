@@ -20,6 +20,9 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip as RTooltip, CartesianGrid, Legend,
 } from "recharts";
 
+import { PlanScopeSelect } from "@/components/PlanScopeSelect";
+import { inPlanScope, type PlanScope } from "@/lib/planTier";
+
 type Row = {
   id: string;
   intercom_created_at: string | null;
@@ -117,6 +120,7 @@ export default function TrendReport() {
   const [csatFilters, setCsatFilters] = useCsatFilters();
   const { overrides: csatOverrides } = useCsatOverrides();
   const [customerFilter, setCustomerFilter] = useState<string>("__any__");
+  const [planScope, setPlanScope] = useState<PlanScope>("all");
   const [accounts, setAccounts] = useState<AccountOpt[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -155,7 +159,7 @@ export default function TrendReport() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,finalized_at,lifecycle_status,csat_rating,csat_rater_is_internal,time_to_resolve_s,last_reopened_at,reopen_count_at_finalize,tags,rsa_override,customer_key")
+            .select("id,intercom_created_at,finalized_at,lifecycle_status,csat_rating,csat_rater_is_internal,time_to_resolve_s,last_reopened_at,reopen_count_at_finalize,tags,rsa_override,customer_key,plan_tier")
             .or(
               `intercom_created_at.gte.${startIso},` +
               `finalized_at.gte.${startIso},` +
@@ -184,9 +188,10 @@ export default function TrendReport() {
 
   const filtered = useMemo(() => {
     let r = excludeRsaFalse ? rows.filter((x) => effectiveRsa(x).value === "required") : rows;
+    if (planScope !== "all") r = r.filter((x) => inPlanScope((x as any).plan_tier, planScope));
     if (customerFilter !== "__any__") r = r.filter((x) => x.customer_key === customerFilter);
     return r;
-  }, [rows, excludeRsaFalse, customerFilter]);
+  }, [rows, excludeRsaFalse, customerFilter, planScope]);
 
   const buckets = useMemo<MonthBucket[]>(() => {
     return months.map((m) => {
@@ -331,6 +336,7 @@ export default function TrendReport() {
               </Select>
             </div>
             <div className="flex items-center gap-2">
+              <PlanScopeSelect value={planScope} onChange={setPlanScope} className="w-[200px] h-9" />
               <span className="text-xs text-muted-foreground">Customer</span>
               <Select value={customerFilter} onValueChange={setCustomerFilter}>
                 <SelectTrigger className="w-[220px] h-9"><SelectValue /></SelectTrigger>

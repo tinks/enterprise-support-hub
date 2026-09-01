@@ -98,11 +98,17 @@ async function loadPolicies(): Promise<SlaPolicy[]> {
   return versions.map((v) => policyToEngine(v, targets.filter((t) => t.version_id === v.id)));
 }
 
-// Temporary: the Self-serve Enterprise inbox is still being validated, so its
-// tickets are excluded from the ticket-backed Action Center signals. Remove
-// this filter (and the notes in the signal descriptions) once SSE is live.
-const SUPPRESS_SSE = true;
-const enterpriseOnly = <T,>(q: T): T => (SUPPRESS_SSE ? (q as any).eq("plan_tier", "enterprise") : q);
+// Plan scoping. Self-serve Enterprise (SSE) carries NO first-response or
+// resolution commitment but DOES carry a 1-hour triage target, so the two
+// families are scoped differently instead of suppressing SSE wholesale:
+//   - queue signals (untriaged, unassigned) cover every plan;
+//   - SLA-risk signals stay Enterprise-only, because there is no SSE target to
+//     be past;
+//   - sse_triage_risk watches the SSE-specific 1-hour triage clock.
+const enterpriseOnly = <T,>(q: T): T => (q as any).eq("plan_tier", "enterprise");
+const sseOnly = <T,>(q: T): T => (q as any).eq("plan_tier", "sse");
+/** SSE triage target: 1 hour (Enterprise is 30 minutes). */
+const SSE_TRIAGE_TARGET_S = 60 * 60;
 
 // ---------------------------------------------------------------- signals
 
@@ -131,13 +137,13 @@ export const ACTION_SIGNALS: ActionSignal[] = [
     route: "/triage",
     routeLabel: "Triage queue",
     meaning:
-      "Open tickets with no Severity set in Intercom. Self-serve Enterprise (SSE) tickets are suppressed while that inbox is being tested.",
+      "Open tickets with no Severity set in Intercom. Covers every plan — Enterprise and Self-serve Enterprise alike.",
     load: async () => {
-      const res = await enterpriseOnly(
+      const res = await (
         supabase
           .from("intercom_tickets_v3")
           .select("custom_attributes,intercom_created_at")
-          .in("lifecycle_status", ["open", "reopened_after_finalize"]),
+          .in("lifecycle_status", ["open", "reopened_after_finalize"])
       ).limit(1000);
       const rows = unwrap<Array<{ custom_attributes: any; intercom_created_at: string | null }>>(res as any);
       const open = rows.filter((r) => !hasSeverity(r.custom_attributes));
@@ -151,16 +157,16 @@ export const ACTION_SIGNALS: ActionSignal[] = [
     route: "/triage?mode=unassigned",
     routeLabel: "Triage queue",
     meaning:
-      "Open tickets with no Intercom assignee, or an assignee that isn't mapped to a Hub owner. Tickets outside the SLA population — fyi, duplicate, merged, prospect, non-enterprise, test accounts — are not counted. Self-serve Enterprise (SSE) tickets are suppressed while that inbox is being tested.",
+      "Open tickets with no Intercom assignee, or an assignee that isn't mapped to a Hub owner. Tickets outside the SLA population — fyi, duplicate, merged, prospect, non-enterprise, test accounts — are not counted. Covers every plan — Enterprise and Self-serve Enterprise alike.",
     load: async () => {
       const [ticketsRes, testRes] = await Promise.all([
-        enterpriseOnly(
+        (
           supabase
             .from("intercom_tickets_v3")
             .select(
               "intercom_conversation_id,admin_assignee_id,owner,intercom_created_at,tags,rsa_override,customer_resolution_method,customer_key",
             )
-            .in("lifecycle_status", ["open", "reopened_after_finalize"]),
+            .in("lifecycle_status", ["open", "reopened_after_finalize"])
         ).limit(1000),
         supabase.from("v3_customer_accounts").select("account_key,is_test").eq("is_test", true).limit(1000),
       ]);
@@ -212,6 +218,42 @@ export const ACTION_SIGNALS: ActionSignal[] = [
     },
   },
 
+  {
+    id: "sse_triage_risk",
+    label: "SSE triage past 1h",
+    family: "sla",
+    route: "/triage",
+    routeLabel: "Triage queue",
+    meaning:
+      "Self-serve Enterprise tickets still open with no Severity set more than 1 hour after they arrived. SSE has no first-response or resolution SLA, so triage is the only clock it carries.",
+    load: async () => {
+      const res = await sseOnly(
+        supabase
+          .from("intercom_tickets_v3")
+          .select("intercom_conversation_id,custom_attributes,intercom_created_at")
+          .in("lifecycle_status", ["open", "reopened_after_finalize"]),
+      ).limit(1000);
+      const rows = unwrap<
+        Array<{ intercom_conversation_id: string; custom_attributes: any; intercom_created_at: string | null }>
+      >(res as any);
+      const nowS = Date.now() / 1000;
+      const hits = rows.filter((r) => {
+        if (hasSeverity(r.custom_attributes)) return false;
+        if (!r.intercom_created_at) return false;
+        return nowS - new Date(r.intercom_created_at).getTime() / 1000 > SSE_TRIAGE_TARGET_S;
+      });
+      return {
+        count: hits.length,
+        oldestAt: minIso(hits.map((r) => r.intercom_created_at)),
+        items: hits.map((r) => ({
+          id: r.intercom_conversation_id,
+          intercomId: r.intercom_conversation_id,
+          label: "No severity after 1h",
+        })),
+      };
+    },
+  },
+
   // ---- SLA risk ---------------------------------------------------------
   {
     id: "first_response_risk",
@@ -220,7 +262,7 @@ export const ACTION_SIGNALS: ActionSignal[] = [
     route: "/sla-workbench",
     routeLabel: "SLA workbench",
     meaning:
-      "Open, severity-classified tickets with no support reply yet whose first-response clock already exceeds the effective policy target (overrides excluded). Tickets outside the SLA population — fyi, duplicate, merged, prospect, non-enterprise, test accounts — are not counted. Self-serve Enterprise (SSE) tickets are suppressed while that inbox is being tested.",
+      "Open, severity-classified tickets with no support reply yet whose first-response clock already exceeds the effective policy target (overrides excluded). Tickets outside the SLA population — fyi, duplicate, merged, prospect, non-enterprise, test accounts — are not counted. Self-serve Enterprise is excluded here because that plan has no first-response commitment; its triage clock is watched by the SSE triage signal.",
     load: async () => {
       const [policies, ticketsRes, overridesRes, testRes, rosterRes] = await Promise.all([
         loadPolicies(),

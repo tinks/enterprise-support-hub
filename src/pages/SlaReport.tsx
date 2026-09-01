@@ -20,6 +20,8 @@ import {
 } from "@/lib/slaMetrics";
 
 import { rowClosedAtMs } from "@/lib/slaWindow";
+import { PlanScopeSelect } from "@/components/PlanScopeSelect";
+import { PLAN_LABEL, inPlanScope, type PlanScope } from "@/lib/planTier";
 
 // ---------------------------------------------------------------------------
 // READ-ONLY Monthly SLA Report. This is a DATA-BACKED PROPOSAL: the targets in
@@ -106,6 +108,9 @@ function pctText(p: number | null) {
 
 export default function SlaReport() {
   const [showTestData, setShowTestData] = useState(false);
+  // SSE carries NO first-response commitment, so mixing it into compliance rates
+  // understates them. The SLA surfaces therefore default to Enterprise only.
+  const [planScope, setPlanScope] = useState<PlanScope>("enterprise");
   const now = new Date();
   const months = useMemo(() => monthOptions(now), [now.getFullYear(), now.getMonth()]);
   const [month, setMonth] = useState(months[0].value);
@@ -119,10 +124,14 @@ export default function SlaReport() {
     return t != null && t >= start && t < end;
   };
 
-  const population = useMemo(() => inScope.filter(inMonth), [inScope, start, end]);
-  const monthExcluded = useMemo(() => excluded.filter(inMonth), [excluded, start, end]);
-  const monthNoCustomer = useMemo(() => noCustomer.filter(inMonth), [noCustomer, start, end]);
-  const monthManual = useMemo(() => manuallyLogged.filter(inMonth), [manuallyLogged, start, end]);
+  // SSE has no first-response or resolution commitment, so on that scope the
+  // compliance panels are replaced by an explicit note rather than showing 0%.
+  const sseScope = planScope === "sse";
+  const inPlan = <T extends { plan_tier?: string | null }>(r: T) => inPlanScope(r.plan_tier, planScope);
+  const population = useMemo(() => inScope.filter((r) => inMonth(r) && inPlan(r)), [inScope, start, end, planScope]);
+  const monthExcluded = useMemo(() => excluded.filter((r) => inMonth(r) && inPlan(r)), [excluded, start, end, planScope]);
+  const monthNoCustomer = useMemo(() => noCustomer.filter((r) => inMonth(r) && inPlan(r)), [noCustomer, start, end, planScope]);
+  const monthManual = useMemo(() => manuallyLogged.filter((r) => inMonth(r) && inPlan(r)), [manuallyLogged, start, end, planScope]);
 
   // Severity split — unclassified rows stay in the population but cannot be scored.
   const { bySev, unclassified, scored } = useMemo(() => {
@@ -254,10 +263,12 @@ export default function SlaReport() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Monthly SLA Report</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Read-only. Population = all Enterprise tickets finalized in the selected month (no owner filter).
+              Read-only. Population = all tickets finalized in the selected month (no owner filter). Plan scope:{" "}
+              <span className="font-medium text-foreground">{PLAN_LABEL[planScope]}</span>.
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <PlanScopeSelect value={planScope} onChange={setPlanScope} className="w-[220px] h-10" />
             <Select value={month} onValueChange={setMonth}>
               <SelectTrigger className="w-[190px]"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -322,7 +333,22 @@ export default function SlaReport() {
           </CardContent>
         </Card>
 
+        {sseScope && (
+          <Card className="border-amber-500/40 bg-amber-500/5">
+            <CardHeader>
+              <CardTitle className="text-base">No SLA commitment on this plan</CardTitle>
+              <CardDescription className="text-xs">
+                Self-serve Enterprise carries no first-response or resolution SLA. The compliance sections
+                (§2 headline, §3a/§3b by severity, §4 breaches) are hidden rather than reported as 0% —
+                a target that does not exist cannot be met or breached. Triage (§2b, 1 hour target),
+                cadence (§3c), source mix (§5) and the data-quality footer (§6) still apply and are shown below.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        )}
+
         {/* §2 Headline */}
+        {!sseScope && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">§2 Headline — vs PROPOSED targets</CardTitle>
@@ -348,6 +374,7 @@ export default function SlaReport() {
             })}
           </CardContent>
         </Card>
+        )}
 
         {/* §2b Triage time — MEASURE-FIRST, no target */}
         <Card>
@@ -471,18 +498,22 @@ export default function SlaReport() {
 
 
 
-        <SeverityTable activePolicy={activePolicy}
-          title="§3a First Response by Severity"
-          metric="first_response"
-          bySev={bySev}
-          isExcused={isExcused}
-        />
-        <SeverityTable activePolicy={activePolicy}
-          title="§3b Resolution by Severity"
-          metric="resolution"
-          bySev={bySev}
-          isExcused={isExcused}
-        />
+        {!sseScope && (
+          <>
+            <SeverityTable activePolicy={activePolicy}
+              title="§3a First Response by Severity"
+              metric="first_response"
+              bySev={bySev}
+              isExcused={isExcused}
+            />
+            <SeverityTable activePolicy={activePolicy}
+              title="§3b Resolution by Severity"
+              metric="resolution"
+              bySev={bySev}
+              isExcused={isExcused}
+            />
+          </>
+        )}
 
         {/* §3c Communication cadence — PROVISIONAL, Sev1/Sev2 only */}
         <Card>
@@ -565,6 +596,7 @@ export default function SlaReport() {
 
 
         {/* §4 Breaches */}
+        {!sseScope && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">§4 Breaches vs PROPOSED targets</CardTitle>
@@ -586,6 +618,7 @@ export default function SlaReport() {
           </CardContent>
 
         </Card>
+        )}
 
         {/* §5 By Source */}
         <Card>

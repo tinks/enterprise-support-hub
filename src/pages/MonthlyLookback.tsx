@@ -19,6 +19,8 @@ import { useTableSort, SortableHead } from "@/components/issues/useTableSort";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import { PlanScopeSelect } from "@/components/PlanScopeSelect";
+import { PLAN_LABEL, planScopeNote, inPlanScope, type PlanScope } from "@/lib/planTier";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, CartesianGrid, Legend,
 } from "recharts";
@@ -78,11 +80,6 @@ const SECTIONS = [
 type SectionKey = (typeof SECTIONS)[number]["key"];
 
 const UNSET = "— not set —";
-const PLAN_LABEL: Record<"all" | "enterprise" | "sse", string> = {
-  all: "All plans",
-  enterprise: "Enterprise",
-  sse: "Self-serve Enterprise",
-};
 const intercomUrl = (id: string) => `https://app.intercom.com/a/inbox/_/inbox/conversation/${id}`;
 
 function monthOptions(): { key: string; label: string }[] {
@@ -150,7 +147,7 @@ export default function MonthlyLookback() {
   const { overrides: csatOverrides } = useCsatOverrides();
   const [closedByTicket, setClosedByTicket] = useState<Record<string, number> | null>(null);
   const [activeLoading, setActiveLoading] = useState(false);
-  const [planScope, setPlanScope] = useState<"all" | "enterprise" | "sse">("all");
+  const [planScope, setPlanScope] = useState<PlanScope>("all");
 
   const monthStart = useMemo(() => startOfMonth(new Date(`${month}-01T00:00:00Z`)), [month]);
   const monthEnd = useMemo(() => endOfMonth(monthStart), [monthStart]);
@@ -243,7 +240,7 @@ export default function MonthlyLookback() {
   // Plan scope: "all" | "enterprise" | "sse". Applied before every other cut,
   // so headline, themes, spikes, customers, quality and the narrative all run
   // over the same population.
-  const inPlan = (r: Row) => planScope === "all" || (r.plan_tier || "enterprise") === planScope;
+  const inPlan = (r: Row) => inPlanScope(r.plan_tier, planScope);
 
   const curAll = useMemo(
     () => rows.filter((r) => inMonth(r, monthStart, monthEnd) && inPlan(r)),
@@ -484,7 +481,7 @@ export default function MonthlyLookback() {
     const L: string[] = [];
     L.push(`# ${PLAN_LABEL[planScope]} support lookback — ${monthLabel}`);
     L.push("");
-    L.push(`_Plan scope: ${PLAN_LABEL[planScope]}${planScope === "all" ? " (Enterprise + Self-serve Enterprise)" : " inbox only"}._`);
+    L.push(`_Plan scope: ${planScopeNote(planScope)}._`);
     L.push("");
     L.push(`**Volume.** ${curAll.length} tickets created (${cur.length} in the reporting population after exclusions), vs ${prevAll.length} in ${prevLabel} — ${deltaLabel(curAll.length, prevAll.length)}. ${curClosed.length} closed, ${stillOpen.length} still open at time of writing.`);
     if (notes.headline) L.push("", notes.headline);
@@ -622,14 +619,7 @@ export default function MonthlyLookback() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Select value={planScope} onValueChange={(v) => setPlanScope(v as typeof planScope)}>
-              <SelectTrigger className="w-[220px] h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All plans</SelectItem>
-                <SelectItem value="enterprise">Enterprise inbox</SelectItem>
-                <SelectItem value="sse">Self-serve Enterprise inbox</SelectItem>
-              </SelectContent>
-            </Select>
+            <PlanScopeSelect value={planScope} onChange={setPlanScope} />
             <Select value={month} onValueChange={setMonth}>
               <SelectTrigger className="w-[180px] h-9"><SelectValue /></SelectTrigger>
               <SelectContent>

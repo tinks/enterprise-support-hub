@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { PlanBadge } from "@/components/PlanScopeSelect";
+import { planTierOf } from "@/lib/planTier";
 import { useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { Loader2, RefreshCw, Info } from "lucide-react";
@@ -31,6 +33,7 @@ type Row = {
   contact_email: string | null;
   owner: string | null;
   customer_key: string | null;
+  plan_tier?: string | null;
   lifecycle_status: string | null;
   state: string | null;
   product_area: string | null;
@@ -45,7 +48,7 @@ type Row = {
 };
 
 const SELECT =
-  "id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,owner,customer_key,lifecycle_status,state,product_area,classification,tags,csat_rating,csat_remark,time_to_resolve_s,intercom_created_at,intercom_closed_at,last_synced_at";
+  "id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,owner,customer_key,lifecycle_status,state,product_area,classification,tags,csat_rating,csat_remark,time_to_resolve_s,intercom_created_at,intercom_closed_at,last_synced_at,plan_tier";
 
 type Tab = "active" | "closed";
 
@@ -137,6 +140,14 @@ const OwnerDashboardV3 = () => {
       subjectColumn<Row>((r) => displaySubject(r)),
       contactColumn<Row>((r) => r.contact_name, (r) => r.contact_email),
       customerColumn<Row>((r) => r.customer_key, accountLabel),
+      {
+        key: "plan",
+        header: "Plan",
+        width: "w-[110px]",
+        cellClassName: "text-xs",
+        sortValue: (r) => planTierOf((r as any).plan_tier),
+        cell: (r) => <PlanBadge value={(r as any).plan_tier} />,
+      },
     ],
     [accountLabel],
   );

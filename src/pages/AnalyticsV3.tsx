@@ -26,6 +26,9 @@ import { summarizeCsat, useCsatFilters, useCsatOverrides } from "@/lib/csat";
 import { CsatFilterMenu } from "@/components/csat/CsatFilterMenu";
 
 
+import { PlanScopeSelect } from "@/components/PlanScopeSelect";
+import { inPlanScope, type PlanScope } from "@/lib/planTier";
+
 type Row = {
   id: string;
   intercom_created_at: string | null;
@@ -97,6 +100,7 @@ export default function AnalyticsV3() {
   const [ownerMap, setOwnerMap] = useState<Record<string, string>>({});
   const [accounts, setAccounts] = useState<AccountOpt[]>([]);
   const [customerFilter, setCustomerFilter] = useState<string>("__any__");
+  const [planScope, setPlanScope] = useState<PlanScope>("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -142,7 +146,7 @@ export default function AnalyticsV3() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,intercom_closed_at,finalized_at,lifecycle_status,state,csat_rating,csat_rater_is_internal,time_to_resolve_s,admin_assignee_id,tags,rsa_override,customer_key,customer_kind")
+            .select("id,intercom_created_at,intercom_closed_at,finalized_at,lifecycle_status,state,csat_rating,csat_rater_is_internal,time_to_resolve_s,admin_assignee_id,tags,rsa_override,customer_key,customer_kind,plan_tier")
             .or(
               `and(intercom_created_at.gte.${fromIso},intercom_created_at.lte.${toIso}),` +
               `and(finalized_at.gte.${fromIso},finalized_at.lte.${toIso})`,
@@ -162,7 +166,7 @@ export default function AnalyticsV3() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,lifecycle_status,reopen_count,tags,rsa_override,customer_key")
+            .select("id,intercom_created_at,lifecycle_status,reopen_count,tags,rsa_override,customer_key,plan_tier")
             // Explicit allow-list: 'transferred_out' is terminal (left our scope), never "active".
             .in("lifecycle_status", ["open", "reopened_after_finalize"])
             .order("intercom_created_at", { ascending: true })
@@ -191,14 +195,16 @@ export default function AnalyticsV3() {
   // per-engineer breakdown all agree on what counts as "Required Support Action".
   const filteredRows = useMemo(() => {
     let r = excludeRsaFalse ? rows.filter((x) => effectiveRsa(x).value === "required") : rows;
+    if (planScope !== "all") r = r.filter((x) => inPlanScope((x as any).plan_tier, planScope));
     if (customerFilter !== "__any__") r = r.filter((x) => x.customer_key === customerFilter);
     return r;
-  }, [rows, excludeRsaFalse, customerFilter]);
+  }, [rows, excludeRsaFalse, customerFilter, planScope]);
   const filteredActiveRows = useMemo(() => {
     let r = excludeRsaFalse ? activeRows.filter((x) => effectiveRsa(x).value === "required") : activeRows;
+    if (planScope !== "all") r = r.filter((x) => inPlanScope((x as any).plan_tier, planScope));
     if (customerFilter !== "__any__") r = r.filter((x) => x.customer_key === customerFilter);
     return r;
-  }, [activeRows, excludeRsaFalse, customerFilter]);
+  }, [activeRows, excludeRsaFalse, customerFilter, planScope]);
   const rsaHiddenInRange = useMemo(() => {
     if (!excludeRsaFalse) return 0;
     const fromMs = range.from.getTime();
@@ -415,6 +421,7 @@ export default function AnalyticsV3() {
               {format(range.from, "MMM d, yyyy")} → {format(range.to, "MMM d, yyyy")}
             </div>
 
+            <PlanScopeSelect value={planScope} onChange={setPlanScope} className="w-[200px] h-9 text-xs" />
             <Select value={customerFilter} onValueChange={setCustomerFilter}>
               <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue placeholder="Customer" /></SelectTrigger>
               <SelectContent>
