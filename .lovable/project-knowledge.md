@@ -2097,3 +2097,25 @@ Folded into the existing daily `sync-intercom-fields` run (05:20 UTC) rather tha
 `src/hooks/useIntercomTeams.tsx` — one cached query exposing a `teamName(id)` lookup. `src/pages/InboxV3.tsx` Transferred table shows the name with the raw id as a tooltip, and falls back to the raw id when the cache has no row (never a blank cell, never a guess).
 
 **Verified 31 Aug 2026:** sync run live; `7723970` resolves to **Product Experience Specialists** and renders on the Transferred tab. **UNVERIFIED:** the `active=false` retirement path (no team has disappeared yet) and the cache-miss fallback (every id currently present resolves).
+
+## Monthly lookback — narrative month review (`/monthly-lookback`, 1 Sep 2026)
+
+Management asked for commentary on August 2026, not just numbers: trends, theme and type mix, customer insight, spikes, and what shipped. `/monthly-lookback` (`src/pages/MonthlyLookback.tsx`, nav under Reports) is the read-only page that produces that review, and a "Copy as narrative" button serialises every computed figure plus the saved commentary into a markdown report.
+
+### Cohort and population
+
+Cohort = tickets **created** in the selected month (data floor June 1, 2026). Headline volume is every created ticket. The **reporting population** then removes `transferred_out` plus everything the shared `src/lib/slaExclusions.ts` predicate marks as outside Enterprise support (`rsa_override = false`, the `enterprise-fyi` / `enterprise-duplicate` / `enterprise-not-enterprise` tags, `merged_ticket`, the `not_enterprise` / `prospect_personal` / `enterprise_prospect` resolution methods, and test accounts). Quality metrics run on the **closed** subset of that population. Because the exclusion, CSAT and resolution engines are the shared ones, this page cannot drift from Analytics v3.
+
+### Theme mix is closed-only
+
+Product area and ticket type are set at **closure**, so `buildMix` runs over closed tickets in both the current and the prior month, and spike detection uses the same closed denominators. Counting open tickets produced a large fake `— not set —` bucket that only measured work in flight: for August it was 42 tickets (23% of the created population) and vanishes entirely over the closed population. The card states the population and the reason inline so the number is never read as a categorisation failure.
+
+### Commentary
+
+`public.esh_lookback_notes` stores one commentary row per `(month, section)`. Reads open to authenticated; writes gated by `can_edit()`, matching `sla_violation_overrides`.
+
+### Active clock is opt-in
+
+The active clock (wall clock minus closed time) needs `raw_payload`, so it is **not** loaded by default. A "Load active clock" button batch-fetches payloads and runs `computeAnatomy` from `src/lib/resolutionAnatomy.ts` only when asked; the default page load stays scalar-only.
+
+**Verified 1 Sep 2026** (August, ultrawide viewport): 242 created / 181 population / 146 closed / 35 open / 94% categorised; theme mix renders over 146 closed against 138 in July with no `— not set —` inflation; median resolve 82.8h vs 91.4h, P90 265.9h vs 446.7h, reopens 13% vs 20%, CSAT 4.47 (n=17). The 9 closed tickets missing area or type were bulk-closed through an automated path that bypasses the mandatory closure form. **UNVERIFIED:** per-section note saving and the copy-out under a read-only role.

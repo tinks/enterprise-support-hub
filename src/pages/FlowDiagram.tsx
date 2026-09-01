@@ -1125,6 +1125,25 @@ function buildNodes(
       },
     },
     {
+      id: "monthly-lookback",
+      type: "flowNode",
+      position: { x: COL_W * -1.8, y: ROW_H * 5.6 },
+      data: {
+        label: "Monthly lookback (/monthly-lookback)",
+        desc: "Read-only narrative month review for management: volume, theme mix, spikes, customer picture, quality and what shipped, with per-section commentary you write and a one-click narrative export.",
+        icon: ClipboardList,
+        details: [
+          "COHORT: tickets CREATED in the selected month. Headline volume is every created ticket; the reporting population then removes transferred_out plus everything the shared src/lib/slaExclusions.ts predicate marks as outside Enterprise support (rsa_override=false, enterprise-fyi / -duplicate / -not-enterprise, merged_ticket, not_enterprise / prospect_personal / enterprise_prospect resolution methods, test accounts). Quality metrics run on the CLOSED subset of that population. Data floor June 1 2026.",
+          "THEME MIX (1 Sep 2026): product area and ticket type are set at CLOSURE, so buildMix runs over closed tickets only, in both the current and the prior month. Counting open tickets would have produced a large fake '— not set —' bucket that only measures work in flight: for August that bucket was 42 (23%) over the created population and disappears entirely over the closed population. Spike detection (>3 points of share moved, or new with n>=3) uses the same closed denominators.",
+          "SECTIONS: headline cards, theme trends (area + type tables and a paired bar chart vs prior month), spikes, customer picture (top accounts, plan mix, concentration), quality (median/P90 resolve, FRT, reopen rate, CSAT via src/lib/csat.ts integrity rules), and shipped (changelog_entries grouped by area + dev escalation state).",
+          "NOTES: public.esh_lookback_notes stores one commentary row per (month, section); reads open to authenticated, writes gated by can_edit(). 'Copy as narrative' serialises every computed figure plus the saved notes into a markdown report.",
+          "SCALABILITY: active clock is NOT loaded by default. A 'Load active clock' button batch-fetches raw_payload and runs computeAnatomy from src/lib/resolutionAnatomy.ts only when asked, so the default page load stays scalar-only.",
+          "VERIFIED 1 Sep 2026 (August, wide viewport): 242 created / 181 population / 146 closed / 35 open / 94% categorised; theme mix renders over 146 closed vs 138 in July with no '— not set —' inflation. UNVERIFIED: per-section note saving and the copy-out under a read-only role.",
+        ],
+        accent: "default",
+      },
+    },
+    {
       id: "customer-resolution",
       type: "flowNode",
       position: { x: COL_W * -0.6, y: ROW_H * 3.6 },
