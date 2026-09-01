@@ -143,7 +143,7 @@ export const ACTION_SIGNALS: ActionSignal[] = [
         supabase
           .from("intercom_tickets_v3")
           .select("custom_attributes,intercom_created_at")
-          .in("lifecycle_status", ["open", "reopened_after_finalize"]),
+          .in("lifecycle_status", ["open", "reopened_after_finalize"])
       ).limit(1000);
       const rows = unwrap<Array<{ custom_attributes: any; intercom_created_at: string | null }>>(res as any);
       const open = rows.filter((r) => !hasSeverity(r.custom_attributes));
@@ -166,7 +166,7 @@ export const ACTION_SIGNALS: ActionSignal[] = [
             .select(
               "intercom_conversation_id,admin_assignee_id,owner,intercom_created_at,tags,rsa_override,customer_resolution_method,customer_key",
             )
-            .in("lifecycle_status", ["open", "reopened_after_finalize"]),
+            .in("lifecycle_status", ["open", "reopened_after_finalize"])
         ).limit(1000),
         supabase.from("v3_customer_accounts").select("account_key,is_test").eq("is_test", true).limit(1000),
       ]);
