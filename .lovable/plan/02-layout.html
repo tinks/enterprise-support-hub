@@ -1,0 +1,65 @@
+<svg viewBox="0 0 640 400" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: var(--font-sans); fill: hsl(var(--foreground)); }
+    .lbl { font-size: 14px; font-weight: 480; }
+    .sm { font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .box { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .zone { fill: none; stroke: hsl(var(--border)); stroke-width: 1; stroke-dasharray: 4 3; }
+    .quiet { fill: hsl(var(--muted)); }
+    .wire { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+    .acc { fill: hsl(var(--accent)); }
+    .accs { fill: none; stroke: hsl(var(--accent)); stroke-width: 1; }
+    .acct { font-size: 12px; fill: hsl(var(--accent-foreground)); }
+  </style>
+  <defs>
+    <marker id="c" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6" fill="none" stroke="hsl(var(--muted-foreground))" stroke-width="1"/>
+    </marker>
+  </defs>
+
+  <rect class="zone" x="4" y="8" width="240" height="384" rx="8"/>
+  <text class="sm" x="16" y="28">source of truth</text>
+  <rect class="box" x="20" y="40" width="200" height="34" rx="8"/>
+  <text class="lbl" x="34" y="61">intercom_tickets_v3</text>
+  <rect class="box" x="20" y="88" width="200" height="34" rx="8"/>
+  <text class="lbl" x="34" y="109">v3_customer_accounts</text>
+  <rect class="box" x="20" y="136" width="200" height="34" rx="8"/>
+  <text class="lbl" x="34" y="157">changelog_entries</text>
+  <rect class="box" x="20" y="184" width="200" height="34" rx="8"/>
+  <text class="lbl" x="34" y="205">dev_escalations</text>
+  <rect class="box" x="20" y="232" width="200" height="34" rx="8"/>
+  <text class="lbl" x="34" y="253">csat_overrides</text>
+  <text class="sm" x="20" y="296">shared filters reused:</text>
+  <text class="sm" x="20" y="314">slaExclusions, csat.ts, resolutionAnatomy</text>
+
+  <line class="wire" x1="248" y1="200" x2="292" y2="200" marker-end="url(#c)"/>
+
+  <rect class="accs" x="300" y="8" width="336" height="252" rx="8"/>
+  <text class="acct" x="314" y="30" style="fill: hsl(var(--foreground))">/monthly-lookback  ·  month picker</text>
+  <rect class="quiet" x="314" y="42" width="150" height="46" rx="8"/>
+  <text class="sm" x="326" y="62">volume vs prior</text>
+  <text class="sm" x="326" y="78">242 · +25%</text>
+  <rect class="quiet" x="472" y="42" width="150" height="46" rx="8"/>
+  <text class="sm" x="484" y="62">resolution + CSAT</text>
+  <rect class="box" x="314" y="100" width="150" height="70" rx="8"/>
+  <text class="lbl" x="326" y="122">theme mix</text>
+  <text class="sm" x="326" y="140">area × type,</text>
+  <text class="sm" x="326" y="156">vs prior month</text>
+  <rect class="box" x="472" y="100" width="150" height="70" rx="8"/>
+  <text class="lbl" x="484" y="122">customer cuts</text>
+  <text class="sm" x="484" y="140">account, plan,</text>
+  <text class="sm" x="484" y="156">concentration</text>
+  <rect class="box" x="314" y="182" width="150" height="62" rx="8"/>
+  <text class="lbl" x="326" y="204">spikes</text>
+  <text class="sm" x="326" y="222">movers vs July</text>
+  <rect class="box" x="472" y="182" width="150" height="62" rx="8"/>
+  <text class="lbl" x="484" y="204">shipped + process</text>
+  <text class="sm" x="484" y="222">changelog, escalations</text>
+
+  <line class="wire" x1="468" y1="268" x2="468" y2="300" marker-end="url(#c)"/>
+  <circle class="acc" cx="330" cy="330" r="10"/>
+  <text class="acct" x="326" y="334" style="font-size:12px">1</text>
+  <rect class="accs" x="352" y="308" width="270" height="44" rx="8"/>
+  <text class="lbl" x="366" y="335">Copy as narrative  →  August document</text>
+  <text class="sm" x="352" y="376">one export path, so page and document can never disagree</text>
+</svg>
