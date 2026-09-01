@@ -131,6 +131,7 @@ export default function MonthlyLookback() {
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [copiedSlack, setCopiedSlack] = useState(false);
   const [csatFilters, setCsatFilters] = useCsatFilters();
   const { overrides: csatOverrides } = useCsatOverrides();
   const [closedByTicket, setClosedByTicket] = useState<Record<string, number> | null>(null);
