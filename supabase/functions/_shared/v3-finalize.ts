@@ -18,7 +18,8 @@ import { syncTicketAttributes } from "./v3-attributes.ts";
 import { writeV3Signals } from "./v3-signals.ts";
 import type { InboxResolver } from "./v3-inboxes.ts";
 import { computeActiveClock } from "./sla-core.ts";
-import type { SupportRoster } from "./sla-core.ts";
+import type { SupportRoster, EngEscalation } from "./sla-core.ts";
+import { hasLinearReference, loadEngEscalation } from "./eng-wait.ts";
 
 export type FinalizeResult =
   | { kind: "inserted" | "updated" }
