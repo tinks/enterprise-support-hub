@@ -1126,6 +1126,25 @@ function buildNodes(
       },
     },
     {
+      id: "active-clock-persisted",
+      type: "flowNode",
+      position: { x: COL_W * -1.8, y: ROW_H * 5.1 },
+      data: {
+        label: "Persisted active clock (reporting headline)",
+        desc: "Resolution time reported everywhere is now the time a ticket was actually open and in our court. Closed periods and waiting-on-customer time are excluded, computed once at finalize and stored on the row.",
+        icon: ClipboardList,
+        details: [
+          "WHY: every reporting surface counted raw wall clock, so a ticket that closed in 2h and was reopened 30 days later reported ~30d. Over finalized rows since June 1 2026 the median moved from 96.67h raw to 2.25h active — the raw figure was not a slow team, it was dormant closed time.",
+          "SCHEMA: intercom_tickets_v3 gains resolution_active_s, resolution_active_bh_s, resolution_closed_s, sla_clock_start_at, active_clock_computed_at, active_clock_engine_version. Written at finalize by sync-v3-closed / sync-v3-open; 592 historical finalized rows filled by the one-shot backfill-v3-active-clock function.",
+          "SHARED ENGINE: supabase/functions/_shared/sla-core.ts holds the stop-the-clock walk so the edge writers and the browser engine in src/lib/slaMetrics.ts cannot drift. Intercom's own time_to_resolve_s is left untouched and kept as the raw reconciliation value.",
+          "DISPLAY CONTRACT: src/lib/resolutionDisplay.ts is the single owner of the labels 'Resolution (active)' and 'Elapsed (raw)', their tooltips, and the population collector (rows with no computed value are excluded and counted as 'not computable', never treated as 0).",
+          "SURFACES: Analytics v3 (active headline KPI, raw median/average in the sub-line), Trend report (active series only — raw never plotted, shown in the tooltip so a chart cannot mislead), Monthly lookback (active by default, raw kept beside it). Resolution anatomy stays the derive-on-read explainer behind the number.",
+          "VERIFIED 1 Sep 2026 against SQL: Sep finalized n=21 median active 3h13m = 3.21h, raw 3d19h = 91.4h, 1 at zero active — matches Analytics v3 exactly. Trend Jun 2h27m / Jul 1h25m match 2.45h / 1.42h. Monthly lookback August median active 2h19m against 2h18m over a hand-rebuilt exclusion predicate (150 vs 154 closed). ZERO-ACTIVE ROWS ARE REAL: 19 finalized tickets have 0 active seconds because we replied instantly and the customer never returned; they are counted, not hidden. UNVERIFIED: the exact SQL replication of slaExclusions (4-ticket delta above) and 2 rows that remain not computable.",
+        ],
+        accent: "default",
+      },
+    },
+    {
       id: "monthly-lookback",
       type: "flowNode",
       position: { x: COL_W * -1.8, y: ROW_H * 5.6 },
