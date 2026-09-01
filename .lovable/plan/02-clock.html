@@ -1,0 +1,43 @@
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    text { font-family: var(--font-sans); fill: hsl(var(--foreground)); }
+    .lbl { font-size: 12px; fill: hsl(var(--muted-foreground)); }
+    .box { font-size: 14px; font-weight: 480; }
+    .rail { stroke: hsl(var(--border)); stroke-width: 1; }
+    .bx { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .fillq { fill: hsl(var(--muted)); }
+    .acc { fill: hsl(var(--accent)); }
+    .accs { fill: none; stroke: hsl(var(--accent)); stroke-width: 1; }
+  </style>
+
+  <text x="0" y="16" class="box">Today — three-way split</text>
+  <rect x="0" y="30" width="120" height="34" rx="8" class="bx"/>
+  <text x="60" y="51" text-anchor="middle" class="lbl">active</text>
+  <rect x="126" y="30" width="90" height="34" rx="8" class="bx fillq"/>
+  <text x="171" y="51" text-anchor="middle" class="lbl">closed</text>
+  <rect x="222" y="30" width="330" height="34" rx="8" class="bx"/>
+  <text x="387" y="51" text-anchor="middle" class="lbl">customer wait (includes dev fix time)</text>
+  <line x1="0" y1="76" x2="552" y2="76" class="rail"/>
+  <text x="0" y="92" class="lbl">sla_clock_start</text>
+  <text x="552" y="92" text-anchor="end" class="lbl">close_at</text>
+
+  <text x="0" y="140" class="box">Proposed — four-way split</text>
+  <rect x="0" y="154" width="120" height="34" rx="8" class="bx"/>
+  <text x="60" y="175" text-anchor="middle" class="lbl">active (unchanged)</text>
+  <rect x="126" y="154" width="90" height="34" rx="8" class="bx fillq"/>
+  <text x="171" y="175" text-anchor="middle" class="lbl">closed</text>
+  <rect x="222" y="154" width="120" height="34" rx="8" class="bx"/>
+  <text x="282" y="175" text-anchor="middle" class="lbl">customer wait</text>
+  <rect x="348" y="154" width="204" height="34" rx="8" class="accs"/>
+  <text x="450" y="175" text-anchor="middle" class="box">engineering wait</text>
+  <line x1="0" y1="200" x2="552" y2="200" class="rail"/>
+
+  <circle cx="360" cy="222" r="9" class="acc"/>
+  <text x="360" y="226" text-anchor="middle" font-size="11" fill="hsl(var(--accent-foreground))">1</text>
+  <text x="376" y="226" class="lbl">start: Linear reference attached to the ticket</text>
+  <circle cx="360" cy="248" r="9" class="acc"/>
+  <text x="360" y="252" text-anchor="middle" font-size="11" fill="hsl(var(--accent-foreground))">2</text>
+  <text x="376" y="252" class="lbl">end: Linear completedAt / canceledAt, else close_at</text>
+  <text x="0" y="252" class="lbl">carved out of customer wait only —</text>
+  <text x="0" y="270" class="lbl">active is never touched</text>
+</svg>
