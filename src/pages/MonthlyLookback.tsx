@@ -78,11 +78,6 @@ const SECTIONS = [
 type SectionKey = (typeof SECTIONS)[number]["key"];
 
 const UNSET = "— not set —";
-const PLAN_LABEL: Record<"all" | "enterprise" | "sse", string> = {
-  all: "All plans",
-  enterprise: "Enterprise",
-  sse: "Self-serve Enterprise",
-};
 const intercomUrl = (id: string) => `https://app.intercom.com/a/inbox/_/inbox/conversation/${id}`;
 
 function monthOptions(): { key: string; label: string }[] {
