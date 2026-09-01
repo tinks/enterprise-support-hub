@@ -980,6 +980,29 @@ export default function MonthlyLookback() {
           </CardHeader>
           <CardContent><NoteBox section="watch" /></CardContent>
         </Card>
+
+        {/* Slack summary preview */}
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-base">Slack summary</CardTitle>
+                <CardDescription>
+                  Short copy/paste post: key metrics with the change vs {prevLabel}, top 3 issue areas, ticket types and
+                  customers, and up to 5 recent changelog items. Follows the plan scope and CSAT filters above.
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={copySlack} disabled={loading}>
+                {copiedSlack ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />} Copy
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <pre className="text-xs whitespace-pre-wrap font-mono bg-muted/40 rounded-md p-3 leading-relaxed">
+              {slackPost}
+            </pre>
+          </CardContent>
+        </Card>
       </div>
     </AppLayout>
   );
