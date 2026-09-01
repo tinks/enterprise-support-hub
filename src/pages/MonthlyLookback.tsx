@@ -219,10 +219,18 @@ export default function MonthlyLookback() {
     return t >= start.getTime() && t <= end.getTime();
   };
 
-  const curAll = useMemo(() => rows.filter((r) => inMonth(r, monthStart, monthEnd)), [rows, monthStart, monthEnd]);
+  // Plan scope: "all" | "enterprise" | "sse". Applied before every other cut,
+  // so headline, themes, spikes, customers, quality and the narrative all run
+  // over the same population.
+  const inPlan = (r: Row) => planScope === "all" || (r.plan_tier || "enterprise") === planScope;
+
+  const curAll = useMemo(
+    () => rows.filter((r) => inMonth(r, monthStart, monthEnd) && inPlan(r)),
+    [rows, monthStart, monthEnd, planScope],
+  );
   const prevAll = useMemo(
-    () => rows.filter((r) => inMonth(r, prevStart, endOfMonth(prevStart))),
-    [rows, prevStart],
+    () => rows.filter((r) => inMonth(r, prevStart, endOfMonth(prevStart)) && inPlan(r)),
+    [rows, prevStart, planScope],
   );
 
   // Reporting population: created in the month, inside the Enterprise support
