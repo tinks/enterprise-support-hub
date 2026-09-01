@@ -575,6 +575,10 @@ export default function InboxV3() {
                 </div>
                 <Field label="State" value={selected.state} />
                 <Field label="Owner" value={selected.owner} />
+                <Field
+                  label="Plan"
+                  value={planTierOf(selected.plan_tier) === "sse" ? "Self-serve Enterprise (no first-response SLA, 1h triage)" : "Enterprise"}
+                />
                 <div className="grid grid-cols-[140px_1fr] gap-3 items-start">
                   <dt className="text-xs text-muted-foreground">Severity AI</dt>
                   <dd>
