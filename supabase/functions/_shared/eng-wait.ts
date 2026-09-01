@@ -8,6 +8,7 @@
 // Read-only. Returns a map keyed by intercom_conversation_id.
 
 import type { EngEscalation } from "./sla-core.ts";
+import { isLinearReferenceValue } from "./sla-core.ts";
 
 function toSec(iso: string | null | undefined): number | null {
   if (!iso) return null;
@@ -61,16 +62,14 @@ export async function loadEngEscalation(
 export function hasLinearReference(icData: any): boolean {
   const attrs = (icData?.custom_attributes ?? {}) as Record<string, unknown>;
   for (const k of ["Escalated Issue", "Linear Issue"]) {
-    const v = attrs[k];
-    if (typeof v === "string" && v.trim()) return true;
+    if (isLinearReferenceValue(attrs[k])) return true;
   }
   const parts = icData?.conversation_parts?.conversation_parts;
   if (Array.isArray(parts)) {
     for (const p of parts) {
       const name = p?.event_details?.attribute?.name;
       if (name === "Escalated Issue" || name === "Linear Issue") {
-        const val = p?.event_details?.value?.name;
-        if (typeof val === "string" && val.trim()) return true;
+        if (isLinearReferenceValue(p?.event_details?.value?.name)) return true;
       }
     }
   }
