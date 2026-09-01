@@ -550,6 +550,22 @@ export function computeActiveClock(
       (a, b) => businessHoursBetween(a, b, businessHours),
     ),
     resolutionClosedS: computeClosedDormant(timeline, slaClockStartS, closeAtS),
+    resolutionCustomerWaitS: computeCustomerWait(
+      timeline,
+      slaClockStartS,
+      closeAtS,
+      (a, b) => Math.max(0, b - a),
+    ),
+    resolutionCustomerWaitBhS: computeCustomerWait(
+      timeline,
+      slaClockStartS,
+      closeAtS,
+      (a, b) => businessHoursBetween(a, b, businessHours),
+    ),
+    resolutionWindowS:
+      slaClockStartS != null && closeAtS != null
+        ? Math.max(0, closeAtS - slaClockStartS)
+        : null,
     rawResolveS,
     partsCount: timeline.length,
     engineVersion: ACTIVE_CLOCK_ENGINE_VERSION,
