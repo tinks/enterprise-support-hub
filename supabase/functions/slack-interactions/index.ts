@@ -688,30 +688,10 @@ async function createIntercomTicket(opts: {
             });
             console.log(`Poll: reassigned conversation ${conversationId} to team inbox ${escInboxId}`);
 
-            // Convert conversation to ticket (mirrors manual 👎 escalation)
-            try {
-              const convertRes = await fetch(`https://api.intercom.io/conversations/${conversationId}/convert`, {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${intercomToken}`,
-                  "Content-Type": "application/json",
-                  Accept: "application/json",
-                  "Intercom-Version": "2.13",
-                },
-                body: JSON.stringify({ ticket_type_id: "1" }),
-              });
-              const convertData = await convertRes.json();
-              const ticketId = convertData.ticket_id || convertData.id;
-              console.log(`Poll: converted conversation ${conversationId} to ticket:`, ticketId);
-              // Persist the ticket ID so future replies route correctly
-              if (ticketId) {
-                await supabase.from("conversation_mappings")
-                  .update({ intercom_ticket_id: String(ticketId) })
-                  .eq("intercom_conversation_id", conversationId);
-              }
-            } catch (e) {
-              console.error(`Poll: failed to convert conversation ${conversationId} to ticket:`, e);
-            }
+            // NOTE: escalation deliberately does NOT convert the conversation to an
+            // Intercom Ticket. Everything the Hub touches stays a Conversation; the
+            // reassignment above is the escalation marker. (Removed 2026-09-01.)
+
 
             // Post as customer to mark ticket as "Waiting" in Intercom inbox
             try {
