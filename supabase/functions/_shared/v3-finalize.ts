@@ -17,11 +17,44 @@ import {
 import { syncTicketAttributes } from "./v3-attributes.ts";
 import { writeV3Signals } from "./v3-signals.ts";
 import type { InboxResolver } from "./v3-inboxes.ts";
+import { computeActiveClock } from "./sla-core.ts";
+import type { SupportRoster } from "./sla-core.ts";
 
 export type FinalizeResult =
   | { kind: "inserted" | "updated" }
   | { kind: "skipped"; reason: string }
   | { kind: "failed"; reason: string };
+
+/**
+ * Active-clock columns for a finalize upsert. Never throws: a payload the
+ * engine can't read leaves the columns null (reported as "not computable")
+ * rather than writing a fabricated zero.
+ */
+export function activeClockFields(icData: any, roster?: SupportRoster) {
+  try {
+    const ac = computeActiveClock(icData, { roster });
+    return {
+      resolution_active_s: ac.resolutionActiveS,
+      resolution_active_bh_s: ac.resolutionActiveBhS,
+      resolution_closed_s: ac.resolutionClosedS,
+      sla_clock_start_at: ac.slaClockStartS != null
+        ? new Date(ac.slaClockStartS * 1000).toISOString()
+        : null,
+      active_clock_computed_at: new Date().toISOString(),
+      active_clock_engine_version: ac.engineVersion,
+    };
+  } catch (e) {
+    console.error(`[v3-finalize] active clock failed: ${(e as Error).message}`);
+    return {
+      resolution_active_s: null,
+      resolution_active_bh_s: null,
+      resolution_closed_s: null,
+      sla_clock_start_at: null,
+      active_clock_computed_at: null,
+      active_clock_engine_version: null,
+    };
+  }
+}
 
 export async function finalizeConversation(params: {
   supabase: any;
@@ -31,6 +64,8 @@ export async function finalizeConversation(params: {
   inboxes: InboxResolver;
   adminOwnerMap: Record<string, string>;
   existing?: { id: string } | null;
+  /** Support roster for relay re-attribution in the active clock. */
+  roster?: SupportRoster;
 }): Promise<FinalizeResult> {
   const { supabase, intercomToken, convId, inboxes, adminOwnerMap, existing } = params;
 
@@ -134,6 +169,11 @@ export async function finalizeConversation(params: {
     last_full_fetch_at: new Date().toISOString(),
     raw_payload: icData,
     reopen_count_at_finalize: Number(icData?.statistics?.count_reopens ?? 0),
+
+    // Active resolution clock — dormant/closed time excluded. Same rule as the
+    // frontend engine (both call `_shared/sla-core.ts`). Recomputed on every
+    // finalize, so a real reopen refreshes it.
+    ...activeClockFields(icData, params.roster),
   };
 
   const { data: upserted, error } = await supabase

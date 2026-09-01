@@ -972,6 +972,8 @@ export type Database = {
       }
       intercom_tickets_v3: {
         Row: {
+          active_clock_computed_at: string | null
+          active_clock_engine_version: number | null
           admin_assignee_id: string | null
           classification: string | null
           contact_domain: string | null
@@ -1016,8 +1018,12 @@ export type Database = {
           reassigned_team_id: string | null
           reopen_count: number
           reopen_count_at_finalize: number | null
+          resolution_active_bh_s: number | null
+          resolution_active_s: number | null
+          resolution_closed_s: number | null
           rsa_override: boolean | null
           silent_update_count: number
+          sla_clock_start_at: string | null
           slack_channel_id_detected: string | null
           state: string | null
           subject: string | null
@@ -1036,6 +1042,8 @@ export type Database = {
           workspace_id_detected: string | null
         }
         Insert: {
+          active_clock_computed_at?: string | null
+          active_clock_engine_version?: number | null
           admin_assignee_id?: string | null
           classification?: string | null
           contact_domain?: string | null
@@ -1080,8 +1088,12 @@ export type Database = {
           reassigned_team_id?: string | null
           reopen_count?: number
           reopen_count_at_finalize?: number | null
+          resolution_active_bh_s?: number | null
+          resolution_active_s?: number | null
+          resolution_closed_s?: number | null
           rsa_override?: boolean | null
           silent_update_count?: number
+          sla_clock_start_at?: string | null
           slack_channel_id_detected?: string | null
           state?: string | null
           subject?: string | null
@@ -1100,6 +1112,8 @@ export type Database = {
           workspace_id_detected?: string | null
         }
         Update: {
+          active_clock_computed_at?: string | null
+          active_clock_engine_version?: number | null
           admin_assignee_id?: string | null
           classification?: string | null
           contact_domain?: string | null
@@ -1144,8 +1158,12 @@ export type Database = {
           reassigned_team_id?: string | null
           reopen_count?: number
           reopen_count_at_finalize?: number | null
+          resolution_active_bh_s?: number | null
+          resolution_active_s?: number | null
+          resolution_closed_s?: number | null
           rsa_override?: boolean | null
           silent_update_count?: number
+          sla_clock_start_at?: string | null
           slack_channel_id_detected?: string | null
           state?: string | null
           subject?: string | null

@@ -10,386 +10,79 @@
 // `computeSla` + `SlaResult`.
 
 // ============================================================================
-// Actor model
+// Shared core (actor model, timeline, business hours, active clock)
 // ============================================================================
+//
+// These primitives live in `supabase/functions/_shared/sla-core.ts` so the
+// Deno edge functions (finalize writer, active-clock backfill) run the exact
+// same rule as this engine. Re-exported here so existing call sites are
+// unchanged.
 
-// Sam is our AI agent. It runs via Parahelp and posts through Intercom as a
-// regular admin, so Intercom's `from_ai_agent` / `is_ai_answer` /
-// `ai_agent_participated` flags are all FALSE for Sam's parts. We MUST
-// identify Sam by author id/email — do not rely on those flags.
-export const SAM_AUTHOR_IDS: ReadonlySet<string> = new Set([
-  "9520895", // Intercom admin id for "Sam (AI agent)"
-]);
-export const SAM_AUTHOR_EMAILS: ReadonlySet<string> = new Set([
-  "lovable@parahelp.com",
-]);
+import {
+  SAM_AUTHOR_IDS,
+  SAM_AUTHOR_EMAILS,
+  TEAMMATE_EMAIL_DOMAIN,
+  SHARED_MAILBOX_EMAILS,
+  ENTERPRISE_INBOX_TEAM_ID,
+  registerAnchorTeamIds,
+  isAnchorTeamId,
+  classifyActor,
+  parseRelayFrom,
+  stripHtml,
+  extractTimeline,
+  BUSINESS_HOURS_TIMEZONE,
+  BUSINESS_HOURS_START_HOUR,
+  BUSINESS_HOURS_END_HOUR,
+  DEFAULT_BUSINESS_HOURS,
+  businessHoursBetween,
+  businessDaySeconds,
+  resolveClockStart,
+  resolveCloseAt,
+  computeResolutionActive as computeResolutionActiveCore,
+  computeClosedDormant,
+  computeActiveClock,
+  ACTIVE_CLOCK_ENGINE_VERSION,
+} from "../../supabase/functions/_shared/sla-core.ts";
+import type {
+  Actor,
+  TimelinePart,
+  BusinessHoursConfig,
+  SupportRoster,
+  ActiveClockResult,
+} from "../../supabase/functions/_shared/sla-core.ts";
 
-// When a Lovable teammate replies in Slack, Intercom mirrors the message into
-// the conversation as a part with author.type = "user" (under a contact id),
-// but the email is still their internal @lovable.dev address. We must classify
-// these as human_admin, not customer. Safe because @lovable.dev is our
-// internal domain — a real customer can never have that email.
-export const TEAMMATE_EMAIL_DOMAIN = "lovable.dev";
-
-// Shared relay inboxes that forward CUSTOMER content in under an @lovable.dev
-// address. Intercom types these parts as `user`/`lead` (never `admin`) and
-// sets `waiting_since` on them — they must be treated as customer-side, never
-// as our agent reply (see B6 / ticket 215475248028246). Explicit allowlist:
-// every other @lovable.dev author is a real teammate.
-export const SHARED_MAILBOX_EMAILS: ReadonlySet<string> = new Set([
-  "enterprise-support@lovable.dev",
-]);
-
-// Intercom team id for the Enterprise Inbox — the moment a ticket becomes the
-// Enterprise team's responsibility; the SLA clock-start. Everything before
-// this (intake, Sam's AI handling, pre-ticket Slack/CSM chatter) is
-// PRE-ENTERPRISE and reported separately as `preInboxTimeS` — never counted
-// against SLA.
-export const ENTERPRISE_INBOX_TEAM_ID = "8484447";
-
-// Self-serve enterprise (SSE) tickets arrive in their own Intercom inbox and
-// carry the same clock-start semantics. The extra team id is configured in
-// `settings.sse_intercom_inbox_id` and registered at load time, so the engine
-// stays a pure function of what it is told rather than hardcoding a second id.
-const ANCHOR_TEAM_IDS = new Set<string>([ENTERPRISE_INBOX_TEAM_ID]);
-
-/** Register additional inbox team ids that start the SLA clock (idempotent). */
-export function registerAnchorTeamIds(ids: Array<string | null | undefined>): void {
-  for (const id of ids) {
-    const t = String(id ?? "").trim();
-    if (t) ANCHOR_TEAM_IDS.add(t);
-  }
-}
-
-export function isAnchorTeamId(id: unknown): boolean {
-  return ANCHOR_TEAM_IDS.has(String(id ?? ""));
-}
+export {
+  SAM_AUTHOR_IDS,
+  SAM_AUTHOR_EMAILS,
+  TEAMMATE_EMAIL_DOMAIN,
+  SHARED_MAILBOX_EMAILS,
+  ENTERPRISE_INBOX_TEAM_ID,
+  registerAnchorTeamIds,
+  isAnchorTeamId,
+  classifyActor,
+  parseRelayFrom,
+  extractTimeline,
+  BUSINESS_HOURS_TIMEZONE,
+  BUSINESS_HOURS_START_HOUR,
+  BUSINESS_HOURS_END_HOUR,
+  DEFAULT_BUSINESS_HOURS,
+  businessHoursBetween,
+  businessDaySeconds,
+  resolveClockStart,
+  resolveCloseAt,
+  computeClosedDormant,
+  computeActiveClock,
+  ACTIVE_CLOCK_ENGINE_VERSION,
+};
+export type { Actor, TimelinePart, BusinessHoursConfig, SupportRoster, ActiveClockResult };
 
 // ---- Triage discipline (PROVISIONAL, tunable) -------------------------------
 // Both constants are provisional proposals, not agreed SLA targets. They exist
 // so we can MEASURE the two behaviours we are re-enforcing; tune freely.
-// TRIAGE_TARGET_S is on a BUSINESS-HOURS basis and should always stay <= the
-// strictest First-Response target.
 export const TRIAGE_TARGET_S = 1800; // 30 min, business hours
 // Window before close within which a first Severity assignment is read as
 // "classified at close" rather than triaged.
 export const SEVERITY_AT_CLOSE_WINDOW_S = 1800; // 30 min
-
-
-export type Actor =
-  | "customer"
-  | "shared_inbox"
-  | "human_admin"
-  | "sam_ai"
-  | "operator_bot"
-  | "system";
-
-export function classifyActor(author: any): Actor {
-  const type = String(author?.type || "").toLowerCase();
-  const id = author?.id != null ? String(author.id) : "";
-  const email = String(author?.email || "").toLowerCase();
-  if (SAM_AUTHOR_IDS.has(id) || (email && SAM_AUTHOR_EMAILS.has(email))) return "sam_ai";
-  // MUST precede the @lovable.dev → human_admin rule: that domain rule is what
-  // currently mis-brands relayed customer messages as our reply.
-  if (email && SHARED_MAILBOX_EMAILS.has(email)) return "shared_inbox";
-  if (email.endsWith("@" + TEAMMATE_EMAIL_DOMAIN)) return "human_admin";
-  if (type === "bot") return "operator_bot";
-  if (type === "admin") return "human_admin";
-  if (type === "user" || type === "lead" || type === "contact") return "customer";
-  return "system";
-}
-
-
-// ============================================================================
-// Timeline extraction
-// ============================================================================
-
-export type TimelinePart = {
-  ts: number; // unix seconds
-  actor: Actor;
-  authorName: string | null;
-  authorId: string | null;
-  // Lowercased author email when Intercom provides one. Load-bearing for the
-  // SUPPORT-roster FRT: a teammate replying in Slack is mirrored as
-  // author.type = "user" under a contact id, so the email is the only reliable
-  // way to attribute that reply to a support teammate.
-  authorEmail: string | null;
-  partType: string;
-  body: string; // stripped, may be ""
-  isPublicReply: boolean;
-  isNote: boolean;
-  assignedToType: "admin" | "team" | null;
-  assignedToId: string | null;
-  // Raw Intercom `event_details` for the part (Intercom-Version >= 2.13).
-  // Carries attribute-change payloads such as
-  // { attribute: { name: "Severity" }, value: { name: "2" }, ... }.
-  // null when the part has no event_details.
-  eventDetails: any | null;
-  // Slack↔Intercom relay attribution. Messages bridged from Slack are posted
-  // into Intercom under the RELAY admin identity (Sam, id 9520895) with the
-  // body prefix `[From: <name> via Slack]`. `<name>` is the ONLY signal of who
-  // actually spoke — it can be a teammate OR the customer. Lowercased, or null
-  // when the part is not relayed.
-  relayFrom: string | null;
-};
-
-// `[From: tine via Slack]` → "tine". Tolerates the leading whitespace and
-// entity noise stripHtml leaves behind. Only matches at the START of the body:
-// a mid-body occurrence is quoted text, not attribution.
-const RELAY_PREFIX_RE = /^\s*\[from:\s*([^\]]+?)\s+via\s+slack\]/i;
-
-export function parseRelayFrom(body: string): string | null {
-  const m = RELAY_PREFIX_RE.exec(body || "");
-  const name = m?.[1]?.trim().toLowerCase();
-  return name ? name : null;
-}
-
-
-
-function stripHtml(s: any): string {
-  if (typeof s !== "string" || !s) return "";
-  return s
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-// A part is a "public reply" when it's a customer-facing message. This mirrors
-// the treatment in `supabase/functions/intercom-webhook`: a `comment` is a
-// reply, and an `assignment` with non-empty body is ALSO a reply (Intercom
-// sometimes emits assignment-with-body when an admin picks up + responds in
-// one action). Notes, pure assignment events, workflow/attribute/state events
-// are NOT public replies.
-function isPublicReplyPart(partType: string, body: string): boolean {
-  if (partType === "comment") return true;
-  if (partType === "assignment" && body.length > 0) return true;
-  return false;
-}
-
-function isNotePart(partType: string): boolean {
-  return partType === "note" || partType === "note_and_reopen";
-}
-
-function readAssignmentTarget(p: any): { type: "admin" | "team" | null; id: string | null } {
-  // Intercom emits assignment info on part.assigned_to = { type, id } (newer
-  // shape) and sometimes on part.assignee. Handle both defensively.
-  const at = p?.assigned_to ?? p?.assignee ?? null;
-  if (at && typeof at === "object") {
-    const t = String(at.type || "").toLowerCase();
-    const id = at.id != null ? String(at.id) : null;
-    if (t === "team") return { type: "team", id };
-    if (t === "admin") return { type: "admin", id };
-  }
-  return { type: null, id: null };
-}
-
-function normalizeEmail(raw: any): string | null {
-
-  const e = String(raw ?? "").trim().toLowerCase();
-  return e ? e : null;
-}
-
-
-export function extractTimeline(raw: any): TimelinePart[] {
-  const out: TimelinePart[] = [];
-  const createdAt = raw?.created_at;
-  const src = raw?.source;
-  if (typeof createdAt === "number") {
-    const body = stripHtml(src?.body);
-    out.push({
-      ts: createdAt,
-      actor: src ? classifyActor(src.author) : "customer",
-      authorName: src?.author?.name ?? null,
-      authorId: src?.author?.id != null ? String(src.author.id) : null,
-      authorEmail: normalizeEmail(src?.author?.email),
-
-      partType: "source",
-      body,
-      isPublicReply: false, // the opening customer message opens the conversation, not a reply
-      isNote: false,
-      assignedToType: null,
-      assignedToId: null,
-      eventDetails: null,
-      relayFrom: parseRelayFrom(body),
-
-    });
-  }
-  const arr = raw?.conversation_parts?.conversation_parts;
-  if (Array.isArray(arr)) {
-    for (const p of arr) {
-      if (typeof p?.created_at !== "number") continue;
-      const partType = String(p?.part_type || "");
-      const body = stripHtml(p?.body);
-      const assign = readAssignmentTarget(p);
-      out.push({
-        ts: p.created_at,
-        actor: classifyActor(p?.author),
-        authorName: p?.author?.name ?? null,
-        authorId: p?.author?.id != null ? String(p.author.id) : null,
-        authorEmail: normalizeEmail(p?.author?.email),
-
-        partType,
-        body,
-        isPublicReply: isPublicReplyPart(partType, body),
-        isNote: isNotePart(partType),
-        assignedToType: assign.type,
-        assignedToId: assign.id,
-        eventDetails: p?.event_details ?? null,
-        relayFrom: parseRelayFrom(body),
-
-      });
-    }
-  }
-  out.sort((a, b) => a.ts - b.ts);
-  return out;
-}
-
-// ============================================================================
-// Business hours — Europe/Berlin, DST-aware
-// ============================================================================
-//
-// Default window: Mon–Fri 09:00–23:59 local Berlin time (treated as
-// 09:00 → 24:00 = 15h/day). Kept as module-level constants so a holiday
-// calendar can slot in later without changing call sites.
-
-export const BUSINESS_HOURS_TIMEZONE = "Europe/Berlin";
-export const BUSINESS_HOURS_START_HOUR = 9;
-export const BUSINESS_HOURS_END_HOUR = 24; // exclusive upper = 23:59:59.999
-
-/**
- * Injectable business-hours definition. Batch 2a: capability only — every call
- * site still uses DEFAULT_BUSINESS_HOURS, which is built from the hardcoded
- * constants above, so behavior is bit-identical to before.
- *
- * `workDays` uses JS getUTCDay() numbering (0 = Sunday … 6 = Saturday).
- * `holidays` are local-calendar dates "YYYY-MM-DD" in `tz`; the engine has no
- * holiday calendar today, so the default is empty.
- */
-export type BusinessHoursConfig = {
-  tz: string;
-  workDays: number[];
-  dayStartHour: number;
-  dayEndHour: number;
-  holidays: string[];
-};
-
-export const DEFAULT_BUSINESS_HOURS: BusinessHoursConfig = {
-  tz: BUSINESS_HOURS_TIMEZONE,
-  workDays: [1, 2, 3, 4, 5],
-  dayStartHour: BUSINESS_HOURS_START_HOUR,
-  dayEndHour: BUSINESS_HOURS_END_HOUR,
-  holidays: [],
-};
-
-// Intl formatters are expensive to construct — cache one per timezone.
-const tzFmtCache = new Map<string, Intl.DateTimeFormat>();
-function tzFmt(tz: string): Intl.DateTimeFormat {
-  let f = tzFmtCache.get(tz);
-  if (!f) {
-    f = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hourCycle: "h23",
-    });
-    tzFmtCache.set(tz, f);
-  }
-  return f;
-}
-
-function localYMDH(
-  ms: number,
-  tz: string,
-): { y: number; m: number; d: number; hour: number; minute: number; second: number; dow: number } {
-  const parts = tzFmt(tz).formatToParts(new Date(ms));
-  const map: Record<string, string> = {};
-  for (const p of parts) if (p.type !== "literal") map[p.type] = p.value;
-  const y = Number(map.year);
-  const m = Number(map.month);
-  const d = Number(map.day);
-  const hour = Number(map.hour) % 24; // h23 gives 00..23
-  const minute = Number(map.minute);
-  const second = Number(map.second);
-  // Compute day-of-week from the local Y-M-D (treat as UTC to avoid host tz drift).
-  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
-  return { y, m, d, hour, minute, second, dow };
-}
-
-// Find the UTC ms corresponding to a given local hour on the same
-// local calendar date as `refMs`. Handles DST by iterative correction.
-function localHourToUtcMs(refMs: number, targetHour: number, tz: string): number {
-  const { y, m, d } = localYMDH(refMs, tz);
-  // First guess: pretend local == UTC.
-  let guess = Date.UTC(y, m - 1, d, targetHour, 0, 0, 0);
-  for (let i = 0; i < 3; i++) {
-    const parts = localYMDH(guess, tz);
-    // Delta between what local wall-clock is and what we wanted.
-    const wantMinutes = targetHour * 60;
-    const gotMinutes = parts.hour * 60 + parts.minute;
-    // Also account for date drift (if guess landed on prev/next local day).
-    const dateDeltaDays =
-      (Date.UTC(parts.y, parts.m - 1, parts.d) - Date.UTC(y, m - 1, d)) / 86_400_000;
-    const deltaMin = (dateDeltaDays * 24 * 60) + (gotMinutes - wantMinutes);
-    if (deltaMin === 0) break;
-    guess -= deltaMin * 60_000;
-  }
-  return guess;
-}
-
-function ymdKey(y: number, m: number, d: number): string {
-  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-}
-
-export function businessHoursBetween(
-  startSec: number,
-  endSec: number,
-  config: BusinessHoursConfig = DEFAULT_BUSINESS_HOURS,
-): number {
-  if (endSec <= startSec) return 0;
-  const { tz, workDays, dayStartHour, dayEndHour, holidays } = config;
-  const workDaySet = new Set(workDays);
-  const holidaySet = holidays && holidays.length ? new Set(holidays) : null;
-  const startMs = startSec * 1000;
-  const endMs = endSec * 1000;
-  let total = 0;
-
-  // Walk day-by-day in local time. Cursor = the UTC ms for 00:00 local
-  // of the current day.
-  let cursorMs = localHourToUtcMs(startMs, 0, tz);
-  // Safety cap — should never engage in practice.
-  const MAX_ITER = 400;
-  for (let i = 0; i < MAX_ITER && cursorMs < endMs; i++) {
-    const { y, m, d, dow } = localYMDH(cursorMs, tz);
-    const windowStart = localHourToUtcMs(cursorMs, dayStartHour, tz);
-    const windowEnd = localHourToUtcMs(cursorMs, dayEndHour, tz);
-    const isHoliday = holidaySet ? holidaySet.has(ymdKey(y, m, d)) : false;
-    if (workDaySet.has(dow) && !isHoliday) {
-      const overlapStart = Math.max(startMs, windowStart);
-      const overlapEnd = Math.min(endMs, windowEnd);
-      if (overlapEnd > overlapStart) total += (overlapEnd - overlapStart) / 1000;
-    }
-    // Advance to next local day. Use 25h then snap back to 00:00, to
-    // absorb DST forward/back transitions.
-    cursorMs = localHourToUtcMs(cursorMs + 25 * 3600 * 1000, 0, tz);
-  }
-  return Math.min(total, endSec - startSec);
-}
-
-/** Business-day length implied by a config (default = BUSINESS_DAY_SECONDS = 54000). */
-export function businessDaySeconds(
-  config: BusinessHoursConfig = DEFAULT_BUSINESS_HOURS,
-): number {
-  return (config.dayEndHour - config.dayStartHour) * 3600;
-}
 
 
 // ============================================================================
@@ -909,51 +602,14 @@ export function computeSla(
 
   // Stop-the-clock resolution — active in-our-court time from the SLA
   // clock-start (Enterprise Inbox anchor, else createdAt) to last close.
-  // Timeline parts BEFORE the anchor are ignored — pre-inbox / Sam handling
-  // must not count against Enterprise SLA.
-  function computeResolutionActive(clip: (a: number, b: number) => number): number | null {
-    if (slaClockStartS == null || closeAt == null) return null;
-    if (closeAt < slaClockStartS) return 0;
-    let total = 0;
-    let ballWithUs = true;
-    let segStart = slaClockStartS;
-    for (const p of timeline) {
-      if (p.ts < slaClockStartS || p.ts > closeAt) continue;
-      // A close STOPS the resolution clock — the ball is no longer ours once the
-      // ticket is closed. A later customer message / reopen starts a fresh
-      // in-our-court segment via the customer branch below. Without this, a close
-      // that follows the customer's last word ("thanks!" → close with no reply
-      // after) left the ball "with us"; if the ticket was later reopened,
-      // last_close jumped forward and the whole dormant gap was wrongly counted as
-      // active resolution time (phantom breach).
-      if (p.partType === "close") {
-        if (ballWithUs) {
-          total += clip(segStart, p.ts);
-          ballWithUs = false;
-        }
-        continue;
-      }
-      // `shared_inbox` is a relay forwarding CUSTOMER content — it RETURNS the
-      // ball to us, exactly like a direct customer reply (mirrors Intercom's
-      // own `waiting_since` behavior). See B6.
-      if (p.actor === "customer" || p.actor === "shared_inbox") {
-        if (!ballWithUs) {
-          ballWithUs = true;
-          segStart = p.ts;
-        }
-
-      } else if (p.isPublicReply && (p.actor === "human_admin" || p.actor === "sam_ai")) {
-        if (ballWithUs) {
-          total += clip(segStart, p.ts);
-          ballWithUs = false;
-        }
-      }
-    }
-    if (ballWithUs) total += clip(segStart, closeAt);
-    return total;
-  }
-  const resolutionActiveS = computeResolutionActive((a, b) => Math.max(0, b - a));
-  const resolutionActiveBusinessHoursS = computeResolutionActive((a, b) => bhBetween(a, b));
+  // The rule itself lives in `_shared/sla-core.ts` so the persisted
+  // `resolution_active_s` column is computed by this exact function.
+  const resolutionActiveS = computeResolutionActiveCore(
+    timeline, slaClockStartS, closeAt, (a, b) => Math.max(0, b - a),
+  );
+  const resolutionActiveBusinessHoursS = computeResolutionActiveCore(
+    timeline, slaClockStartS, closeAt, (a, b) => bhBetween(a, b),
+  );
 
   const samParticipated = timeline.some((p) => p.isPublicReply && p.actor === "sam_ai");
   const noHumanReply = !firstHumanReply;
