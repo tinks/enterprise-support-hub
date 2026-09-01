@@ -516,10 +516,20 @@ export default function MonthlyLookback() {
             <p className="text-sm text-muted-foreground mt-1">
               Narrative month review: theme trends, customer cuts, spikes, and what shipped. Built from{" "}
               <code className="text-xs">intercom_tickets_v3</code> with the shared exclusion, CSAT and resolution
-              engines, so it cannot drift from Analytics v3. Data floor: {CLEAN_DATA_START_LABEL}.
+              engines, so it cannot drift from Analytics v3. Data floor: {CLEAN_DATA_START_LABEL}. Plan scope:{" "}
+              <span className="font-medium text-foreground">{PLAN_LABEL[planScope]}</span> — every section below and the
+              copy-out follow it.
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Select value={planScope} onValueChange={(v) => setPlanScope(v as typeof planScope)}>
+              <SelectTrigger className="w-[220px] h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All plans</SelectItem>
+                <SelectItem value="enterprise">Enterprise inbox</SelectItem>
+                <SelectItem value="sse">Self-serve Enterprise inbox</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={month} onValueChange={setMonth}>
               <SelectTrigger className="w-[180px] h-9"><SelectValue /></SelectTrigger>
               <SelectContent>
