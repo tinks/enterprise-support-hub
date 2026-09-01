@@ -9,7 +9,7 @@
 // Pure TypeScript: no network, no DB, no Deno/Node globals.
 
 /** Bump when the active-clock RULE changes, so stale rows can be re-backfilled. */
-export const ACTIVE_CLOCK_ENGINE_VERSION = 2;
+export const ACTIVE_CLOCK_ENGINE_VERSION = 3;
 
 // ============================================================================
 // Actor model
@@ -446,28 +446,33 @@ export function computeClosedDormant(
   return total;
 }
 
+/** A half-open [startS, endS) stretch where the ball was NOT with us. */
+export type WaitSegment = { startS: number; endS: number };
+
 /**
- * Waiting-on-customer seconds inside the resolution window — the exact mirror
- * of `computeResolutionActive`: it accumulates the stretches where the ball is
- * NOT with us AND the ticket is NOT closed. Same actor rules, same window, so
- * active + closed + customer_wait == window by construction.
+ * The waiting-on-customer stretches inside the resolution window — the exact
+ * mirror of `computeResolutionActive`: the ball is NOT with us AND the ticket
+ * is NOT closed. Same actor rules, same window, so
+ * active + closed + wait == window by construction.
+ *
+ * Returned as segments (rather than a sum) so the engineering-wait bucket can
+ * be carved out of exactly this time and never out of active or closed time.
  */
-export function computeCustomerWait(
+export function customerWaitSegments(
   timeline: TimelinePart[],
   slaClockStartS: number | null,
   closeAtS: number | null,
-  clip: (a: number, b: number) => number,
-): number | null {
+): WaitSegment[] | null {
   if (slaClockStartS == null || closeAtS == null) return null;
-  if (closeAtS < slaClockStartS) return 0;
-  let total = 0;
+  if (closeAtS < slaClockStartS) return [];
+  const segments: WaitSegment[] = [];
   // State at the clock start: ball with us, ticket open.
   let ballWithUs = true;
   let closed = false;
   let segStart: number | null = null; // start of the current waiting-on-customer stretch
   const endWait = (at: number) => {
     if (segStart != null) {
-      total += clip(segStart, at);
+      if (at > segStart) segments.push({ startS: segStart, endS: at });
       segStart = null;
     }
   };
@@ -497,6 +502,135 @@ export function computeCustomerWait(
     }
   }
   if (!ballWithUs && !closed) endWait(closeAtS);
+  return segments;
+}
+
+/** Total waiting-on-customer seconds (engineering wait NOT yet carved out). */
+export function computeCustomerWait(
+  timeline: TimelinePart[],
+  slaClockStartS: number | null,
+  closeAtS: number | null,
+  clip: (a: number, b: number) => number,
+): number | null {
+  const segs = customerWaitSegments(timeline, slaClockStartS, closeAtS);
+  if (segs == null) return null;
+  let total = 0;
+  for (const s of segs) total += clip(s.startS, s.endS);
+  return total;
+}
+
+// ============================================================================
+// Engineering wait — "looks like waiting on the customer, is actually on us"
+// ============================================================================
+
+/** Intercom custom attributes that carry the Linear reference. */
+export const LINEAR_ATTRIBUTE_NAMES: ReadonlySet<string> = new Set([
+  "Escalated Issue",
+  "Linear Issue",
+]);
+
+export type EngWaitSource = "attribute_event" | "dev_escalation_row" | "linear_created";
+
+/** Escalation facts that live outside the Intercom payload (Linear / Hub board). */
+export type EngEscalation = {
+  /** dev_escalations.created_at (seconds) — when the Hub first saw the escalation. */
+  escalationRowAtS?: number | null;
+  linearCreatedAtS?: number | null;
+  linearCompletedAtS?: number | null;
+  linearCanceledAtS?: number | null;
+};
+
+/**
+ * Earliest moment the ticket carried a Linear reference, read from the
+ * timestamped `conversation_attribute_updated_by_admin` parts in the payload.
+ */
+export function isLinearReferenceValue(raw: unknown): boolean {
+  const s = String(raw ?? "").trim();
+  if (!s) return false;
+  // The "Escalated Issue" field also holds Slack links and free text; only a
+  // real Linear issue reference may open an engineering-wait window.
+  if (/linear\.app\/[^/\s]+\/issue\/[A-Z][A-Z0-9]*-\d+/i.test(s)) return true;
+  return /^[A-Z][A-Z0-9]*-\d+$/i.test(s);
+}
+
+export function findLinearAttributeTs(timeline: TimelinePart[]): number | null {
+  let best: number | null = null;
+  for (const p of timeline) {
+    if (p.partType !== "conversation_attribute_updated_by_admin") continue;
+    const name = String(p.eventDetails?.attribute?.name ?? "");
+    if (!LINEAR_ATTRIBUTE_NAMES.has(name)) continue;
+    // Clearing the attribute, or a non-Linear value, does not open a window.
+    if (!isLinearReferenceValue(p.eventDetails?.value?.name)) continue;
+    if (best == null || p.ts < best) best = p.ts;
+  }
+  return best;
+}
+
+export type EngWaitWindow = {
+  startS: number | null;
+  endS: number | null;
+  source: EngWaitSource | null;
+};
+
+/**
+ * Resolve the engineering-wait window: from the first evidence the ticket was
+ * handed to engineering, until the Linear issue was completed/canceled (else
+ * the ticket close). Clamped into the resolution window.
+ */
+export function resolveEngWaitWindow(
+  timeline: TimelinePart[],
+  slaClockStartS: number | null,
+  closeAtS: number | null,
+  esc?: EngEscalation | null,
+): EngWaitWindow {
+  const none: EngWaitWindow = { startS: null, endS: null, source: null };
+  if (slaClockStartS == null || closeAtS == null) return none;
+
+  const attrTs = findLinearAttributeTs(timeline);
+  let startS: number | null = null;
+  let source: EngWaitSource | null = null;
+  if (attrTs != null) {
+    startS = attrTs;
+    source = "attribute_event";
+  } else if (esc?.escalationRowAtS != null) {
+    startS = esc.escalationRowAtS;
+    source = "dev_escalation_row";
+  } else if (esc?.linearCreatedAtS != null) {
+    startS = esc.linearCreatedAtS;
+    source = "linear_created";
+  }
+  if (startS == null) return none;
+
+  const done = [esc?.linearCompletedAtS, esc?.linearCanceledAtS].filter(
+    (v): v is number => typeof v === "number",
+  );
+  const linearDoneS = done.length ? Math.min(...done) : null;
+  let endS = linearDoneS != null ? Math.min(linearDoneS, closeAtS) : closeAtS;
+
+  startS = Math.max(startS, slaClockStartS);
+  if (startS > closeAtS) return none; // reference attached after the ticket closed
+  if (endS < startS) endS = startS;
+  return { startS, endS, source };
+}
+
+/**
+ * Engineering-wait seconds = the intersection of the engineering-wait window
+ * with the waiting-on-customer segments. Active and closed time are never
+ * reclassified.
+ */
+export function computeEngineeringWait(
+  segments: WaitSegment[] | null,
+  window: EngWaitWindow,
+  clip: (a: number, b: number) => number,
+): number | null {
+  if (segments == null) return null;
+  if (window.startS == null || window.endS == null) return 0;
+  let total = 0;
+  for (const s of segments) {
+    const a = Math.max(s.startS, window.startS);
+    const b = Math.min(s.endS, window.endS);
+    if (b > a) total += clip(a, b);
+  }
   return total;
 }
 
@@ -506,9 +640,15 @@ export type ActiveClockResult = {
   resolutionActiveS: number | null;
   resolutionActiveBhS: number | null;
   resolutionClosedS: number | null;
+  /** Waiting on the customer, with engineering wait already carved out. */
   resolutionCustomerWaitS: number | null;
   resolutionCustomerWaitBhS: number | null;
-  /** close_at − sla_clock_start: the denominator active/closed/wait sum to. */
+  resolutionEngWaitS: number | null;
+  resolutionEngWaitBhS: number | null;
+  engWaitStartS: number | null;
+  engWaitEndS: number | null;
+  engWaitSource: EngWaitSource | null;
+  /** close_at − sla_clock_start: active + closed + wait + eng_wait sum to it. */
   resolutionWindowS: number | null;
   rawResolveS: number | null;
   partsCount: number;
@@ -522,7 +662,12 @@ export type ActiveClockResult = {
  */
 export function computeActiveClock(
   conversation: any,
-  opts?: { roster?: SupportRoster; businessHours?: BusinessHoursConfig },
+  opts?: {
+    roster?: SupportRoster;
+    businessHours?: BusinessHoursConfig;
+    /** Linear / Hub escalation facts for this conversation, when known. */
+    escalation?: EngEscalation | null;
+  },
 ): ActiveClockResult {
   const businessHours = opts?.businessHours ?? DEFAULT_BUSINESS_HOURS;
   const timeline = reattributeRelay(extractTimeline(conversation), opts?.roster);
@@ -534,34 +679,31 @@ export function computeActiveClock(
   const rawResolveS =
     typeof stats?.time_to_last_close === "number" ? stats.time_to_last_close : null;
 
+  const wall = (a: number, b: number) => Math.max(0, b - a);
+  const bh = (a: number, b: number) => businessHoursBetween(a, b, businessHours);
+
+  const waitSegs = customerWaitSegments(timeline, slaClockStartS, closeAtS);
+  const engWindow = resolveEngWaitWindow(timeline, slaClockStartS, closeAtS, opts?.escalation);
+  const waitTotalS = waitSegs == null ? null : waitSegs.reduce((n, s) => n + wall(s.startS, s.endS), 0);
+  const waitTotalBhS = waitSegs == null ? null : waitSegs.reduce((n, s) => n + bh(s.startS, s.endS), 0);
+  const engS = computeEngineeringWait(waitSegs, engWindow, wall);
+  const engBhS = computeEngineeringWait(waitSegs, engWindow, bh);
+
   return {
     slaClockStartS,
     closeAtS,
-    resolutionActiveS: computeResolutionActive(
-      timeline,
-      slaClockStartS,
-      closeAtS,
-      (a, b) => Math.max(0, b - a),
-    ),
-    resolutionActiveBhS: computeResolutionActive(
-      timeline,
-      slaClockStartS,
-      closeAtS,
-      (a, b) => businessHoursBetween(a, b, businessHours),
-    ),
+    resolutionActiveS: computeResolutionActive(timeline, slaClockStartS, closeAtS, wall),
+    resolutionActiveBhS: computeResolutionActive(timeline, slaClockStartS, closeAtS, bh),
     resolutionClosedS: computeClosedDormant(timeline, slaClockStartS, closeAtS),
-    resolutionCustomerWaitS: computeCustomerWait(
-      timeline,
-      slaClockStartS,
-      closeAtS,
-      (a, b) => Math.max(0, b - a),
-    ),
-    resolutionCustomerWaitBhS: computeCustomerWait(
-      timeline,
-      slaClockStartS,
-      closeAtS,
-      (a, b) => businessHoursBetween(a, b, businessHours),
-    ),
+    resolutionCustomerWaitS:
+      waitTotalS == null ? null : Math.max(0, waitTotalS - (engS ?? 0)),
+    resolutionCustomerWaitBhS:
+      waitTotalBhS == null ? null : Math.max(0, waitTotalBhS - (engBhS ?? 0)),
+    resolutionEngWaitS: engS,
+    resolutionEngWaitBhS: engBhS,
+    engWaitStartS: (engS ?? 0) > 0 ? engWindow.startS : null,
+    engWaitEndS: (engS ?? 0) > 0 ? engWindow.endS : null,
+    engWaitSource: (engS ?? 0) > 0 ? engWindow.source : null,
     resolutionWindowS:
       slaClockStartS != null && closeAtS != null
         ? Math.max(0, closeAtS - slaClockStartS)

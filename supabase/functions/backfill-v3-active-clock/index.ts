@@ -9,6 +9,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { computeActiveClock, ACTIVE_CLOCK_ENGINE_VERSION } from "../_shared/sla-core.ts";
 import { loadSupportRoster, registerConfiguredAnchors } from "../_shared/sla-roster.ts";
+import { loadEngEscalations } from "../_shared/eng-wait.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -57,11 +58,22 @@ Deno.serve(async (req) => {
       const rows = data ?? [];
       if (rows.length === 0) break;
 
+      // Engineering-wait facts for this batch, loaded once (Engine v3).
+      const escalations = await loadEngEscalations(
+        supabase,
+        rows.map((r: any) => r.intercom_conversation_id),
+      );
+
       for (const r of rows as Array<{ id: string; intercom_conversation_id: string; raw_payload: any }>) {
         processed++;
         try {
           const raw = r.raw_payload;
-          const ac = raw ? computeActiveClock(raw, { roster }) : null;
+          const ac = raw
+            ? computeActiveClock(raw, {
+                roster,
+                escalation: escalations.get(r.intercom_conversation_id) ?? null,
+              })
+            : null;
           const usable = !!ac && ac.partsCount > 0;
           if (!usable) skippedNoParts++;
 
@@ -71,6 +83,15 @@ Deno.serve(async (req) => {
             resolution_closed_s: usable ? ac!.resolutionClosedS : null,
             resolution_customer_wait_s: usable ? ac!.resolutionCustomerWaitS : null,
             resolution_customer_wait_bh_s: usable ? ac!.resolutionCustomerWaitBhS : null,
+            resolution_eng_wait_s: usable ? ac!.resolutionEngWaitS : null,
+            resolution_eng_wait_bh_s: usable ? ac!.resolutionEngWaitBhS : null,
+            eng_wait_start_at: usable && ac!.engWaitStartS != null
+              ? new Date(ac!.engWaitStartS * 1000).toISOString()
+              : null,
+            eng_wait_end_at: usable && ac!.engWaitEndS != null
+              ? new Date(ac!.engWaitEndS * 1000).toISOString()
+              : null,
+            eng_wait_source: usable ? ac!.engWaitSource : null,
             resolution_window_s: usable ? ac!.resolutionWindowS : null,
             sla_clock_start_at: usable && ac!.slaClockStartS != null
               ? new Date(ac!.slaClockStartS * 1000).toISOString()
