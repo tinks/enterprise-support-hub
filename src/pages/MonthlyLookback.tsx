@@ -250,10 +250,16 @@ export default function MonthlyLookback() {
   const prevClosed = useMemo(() => prev.filter((r) => r.finalized_at), [prev]);
   const stillOpen = useMemo(() => cur.filter((r) => !r.finalized_at), [cur]);
 
-  const gapRows = useMemo(
+  // Sam is the AI agent: it never sees the closure form, so a Sam-owned ticket
+  // missing area/type is not a human closure-rule leak. Counted separately so
+  // the number is visible rather than silently dropped.
+  const allGapRows = useMemo(
     () => curClosed.filter((r) => !r.product_area || !r.classification),
     [curClosed],
   );
+  const gapRows = useMemo(() => allGapRows.filter((r) => r.owner !== "Sam"), [allGapRows]);
+  const samGapCount = allGapRows.length - gapRows.length;
+
 
   // Theme mix runs over CLOSED tickets only. Product area and ticket type are
   // set at closure, so an open ticket has no theme yet — mixing them in would
