@@ -150,6 +150,7 @@ export async function finalizeConversation(params: {
     } catch { /* ignore */ }
   }
 
+  const clockEscalation = await loadClockEscalation(supabase, convId, icData);
   const adminId = String(icData.admin_assignee_id || "");
   const owner = adminOwnerMap[adminId] || null;
   const { product_area, classification } = extractFields(icData);
