@@ -30,15 +30,28 @@ export type FinalizeResult =
  * engine can't read leaves the columns null (reported as "not computable")
  * rather than writing a fabricated zero.
  */
-export function activeClockFields(icData: any, roster?: SupportRoster) {
+export function activeClockFields(
+  icData: any,
+  roster?: SupportRoster,
+  escalation?: EngEscalation | null,
+) {
   try {
-    const ac = computeActiveClock(icData, { roster });
+    const ac = computeActiveClock(icData, { roster, escalation });
     return {
       resolution_active_s: ac.resolutionActiveS,
       resolution_active_bh_s: ac.resolutionActiveBhS,
       resolution_closed_s: ac.resolutionClosedS,
       resolution_customer_wait_s: ac.resolutionCustomerWaitS,
       resolution_customer_wait_bh_s: ac.resolutionCustomerWaitBhS,
+      resolution_eng_wait_s: ac.resolutionEngWaitS,
+      resolution_eng_wait_bh_s: ac.resolutionEngWaitBhS,
+      eng_wait_start_at: ac.engWaitStartS != null
+        ? new Date(ac.engWaitStartS * 1000).toISOString()
+        : null,
+      eng_wait_end_at: ac.engWaitEndS != null
+        ? new Date(ac.engWaitEndS * 1000).toISOString()
+        : null,
+      eng_wait_source: ac.engWaitSource,
       resolution_window_s: ac.resolutionWindowS,
       sla_clock_start_at: ac.slaClockStartS != null
         ? new Date(ac.slaClockStartS * 1000).toISOString()
@@ -54,11 +67,34 @@ export function activeClockFields(icData: any, roster?: SupportRoster) {
       resolution_closed_s: null,
       resolution_customer_wait_s: null,
       resolution_customer_wait_bh_s: null,
+      resolution_eng_wait_s: null,
+      resolution_eng_wait_bh_s: null,
+      eng_wait_start_at: null,
+      eng_wait_end_at: null,
+      eng_wait_source: null,
       resolution_window_s: null,
       sla_clock_start_at: null,
       active_clock_computed_at: null,
       active_clock_engine_version: null,
     };
+  }
+}
+
+/**
+ * Escalation facts for the active clock, loaded only when the payload actually
+ * references a Linear issue. Never throws.
+ */
+export async function loadClockEscalation(
+  supabase: any,
+  convId: string,
+  icData: any,
+): Promise<EngEscalation | null> {
+  try {
+    if (!hasLinearReference(icData)) return null;
+    return await loadEngEscalation(supabase, convId);
+  } catch (e) {
+    console.error(`[v3-finalize] escalation load failed: ${(e as Error).message}`);
+    return null;
   }
 }
 
