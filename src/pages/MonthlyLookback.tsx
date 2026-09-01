@@ -567,7 +567,11 @@ export default function MonthlyLookback() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Theme trends</CardTitle>
-            <CardDescription>Product area and ticket type for {monthLabel} against {prevLabel}.</CardDescription>
+            <CardDescription>
+              Product area and ticket type for {monthLabel} against {prevLabel}, over the {curClosed.length} closed
+              tickets ({prevLabel}: {prevClosed.length}). Both fields are set at closure, so tickets still open carry no
+              theme and are left out rather than counted as uncategorised.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="h-[260px]">
