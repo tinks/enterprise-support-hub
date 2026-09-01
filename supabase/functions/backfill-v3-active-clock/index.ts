@@ -69,6 +69,9 @@ Deno.serve(async (req) => {
             resolution_active_s: usable ? ac!.resolutionActiveS : null,
             resolution_active_bh_s: usable ? ac!.resolutionActiveBhS : null,
             resolution_closed_s: usable ? ac!.resolutionClosedS : null,
+            resolution_customer_wait_s: usable ? ac!.resolutionCustomerWaitS : null,
+            resolution_customer_wait_bh_s: usable ? ac!.resolutionCustomerWaitBhS : null,
+            resolution_window_s: usable ? ac!.resolutionWindowS : null,
             sla_clock_start_at: usable && ac!.slaClockStartS != null
               ? new Date(ac!.slaClockStartS * 1000).toISOString()
               : null,

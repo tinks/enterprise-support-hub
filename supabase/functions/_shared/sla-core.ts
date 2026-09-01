@@ -9,7 +9,7 @@
 // Pure TypeScript: no network, no DB, no Deno/Node globals.
 
 /** Bump when the active-clock RULE changes, so stale rows can be re-backfilled. */
-export const ACTIVE_CLOCK_ENGINE_VERSION = 1;
+export const ACTIVE_CLOCK_ENGINE_VERSION = 2;
 
 // ============================================================================
 // Actor model
@@ -446,12 +446,70 @@ export function computeClosedDormant(
   return total;
 }
 
+/**
+ * Waiting-on-customer seconds inside the resolution window — the exact mirror
+ * of `computeResolutionActive`: it accumulates the stretches where the ball is
+ * NOT with us AND the ticket is NOT closed. Same actor rules, same window, so
+ * active + closed + customer_wait == window by construction.
+ */
+export function computeCustomerWait(
+  timeline: TimelinePart[],
+  slaClockStartS: number | null,
+  closeAtS: number | null,
+  clip: (a: number, b: number) => number,
+): number | null {
+  if (slaClockStartS == null || closeAtS == null) return null;
+  if (closeAtS < slaClockStartS) return 0;
+  let total = 0;
+  // State at the clock start: ball with us, ticket open.
+  let ballWithUs = true;
+  let closed = false;
+  let segStart: number | null = null; // start of the current waiting-on-customer stretch
+  const endWait = (at: number) => {
+    if (segStart != null) {
+      total += clip(segStart, at);
+      segStart = null;
+    }
+  };
+  for (const p of timeline) {
+    if (p.ts < slaClockStartS || p.ts > closeAtS) continue;
+    if (p.partType === "close") {
+      // A close stops both open clocks; the gap that follows is dormant time
+      // and belongs to resolution_closed_s.
+      endWait(p.ts);
+      closed = true;
+      ballWithUs = false;
+      continue;
+    }
+    // Any non-close part ends dormancy — same rule as computeClosedDormant.
+    closed = false;
+    if (p.actor === "customer" || p.actor === "shared_inbox") {
+      // Customer content returns the ball to us (B6).
+      endWait(p.ts);
+      ballWithUs = true;
+    } else if (p.isPublicReply && (p.actor === "human_admin" || p.actor === "sam_ai")) {
+      if (ballWithUs) ballWithUs = false;
+      if (segStart == null) segStart = p.ts;
+    } else if (!ballWithUs && segStart == null) {
+      // Post-dormancy activity that neither side "owns" (notes, assignments):
+      // the ball is still not with us, so the time is customer wait.
+      segStart = p.ts;
+    }
+  }
+  if (!ballWithUs && !closed) endWait(closeAtS);
+  return total;
+}
+
 export type ActiveClockResult = {
   slaClockStartS: number | null;
   closeAtS: number | null;
   resolutionActiveS: number | null;
   resolutionActiveBhS: number | null;
   resolutionClosedS: number | null;
+  resolutionCustomerWaitS: number | null;
+  resolutionCustomerWaitBhS: number | null;
+  /** close_at − sla_clock_start: the denominator active/closed/wait sum to. */
+  resolutionWindowS: number | null;
   rawResolveS: number | null;
   partsCount: number;
   engineVersion: number;
@@ -492,6 +550,22 @@ export function computeActiveClock(
       (a, b) => businessHoursBetween(a, b, businessHours),
     ),
     resolutionClosedS: computeClosedDormant(timeline, slaClockStartS, closeAtS),
+    resolutionCustomerWaitS: computeCustomerWait(
+      timeline,
+      slaClockStartS,
+      closeAtS,
+      (a, b) => Math.max(0, b - a),
+    ),
+    resolutionCustomerWaitBhS: computeCustomerWait(
+      timeline,
+      slaClockStartS,
+      closeAtS,
+      (a, b) => businessHoursBetween(a, b, businessHours),
+    ),
+    resolutionWindowS:
+      slaClockStartS != null && closeAtS != null
+        ? Math.max(0, closeAtS - slaClockStartS)
+        : null,
     rawResolveS,
     partsCount: timeline.length,
     engineVersion: ACTIVE_CLOCK_ENGINE_VERSION,

@@ -176,6 +176,13 @@
       "when": 1788296944460,
       "tag": "0024_add_active_resolution_clock_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1788298603091,
+      "tag": "0025_add_customer_wait_clock_columns",
+      "breakpoints": true
     }
   ]
 }
