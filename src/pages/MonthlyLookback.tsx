@@ -930,11 +930,12 @@ export default function MonthlyLookback() {
                   sub: `${pct(escToEng.cur, escToEng.closedN)} of closed · ${prevLabel} ${escToEng.prev}${escToEng.unset ? ` · ${escToEng.unset} unset` : ""}`,
                 },
               ].map((s) => (
-
                 <div key={s.label} className="rounded-lg border p-3">
                   <div className="text-xs text-muted-foreground">{s.label}</div>
                   <div className="text-2xl font-semibold mt-1">{s.value}</div>
+                  {"sub" in s && s.sub ? <div className="text-[11px] text-muted-foreground mt-1">{s.sub}</div> : null}
                 </div>
+
               ))}
             </div>
             <div className="space-y-3">
