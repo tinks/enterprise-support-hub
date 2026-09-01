@@ -434,6 +434,7 @@ export default function MonthlyLookback() {
     L.push(`**Volume.** ${curAll.length} tickets created (${cur.length} in the Enterprise reporting population after exclusions), vs ${prevAll.length} in ${prevLabel} — ${deltaLabel(curAll.length, prevAll.length)}. ${curClosed.length} closed, ${stillOpen.length} still open at time of writing.`);
     if (notes.headline) L.push("", notes.headline);
     L.push("", "## Theme trends", "");
+    L.push(`Themes are set at closure, so the mix below is over the ${curClosed.length} closed tickets (${prevLabel}: ${prevClosed.length}).`, "");
     for (const m of areaMix.slice(0, 8)) {
       L.push(`- ${m.name}: ${m.cur} (${m.share.toFixed(0)}% of month, ${prevLabel} ${m.prev}, ${deltaLabel(m.cur, m.prev)})`);
     }
