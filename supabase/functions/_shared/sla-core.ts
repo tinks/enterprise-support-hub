@@ -465,7 +465,7 @@ export function computeCustomerWait(
   let ballWithUs = true;
   let closed = false;
   let segStart: number | null = null; // start of the current waiting-on-customer stretch
-  const closeWait = (at: number) => {
+  const endWait = (at: number) => {
     if (segStart != null) {
       total += clip(segStart, at);
       segStart = null;
@@ -474,25 +474,29 @@ export function computeCustomerWait(
   for (const p of timeline) {
     if (p.ts < slaClockStartS || p.ts > closeAtS) continue;
     if (p.partType === "close") {
-      closeWait(p.ts);
+      // A close stops both open clocks; the gap that follows is dormant time
+      // and belongs to resolution_closed_s.
+      endWait(p.ts);
       closed = true;
       ballWithUs = false;
       continue;
     }
+    // Any non-close part ends dormancy — same rule as computeClosedDormant.
+    closed = false;
     if (p.actor === "customer" || p.actor === "shared_inbox") {
-      // Customer returns the ball (and reopens the wait window if closed).
-      closeWait(p.ts);
-      closed = false;
+      // Customer content returns the ball to us (B6).
+      endWait(p.ts);
       ballWithUs = true;
     } else if (p.isPublicReply && (p.actor === "human_admin" || p.actor === "sam_ai")) {
-      if (closed) continue; // dormant time belongs to resolution_closed_s
-      if (ballWithUs) {
-        ballWithUs = false;
-        segStart = p.ts;
-      }
+      if (ballWithUs) ballWithUs = false;
+      if (segStart == null) segStart = p.ts;
+    } else if (!ballWithUs && segStart == null) {
+      // Post-dormancy activity that neither side "owns" (notes, assignments):
+      // the ball is still not with us, so the time is customer wait.
+      segStart = p.ts;
     }
   }
-  if (!ballWithUs && !closed) closeWait(closeAtS);
+  if (!ballWithUs && !closed) endWait(closeAtS);
   return total;
 }
 
