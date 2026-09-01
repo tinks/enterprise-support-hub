@@ -537,7 +537,7 @@ function buildNodes(
           "Removes feedback buttons",
           "Removes 👀, adds ⏳",
           "Reassigns to enterprise team inbox",
-          "Converts conversation to ticket",
+          "Does NOT convert to an Intercom Ticket (removed 2026-09-01) — reassignment is the escalation marker; everything the Hub touches stays a Conversation",
         ],
         message: msgs.escalation_notice,
         messageKey: "escalation_notice",
