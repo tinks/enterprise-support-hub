@@ -22,6 +22,7 @@ import {
 
 import { PlanScopeSelect } from "@/components/PlanScopeSelect";
 import { inPlanScope, type PlanScope } from "@/lib/planTier";
+import { ACTIVE_LABEL, RAW_LABEL, ACTIVE_TOOLTIP, ACTIVE_FOOTNOTE, collectActive, collectRaw, notComputableNote } from "@/lib/resolutionDisplay";
 
 type Row = {
   id: string;
@@ -31,6 +32,8 @@ type Row = {
   csat_rating: number | null;
   csat_rater_is_internal: boolean | null;
   time_to_resolve_s: number | null;
+  resolution_active_s: number | null;
+  active_clock_engine_version: number | null;
   last_reopened_at: string | null;
   reopen_count_at_finalize: number | null;
 
@@ -54,6 +57,10 @@ type MonthBucket = {
   csatExcluded: number;
   avgResolve: number | null;
   medResolve: number | null;
+  medRaw: number | null;
+  avgRaw: number | null;
+  notComputable: number;
+  zeroActive: number;
   p90Resolve: number | null;
   backlog: number;
 };
@@ -75,8 +82,8 @@ const METRIC_LABELS: Record<MetricKey, string> = {
   closed: "Closed tickets",
   resolved_pct: "Resolved %",
   csat: "Avg CSAT",
-  avg_resolve: "Average time to resolve",
-  median_resolve: "Median time to resolve",
+  avg_resolve: `Average ${ACTIVE_LABEL.toLowerCase()}`,
+  median_resolve: `Median ${ACTIVE_LABEL.toLowerCase()}`,
   backlog: "Active backlog (open at month end)",
 
 };
@@ -103,11 +110,11 @@ function fmtCell(metric: MetricKey, m: MonthBucket): string {
     case "csat": return m.avgCsat == null
       ? "—"
       : `${m.avgCsat.toFixed(2)} (n=${m.csatN}${m.csatExcluded ? `, ${m.csatExcluded} excl.` : ""})`;
-    case "avg_resolve": return formatDuration(m.avgResolve);
+    case "avg_resolve": return `${formatDuration(m.avgResolve)}${m.avgRaw == null ? "" : ` · raw ${formatDuration(m.avgRaw)}`}`;
     case "median_resolve":
       return m.p90Resolve == null
-        ? formatDuration(m.medResolve)
-        : `${formatDuration(m.medResolve)} · P90 ${formatDuration(m.p90Resolve)}`;
+        ? `${formatDuration(m.medResolve)}${m.medRaw == null ? "" : ` · raw ${formatDuration(m.medRaw)}`}`
+        : `${formatDuration(m.medResolve)} · P90 ${formatDuration(m.p90Resolve)}${m.medRaw == null ? "" : ` · raw ${formatDuration(m.medRaw)}`}`;
     case "backlog": return String(m.backlog);
 
   }
@@ -159,7 +166,7 @@ export default function TrendReport() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,finalized_at,lifecycle_status,csat_rating,csat_rater_is_internal,time_to_resolve_s,last_reopened_at,reopen_count_at_finalize,tags,rsa_override,customer_key,plan_tier")
+            .select("id,intercom_created_at,finalized_at,lifecycle_status,csat_rating,csat_rater_is_internal,time_to_resolve_s,resolution_active_s,active_clock_engine_version,last_reopened_at,reopen_count_at_finalize,tags,rsa_override,customer_key,plan_tier")
             .or(
               `intercom_created_at.gte.${startIso},` +
               `finalized_at.gte.${startIso},` +
@@ -235,9 +242,11 @@ export default function TrendReport() {
       const ratings = closedRows
         .filter((r) => isRatingCounted(r, csatOverrides, csatFilters))
         .map((r) => r.csat_rating as number);
-      const times = closedRows
-        .map((r) => r.time_to_resolve_s)
-        .filter((v): v is number => typeof v === "number" && v > 0);
+      // Headline series = ACTIVE clock only. Raw is a tooltip value, never a
+      // second series: a chart mixing raw and active months invents a trend.
+      const active = collectActive(closedRows);
+      const times = active.values;
+      const rawTimes = collectRaw(closedRows);
 
       return {
         key: m.key,
@@ -253,6 +262,10 @@ export default function TrendReport() {
         avgResolve: times.length ? times.reduce((a, b) => a + b, 0) / times.length : null,
         medResolve: median(times),
         p90Resolve: times.length >= 10 ? percentile(times, 90) : null,
+        notComputable: active.notComputable,
+        zeroActive: active.zeroActive,
+        medRaw: median(rawTimes),
+        avgRaw: rawTimes.length ? rawTimes.reduce((a, b) => a + b, 0) / rawTimes.length : null,
         backlog,
       };
     });
@@ -267,6 +280,9 @@ export default function TrendReport() {
       month: b.label,
       Average: b.avgResolve == null ? null : +(b.avgResolve / 86400).toFixed(2),
       Median: b.medResolve == null ? null : +(b.medResolve / 86400).toFixed(2),
+      // Reconciliation only — carried in the tooltip payload, NOT plotted.
+      "Elapsed (raw) median": b.medRaw == null ? null : +(b.medRaw / 86400).toFixed(2),
+      notComputable: b.notComputable,
     })),
     [buckets],
   );
@@ -387,8 +403,8 @@ export default function TrendReport() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Time to resolve (days)</CardTitle>
-              <CardDescription>Average vs median, closed-in-month tickets.</CardDescription>
+              <CardTitle className="text-base">{ACTIVE_LABEL} (days)</CardTitle>
+              <CardDescription>Average vs median, closed-in-month tickets. {ACTIVE_TOOLTIP} {RAW_LABEL} appears in the tooltip for reconciliation and is never plotted.</CardDescription>
             </CardHeader>
             <CardContent className="h-[240px]">
               <ResponsiveContainer width="100%" height="100%">
