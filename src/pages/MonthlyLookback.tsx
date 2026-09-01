@@ -483,7 +483,7 @@ export default function MonthlyLookback() {
   }, [
     monthLabel, prevLabel, curAll.length, prevAll.length, cur.length, curClosed, stillOpen.length,
     areaMix, typeMix, spikes, concentration, planMix, accountRows, quality, activeStats,
-    changelog.length, shippedByArea, escStats, gapRows.length, notes,
+    changelog.length, shippedByArea, escStats, gapRows.length, notes, planScope,
   ]);
 
   const copyNarrative = async () => {
