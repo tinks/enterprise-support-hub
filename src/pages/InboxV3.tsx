@@ -567,7 +567,7 @@ export default function InboxV3() {
       </div>
 
       <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-        <SheetContent className="w-[480px] sm:max-w-[480px] overflow-auto">
+        <SheetContent className="w-full sm:w-[560px] sm:max-w-[560px] lg:w-[720px] lg:max-w-[720px] xl:w-[880px] xl:max-w-[880px] 2xl:w-[1100px] 2xl:max-w-[1100px] overflow-auto">
           {selected && (
             <>
               <SheetHeader>
