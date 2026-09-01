@@ -487,7 +487,7 @@ export default function MonthlyLookback() {
     L.push(`- Dev escalations: ${escStats.opened} opened, ${escStats.closed} closed, ${escStats.openAtEnd} open at month end.`);
     if (notes.shipped) L.push("", notes.shipped);
     L.push("", "## Data quality", "");
-    L.push(`- ${gapRows.length} of ${curClosed.length} closed tickets are missing product area or ticket type (${pct(gapRows.length, curClosed.length)}).`);
+    L.push(`- ${gapRows.length} of ${curClosed.length} closed tickets are missing product area or ticket type (${pct(gapRows.length, curClosed.length)})${samGapCount ? `, excluding ${samGapCount} Sam-owned ticket${samGapCount === 1 ? "" : "s"} that never pass through the closure form` : ""}.`);
     L.push("", "## What to watch", "");
     L.push(notes.watch || "- (add commentary)");
     return L.join("\n");
