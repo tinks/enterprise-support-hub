@@ -28,6 +28,10 @@ import { CsatFilterMenu } from "@/components/csat/CsatFilterMenu";
 
 import { PlanScopeSelect } from "@/components/PlanScopeSelect";
 import { inPlanScope, type PlanScope } from "@/lib/planTier";
+import {
+  ACTIVE_LABEL, RAW_LABEL, ACTIVE_TOOLTIP, ACTIVE_FOOTNOTE,
+  collectActive, collectRaw, activeSeconds, notComputableNote,
+} from "@/lib/resolutionDisplay";
 
 type Row = {
   id: string;
@@ -39,6 +43,8 @@ type Row = {
   csat_rating: number | null;
   csat_rater_is_internal: boolean | null;
   time_to_resolve_s: number | null;
+  resolution_active_s: number | null;
+  active_clock_engine_version: number | null;
   admin_assignee_id: string | null;
   tags: string[] | null;
   rsa_override: boolean | null;
@@ -146,7 +152,7 @@ export default function AnalyticsV3() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,intercom_closed_at,finalized_at,lifecycle_status,state,csat_rating,csat_rater_is_internal,time_to_resolve_s,admin_assignee_id,tags,rsa_override,customer_key,customer_kind,plan_tier")
+            .select("id,intercom_created_at,intercom_closed_at,finalized_at,lifecycle_status,state,csat_rating,csat_rater_is_internal,time_to_resolve_s,resolution_active_s,active_clock_engine_version,admin_assignee_id,tags,rsa_override,customer_key,customer_kind,plan_tier")
             .or(
               `and(intercom_created_at.gte.${fromIso},intercom_created_at.lte.${toIso}),` +
               `and(finalized_at.gte.${fromIso},finalized_at.lte.${toIso})`,
@@ -235,9 +241,11 @@ export default function AnalyticsV3() {
     const csat = summarizeCsat(inRange, csatOverrides, csatFilters);
     const avgCsat = csat.avg;
     const responseRate = total > 0 ? (csat.n / total) * 100 : null;
-    const closeTimes = inRange
-      .map((r) => r.time_to_resolve_s)
-      .filter((v): v is number => typeof v === "number" && v > 0);
+    // Headline resolution = ACTIVE clock (closed + waiting-on-customer excluded).
+    // Raw wall clock is kept alongside for reconciliation only.
+    const active = collectActive(inRange);
+    const closeTimes = active.values;
+    const rawTimes = collectRaw(inRange);
     const avgClose = closeTimes.length ? closeTimes.reduce((a, b) => a + b, 0) / closeTimes.length : null;
     return {
       total, avgCsat, ratedN: csat.n, csat, closedDenominator: total, responseRate,
@@ -245,6 +253,10 @@ export default function AnalyticsV3() {
       avgClose,
       p90Close: closeTimes.length >= 10 ? percentile(closeTimes, 90) : null,
       p90Eligible: closeTimes.length >= 10,
+      notComputable: active.notComputable,
+      zeroActive: active.zeroActive,
+      medRaw: median(rawTimes), rawN: rawTimes.length,
+      avgRaw: rawTimes.length ? rawTimes.reduce((a, b) => a + b, 0) / rawTimes.length : null,
     };
   }, [filteredRows, range.from, range.to, csatOverrides, csatFilters]);
 
@@ -352,7 +364,8 @@ export default function AnalyticsV3() {
           && !(csatFilters.excludeOverridden && csatOverrides.has(r.id))) {
         a.csatSum += r.csat_rating; a.csatN++;
       }
-      if (typeof r.time_to_resolve_s === "number" && r.time_to_resolve_s > 0) a.resolveTimes.push(r.time_to_resolve_s);
+      const act = activeSeconds(r);
+      if (act != null) a.resolveTimes.push(act);
     }
     for (const r of filteredActiveRows) {
       const a = get(r.customer_key ?? "unknown");
@@ -491,27 +504,33 @@ export default function AnalyticsV3() {
               loading={loading}
             />
             <Kpi
-              title="Median time to resolve"
+              title={`Median ${ACTIVE_LABEL.toLowerCase()}`}
               value={loading ? "…" : formatDuration(stats.medClose)}
               sub={
                 <span className="text-muted-foreground">
                   {stats.p90Eligible
                     ? `P90: ${formatDuration(stats.p90Close)} · n = ${stats.closeN.toLocaleString()}`
                     : `P90: insufficient data (n < 10) · n = ${stats.closeN.toLocaleString()}`}
+                  <br />
+                  {RAW_LABEL} median: {formatDuration(stats.medRaw)}
+                  {stats.notComputable > 0 ? ` · ${notComputableNote(stats.notComputable)}` : ""}
                 </span>
               }
-              tooltip="Median = the typical ticket. P90 = 90% of tickets resolve at or under this. Watch P90 for enterprise worst-case experience. Hidden when fewer than 10 finalized tickets in range."
+              tooltip={`${ACTIVE_TOOLTIP} Median = the typical ticket. P90 = 90% of tickets resolve at or under this. Hidden when fewer than 10 finalized tickets in range.`}
               loading={loading}
             />
             <Kpi
-              title="Average time to resolve"
+              title={`Average ${ACTIVE_LABEL.toLowerCase()}`}
               value={loading ? "…" : formatDuration(stats.avgClose)}
               sub={
                 <span className="text-muted-foreground">
                   n = {stats.closeN.toLocaleString()}
+                  {stats.zeroActive > 0 ? ` · ${stats.zeroActive} at 0h active` : ""}
+                  <br />
+                  {RAW_LABEL} avg: {formatDuration(stats.avgRaw)}
                 </span>
               }
-              tooltip="Mean resolution time across finalized tickets in range. Sensitive to outliers — compare against the median to spot skew from a few very long tickets."
+              tooltip={`${ACTIVE_TOOLTIP} Sensitive to outliers — compare against the median to spot skew.`}
               loading={loading}
             />
           </div>
@@ -632,7 +651,7 @@ export default function AnalyticsV3() {
                       <th className="text-left px-3 py-2">Customer</th>
                       <th className="text-right px-3 py-2">Closed</th>
                       <th className="text-right px-3 py-2">Avg CSAT</th>
-                      <th className="text-right px-3 py-2">Median resolve</th>
+                      <th className="text-right px-3 py-2">Median resolve (active)</th>
                       <th className="text-right px-3 py-2">Open</th>
                       <th className="text-right px-3 py-2">Reopened</th>
                     </tr>
@@ -661,8 +680,7 @@ export default function AnalyticsV3() {
 
 
         <p className="text-xs text-muted-foreground">
-          Time-to-resolve reads the pre-computed <code>time_to_resolve_s</code> snapshot taken at finalize (Intercom's
-          <code> statistics.time_to_last_close</code>). Active backlog reflects every non-finalized row regardless of date.
+          {ACTIVE_FOOTNOTE} Active backlog reflects every non-finalized row regardless of date.
           Data from {CLEAN_DATA_START_LABEL} onward.
         </p>
       </div>
