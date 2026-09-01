@@ -438,9 +438,11 @@ export default function MonthlyLookback() {
 
   const narrative = useMemo(() => {
     const L: string[] = [];
-    L.push(`# Enterprise support lookback — ${monthLabel}`);
+    L.push(`# ${PLAN_LABEL[planScope]} support lookback — ${monthLabel}`);
     L.push("");
-    L.push(`**Volume.** ${curAll.length} tickets created (${cur.length} in the Enterprise reporting population after exclusions), vs ${prevAll.length} in ${prevLabel} — ${deltaLabel(curAll.length, prevAll.length)}. ${curClosed.length} closed, ${stillOpen.length} still open at time of writing.`);
+    L.push(`_Plan scope: ${PLAN_LABEL[planScope]}${planScope === "all" ? " (Enterprise + Self-serve Enterprise)" : " inbox only"}._`);
+    L.push("");
+    L.push(`**Volume.** ${curAll.length} tickets created (${cur.length} in the reporting population after exclusions), vs ${prevAll.length} in ${prevLabel} — ${deltaLabel(curAll.length, prevAll.length)}. ${curClosed.length} closed, ${stillOpen.length} still open at time of writing.`);
     if (notes.headline) L.push("", notes.headline);
     L.push("", "## Theme trends", "");
     L.push(`Themes are set at closure, so the mix below is over the ${curClosed.length} closed tickets (${prevLabel}: ${prevClosed.length}).`, "");
