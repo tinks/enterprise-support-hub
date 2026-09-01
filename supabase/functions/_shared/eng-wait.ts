@@ -56,3 +56,23 @@ export async function loadEngEscalation(
   const map = await loadEngEscalations(supabase, [conversationId]);
   return map.get(conversationId) ?? null;
 }
+
+/** Cheap pre-check: does this payload reference a Linear issue at all? */
+export function hasLinearReference(icData: any): boolean {
+  const attrs = (icData?.custom_attributes ?? {}) as Record<string, unknown>;
+  for (const k of ["Escalated Issue", "Linear Issue"]) {
+    const v = attrs[k];
+    if (typeof v === "string" && v.trim()) return true;
+  }
+  const parts = icData?.conversation_parts?.conversation_parts;
+  if (Array.isArray(parts)) {
+    for (const p of parts) {
+      const name = p?.event_details?.attribute?.name;
+      if (name === "Escalated Issue" || name === "Linear Issue") {
+        const val = p?.event_details?.value?.name;
+        if (typeof val === "string" && val.trim()) return true;
+      }
+    }
+  }
+  return false;
+}
