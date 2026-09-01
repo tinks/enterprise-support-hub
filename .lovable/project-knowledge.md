@@ -241,7 +241,7 @@ awaiting_context → processing → active ⇄ active_pending → resolved
 - Removes feedback buttons
 - Swaps reactions: removes eyes, adds hourglass
 - Reassigns to enterprise team inbox (one-time, from `settings.intercom_inbox_id`)
-- Converts conversation to ticket (ticket_type_id: "1")
+- Does **not** convert the conversation to an Intercom Ticket (removed 2026-09-01) — the reassignment above is the escalation marker; the issue stays a Conversation and therefore closes with `state="closed"` and finalizes through the normal `sync-v3-closed` path
 - Posts escalation notice (key: `escalation_notice`)
 
 ### Step 6c: User replies in thread (active status)
