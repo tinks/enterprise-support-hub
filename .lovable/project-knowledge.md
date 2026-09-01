@@ -2145,8 +2145,33 @@ A stat card in "Shipped and process" reports, over closed tickets: Yes count, sh
 
 A global **All / Enterprise / SSE** selector scopes every derivation on the page and both exports, so an Enterprise review never mixes in Self-Serve Enterprise tickets. "Copy Slack summary" emits an mrkdwn digest — key metrics with MoM arrows, top 3 areas / types / customers, up to 5 recent changelog entries — under the same plan scope and CSAT integrity filters as the page.
 
-### Active clock is opt-in
+### Active clock is the default (1 Sep 2026)
 
-The active clock (wall clock minus closed time) needs `raw_payload`, so it is **not** loaded by default. A "Load active clock" button batch-fetches payloads and runs `computeAnatomy` from `src/lib/resolutionAnatomy.ts` only when asked; the default page load stays scalar-only.
+The "Load active clock" button is gone. Quality reads the persisted `intercom_tickets_v3.resolution_active_s` scalar, so **Median resolution (active)** is the headline on every page load, `Elapsed (raw)` sits beside it for reconciliation, and both the Slack summary and the narrative export emit the active figure. The page stays scalar-only — no `raw_payload` fetch.
 
 **Verified 1 Sep 2026** (August, ultrawide viewport): 242 created / 181 population / 146 closed / 35 open / 94% categorised; theme mix renders over 146 closed against 138 in July with no `— not set —` inflation; median resolve 82.8h vs 91.4h, P90 265.9h vs 446.7h, reopens 13% vs 20%, CSAT 4.47 (n=17). Four-field coverage over the 197 finalized August tickets: Severity 193, Affected Product Area 190, Ticket type 190, Escalated to Engineering 186 (154 No / 32 Yes / 11 unset). The closed tickets missing area or type were bulk-closed through an automated path that bypasses the mandatory closure form. **UNVERIFIED:** per-section note saving and the copy-out under a read-only role; the Slack summary and the plan-scope switch have not been re-verified since the four-field leak change.
+
+
+## Persisted active resolution clock (1 Sep 2026)
+
+**Problem.** Every reporting surface (Analytics v3, Trend report, Monthly lookback, Insights) reported Intercom's raw `time_to_resolve_s` — calendar time from first inbound to last close. A ticket answered in 2h, closed, then reopened 30 days later reported ~30 days. The reopen finding made this concrete: we were billing ourselves for time the ticket was **shut**.
+
+**Decision.** Persist the stop-the-clock value at finalize rather than deriving it on read (the `resolutionAnatomy` prototype needed `raw_payload`, which does not scale to a report page). Raw is **kept**, not dropped — it is the reconciliation value against Intercom's native reports.
+
+**Schema** (`intercom_tickets_v3`): `resolution_active_s`, `resolution_active_bh_s`, `resolution_closed_s`, `sla_clock_start_at`, `active_clock_computed_at`, `active_clock_engine_version`. Written at finalize by `sync-v3-closed` and `sync-v3-open`; 592 historical finalized rows filled by the one-shot `backfill-v3-active-clock` edge function. Intercom's `time_to_resolve_s` is never overwritten.
+
+**Shared engine.** `supabase/functions/_shared/sla-core.ts` holds the ball-in-our-court walk (customer/`shared_inbox` parts open a segment, our public reply or a `close` closes it, dormant closed gaps excluded) so the edge writers and the browser engine in `src/lib/slaMetrics.ts` cannot drift.
+
+**Display contract.** `src/lib/resolutionDisplay.ts` is the single owner of `ACTIVE_LABEL` ("Resolution (active)"), `RAW_LABEL` ("Elapsed (raw)"), their tooltips, `ACTIVE_CLOCK_ENGINE_VERSION`, and `collectActive()`. Rows with no computed value are **excluded and counted as "not computable"**, never coerced to 0.
+
+**Surfaces.**
+- **Analytics v3** — active median/average are the KPI headlines; raw median/average and the not-computable count sit in the sub-line.
+- **Trend report** — active series only. Raw is never plotted (a raw trend line moves with reopen behaviour, not with our speed) but appears in the tooltip alongside not-computable and zero-active counts.
+- **Monthly lookback** — active by default, raw in the Quality sub-line and drill-downs.
+- **Resolution anatomy** — unchanged; remains the derive-on-read explainer behind the number.
+
+**Verified 1 Sep 2026 against SQL.** Analytics v3 September: n=21, median active 3h 13m (SQL 3.21h), raw median 3d 19h (SQL 91.4h), 1 at zero active — exact match. Trend report: Jun 2h 27m / Jul 1h 25m against SQL 2.45h / 1.42h. Monthly lookback August: median active 2h 19m against 2h 18m over a hand-rebuilt exclusion predicate (150 closed in SQL vs 154 on the page). Population-wide since June 1 2026 the median moved from **96.67h raw to 2.25h active**.
+
+**Zero-active rows are real, not a bug.** 19 finalized tickets have 0 active seconds: we replied instantly (or an internal teammate commented as a user) and the customer never returned, so the in-our-court clock never resumed. They are counted in the population and surfaced as a "n at 0h active" note, never hidden.
+
+**UNVERIFIED:** the SQL replication of `src/lib/slaExclusions.ts` used for the Monthly lookback cross-check is approximate (4-ticket delta); 2 finalized rows remain not computable and are excluded from every median.
