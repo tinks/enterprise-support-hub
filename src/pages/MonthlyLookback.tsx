@@ -241,12 +241,16 @@ export default function MonthlyLookback() {
     [curClosed],
   );
 
-  const areaMix = useMemo(() => buildMix(cur, prev, "product_area"), [cur, prev]);
-  const typeMix = useMemo(() => buildMix(cur, prev, "classification"), [cur, prev]);
+  // Theme mix runs over CLOSED tickets only. Product area and ticket type are
+  // set at closure, so an open ticket has no theme yet — mixing them in would
+  // report a large fake "not set" bucket that only measures how many tickets
+  // are still in flight.
+  const areaMix = useMemo(() => buildMix(curClosed, prevClosed, "product_area"), [curClosed, prevClosed]);
+  const typeMix = useMemo(() => buildMix(curClosed, prevClosed, "classification"), [curClosed, prevClosed]);
 
   const spikes = useMemo(() => {
-    const prevTotal = prev.length || 1;
-    const curTotal = cur.length || 1;
+    const prevTotal = prevClosed.length || 1;
+    const curTotal = curClosed.length || 1;
     return areaMix
       .filter((m) => m.name !== UNSET)
       .map((m) => ({
