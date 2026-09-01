@@ -130,6 +130,7 @@ export default function MonthlyLookback() {
   const { overrides: csatOverrides } = useCsatOverrides();
   const [closedByTicket, setClosedByTicket] = useState<Record<string, number> | null>(null);
   const [activeLoading, setActiveLoading] = useState(false);
+  const [planScope, setPlanScope] = useState<"all" | "enterprise" | "sse">("all");
 
   const monthStart = useMemo(() => startOfMonth(new Date(`${month}-01T00:00:00Z`)), [month]);
   const monthEnd = useMemo(() => endOfMonth(monthStart), [monthStart]);
