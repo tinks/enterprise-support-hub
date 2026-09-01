@@ -37,6 +37,9 @@ export function activeClockFields(icData: any, roster?: SupportRoster) {
       resolution_active_s: ac.resolutionActiveS,
       resolution_active_bh_s: ac.resolutionActiveBhS,
       resolution_closed_s: ac.resolutionClosedS,
+      resolution_customer_wait_s: ac.resolutionCustomerWaitS,
+      resolution_customer_wait_bh_s: ac.resolutionCustomerWaitBhS,
+      resolution_window_s: ac.resolutionWindowS,
       sla_clock_start_at: ac.slaClockStartS != null
         ? new Date(ac.slaClockStartS * 1000).toISOString()
         : null,
