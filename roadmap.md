@@ -45,5 +45,19 @@
 - [ ] `eng_wait_source` fallbacks `dev_escalation_row` and `linear_created` are UNVERIFIED —
       all 30 live rows resolved via `attribute_event`.
 
+## Performance (2026-09-02)
+- [x] Items 1-3 (batched dedup, throttled health writes, settings cache) — deployed.
+- [x] Item 4 — coverage served from snapshots: `public.v3_coverage_cached(max_age_minutes)`
+      returns the persisted snapshot, recomputing at most hourly. Customers Coverage +
+      Unattributed tabs call it instead of `v3_coverage_current()` (was ~2.3s/call, 249 calls).
+- [x] Item 5 — `intercom_sync_jobs_v3 (kind, status, finished_at DESC) WHERE finished_at IS NOT NULL`
+      for the Action Center staleness probe.
+- [x] Root cause of memory pressure: heap bloat. `intercom_tickets_v3` was 95 MB heap for
+      668 rows; VACUUM FULL took it to ~1 MB (total 140 MB -> 8.8 MB). Also compacted
+      esh_search_index, inbox_v2_tickets, v3_ticket_attributes, intercom_sync_jobs_v3.
+      Autovacuum scale factors tightened (0.02-0.05) on those tables to stop regrowth.
+      Result: memory 70% -> 60%, disk 24% -> 22%. No resize needed.
+- [ ] Doc pass for the coverage-cache change (project knowledge, changelog row, FlowDiagram node).
+
 ## Open by choice
 - [ ] Security batches 4 and 5 (deliberately unstarted)
