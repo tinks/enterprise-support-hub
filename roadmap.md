@@ -1,26 +1,24 @@
 # Roadmap
 
-## Blocking publish (top priority next session, 2026-09-01 by Matt)
-Three critical scanner findings block the publish gate. Batch B work, scoped:
-- [ ] `gmail_oauth_hijack` — gate `gmail-auth-url` behind `requireEditor`; add a
-      server-stored single-use `state` nonce verified in `gmail-oauth-callback`
-      before deleting/replacing the `gmail_oauth_tokens` row.
-      (Also fixes the `Index.tsx` "not connected" indicator via a definer RPC.)
-- [ ] `open_data_read_fns` — add `requireUser` to: search-intercom-by-email (done),
-      list-slack-users, list-slack-channels, fetch-thread-messages,
-      fetch-gmail-thread, intercom-month-stats, check-bot-identity.
-      All UI-invoked; no cron callers. Verify each from the UI after gating.
-- [x] `open_mutation_fns` — dual-caller gate shipped 2026-09-02: `_shared/require-editor-or-secret.ts`
-      (cron secret header `x-esh-cron-secret` from `public.cron_auth` / service-role bearer /
-      signed-in editor) applied to 17 cron+UI functions. PENDING MATT: run
-      /mnt/documents/cron-secret-header-rewrite.sql so the 22 cron jobs send the secret
-      instead of the anon JWT, then confirm next runs in Integration Health.
-- [ ] `open_mutation_fns` (original note) — per-function caller inventory FIRST (cron/webhook vs UI).
-      UI-invoked → `requireEditor`. Cron/webhook → shared-secret header (cron) or
-      existing signature verification (Slack/Intercom). Do NOT blanket-apply:
-      poll-*, sync-v3-*, reconcile-v3-open, context-reminder,
-      integration-health-alert, publish-registry-notion carry no user JWT and
-      would fail silently as stale data.
+## Blocking publish (2026-09-02 — code complete, rescan pending)
+- [x] `gmail_oauth_hijack` — `gmail-auth-url` behind `requireEditor`; single-use server-stored
+      `state` nonce (`public.gmail_oauth_states`, migration 0029) verified in
+      `gmail-oauth-callback` before the token row is replaced. Indicator moved to
+      `public.gmail_connection_status()`. All negative cases verified; real Google
+      round-trip UNVERIFIED.
+- [x] `open_data_read_fns` — all 7 already carried `requireUser`; re-verified 401 on
+      unauthenticated and anon-key-only calls.
+- [x] `open_mutation_fns` — `_shared/require-editor-or-secret.ts` (cron secret /
+      service-role bearer / signed-in editor) on 17 cron+UI functions, `requireEditor`
+      on 17 UI-only, `requireUser` on `sla-ticket-analyze`.
+- [x] Cron credential migration — all 20 edge-function jobs re-registered onto
+      `public.esh_cron_headers()`; audit shows `uses_secret=true`, `still_has_anon=false`.
+      Retired `sync-inbox-v2-frequent` / `sync-inbox-v2-nightly` (V2 data set unused).
+      Post-rewrite runs healthy, `consecutive_failures=0` across `integration_health`.
+- [ ] UNVERIFIED, watch: daily-only jobs (poll-slack-closed-won, sync-parahelp-routing,
+      publish-registry-notion, sync-intercom-fields, sync-linear-escalations) have not
+      yet fired under the new header. Check Integration Health tomorrow.
+- [ ] UNVERIFIED: signed-in editor "Run now" buttons on the newly gated functions.
 - [ ] Re-run the security scan, then publish.
 
 ## Next session (deferred 2026-09-01 by Matt)
