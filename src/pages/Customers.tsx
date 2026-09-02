@@ -43,6 +43,8 @@ type Coverage = {
   excluded_prospect_unmapped?: number;
   excluded_transferred_out?: number;
   population?: number;
+  as_of?: string | null;
+  from_cache?: boolean | null;
 };
 
 type Snapshot = {
