@@ -30,9 +30,10 @@ import { PlanScopeSelect } from "@/components/PlanScopeSelect";
 import { inPlanScope, type PlanScope } from "@/lib/planTier";
 import { excludeTestTickets, showTestDataNow } from "@/lib/testTickets";
 import {
-  ACTIVE_LABEL, RAW_LABEL, ACTIVE_TOOLTIP, ACTIVE_FOOTNOTE,
-  collectActive, collectRaw, activeSeconds, notComputableNote,
+  ACTIVE_LABEL, RAW_LABEL, ACTIVE_TOOLTIP, ACTIVE_FOOTNOTE, SPLIT_FOOTNOTE,
+  collectActive, collectRaw, activeSeconds, notComputableNote, summarizeSplit,
 } from "@/lib/resolutionDisplay";
+import { ResolutionSplitLine } from "@/components/ResolutionSplitLine";
 
 type Row = {
   id: string;
@@ -45,7 +46,12 @@ type Row = {
   csat_rater_is_internal: boolean | null;
   time_to_resolve_s: number | null;
   resolution_active_s: number | null;
+  resolution_customer_wait_s: number | null;
+  resolution_eng_wait_s: number | null;
+  resolution_closed_s: number | null;
+  resolution_window_s: number | null;
   active_clock_engine_version: number | null;
+
   admin_assignee_id: string | null;
   tags: string[] | null;
   rsa_override: boolean | null;
