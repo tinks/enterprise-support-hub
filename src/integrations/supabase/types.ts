@@ -274,6 +274,63 @@ export type Database = {
           },
         ]
       }
+      dev_escalation_links: {
+        Row: {
+          created_at: string
+          id: string
+          intercom_conversation_id: string
+          linear_assignee: string | null
+          linear_canceled_at: string | null
+          linear_completed_at: string | null
+          linear_created_at: string | null
+          linear_key: string
+          linear_started_at: string | null
+          linear_state: string | null
+          linear_state_type: string | null
+          linear_synced_at: string | null
+          linear_title: string | null
+          linear_url: string | null
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          intercom_conversation_id: string
+          linear_assignee?: string | null
+          linear_canceled_at?: string | null
+          linear_completed_at?: string | null
+          linear_created_at?: string | null
+          linear_key: string
+          linear_started_at?: string | null
+          linear_state?: string | null
+          linear_state_type?: string | null
+          linear_synced_at?: string | null
+          linear_title?: string | null
+          linear_url?: string | null
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          intercom_conversation_id?: string
+          linear_assignee?: string | null
+          linear_canceled_at?: string | null
+          linear_completed_at?: string | null
+          linear_created_at?: string | null
+          linear_key?: string
+          linear_started_at?: string | null
+          linear_state?: string | null
+          linear_state_type?: string | null
+          linear_synced_at?: string | null
+          linear_title?: string | null
+          linear_url?: string | null
+          source?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       dev_escalations: {
         Row: {
           created_at: string
