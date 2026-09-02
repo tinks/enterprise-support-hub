@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { requireEditor } from "../_shared/require-editor.ts";
+import { requireEditorOrSecret } from "../_shared/require-editor-or-secret.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  const gate = await requireEditor(req, corsHeaders);
+  const gate = await requireEditorOrSecret(req, corsHeaders);
   if (!gate.ok) return gate.response;
 
   try {
