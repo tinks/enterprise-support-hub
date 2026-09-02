@@ -1,0 +1,47 @@
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" style="font-family: var(--font-sans)">
+  <style>
+    .box { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .acc { fill: none; stroke: hsl(var(--accent)); stroke-width: 1; }
+    .lbl { fill: hsl(var(--foreground)); font-size: 14px; font-weight: 480; }
+    .sub { fill: hsl(var(--muted-foreground)); font-size: 12px; }
+    .wire { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+    .dash { stroke: hsl(var(--border)); stroke-width: 1; fill: none; stroke-dasharray: 4 3; }
+  </style>
+  <defs>
+    <marker id="chev" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L7,4 L0,8" fill="none" stroke="hsl(var(--muted-foreground))" stroke-width="1"/>
+    </marker>
+  </defs>
+
+  <rect x="16" y="30" width="180" height="76" rx="8" class="acc"/>
+  <text x="30" y="56" class="lbl">1 · Publish blockers</text>
+  <text x="30" y="76" class="sub">gmail oauth · read fns · mutation fns</text>
+  <text x="30" y="94" class="sub">then rescan + publish</text>
+
+  <line x1="196" y1="68" x2="236" y2="68" class="wire" marker-end="url(#chev)"/>
+
+  <rect x="240" y="30" width="170" height="76" rx="8" class="box"/>
+  <text x="254" y="56" class="lbl">2 · Perf items 4–5</text>
+  <text x="254" y="76" class="sub">snapshot coverage,</text>
+  <text x="254" y="94" class="sub">sync-job index</text>
+
+  <line x1="410" y1="68" x2="450" y2="68" class="wire" marker-end="url(#chev)"/>
+
+  <rect x="454" y="30" width="170" height="76" rx="8" class="box"/>
+  <text x="468" y="56" class="lbl">3 · Clock display pass</text>
+  <text x="468" y="76" class="sub">4-way split on 4 surfaces</text>
+  <text x="468" y="94" class="sub">+ doc pass</text>
+
+  <rect x="16" y="150" width="290" height="66" rx="8" class="dash"/>
+  <text x="30" y="176" class="lbl">4 · eng_wait_source fallbacks</text>
+  <text x="30" y="196" class="sub">verify by synthetic replay — opportunistic</text>
+
+  <rect x="330" y="150" width="294" height="66" rx="8" class="dash"/>
+  <text x="344" y="176" class="lbl">5 · Security batches 4 &amp; 5</text>
+  <text x="344" y="196" class="sub">open by choice — not today</text>
+
+  <circle cx="26" cy="252" r="9" fill="hsl(var(--accent))"/>
+  <text x="26" y="256" text-anchor="middle" font-size="11" fill="hsl(var(--accent-foreground))">1</text>
+  <text x="44" y="256" class="sub">Only the accented box gates publishing; everything else can slip a day without cost.</text>
+  <text x="44" y="276" class="sub">Solid = do today, in order. Dashed = deferred.</text>
+</svg>
