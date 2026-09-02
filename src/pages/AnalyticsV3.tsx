@@ -545,7 +545,26 @@ export default function AnalyticsV3() {
               loading={loading}
             />
           </div>
+
+          {/* Four-way split sub-line: where the elapsed time on finalized
+              tickets in range actually went. Explains the headline above, and
+              is deliberately not a KPI of its own. */}
+          {!loading && (
+            <div className="mt-3 rounded-md border bg-card px-3 py-2 text-xs">
+              <div className="mb-1.5 flex items-center gap-1.5 font-medium text-foreground">
+                Where the time went
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3 w-3 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-sm text-xs">{SPLIT_FOOTNOTE}</TooltipContent>
+                </Tooltip>
+              </div>
+              <ResolutionSplitLine summary={stats.split} />
+            </div>
+          )}
         </TooltipProvider>
+
 
 
         <div>
