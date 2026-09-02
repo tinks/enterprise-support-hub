@@ -115,7 +115,10 @@ type MonthBucket = {
   notComputable: number;
   zeroActive: number;
   p90Resolve: number | null;
+  /** Engine-v3 four-way split for the closed-in-month population. */
+  split: SplitSummary;
   backlog: number;
+
 };
 
 const METRIC_KEYS = [
