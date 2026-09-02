@@ -15,11 +15,15 @@
       `public.esh_cron_headers()`; audit shows `uses_secret=true`, `still_has_anon=false`.
       Retired `sync-inbox-v2-frequent` / `sync-inbox-v2-nightly` (V2 data set unused).
       Post-rewrite runs healthy, `consecutive_failures=0` across `integration_health`.
-- [ ] UNVERIFIED, watch: daily-only jobs (poll-slack-closed-won, sync-parahelp-routing,
-      publish-registry-notion, sync-intercom-fields, sync-linear-escalations) have not
-      yet fired under the new header. Check Integration Health tomorrow.
-- [ ] UNVERIFIED: signed-in editor "Run now" buttons on the newly gated functions.
+- [x] VERIFIED 2026-09-02 21:44 UTC: all 5 daily-only jobs (poll-slack-closed-won,
+      sync-parahelp-routing, publish-registry-notion, sync-intercom-fields,
+      sync-linear-escalations) fired successfully under the new cron header;
+      `consecutive_failures=0` across `integration_health`.
+- [x] VERIFIED 2026-09-02: signed-in editor invocation of the 5 newly gated
+      functions returns 200; the same calls with no token return 401.
+- [ ] Real Google OAuth round-trip (Gmail reconnect) — needs Matt to click through.
 - [ ] Re-run the security scan, then publish.
+
 
 ## Next session (deferred 2026-09-01 by Matt)
 
