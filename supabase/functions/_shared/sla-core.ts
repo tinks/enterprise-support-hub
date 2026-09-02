@@ -573,20 +573,18 @@ export type EngWaitWindow = {
 };
 
 /**
- * Resolve the engineering-wait window: from the first evidence the ticket was
- * handed to engineering, until the Linear issue was completed/canceled (else
- * the ticket close). Clamped into the resolution window.
+ * Resolve the engineering-wait window for ONE escalation: from the first
+ * evidence the ticket was handed to engineering AND that issue existed, until
+ * the Linear issue was completed/canceled (else the ticket close).
  */
-export function resolveEngWaitWindow(
-  timeline: TimelinePart[],
-  slaClockStartS: number | null,
-  closeAtS: number | null,
+function resolveOneEngWindow(
+  attrTs: number | null,
+  slaClockStartS: number,
+  closeAtS: number,
   esc?: EngEscalation | null,
 ): EngWaitWindow {
   const none: EngWaitWindow = { startS: null, endS: null, source: null };
-  if (slaClockStartS == null || closeAtS == null) return none;
 
-  const attrTs = findLinearAttributeTs(timeline);
   let startS: number | null = null;
   let source: EngWaitSource | null = null;
   if (attrTs != null) {
@@ -601,6 +599,14 @@ export function resolveEngWaitWindow(
   }
   if (startS == null) return none;
 
+  // An issue cannot hold the clock before it existed. For the first/only issue
+  // this is a no-op (it predates the attribute edit); for a SECOND issue added
+  // later it is what keeps its window honest.
+  if (esc?.linearCreatedAtS != null && esc.linearCreatedAtS > startS) {
+    startS = esc.linearCreatedAtS;
+    source = "linear_created";
+  }
+
   const done = [esc?.linearCompletedAtS, esc?.linearCanceledAtS].filter(
     (v): v is number => typeof v === "number",
   );
@@ -613,26 +619,70 @@ export function resolveEngWaitWindow(
   return { startS, endS, source };
 }
 
+/** Union of every escalation's window (overlaps never double-count). */
+export function resolveEngWaitWindows(
+  timeline: TimelinePart[],
+  slaClockStartS: number | null,
+  closeAtS: number | null,
+  escs?: EngEscalation[] | EngEscalation | null,
+): EngWaitWindow[] {
+  if (slaClockStartS == null || closeAtS == null) return [];
+  const list = Array.isArray(escs) ? escs : escs ? [escs] : [];
+  const attrTs = findLinearAttributeTs(timeline);
+
+  const raw = (list.length ? list : [null]).map((e) =>
+    resolveOneEngWindow(attrTs, slaClockStartS, closeAtS, e),
+  ).filter((w) => w.startS != null && w.endS != null && w.endS! > w.startS!);
+  if (!raw.length) return [];
+
+  raw.sort((a, b) => a.startS! - b.startS!);
+  const merged: EngWaitWindow[] = [raw[0]];
+  for (const w of raw.slice(1)) {
+    const last = merged[merged.length - 1];
+    if (w.startS! <= last.endS!) {
+      if (w.endS! > last.endS!) last.endS = w.endS;
+    } else {
+      merged.push({ ...w });
+    }
+  }
+  return merged;
+}
+
+/** Back-compat single-window resolver (first merged window). */
+export function resolveEngWaitWindow(
+  timeline: TimelinePart[],
+  slaClockStartS: number | null,
+  closeAtS: number | null,
+  esc?: EngEscalation | null,
+): EngWaitWindow {
+  const w = resolveEngWaitWindows(timeline, slaClockStartS, closeAtS, esc);
+  return w[0] ?? { startS: null, endS: null, source: null };
+}
+
 /**
- * Engineering-wait seconds = the intersection of the engineering-wait window
+ * Engineering-wait seconds = the intersection of the engineering-wait windows
  * with the waiting-on-customer segments. Active and closed time are never
  * reclassified.
  */
 export function computeEngineeringWait(
   segments: WaitSegment[] | null,
-  window: EngWaitWindow,
+  windows: EngWaitWindow[] | EngWaitWindow,
   clip: (a: number, b: number) => number,
 ): number | null {
   if (segments == null) return null;
-  if (window.startS == null || window.endS == null) return 0;
+  const list = Array.isArray(windows) ? windows : [windows];
   let total = 0;
-  for (const s of segments) {
-    const a = Math.max(s.startS, window.startS);
-    const b = Math.min(s.endS, window.endS);
-    if (b > a) total += clip(a, b);
+  for (const w of list) {
+    if (w.startS == null || w.endS == null) continue;
+    for (const s of segments) {
+      const a = Math.max(s.startS, w.startS);
+      const b = Math.min(s.endS, w.endS);
+      if (b > a) total += clip(a, b);
+    }
   }
   return total;
 }
+
 
 export type ActiveClockResult = {
   slaClockStartS: number | null;
@@ -665,8 +715,8 @@ export function computeActiveClock(
   opts?: {
     roster?: SupportRoster;
     businessHours?: BusinessHoursConfig;
-    /** Linear / Hub escalation facts for this conversation, when known. */
-    escalation?: EngEscalation | null;
+    /** Linear / Hub escalation facts — one per linked Linear issue. */
+    escalation?: EngEscalation[] | EngEscalation | null;
   },
 ): ActiveClockResult {
   const businessHours = opts?.businessHours ?? DEFAULT_BUSINESS_HOURS;
@@ -683,11 +733,15 @@ export function computeActiveClock(
   const bh = (a: number, b: number) => businessHoursBetween(a, b, businessHours);
 
   const waitSegs = customerWaitSegments(timeline, slaClockStartS, closeAtS);
-  const engWindow = resolveEngWaitWindow(timeline, slaClockStartS, closeAtS, opts?.escalation);
+  const engWindows = resolveEngWaitWindows(timeline, slaClockStartS, closeAtS, opts?.escalation);
   const waitTotalS = waitSegs == null ? null : waitSegs.reduce((n, s) => n + wall(s.startS, s.endS), 0);
   const waitTotalBhS = waitSegs == null ? null : waitSegs.reduce((n, s) => n + bh(s.startS, s.endS), 0);
-  const engS = computeEngineeringWait(waitSegs, engWindow, wall);
-  const engBhS = computeEngineeringWait(waitSegs, engWindow, bh);
+  const engS = computeEngineeringWait(waitSegs, engWindows, wall);
+  const engBhS = computeEngineeringWait(waitSegs, engWindows, bh);
+  // Reported span covers every window; the seconds themselves are the union.
+  const engStart = engWindows.length ? Math.min(...engWindows.map((w) => w.startS!)) : null;
+  const engEnd = engWindows.length ? Math.max(...engWindows.map((w) => w.endS!)) : null;
+  const engSource = engWindows.length ? engWindows[0].source : null;
 
   return {
     slaClockStartS,
@@ -701,9 +755,10 @@ export function computeActiveClock(
       waitTotalBhS == null ? null : Math.max(0, waitTotalBhS - (engBhS ?? 0)),
     resolutionEngWaitS: engS,
     resolutionEngWaitBhS: engBhS,
-    engWaitStartS: (engS ?? 0) > 0 ? engWindow.startS : null,
-    engWaitEndS: (engS ?? 0) > 0 ? engWindow.endS : null,
-    engWaitSource: (engS ?? 0) > 0 ? engWindow.source : null,
+    engWaitStartS: (engS ?? 0) > 0 ? engStart : null,
+    engWaitEndS: (engS ?? 0) > 0 ? engEnd : null,
+    engWaitSource: (engS ?? 0) > 0 ? engSource : null,
+
     resolutionWindowS:
       slaClockStartS != null && closeAtS != null
         ? Math.max(0, closeAtS - slaClockStartS)

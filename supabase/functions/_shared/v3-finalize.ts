@@ -34,7 +34,7 @@ export type FinalizeResult =
 export function activeClockFields(
   icData: any,
   roster?: SupportRoster,
-  escalation?: EngEscalation | null,
+  escalation?: EngEscalation[] | EngEscalation | null,
 ) {
   try {
     const ac = computeActiveClock(icData, { roster, escalation });
@@ -89,7 +89,7 @@ export async function loadClockEscalation(
   supabase: any,
   convId: string,
   icData: any,
-): Promise<EngEscalation | null> {
+): Promise<EngEscalation[] | null> {
   try {
     if (!hasLinearReference(icData)) return null;
     return await loadEngEscalation(supabase, convId);

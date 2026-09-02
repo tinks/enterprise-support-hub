@@ -47,6 +47,31 @@ function extractKey(raw: string | null | undefined): string | null {
   return null;
 }
 
+/**
+ * Extract EVERY Linear issue key from a free-text value. The attribute holds a
+ * comma / newline separated list when a ticket was escalated more than once,
+ * and also carries Slack links and prose — only real Linear references match.
+ */
+function extractKeys(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  const s = String(raw);
+  const out: string[] = [];
+  for (const m of s.matchAll(/linear\.app\/[^/\s]+\/issue\/([A-Z][A-Z0-9]*-\d+)/gi)) {
+    out.push(m[1].toUpperCase());
+  }
+  if (!out.length) {
+    for (const part of s.split(/[,\n;]+/)) {
+      const k = extractKey(part);
+      if (k) out.push(k);
+    }
+  }
+  return uniq(out);
+}
+
+function uniq(list: string[]): string[] {
+  return Array.from(new Set(list));
+}
+
 const ISSUE_QUERY = `query($team:String!,$num:Float!){
   issues(filter:{team:{key:{eq:$team}}, number:{eq:$num}}, first:1){
     nodes{
@@ -87,27 +112,36 @@ Deno.serve(async (req) => {
     overrides.set(r.intercom_conversation_id, r.linear_url_override);
   }
 
-  const pairs: Array<{ conversationId: string; key: string }> = [];
+  // A conversation may carry SEVERAL Linear issues (comma / newline separated in
+  // the attribute). The FIRST key stays the primary shown on the board; every
+  // key is mirrored into dev_escalation_links so the engineering-wait clock can
+  // union their windows.
+  const pairs: Array<{ conversationId: string; key: string; primary: boolean }> = [];
+  const addKeys = (conversationId: string, keys: string[]) => {
+    keys.forEach((key, i) => pairs.push({ conversationId, key, primary: i === 0 }));
+  };
   for (const t of tickets.data ?? []) {
     if (t.lifecycle_status === "transferred_out") continue;
     if (t.customer_resolution_method === "not_enterprise") continue;
     const attrs = (t.custom_attributes ?? {}) as Record<string, unknown>;
-    const key =
-      extractKey(overrides.get(t.intercom_conversation_id) as string | null) ??
-      extractKey(attrs["Linear Issue"] as string | null) ??
-      extractKey(attrs["Escalated Issue"] as string | null);
-    if (key) pairs.push({ conversationId: t.intercom_conversation_id, key });
+    const keys = uniq([
+      ...extractKeys(overrides.get(t.intercom_conversation_id) as string | null),
+      ...extractKeys(attrs["Linear Issue"] as string | null),
+      ...extractKeys(attrs["Escalated Issue"] as string | null),
+    ]);
+    if (keys.length) addKeys(t.intercom_conversation_id, keys);
   }
   // Escalation rows whose only reference is the Hub override (ticket may be older
   // than the 3000-row window above).
   for (const r of escalations.data ?? []) {
     if (pairs.some((p) => p.conversationId === r.intercom_conversation_id)) continue;
-    const key = extractKey(r.linear_url_override);
-    if (key) pairs.push({ conversationId: r.intercom_conversation_id, key });
+    const keys = extractKeys(r.linear_url_override);
+    if (keys.length) addKeys(r.intercom_conversation_id, keys);
   }
 
   const capped = pairs.slice(0, MAX_KEYS);
   const uniqueKeys = Array.from(new Set(capped.map((p) => p.key)));
+
 
   // 2. Fetch each distinct key from Linear once.
   const found = new Map<string, {
@@ -115,6 +149,7 @@ Deno.serve(async (req) => {
     state: string;
     stateType: string | null;
     assignee: string | null;
+    url: string | null;
     createdAt: string | null;
     startedAt: string | null;
     completedAt: string | null;
@@ -164,6 +199,7 @@ Deno.serve(async (req) => {
       state: node.state?.name ?? "",
       stateType: node.state?.type ?? null,
       assignee: node.assignee?.name ?? null,
+      url: node.url ?? null,
       createdAt: node.createdAt ?? null,
       startedAt: node.startedAt ?? null,
       completedAt: node.completedAt ?? null,
@@ -176,10 +212,32 @@ Deno.serve(async (req) => {
     return json({ error: gatewayError, resolved: found.size }, 502);
   }
 
-  // 3. Mirror onto dev_escalations. Only the linear_* columns are written.
+  // 3. Mirror onto dev_escalations (PRIMARY key only — the board's row) and onto
+  // dev_escalation_links (EVERY key — what the engineering-wait clock unions).
   const nowIso = new Date().toISOString();
-  const rows = capped
-    .filter((p) => found.has(p.key))
+  const resolved = capped.filter((p) => found.has(p.key));
+
+  const linkRows = resolved.map((p) => {
+    const issue = found.get(p.key)!;
+    return {
+      intercom_conversation_id: p.conversationId,
+      linear_key: p.key,
+      linear_title: issue.title,
+      linear_state: issue.state,
+      linear_state_type: issue.stateType,
+      linear_assignee: issue.assignee,
+      linear_url: issue.url,
+      linear_created_at: issue.createdAt,
+      linear_started_at: issue.startedAt,
+      linear_completed_at: issue.completedAt,
+      linear_canceled_at: issue.canceledAt,
+      linear_synced_at: nowIso,
+      source: "attribute",
+    };
+  });
+
+  const rows = resolved
+    .filter((p) => p.primary)
     .map((p) => {
       const issue = found.get(p.key)!;
       return {
@@ -197,6 +255,18 @@ Deno.serve(async (req) => {
         linear_synced_at: nowIso,
       };
     });
+
+  let linksWritten = 0;
+  if (linkRows.length > 0) {
+    const { error, count } = await supabase
+      .from("dev_escalation_links")
+      .upsert(linkRows, { onConflict: "intercom_conversation_id,linear_key", count: "exact" });
+    if (error) {
+      await recordIntegrationHealth(supabase, INTEGRATION, "error", error.message);
+      return json({ error: error.message }, 500);
+    }
+    linksWritten = count ?? linkRows.length;
+  }
 
   let written = 0;
   if (rows.length > 0) {
@@ -226,6 +296,7 @@ Deno.serve(async (req) => {
     resolved: found.size,
     not_found: notFound,
     rows_written: written,
+    links_written: linksWritten,
     capped: pairs.length > MAX_KEYS,
   });
 });
