@@ -24,6 +24,9 @@ import { formatDuration, median } from "@/lib/durationStats";
 import {
   computeAnatomy, anatomyReconciles, type AnatomyResult, type OwedBy,
 } from "@/lib/resolutionAnatomy";
+import {
+  SPLIT_FOOTNOTE, SPLIT_KEYS, SPLIT_LABEL, SPLIT_CLASS, summarizeSplit, splitMedians,
+} from "@/lib/resolutionAnatomy";
 
 type ScalarRow = {
   id: string;
@@ -298,6 +301,11 @@ export default function ResolutionAnatomy() {
       "Silent drift": Number((median(b.drift) ?? 0).toFixed(2)),
     }));
   }, [filtered, months]);
+
+  // Authoritative split from the persisted engine-v3 columns, over the whole
+  // in-scope cohort rather than only the long runners.
+  const persistedSplit = useMemo(() => summarizeSplit(scalars), [scalars]);
+  const persistedMedians = useMemo(() => splitMedians(scalars), [scalars]);
 
   const totals = useMemo(() => {
     let us = 0, them = 0, drift = 0, closed = 0, n = 0, closedNoConfirm = 0, reopened = 0;
