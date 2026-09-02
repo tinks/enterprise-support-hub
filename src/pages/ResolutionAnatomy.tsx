@@ -592,7 +592,38 @@ export default function ResolutionAnatomy() {
           </Card>
         )}
 
-        {/* Headline split */}
+        {/* Engine-v3 persisted split — the authoritative one. It covers the
+            WHOLE in-scope cohort, unlike the long-runner anatomy below, which
+            is derived client-side from raw_payload for tickets over the
+            threshold only. The two taxonomies are not interchangeable: engine
+            v3 has an explicit engineering-wait bucket and no "silent drift". */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Where the time went — whole cohort</CardTitle>
+            <CardDescription className="text-xs">
+              Engine-v3 persisted clocks across all {scalars.length.toLocaleString()} in-scope
+              finalized tickets in range. {SPLIT_FOOTNOTE}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <ResolutionSplitLine summary={persistedSplit} />
+            <div className="grid gap-2 sm:grid-cols-4 text-xs">
+              {SPLIT_KEYS.map((k) => (
+                <div key={k} className="rounded-md border p-2">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <span className={`inline-block h-2 w-2 rounded-sm ${SPLIT_CLASS[k]}`} />
+                    {SPLIT_LABEL[k]} median
+                  </div>
+                  <div className="mt-0.5 font-medium">
+                    {persistedMedians[k] == null ? "—" : formatDuration(persistedMedians[k]!)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Long-runner anatomy (client-side, legacy taxonomy) */}
         <div className="grid gap-4 md:grid-cols-5">
           <SplitCard title="Our clock" desc="Customer waited on us" value={totals.us} share={share(totals.us)} />
           <SplitCard title="Their clock" desc="We waited on the customer" value={totals.them} share={share(totals.them)} />
