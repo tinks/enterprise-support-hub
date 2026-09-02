@@ -47,6 +47,31 @@ function extractKey(raw: string | null | undefined): string | null {
   return null;
 }
 
+/**
+ * Extract EVERY Linear issue key from a free-text value. The attribute holds a
+ * comma / newline separated list when a ticket was escalated more than once,
+ * and also carries Slack links and prose — only real Linear references match.
+ */
+function extractKeys(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  const s = String(raw);
+  const out: string[] = [];
+  for (const m of s.matchAll(/linear\.app\/[^/\s]+\/issue\/([A-Z][A-Z0-9]*-\d+)/gi)) {
+    out.push(m[1].toUpperCase());
+  }
+  if (!out.length) {
+    for (const part of s.split(/[,\n;]+/)) {
+      const k = extractKey(part);
+      if (k) out.push(k);
+    }
+  }
+  return uniq(out);
+}
+
+function uniq(list: string[]): string[] {
+  return Array.from(new Set(list));
+}
+
 const ISSUE_QUERY = `query($team:String!,$num:Float!){
   issues(filter:{team:{key:{eq:$team}}, number:{eq:$num}}, first:1){
     nodes{
