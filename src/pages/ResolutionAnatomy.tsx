@@ -26,7 +26,8 @@ import {
 } from "@/lib/resolutionAnatomy";
 import {
   SPLIT_FOOTNOTE, SPLIT_KEYS, SPLIT_LABEL, SPLIT_CLASS, summarizeSplit, splitMedians,
-} from "@/lib/resolutionAnatomy";
+} from "@/lib/resolutionDisplay";
+import { ResolutionSplitLine } from "@/components/ResolutionSplitLine";
 
 type ScalarRow = {
   id: string;
