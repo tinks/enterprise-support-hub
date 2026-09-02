@@ -2204,6 +2204,24 @@ The "Load active clock" button is gone. Quality reads the persisted `intercom_ti
 
 **Not yet done.** No reporting surface reads the column — `/resolution-anatomy`, Analytics v3 and the Trend report remain on the three-way display and are a separate pass, alongside the still-pending persisted-column display pass.
 
+## Multi-Linear escalations — one ticket, many issues (option B, 2 Sep 2026)
+
+**Problem.** `dev_escalations` was unique per conversation, so a ticket escalated twice could only carry one Linear key. The second issue's window was still counted as *customer wait*, understating engineering latency. Observed on `215475479744265` (ENT-3478 in the attribute, ENT-3798 only in a note).
+
+**Source of truth stays the Intercom attribute.** `Escalated Issue` is free text (confirmed against `intercom_field_options` — not a restricted list), so **no new Intercom field is needed**: several issues are written comma / newline separated. `extractKeys()` in `sync-linear-escalations` pulls **every** `linear.app/.../issue/KEY-123` reference; when none match it falls back to splitting on `,`/newline/`;` and running the single-key parser per part. Single-issue tickets behave exactly as before.
+
+**Schema** (migration `0028_dev_escalation_links`): new `public.dev_escalation_links`, unique on `(intercom_conversation_id, linear_key)`, holding the read-only Linear mirror (title, state, state type, assignee, url, created/started/completed/canceled, synced_at). `dev_escalations` is **unchanged** and remains the Hub-owned decision row (hub_state, owner, follow-ups) for the **first** key only — the board's primary.
+
+**Engine.** `resolveEngWaitWindow` → `resolveEngWaitWindows`: one window per linked issue (start = max of the attribute-edit timestamp and that issue's own `linear_created_at`; end = min of its completion/cancellation and the ticket close), then **unioned** so overlapping escalations never double-count and gaps between them fall back to customer wait. `loadEngEscalations` reads both tables and returns `EngEscalation[]` per conversation. The four-way identity is untouched.
+
+**Notes stay advisory.** A Linear key that appears only in a conversation note is **not** clock-bearing — a casually pasted link must not move reported time. Adding it to the attribute is the deliberate act that makes it count.
+
+**Verified 2 Sep 2026.** `sync-linear-escalations`: 49 candidates → 45 distinct keys → **44 link rows** written, 43 primary rows, 5 keys not found in Linear (pre-existing, unrelated teams). Forced re-backfill of all finalized rows: **596 at engine version 3**, identity violations **0**, engineering wait unchanged at **3,542.3h across 30 tickets**. `215475479744265` now carries both links (ENT-3478 Done, ENT-3798 In Review) and its eng wait stays **408,352s** — correctly, because ENT-3798 was created 1 Sep, *after* the 31 Aug close, so its window clamps to zero. The union path therefore has **no live row yet where two windows both contribute** — that branch is **UNVERIFIED on live data**.
+
+**UI.** `/escalations` shows a `+N` badge next to the primary key and lists every linked issue (key, state, title) in the row detail, labelled as the union that feeds engineering wait.
+
+## Security batch A — definer-function lockdown + SSRF gate (2 Sep 2026)
+
 ## Security batch A — definer-function lockdown + SSRF gate (2 Sep 2026)
 
 Applied so the project can be published. Two scanner findings closed; the larger batches were deliberately left open.
