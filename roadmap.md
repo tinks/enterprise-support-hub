@@ -30,6 +30,14 @@ Three critical scanner findings block the publish gate. Batch B work, scoped:
   - Escalations board: surface `eng_wait_start_at` / `eng_wait_end_at` per linked ticket
   - Doc pass after: project-knowledge via sync-knowledge-pending, changelog row, FlowDiagram node
 
+## Multi-Linear escalations (raised 2026-09-02 by Matt)
+- [ ] One Intercom ticket can carry MORE THAN ONE Linear issue (e.g. 215475479744265:
+      ENT-3478 in the `Escalated Issue` attribute + ENT-3798 posted only as a note).
+      Today: `dev_escalations` is one row per conversation and the eng-wait window
+      only covers the attribute-linked issue, so a second escalation's wait is
+      misfiled as customer wait. Decide: (a) leave as-is, (b) allow N escalation
+      rows per conversation and union their windows, (c) primary + secondary links.
+
 ## Watch (engine v3)
 - [ ] `eng_wait_source` fallbacks `dev_escalation_row` and `linear_created` are UNVERIFIED —
       all 30 live rows resolved via `attribute_event`.
