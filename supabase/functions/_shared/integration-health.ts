@@ -55,6 +55,8 @@ export async function recordIntegrationHealth(
         updated_at: nowIso,
       }, { onConflict: "integration" });
     } else {
+      // A failure must reopen the throttle so the next success writes immediately.
+      lastOkWrite.delete(integration);
       // Increment consecutive_failures via read-modify-write (low contention; once per poll)
       const { data: existing } = await sb
         .from("integration_health")
