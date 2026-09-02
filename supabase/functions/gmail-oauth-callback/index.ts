@@ -9,10 +9,13 @@ function escapeHtml(value: unknown): string {
     .replace(/'/g, "&#39;");
 }
 
+const STATE_TTL_MS = 10 * 60 * 1000;
+
 Deno.serve(async (req) => {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const error = url.searchParams.get("error");
+  const state = url.searchParams.get("state");
 
   if (error) {
     return new Response(`<html><body><h2>OAuth error</h2><p>${escapeHtml(error)}</p></body></html>`, {
@@ -33,6 +36,36 @@ Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const redirectUri = `${supabaseUrl}/functions/v1/gmail-oauth-callback`;
+
+  const supabaseAdmin = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
+
+  // ---- CSRF gate: validate the single-use state BEFORE touching any token ----
+  const rejectState = (reason: string) =>
+    new Response(
+      `<html><body style="font-family:system-ui;text-align:center;padding:60px">
+        <h2>Invalid OAuth request</h2><p>${escapeHtml(reason)}</p>
+        <p>Start the connection again from the Hub.</p></body></html>`,
+      { status: 400, headers: { "Content-Type": "text/html" } },
+    );
+
+  if (!state) return rejectState("Missing state parameter.");
+
+  const { data: stateRow, error: stateLookupError } = await supabaseAdmin
+    .from("gmail_oauth_states")
+    .select("state, created_at, consumed_at")
+    .eq("state", state)
+    .maybeSingle();
+
+  if (stateLookupError) {
+    console.error("State lookup failed:", stateLookupError);
+    return rejectState("Could not validate the request.");
+  }
+  if (!stateRow) return rejectState("Unknown state parameter.");
+  if (stateRow.consumed_at) return rejectState("This authorization link was already used.");
+  if (Date.now() - new Date(stateRow.created_at).getTime() > STATE_TTL_MS) {
+    return rejectState("This authorization link has expired.");
+  }
+  // ---- end CSRF gate ----
 
   // Exchange code for tokens
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
