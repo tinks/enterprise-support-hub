@@ -79,13 +79,12 @@ const Index = () => {
     .filter(Boolean);
 
   const checkGmailConnection = async () => {
-    const { data } = await supabase
-      .from("gmail_oauth_tokens")
-      .select("email_address")
-      .limit(1)
-      .order("created_at", { ascending: false });
-    if (data && data.length > 0) {
-      setGmailConnected(data[0].email_address || "Connected");
+    // Security-definer RPC: returns only { connected, email_address } — never
+    // the token row itself.
+    const { data } = await supabase.rpc("gmail_connection_status");
+    const row = Array.isArray(data) ? data[0] : data;
+    if (row?.connected) {
+      setGmailConnected(row.email_address || "Connected");
     } else {
       setGmailConnected(null);
     }
@@ -94,16 +93,15 @@ const Index = () => {
   const connectGmail = async () => {
     setGmailLoading(true);
     try {
-      const res = await fetch(`${edgeFunctionBaseUrl}/gmail-auth-url`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const { data, error } = await supabase.functions.invoke("gmail-auth-url", {
+        body: {},
       });
-      const data = await res.json();
-      if (data.url) {
+      if (error) throw error;
+      if (data?.url) {
         window.open(data.url, "_blank", "width=600,height=700");
         toast.info("Complete the Google sign-in in the popup, then click 'Refresh status'");
       } else {
-        toast.error("Failed to get auth URL: " + (data.error || "Unknown error"));
+        toast.error("Failed to get auth URL: " + (data?.error || "Unknown error"));
       }
     } catch (err) {
       toast.error("Request failed: " + (err instanceof Error ? err.message : "Unknown"));
