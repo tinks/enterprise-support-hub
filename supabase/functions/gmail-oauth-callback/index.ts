@@ -107,7 +107,14 @@ Deno.serve(async (req) => {
     console.warn("Could not fetch user profile:", e);
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = supabaseAdmin;
+
+  // Burn the nonce now that the exchange succeeded — a replay of this callback
+  // URL will be rejected by the state gate above.
+  await supabase
+    .from("gmail_oauth_states")
+    .update({ consumed_at: new Date().toISOString() })
+    .eq("state", state);
 
   // Upsert: keep only one row (delete old, insert new)
   await supabase.from("gmail_oauth_tokens").delete().neq("id", "00000000-0000-0000-0000-000000000000");
