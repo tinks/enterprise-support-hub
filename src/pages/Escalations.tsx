@@ -60,6 +60,8 @@ type EscalationRow = {
   esc: Escalation | null;
   hubState: "open" | "in_progress" | "fix_shipped" | "customer_notified" | "wont_do";
   linear: { url: string | null; key: string | null; raw: string | null };
+  /** Every Linear issue mirrored for this conversation, oldest first. */
+  links: EscalationLink[];
   /** True when a Linear issue is actually linked (a Slack permalink does not count). */
   hasLinear: boolean;
   type: string;
@@ -127,10 +129,25 @@ function qualifies(t: Ticket, override: string | null): boolean {
   return !!resolveLinear(t.custom_attributes, override).raw;
 }
 
+type EscalationLink = {
+  intercom_conversation_id: string;
+  linear_key: string;
+  linear_title: string | null;
+  linear_state: string | null;
+  linear_assignee: string | null;
+  linear_url: string | null;
+  linear_created_at: string | null;
+  linear_completed_at: string | null;
+  linear_canceled_at: string | null;
+};
+
 export default function Escalations() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [escalations, setEscalations] = useState<Map<string, Escalation>>(new Map());
   const [notes, setNotes] = useState<Map<string, TicketNote[]>>(new Map());
+  // Every Linear issue mirrored for a conversation (a ticket can be escalated
+  // more than once). dev_escalations still holds the primary, Hub-owned row.
+  const [links, setLinks] = useState<Map<string, EscalationLink[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [syncingLinear, setSyncingLinear] = useState(false);
@@ -162,7 +179,7 @@ export default function Escalations() {
 
   const load = async () => {
     setLoading(true);
-    const [t, e] = await Promise.all([
+    const [t, e, l] = await Promise.all([
       supabase
         .from("intercom_tickets_v3")
         .select(
@@ -170,7 +187,17 @@ export default function Escalations() {
         )
         .limit(2000),
       supabase.from("dev_escalations").select("*"),
+      supabase.from("dev_escalation_links").select("*").order("linear_created_at"),
     ]);
+    const linkMap = new Map<string, EscalationLink[]>();
+    if (!l.error) {
+      for (const row of (l.data ?? []) as EscalationLink[]) {
+        const list = linkMap.get(row.intercom_conversation_id) ?? [];
+        list.push(row);
+        linkMap.set(row.intercom_conversation_id, list);
+      }
+      setLinks(linkMap);
+    }
     const loaded = (t.error ? [] : ((t.data ?? []) as Ticket[]));
     if (!t.error) setTickets(loaded);
     const escMap = new Map<string, Escalation>();
@@ -223,13 +250,14 @@ export default function Escalations() {
           esc,
           hubState,
           linear,
+          links: links.get(t.intercom_conversation_id) ?? [],
           hasLinear: !!linear.url,
           type: ticketType(t.custom_attributes) ?? "—",
           createdMs,
         } as EscalationRow;
       })
       .sort((a, b) => (a.createdMs ?? 0) - (b.createdMs ?? 0));
-  }, [tickets, escalations]);
+  }, [tickets, escalations, links]);
 
   const ownerOpts = useMemo(
     () => Array.from(new Set(rows.map((r) => r.ticket.owner).filter(Boolean))).sort() as string[],
@@ -401,6 +429,11 @@ export default function Escalations() {
                 {r.linear.key ?? "Linear issue"}
                 <ExternalLink className="h-3 w-3 shrink-0" />
               </a>
+              {r.links.length > 1 && (
+                <Badge variant="outline" className="ml-1 text-[10px] align-middle">
+                  +{r.links.length - 1}
+                </Badge>
+              )}
               {r.esc?.linear_synced_at && r.esc?.linear_key === r.linear.key && (
                 <div className="text-[10px] text-muted-foreground truncate max-w-[180px]">
                   {r.esc.linear_state || "—"}
@@ -768,6 +801,30 @@ export default function Escalations() {
                   value={format(new Date(detail.esc.linear_synced_at), "d MMM yyyy HH:mm")}
                 />
               </>
+            )}
+
+            {detail.links.length > 1 && (
+              <div className="pt-3 border-t border-border">
+                <div className="text-xs text-muted-foreground mb-2">
+                  All Linear issues ({detail.links.length}) — engineering wait is the union of their windows
+                </div>
+                <div className="space-y-1">
+                  {detail.links.map((l) => (
+                    <div key={l.linear_key} className="text-xs flex items-center gap-2">
+                      {l.linear_url ? (
+                        <a href={l.linear_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:underline shrink-0">
+                          {l.linear_key} <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : (
+                        <span className="shrink-0">{l.linear_key}</span>
+                      )}
+                      <span className="text-muted-foreground truncate">
+                        {l.linear_state || "—"}{l.linear_title ? ` · ${l.linear_title}` : ""}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
 
             <div className="pt-3 border-t border-border">
