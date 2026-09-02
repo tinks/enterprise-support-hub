@@ -345,6 +345,11 @@ function CoverageTab({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        {cov.as_of
+          ? `Counts as of ${new Date(cov.as_of).toLocaleString()}${cov.from_cache ? " (snapshot)" : " (recomputed)"} — recomputed at most hourly, or on demand via Snapshot now.`
+          : "Counts served from the latest coverage snapshot."}
+      </p>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
         <Card>
           <CardHeader className="pb-2">
