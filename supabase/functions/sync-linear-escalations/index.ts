@@ -12,9 +12,9 @@
 // yet (hub_state defaults to 'open'), so the board shows live Linear metadata
 // without anyone having to touch the row first.
 
+import { requireEditorOrSecret } from "../_shared/require-editor-or-secret.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-import { requireEditorOrSecret } from "../_shared/require-editor-or-secret.ts";
   classifyHttpStatus,
   recordIntegrationHealth,
 } from "../_shared/integration-health.ts";

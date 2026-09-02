@@ -10,6 +10,7 @@
 // Safety: if the truth-set search errors, we abort WITHOUT writing anything.
 // ---------------------------------------------------------------------------
 
+import { requireEditorOrSecret } from "../_shared/require-editor-or-secret.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import {
   intercomHeaders,
@@ -21,7 +22,6 @@ import {
 import { finalizeConversation } from "../_shared/v3-finalize.ts";
 import { resolveInboxes, inboxSearchClause } from "../_shared/v3-inboxes.ts";
 import {
-import { requireEditorOrSecret } from "../_shared/require-editor-or-secret.ts";
   type IntegrationKey,
   recordIntegrationHealth,
 } from "../_shared/integration-health.ts";

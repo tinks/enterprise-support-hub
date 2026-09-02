@@ -8,9 +8,9 @@
 // Never deletes: an option Intercom stops returning is marked active = false so
 // the historical set stays inspectable.
 
+import { requireEditorOrSecret } from "../_shared/require-editor-or-secret.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
-import { requireEditorOrSecret } from "../_shared/require-editor-or-secret.ts";
   classifyHttpStatus,
   recordIntegrationHealth,
 } from "../_shared/integration-health.ts";
