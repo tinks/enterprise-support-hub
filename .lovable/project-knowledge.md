@@ -2222,8 +2222,6 @@ The "Load active clock" button is gone. Quality reads the persisted `intercom_ti
 
 ## Security batch A — definer-function lockdown + SSRF gate (2 Sep 2026)
 
-## Security batch A — definer-function lockdown + SSRF gate (2 Sep 2026)
-
 Applied so the project can be published. Two scanner findings closed; the larger batches were deliberately left open.
 
 ### Definer-function lockdown (migration 0027)
