@@ -34,6 +34,10 @@ type Ticket = {
   custom_attributes: any;
   intercom_created_at: string | null;
   last_synced_at: string | null;
+  /** Persisted engine-v3 clocks. Only finalized tickets carry these. */
+  resolution_eng_wait_s: number | null;
+  resolution_active_s: number | null;
+  active_clock_engine_version: number | null;
 };
 
 type Escalation = {
@@ -183,7 +187,7 @@ export default function Escalations() {
       supabase
         .from("intercom_tickets_v3")
         .select(
-          "id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,owner,customer_key,customer_resolution_method,lifecycle_status,state,custom_attributes,intercom_created_at,last_synced_at",
+          "id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,owner,customer_key,customer_resolution_method,lifecycle_status,state,custom_attributes,intercom_created_at,last_synced_at,resolution_eng_wait_s,resolution_active_s,active_clock_engine_version",
         )
         .limit(2000),
       supabase.from("dev_escalations").select("*"),
@@ -447,6 +451,31 @@ export default function Escalations() {
           return <span className="text-muted-foreground truncate block max-w-[170px]" title={r.linear.raw}>{r.linear.raw}</span>;
         }
         return <span className="text-destructive">Missing</span>;
+      },
+    },
+    {
+      key: "eng_wait",
+      header: "Eng wait",
+      width: "w-[120px]",
+      // Persisted engine-v3 value: the union of every Linear window on this
+      // conversation, so two linked issues never double-count.
+      sortValue: (r) => r.ticket.resolution_eng_wait_s ?? -1,
+      cellClassName: "text-xs",
+      cell: (r) => {
+        const s = r.ticket.resolution_eng_wait_s;
+        if ((r.ticket.active_clock_engine_version ?? 0) < 3 || s == null) {
+          return <span className="text-muted-foreground" title="Engine v3 stamps this only on finalized tickets.">—</span>;
+        }
+        return (
+          <div className="min-w-0">
+            <span style={{ color: "#E66FD2" }}>{formatDuration(s)}</span>
+            {r.links.length > 1 && (
+              <div className="text-[10px] text-muted-foreground">
+                union of {r.links.length} issues
+              </div>
+            )}
+          </div>
+        );
       },
     },
     {
