@@ -43,11 +43,8 @@ const BotIdentityCard = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${edgeFunctionBaseUrl}/check-bot-identity`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await res.json();
+      const { data: invokeData, error: invokeError } = await supabase.functions.invoke("check-bot-identity", { body: {} });
+      const data = invokeError ? { error: invokeError.message } : invokeData;
       if (data.error) {
         setError(data);
         setIdentity(null);
