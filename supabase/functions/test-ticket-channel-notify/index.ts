@@ -8,6 +8,7 @@
 // ---------------------------------------------------------------------------
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { notifyNewTicket } from "../_shared/new-ticket-alert.ts";
+import { requireEditor } from "../_shared/require-editor.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -16,6 +17,11 @@ const corsHeaders = {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  const auth = await requireEditor(req, corsHeaders);
+  if (!auth.ok) return auth.response;
+
+
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
