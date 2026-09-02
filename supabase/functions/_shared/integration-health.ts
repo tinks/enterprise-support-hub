@@ -10,7 +10,7 @@ export type IntegrationKey =
   | "intercom_csat"
   | "intercom_import"
   | "gmail_poll"
-  | "inbox_v2_sync"
+  | "v3_closed_sync"
   | "slack_closed_won_poll"
   | "reconcile-v3-open"
   | "parahelp_routing_sync"

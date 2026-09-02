@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
     if (!res.ok) {
       const text = await res.text();
       await recordIntegrationHealth(
-        supabase, "inbox_v2_sync", classifyHttpStatus(res.status),
+        supabase, "v3_closed_sync", classifyHttpStatus(res.status),
         `[v3-closed] search ${res.status}: ${text.slice(0, 200)}`,
       );
       await finishJob(supabase, jobRowId, "error", text.slice(0, 200));
@@ -409,7 +409,7 @@ Deno.serve(async (req) => {
     finished_at: new Date().toISOString(),
   }).eq("id", jobRowId!);
 
-  await recordIntegrationHealth(supabase, "inbox_v2_sync", "ok"); // reuse v2 health bucket for now
+  await recordIntegrationHealth(supabase, "v3_closed_sync", "ok");
 
   return json({
     ok: true,

@@ -30,7 +30,7 @@ const INTEGRATIONS: Config[] = [
   { key: "intercom_csat",     label: "Intercom CSAT refresh",    maxStaleMin: 3 * 60 },
   { key: "intercom_import",   label: "Manual Intercom import",   maxStaleMin: 30 * 24 * 60 },
   { key: "gmail_poll",        label: "Gmail poll",               maxStaleMin: 30 },
-  { key: "inbox_v2_sync",     label: "Inbox V2 sync",            maxStaleMin: 30 },
+  { key: "v3_closed_sync",    label: "Inbox V3 closed sync",     maxStaleMin: 24 * 60 },
   { key: "slack_closed_won_poll", label: "Closed-won account import", maxStaleMin: 36 * 60 },
   { key: "parahelp_routing_sync", label: "Parahelp routing queue", maxStaleMin: 36 * 60 },
   { key: "notion_registry_publish", label: "Notion domain page", maxStaleMin: 36 * 60 },
