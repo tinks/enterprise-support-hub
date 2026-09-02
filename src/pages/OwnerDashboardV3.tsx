@@ -23,6 +23,7 @@ import {
 import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 import { displaySubject } from "@/lib/subjectDisplay";
 import { CLEAN_DATA_START_ISO, CLEAN_DATA_START_LABEL } from "./inbox-v3/constants";
+import { excludeTestTickets, showTestDataNow } from "@/lib/testTickets";
 
 type Row = {
   id: string;
@@ -91,7 +92,7 @@ const OwnerDashboardV3 = () => {
       setError(error.message);
       setRows([]);
     } else {
-      setRows((data ?? []) as unknown as Row[]);
+      setRows(excludeTestTickets((data ?? []) as any, showTestDataNow()) as unknown as Row[]);
     }
     setLoading(false);
   };

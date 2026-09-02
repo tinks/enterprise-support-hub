@@ -26,12 +26,13 @@ import { Link } from "react-router-dom";
 
 import { PlanScopeSelect } from "@/components/PlanScopeSelect";
 import { inPlanScope, type PlanScope } from "@/lib/planTier";
+import { excludeTestTickets, showTestDataNow } from "@/lib/testTickets";
 
 const sel = (s: string): string => s;
 const SELECT_COLS = sel(
   "id,intercom_conversation_id,subject,subject_override,csat_rating,csat_remark,csat_rated_at," +
   "csat_rater_name,csat_rater_email,csat_rater_is_internal,contact_name,contact_email," +
-  "customer_key,owner,classification,finalized_at,intercom_created_at,plan_tier",
+  "customer_key,owner,classification,finalized_at,intercom_created_at,plan_tier,is_test_ticket",
 );
 
 const CSAT_EMOJI: Record<number, string> = { 1: "😠", 2: "🙁", 3: "😐", 4: "😀", 5: "🤩" };
@@ -153,16 +154,18 @@ export default function CsatReport() {
         }
 
         // Denominator for the response rate: tickets finalized in the same window.
-        const { count, error: cErr } = await supabase
+        let denom = supabase
           .from("intercom_tickets_v3")
           .select("id", { count: "exact", head: true })
           .eq("lifecycle_status", "finalized")
           .gte("finalized_at", fromIso)
           .lte("finalized_at", toIso);
+        if (!showTestDataNow()) denom = denom.eq("is_test_ticket", false);
+        const { count, error: cErr } = await denom;
         if (cErr) throw cErr;
 
         if (!cancelled) {
-          setRows(all);
+          setRows(excludeTestTickets(all as any, showTestDataNow()) as Row[]);
           setClosedInRange(count ?? 0);
         }
       } catch (e: any) {

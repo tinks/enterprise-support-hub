@@ -24,6 +24,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, CartesianGrid, Legend,
 } from "recharts";
 import { ACTIVE_LABEL, RAW_LABEL, ACTIVE_TOOLTIP, collectActive, collectRaw, notComputableNote } from "@/lib/resolutionDisplay";
+import { showTestDataNow } from "@/lib/testTickets";
 
 type Row = {
   id: string;
@@ -177,7 +178,7 @@ export default function MonthlyLookback() {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
             .select(
-              "id,intercom_conversation_id,subject,subject_override,product_area,classification,tags,plan_tier,owner,customer_key,customer_resolution_method,rsa_override,lifecycle_status,state,intercom_created_at,finalized_at,transferred_at,time_to_resolve_s,resolution_active_s,active_clock_engine_version,time_to_first_admin_reply_s,reopen_count,csat_rating,csat_rater_is_internal,custom_attributes",
+              "id,intercom_conversation_id,subject,subject_override,product_area,classification,tags,plan_tier,owner,customer_key,customer_resolution_method,rsa_override,lifecycle_status,state,intercom_created_at,finalized_at,transferred_at,time_to_resolve_s,resolution_active_s,active_clock_engine_version,time_to_first_admin_reply_s,reopen_count,csat_rating,csat_rater_is_internal,custom_attributes,is_test_ticket",
             )
             .gte("intercom_created_at", fromIso)
             .lte("intercom_created_at", toIso)
@@ -253,7 +254,7 @@ export default function MonthlyLookback() {
   // Reporting population: created in the month, inside the Enterprise support
   // population (shared slaExclusions predicate), not transferred out.
   const inPop = (r: Row) =>
-    r.lifecycle_status !== "transferred_out" && !isSlaExcluded(r, { testAccountKeys: testKeys });
+    r.lifecycle_status !== "transferred_out" && !isSlaExcluded(r, { testAccountKeys: testKeys, showTestData: showTestDataNow() });
   const cur = useMemo(() => curAll.filter(inPop), [curAll, testKeys]);
   const prev = useMemo(() => prevAll.filter(inPop), [prevAll, testKeys]);
 

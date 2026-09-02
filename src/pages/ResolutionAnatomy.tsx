@@ -48,11 +48,12 @@ type LongRow = ScalarRow & { anatomy: AnatomyResult };
 
 import { PlanScopeSelect } from "@/components/PlanScopeSelect";
 import { inPlanScope, type PlanScope } from "@/lib/planTier";
+import { showTestDataNow } from "@/lib/testTickets";
 
 const SCALAR_COLS =
   "id,intercom_conversation_id,subject,subject_override,owner,product_area,classification," +
   "customer_key,finalized_at,intercom_created_at,intercom_closed_at,time_to_resolve_s," +
-  "reopen_count_at_finalize,tags,rsa_override,customer_resolution_method,plan_tier";
+  "reopen_count_at_finalize,tags,rsa_override,customer_resolution_method,plan_tier,is_test_ticket";
 
 
 const ANY = "__any__";
@@ -181,7 +182,7 @@ export default function ResolutionAnatomy() {
       // Same population as the SLA surfaces: enterprise-fyi / enterprise-duplicate,
       // merged tickets, RSA=false, non-enterprise / prospect dispositions and test
       // accounts are NOT resolution work and must not shape the resolution curve.
-      const inScope = all.filter((r) => !isSlaExcluded(r, { testAccountKeys: testKeys }));
+      const inScope = all.filter((r) => !isSlaExcluded(r, { testAccountKeys: testKeys, showTestData: showTestDataNow() }));
       setExcludedCount(all.length - inScope.length);
       setScalars(inScope);
     } catch (e) {
