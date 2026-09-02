@@ -22,9 +22,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { V3_CORS_HEADERS, TIME_BUDGET_MS } from "../_shared/v3.ts";
 import { syncTicketAttributes } from "../_shared/v3-attributes.ts";
+import { requireEditor } from "../_shared/require-editor.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: V3_CORS_HEADERS });
+
+  const gate = await requireEditor(req, V3_CORS_HEADERS);
+  if (!gate.ok) return gate.response;
 
   const startedAt = Date.now();
   const supabase = createClient(
