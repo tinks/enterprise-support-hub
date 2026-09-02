@@ -29,7 +29,13 @@ export type ResolutionRow = {
   resolution_active_s?: number | null;
   time_to_resolve_s?: number | null;
   active_clock_engine_version?: number | null;
+  /** Engine v3 four-way split. Present from `active_clock_engine_version >= 3`. */
+  resolution_customer_wait_s?: number | null;
+  resolution_eng_wait_s?: number | null;
+  resolution_closed_s?: number | null;
+  resolution_window_s?: number | null;
 };
+
 
 /**
  * A finalized row whose active clock could not be computed (no usable timeline
