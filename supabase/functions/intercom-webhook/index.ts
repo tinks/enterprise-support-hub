@@ -3,6 +3,7 @@ import { isFilterSafeEmail } from "../_shared/safe-email.ts";
 import { crypto } from "https://deno.land/std@0.208.0/crypto/mod.ts";
 import { encode as hexEncode } from "https://deno.land/std@0.208.0/encoding/hex.ts";
 import { recordIntegrationHealth, classifyHttpStatus } from "../_shared/integration-health.ts";
+import { getSettings } from "../_shared/settings-cache.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -210,7 +211,7 @@ async function handleEvent(rawBody: string): Promise<Response> {
   await recordIntegrationHealth(supabase, "intercom_webhook", "ok");
 
   // Fetch settings for testing_mode and admin owner map
-  const { data: appSettings } = await supabase.from("settings").select("*").limit(1).single();
+  const appSettings = await getSettings(supabase) as any;
   const testingMode = appSettings?.testing_mode === true;
 
   // Parse admin-to-owner mapping (JSON string like {"12345":"Joel","67890":"Kristina"})
