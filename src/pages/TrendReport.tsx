@@ -34,6 +34,10 @@ type Row = {
   csat_rater_is_internal: boolean | null;
   time_to_resolve_s: number | null;
   resolution_active_s: number | null;
+  resolution_customer_wait_s: number | null;
+  resolution_eng_wait_s: number | null;
+  resolution_closed_s: number | null;
+  resolution_window_s: number | null;
   active_clock_engine_version: number | null;
   last_reopened_at: string | null;
   reopen_count_at_finalize: number | null;
@@ -167,7 +171,7 @@ export default function TrendReport() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,finalized_at,lifecycle_status,csat_rating,csat_rater_is_internal,time_to_resolve_s,resolution_active_s,active_clock_engine_version,last_reopened_at,reopen_count_at_finalize,tags,rsa_override,customer_key,plan_tier,is_test_ticket")
+            .select("id,intercom_created_at,finalized_at,lifecycle_status,csat_rating,csat_rater_is_internal,time_to_resolve_s,resolution_active_s,resolution_customer_wait_s,resolution_eng_wait_s,resolution_closed_s,resolution_window_s,active_clock_engine_version,last_reopened_at,reopen_count_at_finalize,tags,rsa_override,customer_key,plan_tier,is_test_ticket")
             .or(
               `intercom_created_at.gte.${startIso},` +
               `finalized_at.gte.${startIso},` +
@@ -265,6 +269,8 @@ export default function TrendReport() {
         p90Resolve: times.length >= 10 ? percentile(times, 90) : null,
         notComputable: active.notComputable,
         zeroActive: active.zeroActive,
+        // Engine-v3 four-way split for the same closed-in-month population.
+        split: summarizeSplit(closedRows),
         medRaw: median(rawTimes),
         avgRaw: rawTimes.length ? rawTimes.reduce((a, b) => a + b, 0) / rawTimes.length : null,
         backlog,
@@ -284,6 +290,7 @@ export default function TrendReport() {
       // Reconciliation only — carried in the tooltip payload, NOT plotted.
       "Elapsed (raw) median": b.medRaw == null ? null : +(b.medRaw / 86400).toFixed(2),
       notComputable: b.notComputable,
+      split: b.split,
     })),
     [buckets],
   );
