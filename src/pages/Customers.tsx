@@ -297,11 +297,14 @@ function CoverageTab({ isAdmin }: { isAdmin: boolean }) {
 
   const load = async () => {
     setLoading(true);
+    // Snapshot-served: v3_coverage_cached() hands back the persisted daily snapshot
+    // unless it is older than 60 minutes, in which case it recomputes once and
+    // persists. Full recount on every page load used to cost ~2.3s of full scans.
     const [{ data: c, error: e1 }, { data: s, error: e2 }] = await Promise.all([
-      sb.rpc("v3_coverage_current"),
+      sb.rpc("v3_coverage_cached", { max_age_minutes: 60 }),
       sb.from("v3_coverage_snapshots").select("*").order("snapshot_date", { ascending: true }),
     ]);
-    if (e1) { console.error("v3_coverage_current failed", e1); toast.error("Failed to load coverage"); }
+    if (e1) { console.error("v3_coverage_cached failed", e1); toast.error("Failed to load coverage"); }
     if (e2) { console.error("snapshots load failed", e2); }
     setCov(Array.isArray(c) ? c[0] : c);
     setSnaps((s ?? []) as Snapshot[]);
