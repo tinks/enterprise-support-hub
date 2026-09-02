@@ -736,6 +736,27 @@ export type Database = {
         }
         Relationships: []
       }
+      gmail_oauth_states: {
+        Row: {
+          consumed_at: string | null
+          created_at: string
+          created_by: string | null
+          state: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          state: string
+        }
+        Update: {
+          consumed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          state?: string
+        }
+        Relationships: []
+      }
       gmail_oauth_tokens: {
         Row: {
           access_token: string
@@ -2518,6 +2539,13 @@ export type Database = {
         }[]
       }
       esh_strip_html: { Args: { t: string }; Returns: string }
+      gmail_connection_status: {
+        Args: never
+        Returns: {
+          connected: boolean
+          email_address: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
