@@ -121,12 +121,8 @@ const Index = () => {
     try {
       while (true) {
         batchNum++;
-        const res = await fetch(`${edgeFunctionBaseUrl}/cleanup-bad-intercom-imports`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dryRun: false, batchSize: 80, offset }),
-        });
-        const data = await res.json();
+        const { data: invokeData, error: invokeError } = await supabase.functions.invoke("cleanup-bad-intercom-imports", { body: { dryRun: false, batchSize: 80, offset } });
+        const data: any = invokeError ? { error: invokeError.message } : invokeData;
         if (data.error) {
           toast.error("Cleanup failed: " + data.error);
           break;
@@ -158,12 +154,8 @@ const Index = () => {
     try {
       while (true) {
         batchNum++;
-        const res = await fetch(`${edgeFunctionBaseUrl}/backfill-enterprise-inbox`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ startingAfter, maxBatch: 25 }),
-        });
-        const data = await res.json();
+        const { data: invokeData, error: invokeError } = await supabase.functions.invoke("backfill-enterprise-inbox", { body: { startingAfter, maxBatch: 25 } });
+        const data: any = invokeError ? { error: invokeError.message } : invokeData;
         if (data.error) {
           toast.error("Backfill failed: " + data.error);
           break;
@@ -196,12 +188,8 @@ const Index = () => {
     try {
       while (true) {
         batchNum++;
-        const res = await fetch(`${edgeFunctionBaseUrl}/audit-out-of-inbox-tickets`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ apply, batchSize: 80, offset }),
-        });
-        const data = await res.json();
+        const { data: invokeData, error: invokeError } = await supabase.functions.invoke("audit-out-of-inbox-tickets", { body: { apply, batchSize: 80, offset } });
+        const data: any = invokeError ? { error: invokeError.message } : invokeData;
         if (data.error) { toast.error("Audit failed: " + data.error); break; }
         total = data.total || 0;
         totalChecked += data.checked || 0;
@@ -225,11 +213,8 @@ const Index = () => {
   const pollIntercomInbox = async () => {
     setIntercomPolling(true);
     try {
-      const res = await fetch(`${edgeFunctionBaseUrl}/poll-intercom-inbox`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await res.json();
+      const { data: invokeData, error: invokeError } = await supabase.functions.invoke("poll-intercom-inbox", { body: {} });
+      const data: any = invokeError ? { error: invokeError.message } : invokeData;
       if (data.error) {
         toast.error("Poll failed: " + data.error);
       } else {
