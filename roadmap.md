@@ -21,8 +21,14 @@
       `consecutive_failures=0` across `integration_health`.
 - [x] VERIFIED 2026-09-02: signed-in editor invocation of the 5 newly gated
       functions returns 200; the same calls with no token return 401.
-- [ ] Real Google OAuth round-trip (Gmail reconnect) — needs Matt to click through.
-- [ ] Re-run the security scan, then publish.
+- [ ] Real Google OAuth round-trip (Gmail reconnect) — UNVERIFIED by choice. Reconnect
+      replaces the token row with whichever account consents, and the current connected
+      account (`epx-reporting@lovable.dev`) is not Matt's; he is tracking down its owner.
+      Negative cases (missing / unknown / consumed / expired state, unauthenticated
+      `gmail-auth-url`) are all verified.
+- [x] VERIFIED 2026-09-02 21:54 UTC: security rescan clean — 0 critical, 0 error;
+      only the known intentional warn (signed-in execute on SECURITY DEFINER).
+      Published.
 
 
 ## Next session (deferred 2026-09-01 by Matt)
