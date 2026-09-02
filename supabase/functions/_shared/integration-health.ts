@@ -27,6 +27,13 @@ export function classifyHttpStatus(status: number): IntegrationStatus {
   return "error";
 }
 
+// Throttle successful heartbeats per warm isolate. High-frequency callers
+// (intercom-webhook fires per delivery) previously wrote ~920k upserts; a
+// 60s floor keeps "last success" accurate to the minute at a fraction of the
+// write volume. Failures are never throttled.
+const OK_THROTTLE_MS = 60_000;
+const lastOkWrite = new Map<string, number>();
+
 export async function recordIntegrationHealth(
   sb: SupabaseClient,
   integration: IntegrationKey,
@@ -36,6 +43,9 @@ export async function recordIntegrationHealth(
   try {
     const nowIso = new Date().toISOString();
     if (status === "ok") {
+      const last = lastOkWrite.get(integration) || 0;
+      if (Date.now() - last < OK_THROTTLE_MS) return;
+      lastOkWrite.set(integration, Date.now());
       await sb.from("integration_health").upsert({
         integration,
         last_status: "ok",
