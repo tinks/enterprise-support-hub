@@ -27,8 +27,50 @@ import {
   collectActive, collectRaw, notComputableNote, summarizeSplit,
   type SplitSummary,
 } from "@/lib/resolutionDisplay";
-import { ResolutionSplitLine } from "@/components/ResolutionSplitLine";
 import { excludeTestTickets, showTestDataNow } from "@/lib/testTickets";
+
+/**
+ * Resolution-chart tooltip. The plotted series are Average and Median ACTIVE
+ * clock; everything else here is reconciliation context carried in the payload
+ * but deliberately never drawn as a line — a chart mixing raw and active
+ * months invents a trend that does not exist.
+ */
+function ResolveTooltip({ active, payload, label }: {
+  active?: boolean;
+  payload?: Array<{ payload: Record<string, unknown> }>;
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload as {
+    Average: number | null;
+    Median: number | null;
+    "Elapsed (raw) median": number | null;
+    notComputable: number;
+    split: SplitSummary;
+  };
+  const days = (v: number | null) => (v == null ? "—" : `${v.toFixed(2)}d`);
+  return (
+    <div className="max-w-xs rounded-lg border bg-popover p-2.5 text-xs text-popover-foreground shadow-md">
+      <div className="mb-1 font-medium">{label}</div>
+      <div className="space-y-0.5">
+        <div>Average {ACTIVE_LABEL.toLowerCase()}: {days(d.Average)}</div>
+        <div>Median {ACTIVE_LABEL.toLowerCase()}: {days(d.Median)}</div>
+        <div className="text-muted-foreground">
+          {RAW_LABEL} median: {days(d["Elapsed (raw) median"])}
+        </div>
+        {d.notComputable > 0 && (
+          <div className="text-muted-foreground">{notComputableNote(d.notComputable)}</div>
+        )}
+      </div>
+      <div className="mt-2 border-t pt-1.5">
+        <div className="mb-1 font-medium">Where the time went</div>
+        <ResolutionSplitLine summary={d.split} />
+      </div>
+      <div className="mt-1.5 text-[10px] leading-snug text-muted-foreground">{SPLIT_FOOTNOTE}</div>
+    </div>
+  );
+}
+
 
 type Row = {
   id: string;
