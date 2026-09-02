@@ -23,6 +23,7 @@ import {
 import { PlanScopeSelect } from "@/components/PlanScopeSelect";
 import { inPlanScope, type PlanScope } from "@/lib/planTier";
 import { ACTIVE_LABEL, RAW_LABEL, ACTIVE_TOOLTIP, collectActive, collectRaw, notComputableNote } from "@/lib/resolutionDisplay";
+import { excludeTestTickets, showTestDataNow } from "@/lib/testTickets";
 
 type Row = {
   id: string;
@@ -166,7 +167,7 @@ export default function TrendReport() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,finalized_at,lifecycle_status,csat_rating,csat_rater_is_internal,time_to_resolve_s,resolution_active_s,active_clock_engine_version,last_reopened_at,reopen_count_at_finalize,tags,rsa_override,customer_key,plan_tier")
+            .select("id,intercom_created_at,finalized_at,lifecycle_status,csat_rating,csat_rater_is_internal,time_to_resolve_s,resolution_active_s,active_clock_engine_version,last_reopened_at,reopen_count_at_finalize,tags,rsa_override,customer_key,plan_tier,is_test_ticket")
             .or(
               `intercom_created_at.gte.${startIso},` +
               `finalized_at.gte.${startIso},` +
@@ -183,7 +184,7 @@ export default function TrendReport() {
           if (batch.length < PAGE) break;
           offset += PAGE;
         }
-        if (!cancelled) setRows(all);
+        if (!cancelled) setRows(excludeTestTickets(all as any, showTestDataNow()) as Row[]);
       } catch (e: any) {
         if (!cancelled) setError(e?.message ?? String(e));
       } finally {
