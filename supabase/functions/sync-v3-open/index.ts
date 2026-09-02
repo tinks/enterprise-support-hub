@@ -30,11 +30,15 @@ import { syncTicketAttributes } from "../_shared/v3-attributes.ts";
 import { writeV3Signals } from "../_shared/v3-signals.ts";
 import { notifyNewTicket } from "../_shared/new-ticket-alert.ts";
 import { resolveInboxes, inboxSearchClause } from "../_shared/v3-inboxes.ts";
+import { requireEditorOrSecret } from "../_shared/require-editor-or-secret.ts";
 
 
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: V3_CORS_HEADERS });
+
+  const gate = await requireEditorOrSecret(req, V3_CORS_HEADERS);
+  if (!gate.ok) return gate.response;
 
   const startedAt = Date.now();
   const INTERCOM_API_TOKEN = Deno.env.get("INTERCOM_API_TOKEN");

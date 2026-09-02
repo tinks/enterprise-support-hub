@@ -21,6 +21,7 @@ import {
 import { finalizeConversation } from "../_shared/v3-finalize.ts";
 import { resolveInboxes, inboxSearchClause } from "../_shared/v3-inboxes.ts";
 import {
+import { requireEditorOrSecret } from "../_shared/require-editor-or-secret.ts";
   type IntegrationKey,
   recordIntegrationHealth,
 } from "../_shared/integration-health.ts";
@@ -37,6 +38,9 @@ async function health(sb: any, status: "ok" | "error", detail?: string) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: V3_CORS_HEADERS });
+
+  const gate = await requireEditorOrSecret(req, V3_CORS_HEADERS);
+  if (!gate.ok) return gate.response;
 
   const startedAt = Date.now();
   const INTERCOM_API_TOKEN = Deno.env.get("INTERCOM_API_TOKEN");

@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { classifyHttpStatus, recordIntegrationHealth } from "../_shared/integration-health.ts";
+import { requireEditorOrSecret } from "../_shared/require-editor-or-secret.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,6 +46,9 @@ function extractTags(icData: any): string[] {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  const gate = await requireEditorOrSecret(req, corsHeaders);
+  if (!gate.ok) return gate.response;
 
   const INTERCOM_API_TOKEN = Deno.env.get("INTERCOM_API_TOKEN");
   if (!INTERCOM_API_TOKEN) {
