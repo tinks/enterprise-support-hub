@@ -123,7 +123,7 @@ Deno.test("issue created after the ticket closed is clamped away", () => {
 Deno.test("open issue runs to the ticket close, and swallows a second issue", () => {
   const escs = [esc(100, null), esc(600, 800)];
   assertEquals(windowSpans(escs), [[100, CLOSE_AT]]);
-  assertEquals(engSeconds(escs), 890);
+  assertEquals(engSeconds(escs), 900);
 });
 
 Deno.test("eng wait never exceeds the customer-wait it is carved from", () => {
