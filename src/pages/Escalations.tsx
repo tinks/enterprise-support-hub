@@ -17,6 +17,7 @@ import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { TicketNotes, fetchV3Notes, type TicketNote } from "@/components/issues/TicketNotes";
 import { useInitialQ } from "@/hooks/useInitialQ";
+import { formatDuration } from "@/lib/durationStats";
 
 
 type Ticket = {
