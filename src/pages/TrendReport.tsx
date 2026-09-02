@@ -22,8 +22,56 @@ import {
 
 import { PlanScopeSelect } from "@/components/PlanScopeSelect";
 import { inPlanScope, type PlanScope } from "@/lib/planTier";
-import { ACTIVE_LABEL, RAW_LABEL, ACTIVE_TOOLTIP, collectActive, collectRaw, notComputableNote } from "@/lib/resolutionDisplay";
+import {
+  ACTIVE_LABEL, RAW_LABEL, ACTIVE_TOOLTIP, SPLIT_FOOTNOTE,
+  collectActive, collectRaw, notComputableNote, summarizeSplit,
+  type SplitSummary,
+} from "@/lib/resolutionDisplay";
+import { ResolutionSplitLine } from "@/components/ResolutionSplitLine";
 import { excludeTestTickets, showTestDataNow } from "@/lib/testTickets";
+
+/**
+ * Resolution-chart tooltip. The plotted series are Average and Median ACTIVE
+ * clock; everything else here is reconciliation context carried in the payload
+ * but deliberately never drawn as a line — a chart mixing raw and active
+ * months invents a trend that does not exist.
+ */
+function ResolveTooltip({ active, payload, label }: {
+  active?: boolean;
+  payload?: Array<{ payload: Record<string, unknown> }>;
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload as {
+    Average: number | null;
+    Median: number | null;
+    "Elapsed (raw) median": number | null;
+    notComputable: number;
+    split: SplitSummary;
+  };
+  const days = (v: number | null) => (v == null ? "—" : `${v.toFixed(2)}d`);
+  return (
+    <div className="max-w-xs rounded-lg border bg-popover p-2.5 text-xs text-popover-foreground shadow-md">
+      <div className="mb-1 font-medium">{label}</div>
+      <div className="space-y-0.5">
+        <div>Average {ACTIVE_LABEL.toLowerCase()}: {days(d.Average)}</div>
+        <div>Median {ACTIVE_LABEL.toLowerCase()}: {days(d.Median)}</div>
+        <div className="text-muted-foreground">
+          {RAW_LABEL} median: {days(d["Elapsed (raw) median"])}
+        </div>
+        {d.notComputable > 0 && (
+          <div className="text-muted-foreground">{notComputableNote(d.notComputable)}</div>
+        )}
+      </div>
+      <div className="mt-2 border-t pt-1.5">
+        <div className="mb-1 font-medium">Where the time went</div>
+        <ResolutionSplitLine summary={d.split} />
+      </div>
+      <div className="mt-1.5 text-[10px] leading-snug text-muted-foreground">{SPLIT_FOOTNOTE}</div>
+    </div>
+  );
+}
+
 
 type Row = {
   id: string;
@@ -34,6 +82,10 @@ type Row = {
   csat_rater_is_internal: boolean | null;
   time_to_resolve_s: number | null;
   resolution_active_s: number | null;
+  resolution_customer_wait_s: number | null;
+  resolution_eng_wait_s: number | null;
+  resolution_closed_s: number | null;
+  resolution_window_s: number | null;
   active_clock_engine_version: number | null;
   last_reopened_at: string | null;
   reopen_count_at_finalize: number | null;
@@ -63,7 +115,10 @@ type MonthBucket = {
   notComputable: number;
   zeroActive: number;
   p90Resolve: number | null;
+  /** Engine-v3 four-way split for the closed-in-month population. */
+  split: SplitSummary;
   backlog: number;
+
 };
 
 const METRIC_KEYS = [
@@ -167,7 +222,7 @@ export default function TrendReport() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,finalized_at,lifecycle_status,csat_rating,csat_rater_is_internal,time_to_resolve_s,resolution_active_s,active_clock_engine_version,last_reopened_at,reopen_count_at_finalize,tags,rsa_override,customer_key,plan_tier,is_test_ticket")
+            .select("id,intercom_created_at,finalized_at,lifecycle_status,csat_rating,csat_rater_is_internal,time_to_resolve_s,resolution_active_s,resolution_customer_wait_s,resolution_eng_wait_s,resolution_closed_s,resolution_window_s,active_clock_engine_version,last_reopened_at,reopen_count_at_finalize,tags,rsa_override,customer_key,plan_tier,is_test_ticket")
             .or(
               `intercom_created_at.gte.${startIso},` +
               `finalized_at.gte.${startIso},` +
@@ -265,6 +320,8 @@ export default function TrendReport() {
         p90Resolve: times.length >= 10 ? percentile(times, 90) : null,
         notComputable: active.notComputable,
         zeroActive: active.zeroActive,
+        // Engine-v3 four-way split for the same closed-in-month population.
+        split: summarizeSplit(closedRows),
         medRaw: median(rawTimes),
         avgRaw: rawTimes.length ? rawTimes.reduce((a, b) => a + b, 0) / rawTimes.length : null,
         backlog,
@@ -284,6 +341,7 @@ export default function TrendReport() {
       // Reconciliation only — carried in the tooltip payload, NOT plotted.
       "Elapsed (raw) median": b.medRaw == null ? null : +(b.medRaw / 86400).toFixed(2),
       notComputable: b.notComputable,
+      split: b.split,
     })),
     [buckets],
   );
@@ -405,7 +463,11 @@ export default function TrendReport() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">{ACTIVE_LABEL} (days)</CardTitle>
-              <CardDescription>Average vs median, closed-in-month tickets. {ACTIVE_TOOLTIP} {RAW_LABEL} appears in the tooltip for reconciliation and is never plotted.</CardDescription>
+              <CardDescription>
+                Average vs median, closed-in-month tickets. {ACTIVE_TOOLTIP} Hover a month for
+                the four-way split and the {RAW_LABEL.toLowerCase()} figure — both are
+                reconciliation values and neither is ever plotted.
+              </CardDescription>
             </CardHeader>
             <CardContent className="h-[240px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -413,7 +475,7 @@ export default function TrendReport() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} unit="d" />
-                  <RTooltip contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12, color: "hsl(var(--popover-foreground))" }} />
+                  <RTooltip content={<ResolveTooltip />} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Line type="monotone" dataKey="Average" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={false} connectNulls />
                   <Line type="monotone" dataKey="Median" stroke="hsl(var(--chart-3))" strokeWidth={2} dot={false} connectNulls />

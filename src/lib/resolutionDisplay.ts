@@ -29,7 +29,13 @@ export type ResolutionRow = {
   resolution_active_s?: number | null;
   time_to_resolve_s?: number | null;
   active_clock_engine_version?: number | null;
+  /** Engine v3 four-way split. Present from `active_clock_engine_version >= 3`. */
+  resolution_customer_wait_s?: number | null;
+  resolution_eng_wait_s?: number | null;
+  resolution_closed_s?: number | null;
+  resolution_window_s?: number | null;
 };
+
 
 /**
  * A finalized row whose active clock could not be computed (no usable timeline
@@ -99,3 +105,121 @@ export function notComputableNote(n: number): string {
 
 export const ACTIVE_FOOTNOTE =
   "Resolution (active) reads the persisted resolution_active_s column, computed at finalize and recomputed on every reopen. It excludes closed and waiting-on-customer time. Elapsed (raw) is the Intercom wall-clock figure, kept for reconciliation only.";
+
+/* ------------------------------------------------------------------------- *
+ * Engine v3 — the four-way split
+ *
+ * `resolution_window_s` is the measured window, and the engine guarantees
+ *   active + customer_wait + eng_wait + closed = window
+ * on every row it stamped. The four buckets answer "where did the elapsed time
+ * go", which is a DIFFERENT question from "how long did we take" — only
+ * `resolution_active_s` is ever a headline. The split is a sub-line, a tooltip
+ * or a drill-down, never a KPI of its own and never a chart series beside the
+ * headline.
+ * ------------------------------------------------------------------------- */
+
+export const SPLIT_KEYS = ["active", "customerWait", "engWait", "closed"] as const;
+export type SplitKey = (typeof SPLIT_KEYS)[number];
+
+export const SPLIT_LABEL: Record<SplitKey, string> = {
+  active: "Active",
+  customerWait: "Customer wait",
+  engWait: "Engineering wait",
+  closed: "Closed",
+};
+
+export const SPLIT_SHORT: Record<SplitKey, string> = {
+  active: "active",
+  customerWait: "cust",
+  engWait: "eng",
+  closed: "closed",
+};
+
+export const SPLIT_TOOLTIP: Record<SplitKey, string> = {
+  active: "Open and waiting on us — the only bucket the headline metric counts.",
+  customerWait: "Open, but the last move was ours: we were waiting on the customer.",
+  engWait:
+    "Open and escalated to engineering. Looks like customer wait from the outside, but the customer was waiting on US.",
+  closed: "The ticket sat closed before a reopen — nobody owed a reply.",
+};
+
+/** Tailwind classes for the split, in a fixed order so every surface matches. */
+export const SPLIT_CLASS: Record<SplitKey, string> = {
+  active: "bg-primary",
+  customerWait: "bg-muted-foreground/30",
+  engWait: "bg-[#E66FD2]",
+  closed: "bg-muted-foreground/15",
+};
+
+export type ResolutionSplit = Record<SplitKey, number> & { window: number };
+
+/**
+ * The four-way split for one row, or null when the engine never stamped it.
+ * Never fabricates a bucket: a row missing `resolution_window_s` is excluded
+ * from the split entirely rather than counted as all-active.
+ */
+export function rowSplit(r: ResolutionRow): ResolutionSplit | null {
+  const w = r.resolution_window_s;
+  if (typeof w !== "number") return null;
+  const active = typeof r.resolution_active_s === "number" ? r.resolution_active_s : null;
+  const cust = typeof r.resolution_customer_wait_s === "number" ? r.resolution_customer_wait_s : null;
+  const eng = typeof r.resolution_eng_wait_s === "number" ? r.resolution_eng_wait_s : null;
+  const closed = typeof r.resolution_closed_s === "number" ? r.resolution_closed_s : null;
+  if (active == null || cust == null || eng == null || closed == null) return null;
+  return { active, customerWait: cust, engWait: eng, closed, window: w };
+}
+
+export type SplitSummary = {
+  /** Summed seconds per bucket across every row that carried a full split. */
+  totals: ResolutionSplit;
+  /** Rows that contributed to `totals`. */
+  n: number;
+  /** Finalized rows the engine never stamped with a window — excluded, not zeroed. */
+  noSplit: number;
+  /** Share of the summed window per bucket, 0-100. Null when the window is 0. */
+  share: Record<SplitKey, number | null>;
+};
+
+/** Aggregate the split over a set of rows. Sum-then-share, never mean-of-shares. */
+export function summarizeSplit(rows: ResolutionRow[]): SplitSummary {
+  const totals: ResolutionSplit = { active: 0, customerWait: 0, engWait: 0, closed: 0, window: 0 };
+  let n = 0;
+  let noSplit = 0;
+  for (const r of rows) {
+    const s = rowSplit(r);
+    if (!s) {
+      if (r.lifecycle_status === "finalized") noSplit++;
+      continue;
+    }
+    totals.active += s.active;
+    totals.customerWait += s.customerWait;
+    totals.engWait += s.engWait;
+    totals.closed += s.closed;
+    totals.window += s.window;
+    n++;
+  }
+  const share = Object.fromEntries(
+    SPLIT_KEYS.map((k) => [k, totals.window > 0 ? (totals[k] / totals.window) * 100 : null]),
+  ) as Record<SplitKey, number | null>;
+  return { totals, n, noSplit, share };
+}
+
+/** Per-bucket medians across rows carrying a full split. */
+export function splitMedians(rows: ResolutionRow[]): Record<SplitKey, number | null> {
+  const cols: Record<SplitKey, number[]> = { active: [], customerWait: [], engWait: [], closed: [] };
+  for (const r of rows) {
+    const s = rowSplit(r);
+    if (!s) continue;
+    for (const k of SPLIT_KEYS) cols[k].push(s[k]);
+  }
+  const med = (xs: number[]): number | null => {
+    if (!xs.length) return null;
+    const a = [...xs].sort((x, y) => x - y);
+    const m = a.length >> 1;
+    return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+  };
+  return Object.fromEntries(SPLIT_KEYS.map((k) => [k, med(cols[k])])) as Record<SplitKey, number | null>;
+}
+
+export const SPLIT_FOOTNOTE =
+  "The four-way split reads the persisted resolution_active_s / _customer_wait_s / _eng_wait_s / _closed_s columns, which the engine guarantees sum to resolution_window_s. Only Active is a headline metric; the other three explain where the remaining elapsed time went.";

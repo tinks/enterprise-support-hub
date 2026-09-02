@@ -24,6 +24,10 @@ import { formatDuration, median } from "@/lib/durationStats";
 import {
   computeAnatomy, anatomyReconciles, type AnatomyResult, type OwedBy,
 } from "@/lib/resolutionAnatomy";
+import {
+  SPLIT_FOOTNOTE, SPLIT_KEYS, SPLIT_LABEL, SPLIT_CLASS, summarizeSplit, splitMedians,
+} from "@/lib/resolutionDisplay";
+import { ResolutionSplitLine } from "@/components/ResolutionSplitLine";
 
 type ScalarRow = {
   id: string;
@@ -42,6 +46,13 @@ type ScalarRow = {
   tags: string[] | null;
   rsa_override: boolean | null;
   customer_resolution_method: string | null;
+  /** Engine-v3 persisted clocks. Null on rows the engine never stamped. */
+  resolution_active_s: number | null;
+  resolution_customer_wait_s: number | null;
+  resolution_eng_wait_s: number | null;
+  resolution_closed_s: number | null;
+  resolution_window_s: number | null;
+  active_clock_engine_version: number | null;
 };
 
 type LongRow = ScalarRow & { anatomy: AnatomyResult };
@@ -53,7 +64,9 @@ import { showTestDataNow } from "@/lib/testTickets";
 const SCALAR_COLS =
   "id,intercom_conversation_id,subject,subject_override,owner,product_area,classification," +
   "customer_key,finalized_at,intercom_created_at,intercom_closed_at,time_to_resolve_s," +
-  "reopen_count_at_finalize,tags,rsa_override,customer_resolution_method,plan_tier,is_test_ticket";
+  "reopen_count_at_finalize,tags,rsa_override,customer_resolution_method,plan_tier,is_test_ticket," +
+  // Engine-v3 persisted clocks — the authoritative split for the whole cohort.
+  "resolution_active_s,resolution_customer_wait_s,resolution_eng_wait_s,resolution_closed_s,resolution_window_s,active_clock_engine_version";
 
 
 const ANY = "__any__";
@@ -289,6 +302,11 @@ export default function ResolutionAnatomy() {
       "Silent drift": Number((median(b.drift) ?? 0).toFixed(2)),
     }));
   }, [filtered, months]);
+
+  // Authoritative split from the persisted engine-v3 columns, over the whole
+  // in-scope cohort rather than only the long runners.
+  const persistedSplit = useMemo(() => summarizeSplit(scalars), [scalars]);
+  const persistedMedians = useMemo(() => splitMedians(scalars), [scalars]);
 
   const totals = useMemo(() => {
     let us = 0, them = 0, drift = 0, closed = 0, n = 0, closedNoConfirm = 0, reopened = 0;
@@ -583,7 +601,38 @@ export default function ResolutionAnatomy() {
           </Card>
         )}
 
-        {/* Headline split */}
+        {/* Engine-v3 persisted split — the authoritative one. It covers the
+            WHOLE in-scope cohort, unlike the long-runner anatomy below, which
+            is derived client-side from raw_payload for tickets over the
+            threshold only. The two taxonomies are not interchangeable: engine
+            v3 has an explicit engineering-wait bucket and no "silent drift". */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Where the time went — whole cohort</CardTitle>
+            <CardDescription className="text-xs">
+              Engine-v3 persisted clocks across all {scalars.length.toLocaleString()} in-scope
+              finalized tickets in range. {SPLIT_FOOTNOTE}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <ResolutionSplitLine summary={persistedSplit} />
+            <div className="grid gap-2 sm:grid-cols-4 text-xs">
+              {SPLIT_KEYS.map((k) => (
+                <div key={k} className="rounded-md border p-2">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <span className={`inline-block h-2 w-2 rounded-sm ${SPLIT_CLASS[k]}`} />
+                    {SPLIT_LABEL[k]} median
+                  </div>
+                  <div className="mt-0.5 font-medium">
+                    {persistedMedians[k] == null ? "—" : formatDuration(persistedMedians[k]!)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Long-runner anatomy (client-side, legacy taxonomy) */}
         <div className="grid gap-4 md:grid-cols-5">
           <SplitCard title="Our clock" desc="Customer waited on us" value={totals.us} share={share(totals.us)} />
           <SplitCard title="Their clock" desc="We waited on the customer" value={totals.them} share={share(totals.them)} />
