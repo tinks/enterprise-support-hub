@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crypto } from "https://deno.land/std@0.208.0/crypto/mod.ts";
 import { encode as hexEncode } from "https://deno.land/std@0.208.0/encoding/hex.ts";
+import { getSettings, invalidateSettings } from "../_shared/settings-cache.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -200,11 +201,7 @@ Deno.serve(async (req) => {
     };
 
     // Load settings
-    const { data: settings } = await supabase
-      .from("settings")
-      .select("*")
-      .limit(1)
-      .single();
+    const settings = await getSettings(supabase) as any;
 
     // Load bot messages
     const { data: botMsgRows } = await supabase.from("bot_messages").select("message_key, message_text");
@@ -268,6 +265,7 @@ Deno.serve(async (req) => {
           .from("settings")
           .update({ monitored_channels: updatedMonitoredChannels.join(", ") })
           .eq("id", settings.id);
+        invalidateSettings();
 
         if (autoEnableError) {
           console.error(`Failed to auto-add monitored channel ${channelId}:`, autoEnableError.message);
@@ -633,8 +631,7 @@ Deno.serve(async (req) => {
             }
 
             // Get Intercom settings for admin ID (used for reassignment)
-            const intercomSettings = await supabase.from("settings").select("*").limit(1).single();
-            const adminId = intercomSettings.data?.intercom_assignee_id;
+            const adminId = settings?.intercom_assignee_id;
 
             // Resolve the replying user's identity for sender attribution
             let senderName = "";

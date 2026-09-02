@@ -85,6 +85,26 @@ Deno.serve(async (req) => {
       error?: string;
     }> = [];
 
+    // Prefetch every conversation's existing messages in ONE query. This loop used
+    // to issue a single-row lookup per conversation (up to 200 per invocation),
+    // which dominated database CPU (1.49M calls / 22,251s total).
+    const existingByConv = new Map<string, Set<string>>();
+    const convIds = (manualConvs || []).map(c => c.id);
+    for (let i = 0; i < convIds.length; i += 200) {
+      const chunk = convIds.slice(i, i + 200);
+      const { data: rows, error: exErr } = await sb
+        .from("manual_messages")
+        .select("conversation_id, created_at, is_internal_note")
+        .in("conversation_id", chunk);
+      if (exErr) console.error("Prefetch manual_messages failed:", exErr);
+      for (const r of rows || []) {
+        const key = `${Math.floor(new Date(r.created_at as string).getTime() / 1000)}:${r.is_internal_note ? 1 : 0}`;
+        const set = existingByConv.get(r.conversation_id as string) || new Set<string>();
+        set.add(key);
+        existingByConv.set(r.conversation_id as string, set);
+      }
+    }
+
     for (const conv of manualConvs || []) {
       try {
         const icId = conv.intercom_conversation_id!;
@@ -162,14 +182,7 @@ Deno.serve(async (req) => {
 
         // Fetch existing messages (key by epoch + is_internal_note so notes posted
         // at the same second as a comment don't dedup against each other)
-        const { data: existingMsgs } = await sb
-          .from("manual_messages")
-          .select("created_at, is_internal_note")
-          .eq("conversation_id", conv.id);
-
-        const existingKeys = new Set(
-          (existingMsgs || []).map(m => `${Math.floor(new Date(m.created_at).getTime() / 1000)}:${m.is_internal_note ? 1 : 0}`)
-        );
+        const existingKeys = existingByConv.get(conv.id) || new Set<string>();
 
         // Find missing messages
         const missing = icMessages.filter(m => !existingKeys.has(`${m.epoch}:${m.is_internal_note ? 1 : 0}`));
@@ -185,6 +198,9 @@ Deno.serve(async (req) => {
           }));
           const { error: insertErr } = await sb.from("manual_messages").insert(toInsert);
           if (insertErr) console.error(`Insert error for ${conv.id}:`, insertErr);
+          // Keep the prefetched map consistent for any later pass in this run.
+          for (const m of missing) existingKeys.add(`${m.epoch}:${m.is_internal_note ? 1 : 0}`);
+          existingByConv.set(conv.id, existingKeys);
         }
 
         // Determine correct status from Intercom state
