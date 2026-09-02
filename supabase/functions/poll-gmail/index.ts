@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { recordIntegrationHealth } from "../_shared/integration-health.ts";
+import { requireEditorOrSecret } from "../_shared/require-editor-or-secret.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -101,6 +102,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
+  const gate = await requireEditorOrSecret(req, corsHeaders);
+  if (!gate.ok) return gate.response;
 
   const clientId = Deno.env.get("GMAIL_CLIENT_ID");
   const clientSecret = Deno.env.get("GMAIL_CLIENT_SECRET");

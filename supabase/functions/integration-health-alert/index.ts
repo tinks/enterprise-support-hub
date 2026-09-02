@@ -5,6 +5,7 @@
 // elapsed since the last notification.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { requireEditorOrSecret } from "../_shared/require-editor-or-secret.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -84,6 +85,9 @@ async function postSlack(token: string, text: string, blocks?: unknown[]) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  const gate = await requireEditorOrSecret(req, corsHeaders);
+  if (!gate.ok) return gate.response;
 
   const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN");
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;

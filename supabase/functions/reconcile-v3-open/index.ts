@@ -10,6 +10,7 @@
 // Safety: if the truth-set search errors, we abort WITHOUT writing anything.
 // ---------------------------------------------------------------------------
 
+import { requireEditorOrSecret } from "../_shared/require-editor-or-secret.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import {
   intercomHeaders,
@@ -37,6 +38,9 @@ async function health(sb: any, status: "ok" | "error", detail?: string) {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: V3_CORS_HEADERS });
+
+  const gate = await requireEditorOrSecret(req, V3_CORS_HEADERS);
+  if (!gate.ok) return gate.response;
 
   const startedAt = Date.now();
   const INTERCOM_API_TOKEN = Deno.env.get("INTERCOM_API_TOKEN");

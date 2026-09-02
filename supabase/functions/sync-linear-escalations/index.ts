@@ -12,6 +12,7 @@
 // yet (hub_state defaults to 'open'), so the board shows live Linear metadata
 // without anyone having to touch the row first.
 
+import { requireEditorOrSecret } from "../_shared/require-editor-or-secret.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   classifyHttpStatus,
@@ -83,6 +84,9 @@ const ISSUE_QUERY = `query($team:String!,$num:Float!){
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  const gate = await requireEditorOrSecret(req, corsHeaders);
+  if (!gate.ok) return gate.response;
 
   const lovableKey = Deno.env.get("LOVABLE_API_KEY");
   const linearKey = Deno.env.get("LINEAR_API_KEY");

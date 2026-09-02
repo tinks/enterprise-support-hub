@@ -8,6 +8,7 @@
 // case that produced the 5 missing tickets in v2.
 // ---------------------------------------------------------------------------
 
+import { requireEditorOrSecret } from "../_shared/require-editor-or-secret.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { resolveInboxes, inboxSearchClause } from "../_shared/v3-inboxes.ts";
 import {
@@ -19,6 +20,9 @@ import {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: V3_CORS_HEADERS });
+
+  const gate = await requireEditorOrSecret(req, V3_CORS_HEADERS);
+  if (!gate.ok) return gate.response;
 
   const startedAt = Date.now();
   const INTERCOM_API_TOKEN = Deno.env.get("INTERCOM_API_TOKEN");

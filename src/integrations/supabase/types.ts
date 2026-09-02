@@ -227,6 +227,27 @@ export type Database = {
         }
         Relationships: []
       }
+      cron_auth: {
+        Row: {
+          created_at: string
+          id: boolean
+          rotated_at: string
+          secret: string
+        }
+        Insert: {
+          created_at?: string
+          id?: boolean
+          rotated_at?: string
+          secret?: string
+        }
+        Update: {
+          created_at?: string
+          id?: boolean
+          rotated_at?: string
+          secret?: string
+        }
+        Relationships: []
+      }
       csat_overrides: {
         Row: {
           action: string
@@ -2505,6 +2526,7 @@ export type Database = {
         Args: { p_event_ts: string; p_mapping_id: string }
         Returns: boolean
       }
+      esh_cron_headers: { Args: never; Returns: Json }
       esh_cron_jobs: {
         Args: never
         Returns: {

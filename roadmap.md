@@ -10,7 +10,12 @@ Three critical scanner findings block the publish gate. Batch B work, scoped:
       list-slack-users, list-slack-channels, fetch-thread-messages,
       fetch-gmail-thread, intercom-month-stats, check-bot-identity.
       All UI-invoked; no cron callers. Verify each from the UI after gating.
-- [ ] `open_mutation_fns` — per-function caller inventory FIRST (cron/webhook vs UI).
+- [x] `open_mutation_fns` — dual-caller gate shipped 2026-09-02: `_shared/require-editor-or-secret.ts`
+      (cron secret header `x-esh-cron-secret` from `public.cron_auth` / service-role bearer /
+      signed-in editor) applied to 17 cron+UI functions. PENDING MATT: run
+      /mnt/documents/cron-secret-header-rewrite.sql so the 22 cron jobs send the secret
+      instead of the anon JWT, then confirm next runs in Integration Health.
+- [ ] `open_mutation_fns` (original note) — per-function caller inventory FIRST (cron/webhook vs UI).
       UI-invoked → `requireEditor`. Cron/webhook → shared-secret header (cron) or
       existing signature verification (Slack/Intercom). Do NOT blanket-apply:
       poll-*, sync-v3-*, reconcile-v3-open, context-reminder,
