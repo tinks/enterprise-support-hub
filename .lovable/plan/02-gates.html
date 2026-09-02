@@ -1,0 +1,61 @@
+<svg viewBox="0 0 640 330" xmlns="http://www.w3.org/2000/svg" style="font-family: var(--font-sans)">
+  <style>
+    .box { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .acc { fill: none; stroke: hsl(var(--accent)); stroke-width: 1; }
+    .lbl { fill: hsl(var(--foreground)); font-size: 14px; font-weight: 480; }
+    .sub { fill: hsl(var(--muted-foreground)); font-size: 12px; }
+    .mono { fill: hsl(var(--muted-foreground)); font-size: 12px; font-family: var(--font-mono); }
+    .wire { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+    .zone { fill: none; stroke: hsl(var(--border)); stroke-width: 1; stroke-dasharray: 4 3; }
+  </style>
+  <defs>
+    <marker id="c2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L7,4 L0,8" fill="none" stroke="hsl(var(--muted-foreground))" stroke-width="1"/>
+    </marker>
+  </defs>
+
+  <text x="16" y="20" class="sub">caller</text>
+  <text x="250" y="20" class="sub">gate to apply</text>
+  <text x="470" y="20" class="sub">failure if mis-gated</text>
+
+  <rect x="16" y="32" width="190" height="52" rx="8" class="box"/>
+  <text x="30" y="54" class="lbl">Signed-in UI</text>
+  <text x="30" y="72" class="sub">buttons, panels, forms</text>
+  <line x1="206" y1="58" x2="246" y2="58" class="wire" marker-end="url(#c2)"/>
+  <rect x="250" y="32" width="190" height="52" rx="8" class="box"/>
+  <text x="264" y="60" class="mono">requireEditor</text>
+  <text x="470" y="55" class="sub">read-only user can write</text>
+  <text x="470" y="72" class="sub">(today's hole)</text>
+
+  <rect x="16" y="98" width="190" height="52" rx="8" class="box"/>
+  <text x="30" y="120" class="lbl">pg_cron</text>
+  <text x="30" y="138" class="sub">poll-*, sync-v3-*, reconcile</text>
+  <line x1="206" y1="124" x2="246" y2="124" class="wire" marker-end="url(#c2)"/>
+  <rect x="250" y="98" width="190" height="52" rx="8" class="box"/>
+  <text x="264" y="126" class="mono">shared-secret header</text>
+  <text x="470" y="121" class="sub">403 with no error surface</text>
+  <text x="470" y="138" class="sub">= silently stale data</text>
+
+  <rect x="16" y="164" width="190" height="52" rx="8" class="box"/>
+  <text x="30" y="186" class="lbl">Slack / Intercom</text>
+  <text x="30" y="204" class="sub">webhooks</text>
+  <line x1="206" y1="190" x2="246" y2="190" class="wire" marker-end="url(#c2)"/>
+  <rect x="250" y="164" width="190" height="52" rx="8" class="box"/>
+  <text x="264" y="192" class="mono">existing signature verify</text>
+  <text x="470" y="187" class="sub">dropped tickets,</text>
+  <text x="470" y="204" class="sub">broken relay</text>
+
+  <rect x="16" y="230" width="190" height="52" rx="8" class="acc"/>
+  <text x="30" y="252" class="lbl">Both UI and cron</text>
+  <text x="30" y="270" class="sub">"Run now" + schedule</text>
+  <line x1="206" y1="256" x2="246" y2="256" class="wire" marker-end="url(#c2)"/>
+  <rect x="250" y="230" width="190" height="52" rx="8" class="acc"/>
+  <text x="264" y="252" class="mono">editor OR secret</text>
+  <text x="264" y="270" class="sub">accept either proof</text>
+  <text x="470" y="253" class="sub">one caller always breaks</text>
+  <text x="470" y="270" class="sub">if only one gate is used</text>
+
+  <circle cx="26" cy="306" r="9" fill="hsl(var(--accent))"/>
+  <text x="26" y="310" text-anchor="middle" font-size="11" fill="hsl(var(--accent-foreground))">1</text>
+  <text x="44" y="310" class="sub">The accented row is the one the inventory exists to find — it cannot be gated with a single check.</text>
+</svg>
