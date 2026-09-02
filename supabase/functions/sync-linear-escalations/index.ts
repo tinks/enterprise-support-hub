@@ -149,6 +149,7 @@ Deno.serve(async (req) => {
     state: string;
     stateType: string | null;
     assignee: string | null;
+    url: string | null;
     createdAt: string | null;
     startedAt: string | null;
     completedAt: string | null;
@@ -198,6 +199,7 @@ Deno.serve(async (req) => {
       state: node.state?.name ?? "",
       stateType: node.state?.type ?? null,
       assignee: node.assignee?.name ?? null,
+      url: node.url ?? null,
       createdAt: node.createdAt ?? null,
       startedAt: node.startedAt ?? null,
       completedAt: node.completedAt ?? null,
@@ -210,10 +212,32 @@ Deno.serve(async (req) => {
     return json({ error: gatewayError, resolved: found.size }, 502);
   }
 
-  // 3. Mirror onto dev_escalations. Only the linear_* columns are written.
+  // 3. Mirror onto dev_escalations (PRIMARY key only — the board's row) and onto
+  // dev_escalation_links (EVERY key — what the engineering-wait clock unions).
   const nowIso = new Date().toISOString();
-  const rows = capped
-    .filter((p) => found.has(p.key))
+  const resolved = capped.filter((p) => found.has(p.key));
+
+  const linkRows = resolved.map((p) => {
+    const issue = found.get(p.key)!;
+    return {
+      intercom_conversation_id: p.conversationId,
+      linear_key: p.key,
+      linear_title: issue.title,
+      linear_state: issue.state,
+      linear_state_type: issue.stateType,
+      linear_assignee: issue.assignee,
+      linear_url: issue.url,
+      linear_created_at: issue.createdAt,
+      linear_started_at: issue.startedAt,
+      linear_completed_at: issue.completedAt,
+      linear_canceled_at: issue.canceledAt,
+      linear_synced_at: nowIso,
+      source: "attribute",
+    };
+  });
+
+  const rows = resolved
+    .filter((p) => p.primary)
     .map((p) => {
       const issue = found.get(p.key)!;
       return {
@@ -231,6 +255,18 @@ Deno.serve(async (req) => {
         linear_synced_at: nowIso,
       };
     });
+
+  let linksWritten = 0;
+  if (linkRows.length > 0) {
+    const { error, count } = await supabase
+      .from("dev_escalation_links")
+      .upsert(linkRows, { onConflict: "intercom_conversation_id,linear_key", count: "exact" });
+    if (error) {
+      await recordIntegrationHealth(supabase, INTEGRATION, "error", error.message);
+      return json({ error: error.message }, 500);
+    }
+    linksWritten = count ?? linkRows.length;
+  }
 
   let written = 0;
   if (rows.length > 0) {
@@ -260,6 +296,7 @@ Deno.serve(async (req) => {
     resolved: found.size,
     not_found: notFound,
     rows_written: written,
+    links_written: linksWritten,
     capped: pairs.length > MAX_KEYS,
   });
 });
