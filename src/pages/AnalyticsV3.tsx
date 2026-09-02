@@ -29,6 +29,7 @@ import { CsatFilterMenu } from "@/components/csat/CsatFilterMenu";
 import { PlanScopeSelect } from "@/components/PlanScopeSelect";
 import { inPlanScope, type PlanScope } from "@/lib/planTier";
 import {
+import { showTestDataNow } from "@/lib/testTickets";
   ACTIVE_LABEL, RAW_LABEL, ACTIVE_TOOLTIP, ACTIVE_FOOTNOTE,
   collectActive, collectRaw, activeSeconds, notComputableNote,
 } from "@/lib/resolutionDisplay";
@@ -153,6 +154,8 @@ export default function AnalyticsV3() {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
             .select("id,intercom_created_at,intercom_closed_at,finalized_at,lifecycle_status,state,csat_rating,csat_rater_is_internal,time_to_resolve_s,resolution_active_s,active_clock_engine_version,admin_assignee_id,tags,rsa_override,customer_key,customer_kind,plan_tier")
+            // Hub-designated test tickets never shape reporting unless explicitly revealed.
+            .or(showTestDataNow() ? "is_test_ticket.is.null,is_test_ticket.eq.true,is_test_ticket.eq.false" : "is_test_ticket.is.null,is_test_ticket.eq.false")
             .or(
               `and(intercom_created_at.gte.${fromIso},intercom_created_at.lte.${toIso}),` +
               `and(finalized_at.gte.${fromIso},finalized_at.lte.${toIso})`,
@@ -173,6 +176,7 @@ export default function AnalyticsV3() {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
             .select("id,intercom_created_at,lifecycle_status,reopen_count,tags,rsa_override,customer_key,plan_tier")
+            .or(showTestDataNow() ? "is_test_ticket.is.null,is_test_ticket.eq.true,is_test_ticket.eq.false" : "is_test_ticket.is.null,is_test_ticket.eq.false")
             // Explicit allow-list: 'transferred_out' is terminal (left our scope), never "active".
             .in("lifecycle_status", ["open", "reopened_after_finalize"])
             .order("intercom_created_at", { ascending: true })
