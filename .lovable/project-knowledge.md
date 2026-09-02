@@ -545,7 +545,7 @@ Empty/missing values are omitted so existing values are never overwritten with b
 - **Why by use, not by name:** you navigate by intent ("report", "work the queue", "configure"), and the flat list overflowed a 13" screen.
 - **Deliberate tradeoff:** a feature family is **split across use-groups** — SLA Report → Reports, SLA Dashboard → Dashboards, SLA Workbench → Tools. Mitigated by keeping the family name in the **child label** ("SLA Report" / "SLA Dashboard" / "SLA Workbench") so it stays findable by reading.
 - **Mechanic:** one **generic per-row hover flyout** (generalized from the old single hardcoded Dashboards flyout), positioned at each group row via `getBoundingClientRect().top`, rendered outside the sidebar so it isn't clipped, with the same ~150ms close debounce so the mouse can cross into it. A group that shrinks to exactly **one item degrades to a plain link** — future-proofing as legacy/v2 options fall off.
-- **De-nav'd, not deleted:** only the v2 NAV ENTRIES were removed; the `/analytics-v2` and `/inbox-v2` ROUTES still exist and are reachable by URL. Data cleanup is a separate later task.
+- **De-nav'd, then deleted:** the v2 nav entries were removed first; on 2 Sep 2026 the `/analytics-v2` and `/inbox-v2` routes, pages, and edge functions were deleted outright (see "Inbox v2 sandbox and Analytics v2 — RETIRED AND REMOVED").
 
 ### Dashboards group is roster-driven (`show_dashboard`)
 
@@ -707,7 +707,7 @@ To add a new owner:
 - **`role` is load-bearing for SLA.** The SLA engine's First Response metric reads the `role='support'` roster (see Track B → *Support-based First Response*): `useSlaBatch` loads those rows' `email` + `intercom_admin_id` and passes them into `computeSla`. `role='ai'` (Sam) is therefore excluded from First Response by construction. Changing someone's `role` changes FR numbers; changing `active` does not.
 - Managed from Settings → Teammates card (`src/components/AdminMappingCard.tsx`): inline add / edit / remove with admin-gated writes, saving immediately (no Save-settings round-trip).
 
-**Dual-write, deliberately.** `settings.admin_owner_map` is still the reader for owner auto-attribution in `intercom-webhook`, `poll-intercom-inbox`, `sync-v3-open`, `sync-v3-closed`, `sync-inbox-v2`, `backfill-enterprise-inbox`, and `src/pages/AnalyticsV3.tsx`. Rather than risk breaking attribution, every teammates mutation regenerates the blob from the **full** roster (active *and* inactive — historical attribution must keep resolving) and writes it back to `settings`. Retiring the blob and repointing those seven readers at `teammates` is a later tech-debt pass.
+**Dual-write, deliberately.** `settings.admin_owner_map` is still the reader for owner auto-attribution in `intercom-webhook`, `poll-intercom-inbox`, `sync-v3-open`, `sync-v3-closed`, `backfill-enterprise-inbox`, and `src/pages/AnalyticsV3.tsx`. Rather than risk breaking attribution, every teammates mutation regenerates the blob from the **full** roster (active *and* inactive — historical attribution must keep resolving) and writes it back to `settings`. Retiring the blob and repointing those seven readers at `teammates` is a later tech-debt pass.
 
 
 
@@ -846,7 +846,7 @@ Free-text `manual_conversations.contact_name` is normalised into a stable accoun
 
 `public.integration_health` (PK = `integration` key) stores the last success/failure per backend integration. Authenticated users read it; only edge functions (service role) write to it. Shared helper `recordIntegrationHealth(sb, key, status, error?)` upserts a row with `last_success_at`/`last_failure_at`, `last_status` (`ok`/`auth_error`/`error`), `last_error`, and `consecutive_failures`. `auth_error` is mapped from HTTP 401/403 via `classifyHttpStatus`.
 
-Wired into: `poll-intercom-inbox` (search 4xx + on success), `intercom-webhook` (auto-import fetch failure + success), `refresh-intercom-csat` (aggregated per run; auth_error only if every fetch was 401/403), `import-intercom-ticket` (per call), `poll-gmail` (success + error categorised by `PollErrorCategory`: oauth/token/scope → auth_error, else error), `sync-inbox-v2`, `poll-slack-closed-won` (`slack_closed_won_poll`: Slack API/gateway errors, insert failures, and malformed extracted domains).
+Wired into: `poll-intercom-inbox` (search 4xx + on success), `intercom-webhook` (auto-import fetch failure + success), `refresh-intercom-csat` (aggregated per run; auth_error only if every fetch was 401/403), `import-intercom-ticket` (per call), `poll-gmail` (success + error categorised by `PollErrorCategory`: oauth/token/scope → auth_error, else error), `sync-v3-closed` (`v3_closed_sync`), `poll-slack-closed-won` (`slack_closed_won_poll`: Slack API/gateway errors, insert failures, and malformed extracted domains).
 
 **Standing rule:** any scheduled/background function must report through `integration_health` — a run that does nothing must be distinguishable from a run that failed. New pollers add their key to `IntegrationKey` in `_shared/integration-health.ts`, to `INTEGRATIONS` in `src/components/IntegrationHealthCard.tsx`, and to `INTEGRATIONS` in `supabase/functions/integration-health-alert/index.ts` (all three lists must stay in lockstep). Data-quality anomalies (not just HTTP failures) count as `error` — silently skipping bad input is not acceptable.
 
@@ -939,7 +939,7 @@ Reporting-grade mirror of Intercom enterprise tickets, built as a parallel stack
 
 - Required Support Action (RSA): `intercom_tickets_v3.rsa_override boolean null` is the only RSA storage; derivation lives client-side in `src/pages/inbox-v3/rsa.ts`. `effectiveRsa({ tags, rsa_override })` resolves with priority **manual override → tag → default**: `rsa_override=true` → `required` (source `manual`); `rsa_override=false` → `not_required` (source `manual`); else if tags include `enterprise-fyi` or `enterprise-duplicate` (case-insensitive, in `RSA_FALSE_TAGS`) → `not_required` (source `tag`); otherwise `required` (source `default`). Sync functions never touch `rsa_override` — it's UI-set only. v2 keeps its own engagement chain; the two systems are independent.
 
-- Out of scope (deliberate non-goals): no edits to `inbox_v2_tickets`, `sync-inbox-v2`, `InboxV2.tsx`, `AnalyticsV2.tsx`, or any existing cron. No engagement classification in v3 (RSA replaces that role). Reopens are flagged only — never re-finalize. No automatic v2→v3 cutover; both run in parallel until manually cut over.
+- Out of scope at the time (deliberate non-goals): no edits to `inbox_v2_tickets`, `sync-inbox-v2`, `InboxV2.tsx`, `AnalyticsV2.tsx`, or any existing cron. (All of those were removed outright on 2 Sep 2026.) No engagement classification in v3 (RSA replaces that role). Reopens are flagged only — never re-finalize. No automatic v2→v3 cutover; both run in parallel until manually cut over.
 
 ### Transferred-out reconciliation — `reconcile-v3-open` (commits `c8c12fd`, `9392d4c`, `4a44cb0`, `a7b5537`)
 
