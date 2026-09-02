@@ -22,7 +22,12 @@ import {
 
 import { PlanScopeSelect } from "@/components/PlanScopeSelect";
 import { inPlanScope, type PlanScope } from "@/lib/planTier";
-import { ACTIVE_LABEL, RAW_LABEL, ACTIVE_TOOLTIP, collectActive, collectRaw, notComputableNote } from "@/lib/resolutionDisplay";
+import {
+  ACTIVE_LABEL, RAW_LABEL, ACTIVE_TOOLTIP, SPLIT_FOOTNOTE,
+  collectActive, collectRaw, notComputableNote, summarizeSplit,
+  type SplitSummary,
+} from "@/lib/resolutionDisplay";
+import { ResolutionSplitLine } from "@/components/ResolutionSplitLine";
 import { excludeTestTickets, showTestDataNow } from "@/lib/testTickets";
 
 type Row = {
@@ -412,7 +417,11 @@ export default function TrendReport() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">{ACTIVE_LABEL} (days)</CardTitle>
-              <CardDescription>Average vs median, closed-in-month tickets. {ACTIVE_TOOLTIP} {RAW_LABEL} appears in the tooltip for reconciliation and is never plotted.</CardDescription>
+              <CardDescription>
+                Average vs median, closed-in-month tickets. {ACTIVE_TOOLTIP} Hover a month for
+                the four-way split and the {RAW_LABEL.toLowerCase()} figure — both are
+                reconciliation values and neither is ever plotted.
+              </CardDescription>
             </CardHeader>
             <CardContent className="h-[240px]">
               <ResponsiveContainer width="100%" height="100%">
@@ -420,7 +429,7 @@ export default function TrendReport() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="month" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} unit="d" />
-                  <RTooltip contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12, color: "hsl(var(--popover-foreground))" }} />
+                  <RTooltip content={<ResolveTooltip />} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Line type="monotone" dataKey="Average" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={false} connectNulls />
                   <Line type="monotone" dataKey="Median" stroke="hsl(var(--chart-3))" strokeWidth={2} dot={false} connectNulls />
