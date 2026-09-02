@@ -27,6 +27,7 @@ import {
   collectActive, collectRaw, notComputableNote, summarizeSplit,
   type SplitSummary,
 } from "@/lib/resolutionDisplay";
+import { ResolutionSplitLine } from "@/components/ResolutionSplitLine";
 import { excludeTestTickets, showTestDataNow } from "@/lib/testTickets";
 
 /**
