@@ -1,6 +1,25 @@
 # Roadmap
 
+## Blocking publish (top priority next session, 2026-09-01 by Matt)
+Three critical scanner findings block the publish gate. Batch B work, scoped:
+- [ ] `gmail_oauth_hijack` — gate `gmail-auth-url` behind `requireEditor`; add a
+      server-stored single-use `state` nonce verified in `gmail-oauth-callback`
+      before deleting/replacing the `gmail_oauth_tokens` row.
+      (Also fixes the `Index.tsx` "not connected" indicator via a definer RPC.)
+- [ ] `open_data_read_fns` — add `requireUser` to: search-intercom-by-email (done),
+      list-slack-users, list-slack-channels, fetch-thread-messages,
+      fetch-gmail-thread, intercom-month-stats, check-bot-identity.
+      All UI-invoked; no cron callers. Verify each from the UI after gating.
+- [ ] `open_mutation_fns` — per-function caller inventory FIRST (cron/webhook vs UI).
+      UI-invoked → `requireEditor`. Cron/webhook → shared-secret header (cron) or
+      existing signature verification (Slack/Intercom). Do NOT blanket-apply:
+      poll-*, sync-v3-*, reconcile-v3-open, context-reminder,
+      integration-health-alert, publish-registry-notion carry no user JWT and
+      would fail silently as stale data.
+- [ ] Re-run the security scan, then publish.
+
 ## Next session (deferred 2026-09-01 by Matt)
+
 - [ ] Display pass for the persisted resolution clocks — REMIND MATT AT START OF NEXT SESSION
   - Now a FOUR-way split (engine v3): active / customer wait / engineering wait / closed
   - Analytics v3: add the four-way sub-line under resolution
