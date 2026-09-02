@@ -2203,3 +2203,28 @@ The "Load active clock" button is gone. Quality reads the persisted `intercom_ti
 **Verified 1 Sep 2026** on a forced re-backfill of all 592 finalized rows (engine version 1→3): identity violations **0**; `resolution_active_s` and `resolution_closed_s` byte-identical to their pre-backfill snapshot on all 592 rows (**0 changed**); **30 tickets** carry engineering wait totalling **3,542.3h**, moved out of customer wait (58,023.8h → 54,481.4h, exactly the 3,542.3h delta). All 30 resolved via `attribute_event`; no row used the `dev_escalation_row` or `linear_created` fallback, so **those two branches are UNVERIFIED on live data**. Negative case checked: of 34 finalized tickets with a Linear reference, the **4** at zero are each explained — three had the attribute set after the ticket closed (1h22m, 9 days, and a month later) and one (ENT-2804) had the Linear issue completed three days before the reference was recorded.
 
 **Not yet done.** No reporting surface reads the column — `/resolution-anatomy`, Analytics v3 and the Trend report remain on the three-way display and are a separate pass, alongside the still-pending persisted-column display pass.
+
+## Security batch A — definer-function lockdown + SSRF gate (2 Sep 2026)
+
+Applied so the project can be published. Two scanner findings closed; the larger batches were deliberately left open.
+
+### Definer-function lockdown (migration 0027)
+- Every `SECURITY DEFINER` function in `public` (27, extension-owned `pg_trgm` functions excluded) had `EXECUTE` revoked from `PUBLIC` and `anon`, then granted explicitly to `authenticated` and `service_role`.
+- Why it mattered: the publishable anon key is public by design, and a definer function runs as its owner — so an unauthenticated caller could invoke reporting RPCs such as `v3_coverage_current` or `esh_deep_search` and read data straight past RLS.
+- `public.esh_strip_html(text)` had `search_path = public` pinned; it was the last mutable-search_path function we own.
+
+### SSRF gate on `sync-knowledge-pending`
+- The function fetched a caller-supplied `sourceUrl` with no auth check — usable to probe internal/metadata endpoints and to stage fabricated pending knowledge content for admin approval.
+- Now requires the service-role key (maintenance callers) or a signed-in editor session via `requireEditor`.
+- `sourceUrl` must be `https` on an explicit host allowlist (`enterprise-support-hub.lovable.app`, the project preview host). Anything else returns 400 before any fetch.
+
+### Verification status
+- Negative (run): anon-key POST to `/rest/v1/rpc/v3_coverage_current` → 401 `permission denied for function`; `sync-knowledge-pending` → 401 with no Authorization header, and 401 with the anon key alone (a `169.254.169.254` sourceUrl never reached the fetch).
+- Positive (run): `has_function_privilege` confirms `authenticated` and `service_role` retained `EXECUTE`; build clean.
+- UNVERIFIED: the editor-session-with-disallowed-host 400 branch (no editor session was minted in this pass).
+
+### Deliberately still open
+- Batch B — the ~32 cron/webhook-invoked mutation and sync functions. They authenticate with the anon key, so a naive `requireUser` would silently 401 every scheduled job; they need a two-path guard (user JWT or cron secret) plus rewritten cron commands.
+- Gmail OAuth `state` binding on `gmail-auth-url` / `gmail-oauth-callback`.
+- Slack attachments still land in the public `public-assets` bucket; a private bucket plus signed URLs would break already-stored permanent URLs and needs its own pass.
+- Known display consequence of the existing deny-all policy on `gmail_oauth_tokens`: `src/pages/Index.tsx` reads that table from the client, so the Gmail connection indicator can read "not connected" even when it is. Folded into the Gmail pass.
