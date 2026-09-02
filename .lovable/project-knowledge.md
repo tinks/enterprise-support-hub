@@ -2197,7 +2197,7 @@ The "Load active clock" button is gone. Quality reads the persisted `intercom_ti
 
 **Verified 1 Sep 2026** after a forced re-backfill of all 592 finalized rows: identity violations **0**; nulls unchanged at **2** (the same not-computable rows); `resolution_active_s`, `_bh_s` and `_closed_s` byte-identical to their pre-backfill snapshot on all 592 rows (**0 changed**) — the refactor did not move the existing metric. Population medians: **active 2.25h vs customer wait 49.97h**; totals **2,417.7 ticket-days of customer wait vs 86.8 ticket-days of closed time**, confirming the residual was dominated by customer wait and never a safe proxy.
 
-**Not yet done.** No reporting surface reads the new columns — Analytics v3, Trend report and Resolution anatomy are a separate pass. Business-hours customer wait is stored for symmetry but is arguable (a 02:00 Berlin customer reply contributes zero); report on the raw-seconds column.
+**Display pass — done 2 Sep 2026** (see "Four-way clock display pass" below). Business-hours customer wait is stored for symmetry but is arguable (a 02:00 Berlin customer reply contributes zero); every surface reports on the raw-seconds column.
 
 ## Engineering-wait clock — four-way split (engine v3, 1 Sep 2026)
 
@@ -2211,7 +2211,7 @@ The "Load active clock" button is gone. Quality reads the persisted `intercom_ti
 
 **Verified 1 Sep 2026** on a forced re-backfill of all 592 finalized rows (engine version 1→3): identity violations **0**; `resolution_active_s` and `resolution_closed_s` byte-identical to their pre-backfill snapshot on all 592 rows (**0 changed**); **30 tickets** carry engineering wait totalling **3,542.3h**, moved out of customer wait (58,023.8h → 54,481.4h, exactly the 3,542.3h delta). All 30 resolved via `attribute_event`; no row used the `dev_escalation_row` or `linear_created` fallback, so **those two branches are UNVERIFIED on live data**. Negative case checked: of 34 finalized tickets with a Linear reference, the **4** at zero are each explained — three had the attribute set after the ticket closed (1h22m, 9 days, and a month later) and one (ENT-2804) had the Linear issue completed three days before the reference was recorded.
 
-**Not yet done.** No reporting surface reads the column — `/resolution-anatomy`, Analytics v3 and the Trend report remain on the three-way display and are a separate pass, alongside the still-pending persisted-column display pass.
+**Display pass — done 2 Sep 2026** (see "Four-way clock display pass" below). Analytics v3, the Trend report, Resolution anatomy and `/escalations` all read the persisted four-way columns.
 
 ## Multi-Linear escalations — one ticket, many issues (option B, 2 Sep 2026)
 
@@ -2253,3 +2253,28 @@ Applied so the project can be published. Two scanner findings closed; the larger
 - Gmail OAuth `state` binding on `gmail-auth-url` / `gmail-oauth-callback`.
 - Slack attachments still land in the public `public-assets` bucket; a private bucket plus signed URLs would break already-stored permanent URLs and needs its own pass.
 - Known display consequence of the existing deny-all policy on `gmail_oauth_tokens`: `src/pages/Index.tsx` reads that table from the client, so the Gmail connection indicator can read "not connected" even when it is. Folded into the Gmail pass.
+
+## Four-way clock display pass (2 Sep 2026)
+
+Closes the display gap left open by the three-way (30 Aug) and engineering-wait (1 Sep) engine passes. **Presentation only** — no engine, migration or edge-function change; every number is read from the persisted columns.
+
+**The rule the pass enforces.** `resolution_active_s` stays the ONLY headline. The four-way split answers "where did the elapsed time go", which is a different question from "how long did we take", so it renders as a sub-line, a tooltip or a drill-down — never a KPI of its own, and never a chart series plotted beside the headline. A month plotted on raw seconds next to a month plotted on active seconds invents a trend that does not exist.
+
+**Shared helpers** (`src/lib/resolutionDisplay.ts`, extending the existing active/raw module so no surface can define its own bucket order or colour):
+- `SPLIT_KEYS` = `active` · `customerWait` · `engWait` · `closed`, with `SPLIT_LABEL`, `SPLIT_TOOLTIP` and `SPLIT_CLASS` (engineering wait uses brand pink `#E66FD2`).
+- `rowSplit(row)` — the split for one row, or **null** when the engine never stamped `resolution_window_s` or any bucket is missing. A partial row is **excluded**, never zero-filled into `active`.
+- `summarizeSplit(rows)` — **sum-then-share**, never mean-of-shares. Returns `totals`, `n` (rows that contributed), `noSplit` (finalized rows the engine never stamped — surfaced in the UI as "N without split", not silently dropped) and `share` per bucket.
+- `splitMedians(rows)` — per-bucket medians over rows carrying a full split.
+- `SPLIT_FOOTNOTE` — one shared explanation, so the four surfaces cannot drift apart in wording.
+
+**Shared component** `src/components/ResolutionSplitLine.tsx`: stacked bar plus a share legend, with an explicit "split unavailable" state when no row in range carries the engine-v3 columns.
+
+**Surfaces.**
+- **Analytics v3** — a "Where the time went" sub-line under the resolution KPIs, over the same in-range finalized population the headline uses. Query extended with the four persisted columns.
+- **Trend report** — the default Recharts tooltip is replaced by `ResolveTooltip`: average and median active clock (the plotted series), the raw median and not-computable count for reconciliation, then the four-way split for that month. `MonthBucket` gains `split`. Still only two lines are ever drawn.
+- **Resolution anatomy** — a new **whole-cohort** card on the persisted columns, with per-bucket medians, above the existing long-runner panel. The legacy client-side Our clock / Their clock / Silent drift / Closed anatomy was **deliberately kept, not replaced**: the taxonomies are not interchangeable (engine v3 has an explicit engineering-wait bucket and no "silent drift"), and the client-side one only ever covered tickets over the threshold because it parses `raw_payload` per ticket. The persisted card covers the whole in-scope cohort.
+- **`/escalations`** — an "Eng wait" column reading `resolution_eng_wait_s`, showing "union of N issues" when several Linear issues are linked (the union is computed in the engine, so two escalations never double-count). Rows below `active_clock_engine_version >= 3`, and any non-finalized row, render an em dash rather than a fabricated 0.
+
+**Verified 2 Sep 2026.** Typecheck and build clean. Against the live table across all finalized rows: **599** carry a full split, **2** do not (reported as "without split"), **0 identity violations** (`active + customer + eng + closed = window` within 2s). Population shares: active **23.0%** · customer wait **69.9%** · engineering wait **4.4%** · closed **2.7%**.
+
+**UNVERIFIED.** The four pages were not loaded in a browser at ultrawide width in this pass — verification was typecheck, build and the SQL reconciliation above only.
