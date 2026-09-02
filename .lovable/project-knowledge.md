@@ -120,6 +120,31 @@ A Slack-to-Intercom support bridge for enterprise customers. When a user @mentio
 - First admin: `matt.niiro@lovable.dev`
 - All future admin-gated tables MUST use `public.has_role(auth.uid(), 'admin')` in policies rather than reimplementing the check
 
+### Edge-function caller gates (Batch B, 2 Sep 2026)
+
+Three gates, chosen per function by *who legitimately calls it*:
+
+| Gate | Helper | Applies to |
+|---|---|---|
+| `requireUser` | `_shared/require-user.ts` | read-only, UI-invoked (7 read fns + `sla-ticket-analyze`) |
+| `requireEditor` | `_shared/require-editor.ts` | UI-only mutations (17 functions) |
+| `requireEditorOrSecret` | `_shared/require-editor-or-secret.ts` | cron **and** UI (17 functions) |
+
+`requireEditorOrSecret` accepts exactly three callers and 401s everything else:
+1. header `x-esh-cron-secret` matching `public.cron_auth.secret` (constant-time compare, 5-min in-isolate cache)
+2. `Authorization: Bearer <service-role key>` — internal function-to-function invokes (`sync-v3-gap-scan` → `sync-v3-closed`)
+3. a signed-in editor/admin session (falls through to `requireEditor`)
+
+**The cron secret is never written into a job definition.** `public.cron_auth` (one row, RLS on, no anon/authenticated grants) holds it; `public.esh_cron_headers()` (SECURITY DEFINER, service-role only) returns `{Content-Type, x-esh-cron-secret}` and is called *at fire time* inside each `net.http_post`. Migration `0030_cron_auth_secret`.
+
+Before this, every scheduled job sent the publishable anon JWT — indistinguishable from any anonymous caller on the internet. All 20 remaining edge-function cron jobs were re-registered onto `esh_cron_headers()`; the two retired Inbox V2 jobs were unscheduled rather than migrated.
+
+**Deliberately outside these gates:** `slack-events`, `slack-interactions`, `intercom-webhook` (HMAC signature verification is their protection) and `gmail-oauth-callback` (single-use `state` nonce, see below).
+
+**Gmail OAuth state binding** (migration `0029`): `gmail-auth-url` requires an editor and mints a single-use nonce into `public.gmail_oauth_states`; `gmail-oauth-callback` rejects a state that is missing / unknown / already consumed / older than 10 min **before** it deletes and replaces `gmail_oauth_tokens`. The Settings connection indicator reads `public.gmail_connection_status()` rather than the token table.
+
+**Status.** Negative: anonymous and bogus-secret POSTs 401 on 10 sampled functions; all five Gmail state failure modes rejected. Positive: `net.http_post` with `esh_cron_headers()` → 200; post-rewrite scheduled runs healthy (`consecutive_failures = 0` on every `integration_health` row) and a `cron.job` audit shows `uses_secret = true` / `still_has_anon = false` for all 20 jobs. UNVERIFIED: daily-only jobs have not yet fired under the new header; the real Google OAuth round-trip; signed-in editor "Run now" buttons on the newly gated functions.
+
 ---
 
 
