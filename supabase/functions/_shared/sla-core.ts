@@ -715,8 +715,8 @@ export function computeActiveClock(
   opts?: {
     roster?: SupportRoster;
     businessHours?: BusinessHoursConfig;
-    /** Linear / Hub escalation facts for this conversation, when known. */
-    escalation?: EngEscalation | null;
+    /** Linear / Hub escalation facts — one per linked Linear issue. */
+    escalation?: EngEscalation[] | EngEscalation | null;
   },
 ): ActiveClockResult {
   const businessHours = opts?.businessHours ?? DEFAULT_BUSINESS_HOURS;
@@ -733,11 +733,15 @@ export function computeActiveClock(
   const bh = (a: number, b: number) => businessHoursBetween(a, b, businessHours);
 
   const waitSegs = customerWaitSegments(timeline, slaClockStartS, closeAtS);
-  const engWindow = resolveEngWaitWindow(timeline, slaClockStartS, closeAtS, opts?.escalation);
+  const engWindows = resolveEngWaitWindows(timeline, slaClockStartS, closeAtS, opts?.escalation);
   const waitTotalS = waitSegs == null ? null : waitSegs.reduce((n, s) => n + wall(s.startS, s.endS), 0);
   const waitTotalBhS = waitSegs == null ? null : waitSegs.reduce((n, s) => n + bh(s.startS, s.endS), 0);
-  const engS = computeEngineeringWait(waitSegs, engWindow, wall);
-  const engBhS = computeEngineeringWait(waitSegs, engWindow, bh);
+  const engS = computeEngineeringWait(waitSegs, engWindows, wall);
+  const engBhS = computeEngineeringWait(waitSegs, engWindows, bh);
+  // Reported span covers every window; the seconds themselves are the union.
+  const engStart = engWindows.length ? Math.min(...engWindows.map((w) => w.startS!)) : null;
+  const engEnd = engWindows.length ? Math.max(...engWindows.map((w) => w.endS!)) : null;
+  const engSource = engWindows.length ? engWindows[0].source : null;
 
   return {
     slaClockStartS,
@@ -751,9 +755,10 @@ export function computeActiveClock(
       waitTotalBhS == null ? null : Math.max(0, waitTotalBhS - (engBhS ?? 0)),
     resolutionEngWaitS: engS,
     resolutionEngWaitBhS: engBhS,
-    engWaitStartS: (engS ?? 0) > 0 ? engWindow.startS : null,
-    engWaitEndS: (engS ?? 0) > 0 ? engWindow.endS : null,
-    engWaitSource: (engS ?? 0) > 0 ? engWindow.source : null,
+    engWaitStartS: (engS ?? 0) > 0 ? engStart : null,
+    engWaitEndS: (engS ?? 0) > 0 ? engEnd : null,
+    engWaitSource: (engS ?? 0) > 0 ? engSource : null,
+
     resolutionWindowS:
       slaClockStartS != null && closeAtS != null
         ? Math.max(0, closeAtS - slaClockStartS)
