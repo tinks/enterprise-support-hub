@@ -16,29 +16,76 @@ function toSec(iso: string | null | undefined): number | null {
   return Number.isFinite(ms) ? Math.floor(ms / 1000) : null;
 }
 
-export type EngEscalationMap = Map<string, EngEscalation>;
+export type EngEscalationMap = Map<string, EngEscalation[]>;
 
-/** Load escalation facts for the given conversation ids (chunked). */
+/**
+ * Load escalation facts for the given conversation ids (chunked).
+ *
+ * A conversation may carry SEVERAL Linear issues: the Hub decision row lives on
+ * dev_escalations, while dev_escalation_links mirrors every referenced issue.
+ * Both are read; the engine unions their windows.
+ */
 export async function loadEngEscalations(
   supabase: any,
   conversationIds: string[],
 ): Promise<EngEscalationMap> {
   const map: EngEscalationMap = new Map();
   const ids = Array.from(new Set(conversationIds.filter(Boolean)));
+  const push = (convId: string, e: EngEscalation) => {
+    const list = map.get(convId) ?? [];
+    list.push(e);
+    map.set(convId, list);
+  };
+
   for (let i = 0; i < ids.length; i += 200) {
     const chunk = ids.slice(i, i + 200);
-    const { data, error } = await supabase
-      .from("dev_escalations")
-      .select(
-        "intercom_conversation_id, created_at, linear_created_at, linear_completed_at, linear_canceled_at",
-      )
-      .in("intercom_conversation_id", chunk);
-    if (error) {
-      console.error(`[eng-wait] escalation load failed: ${error.message}`);
+    const [base, links] = await Promise.all([
+      supabase
+        .from("dev_escalations")
+        .select(
+          "intercom_conversation_id, linear_key, created_at, linear_created_at, linear_completed_at, linear_canceled_at",
+        )
+        .in("intercom_conversation_id", chunk),
+      supabase
+        .from("dev_escalation_links")
+        .select(
+          "intercom_conversation_id, linear_key, linear_created_at, linear_completed_at, linear_canceled_at",
+        )
+        .in("intercom_conversation_id", chunk),
+    ]);
+    if (base.error) {
+      console.error(`[eng-wait] escalation load failed: ${base.error.message}`);
       continue; // absent facts degrade the window, they never fabricate one
     }
-    for (const r of data ?? []) {
-      map.set(r.intercom_conversation_id, {
+    if (links.error) {
+      console.error(`[eng-wait] escalation links load failed: ${links.error.message}`);
+    }
+
+    // Keys already covered by a link row are skipped on the base row so one
+    // issue is never counted from two sources.
+    const linkKeys = new Map<string, Set<string>>();
+    for (const r of links.data ?? []) {
+      const set = linkKeys.get(r.intercom_conversation_id) ?? new Set<string>();
+      set.add(String(r.linear_key));
+      linkKeys.set(r.intercom_conversation_id, set);
+      push(r.intercom_conversation_id, {
+        escalationRowAtS: null,
+        linearCreatedAtS: toSec(r.linear_created_at),
+        linearCompletedAtS: toSec(r.linear_completed_at),
+        linearCanceledAtS: toSec(r.linear_canceled_at),
+      });
+    }
+    for (const r of base.data ?? []) {
+      const covered =
+        r.linear_key && linkKeys.get(r.intercom_conversation_id)?.has(String(r.linear_key));
+      if (covered) {
+        // Keep the Hub row date as evidence the escalation existed before the
+        // Linear issue was resolvable.
+        const list = map.get(r.intercom_conversation_id)!;
+        list[0] = { ...list[0], escalationRowAtS: toSec(r.created_at) };
+        continue;
+      }
+      push(r.intercom_conversation_id, {
         escalationRowAtS: toSec(r.created_at),
         linearCreatedAtS: toSec(r.linear_created_at),
         linearCompletedAtS: toSec(r.linear_completed_at),
@@ -53,10 +100,11 @@ export async function loadEngEscalations(
 export async function loadEngEscalation(
   supabase: any,
   conversationId: string,
-): Promise<EngEscalation | null> {
+): Promise<EngEscalation[] | null> {
   const map = await loadEngEscalations(supabase, [conversationId]);
   return map.get(conversationId) ?? null;
 }
+
 
 /** Cheap pre-check: does this payload reference a Linear issue at all? */
 export function hasLinearReference(icData: any): boolean {
