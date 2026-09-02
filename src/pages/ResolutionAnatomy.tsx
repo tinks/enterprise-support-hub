@@ -42,6 +42,13 @@ type ScalarRow = {
   tags: string[] | null;
   rsa_override: boolean | null;
   customer_resolution_method: string | null;
+  /** Engine-v3 persisted clocks. Null on rows the engine never stamped. */
+  resolution_active_s: number | null;
+  resolution_customer_wait_s: number | null;
+  resolution_eng_wait_s: number | null;
+  resolution_closed_s: number | null;
+  resolution_window_s: number | null;
+  active_clock_engine_version: number | null;
 };
 
 type LongRow = ScalarRow & { anatomy: AnatomyResult };
