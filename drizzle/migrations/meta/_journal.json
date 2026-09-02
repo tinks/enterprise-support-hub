@@ -190,6 +190,13 @@
       "when": 1788303452862,
       "tag": "0026_eng_wait_clock_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1788309862809,
+      "tag": "0027_security_a_lock_definer_functions",
+      "breakpoints": true
     }
   ]
 }
