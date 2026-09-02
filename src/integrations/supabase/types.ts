@@ -2659,6 +2659,29 @@ export type Database = {
           ticket_count: number
         }[]
       }
+      v3_coverage_cached: {
+        Args: { max_age_minutes?: number }
+        Returns: {
+          as_of: string
+          attributed: number
+          excluded_not_enterprise: number
+          excluded_prospect_personal: number
+          excluded_prospect_unmapped: number
+          excluded_transferred_out: number
+          from_cache: boolean
+          m_domain: number
+          m_orphan_override: number
+          m_override: number
+          m_slack_channel: number
+          m_unresolved: number
+          m_workspace_id: number
+          orphan_overrides: number
+          pct_attributed: number
+          population: number
+          total_tickets: number
+          unattributed: number
+        }[]
+      }
       v3_coverage_current: {
         Args: never
         Returns: {

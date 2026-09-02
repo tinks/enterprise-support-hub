@@ -43,6 +43,8 @@ type Coverage = {
   excluded_prospect_unmapped?: number;
   excluded_transferred_out?: number;
   population?: number;
+  as_of?: string | null;
+  from_cache?: boolean | null;
 };
 
 type Snapshot = {
@@ -295,11 +297,14 @@ function CoverageTab({ isAdmin }: { isAdmin: boolean }) {
 
   const load = async () => {
     setLoading(true);
+    // Snapshot-served: v3_coverage_cached() hands back the persisted daily snapshot
+    // unless it is older than 60 minutes, in which case it recomputes once and
+    // persists. Full recount on every page load used to cost ~2.3s of full scans.
     const [{ data: c, error: e1 }, { data: s, error: e2 }] = await Promise.all([
-      sb.rpc("v3_coverage_current"),
+      sb.rpc("v3_coverage_cached", { max_age_minutes: 60 }),
       sb.from("v3_coverage_snapshots").select("*").order("snapshot_date", { ascending: true }),
     ]);
-    if (e1) { console.error("v3_coverage_current failed", e1); toast.error("Failed to load coverage"); }
+    if (e1) { console.error("v3_coverage_cached failed", e1); toast.error("Failed to load coverage"); }
     if (e2) { console.error("snapshots load failed", e2); }
     setCov(Array.isArray(c) ? c[0] : c);
     setSnaps((s ?? []) as Snapshot[]);
@@ -340,6 +345,11 @@ function CoverageTab({ isAdmin }: { isAdmin: boolean }) {
 
   return (
     <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+        {cov.as_of
+          ? `Counts as of ${new Date(cov.as_of).toLocaleString()}${cov.from_cache ? " (snapshot)" : " (recomputed)"} — recomputed at most hourly, or on demand via Snapshot now.`
+          : "Counts served from the latest coverage snapshot."}
+      </p>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
         <Card>
           <CardHeader className="pb-2">
@@ -502,7 +512,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
     const [{ data: g, error: e1 }, { data: a, error: e2 }, { data: cov, error: e3 }, { data: ss, error: e4 }] = await Promise.all([
       sb.rpc("v3_unattributed_groups"),
       sb.from("v3_customer_accounts").select("account_key,label,domains").order("label"),
-      sb.rpc("v3_coverage_current"),
+      sb.rpc("v3_coverage_cached", { max_age_minutes: 60 }),
       sb.rpc("v3_unattributed_sync_status"),
     ]);
     if (e1) { console.error(e1); toast.error("Failed to load groups"); }
