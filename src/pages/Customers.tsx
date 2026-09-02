@@ -507,7 +507,7 @@ function UnattributedTab({ isAdmin }: { isAdmin: boolean }) {
     const [{ data: g, error: e1 }, { data: a, error: e2 }, { data: cov, error: e3 }, { data: ss, error: e4 }] = await Promise.all([
       sb.rpc("v3_unattributed_groups"),
       sb.from("v3_customer_accounts").select("account_key,label,domains").order("label"),
-      sb.rpc("v3_coverage_current"),
+      sb.rpc("v3_coverage_cached", { max_age_minutes: 60 }),
       sb.rpc("v3_unattributed_sync_status"),
     ]);
     if (e1) { console.error(e1); toast.error("Failed to load groups"); }
