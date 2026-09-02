@@ -87,27 +87,36 @@ Deno.serve(async (req) => {
     overrides.set(r.intercom_conversation_id, r.linear_url_override);
   }
 
-  const pairs: Array<{ conversationId: string; key: string }> = [];
+  // A conversation may carry SEVERAL Linear issues (comma / newline separated in
+  // the attribute). The FIRST key stays the primary shown on the board; every
+  // key is mirrored into dev_escalation_links so the engineering-wait clock can
+  // union their windows.
+  const pairs: Array<{ conversationId: string; key: string; primary: boolean }> = [];
+  const addKeys = (conversationId: string, keys: string[]) => {
+    keys.forEach((key, i) => pairs.push({ conversationId, key, primary: i === 0 }));
+  };
   for (const t of tickets.data ?? []) {
     if (t.lifecycle_status === "transferred_out") continue;
     if (t.customer_resolution_method === "not_enterprise") continue;
     const attrs = (t.custom_attributes ?? {}) as Record<string, unknown>;
-    const key =
-      extractKey(overrides.get(t.intercom_conversation_id) as string | null) ??
-      extractKey(attrs["Linear Issue"] as string | null) ??
-      extractKey(attrs["Escalated Issue"] as string | null);
-    if (key) pairs.push({ conversationId: t.intercom_conversation_id, key });
+    const keys = uniq([
+      ...extractKeys(overrides.get(t.intercom_conversation_id) as string | null),
+      ...extractKeys(attrs["Linear Issue"] as string | null),
+      ...extractKeys(attrs["Escalated Issue"] as string | null),
+    ]);
+    if (keys.length) addKeys(t.intercom_conversation_id, keys);
   }
   // Escalation rows whose only reference is the Hub override (ticket may be older
   // than the 3000-row window above).
   for (const r of escalations.data ?? []) {
     if (pairs.some((p) => p.conversationId === r.intercom_conversation_id)) continue;
-    const key = extractKey(r.linear_url_override);
-    if (key) pairs.push({ conversationId: r.intercom_conversation_id, key });
+    const keys = extractKeys(r.linear_url_override);
+    if (keys.length) addKeys(r.intercom_conversation_id, keys);
   }
 
   const capped = pairs.slice(0, MAX_KEYS);
   const uniqueKeys = Array.from(new Set(capped.map((p) => p.key)));
+
 
   // 2. Fetch each distinct key from Linear once.
   const found = new Map<string, {
