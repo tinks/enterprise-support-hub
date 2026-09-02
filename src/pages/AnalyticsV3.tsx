@@ -159,7 +159,7 @@ export default function AnalyticsV3() {
         while (true) {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
-            .select("id,intercom_created_at,intercom_closed_at,finalized_at,lifecycle_status,state,csat_rating,csat_rater_is_internal,time_to_resolve_s,resolution_active_s,active_clock_engine_version,admin_assignee_id,tags,rsa_override,customer_key,customer_kind,plan_tier,is_test_ticket")
+            .select("id,intercom_created_at,intercom_closed_at,finalized_at,lifecycle_status,state,csat_rating,csat_rater_is_internal,time_to_resolve_s,resolution_active_s,resolution_customer_wait_s,resolution_eng_wait_s,resolution_closed_s,resolution_window_s,active_clock_engine_version,admin_assignee_id,tags,rsa_override,customer_key,customer_kind,plan_tier,is_test_ticket")
             .or(
               `and(intercom_created_at.gte.${fromIso},intercom_created_at.lte.${toIso}),` +
               `and(finalized_at.gte.${fromIso},finalized_at.lte.${toIso})`,
@@ -265,6 +265,8 @@ export default function AnalyticsV3() {
       notComputable: active.notComputable,
       zeroActive: active.zeroActive,
       medRaw: median(rawTimes), rawN: rawTimes.length,
+      // Engine-v3 four-way split over the same finalized population.
+      split: summarizeSplit(inRange),
       avgRaw: rawTimes.length ? rawTimes.reduce((a, b) => a + b, 0) / rawTimes.length : null,
     };
   }, [filteredRows, range.from, range.to, csatOverrides, csatFilters]);
