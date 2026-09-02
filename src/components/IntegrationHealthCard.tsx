@@ -27,7 +27,7 @@ const INTEGRATIONS: Array<{ key: string; label: string; description: string; max
   { key: "intercom_csat", label: "Intercom CSAT refresh", description: "Refreshes conversation ratings (hourly).", maxStaleMin: 3 * 60, fn: "refresh-intercom-csat" },
   { key: "intercom_import", label: "Manual Intercom import", description: "On-demand imports from the Log Conversation form.", maxStaleMin: 30 * 24 * 60 },
   { key: "gmail_poll", label: "Gmail poll", description: "Pulls support@ mail and reconciles to Intercom.", maxStaleMin: 30, fn: "poll-gmail" },
-  { key: "inbox_v2_sync", label: "Inbox V2 sync", description: "Mirrors Intercom into the Inbox V2 sandbox (every 15 min).", maxStaleMin: 30, fn: "sync-inbox-v2" },
+  { key: "v3_closed_sync", label: "Inbox V3 closed sync", description: "Finalizes closed Intercom conversations into the v3 reporting table (nightly).", maxStaleMin: 24 * 60, fn: "sync-v3-closed" },
   { key: "slack_closed_won_poll", label: "Closed-won account import", description: "Imports new customer accounts from Slack #closed-won (daily, 7-day lookback).", maxStaleMin: 36 * 60, fn: "poll-slack-closed-won" },
   { key: "parahelp_routing_sync", label: "Parahelp routing queue", description: "Pushes new customer domains to Parahelp email routing (API leg dormant until credentials exist; posts a pending digest to Slack).", maxStaleMin: 36 * 60, fn: "sync-parahelp-routing" },
   { key: "notion_registry_publish", label: "Notion domain page", description: "Mirrors the customer registry domain list to the Notion page Parahelp reads. Writes only when the domain set changed.", maxStaleMin: 36 * 60, fn: "publish-registry-notion" },

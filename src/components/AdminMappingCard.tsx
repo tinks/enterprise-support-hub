@@ -86,7 +86,7 @@ const AdminMappingCard = ({ settings, setSettings }: AdminMappingCardProps) => {
   /**
    * Dual-write: `settings.admin_owner_map` is still the source of truth for
    * owner auto-attribution in intercom-webhook, poll-intercom-inbox,
-   * sync-v3-open/closed, sync-inbox-v2, backfill-enterprise-inbox and
+   * sync-v3-open/closed, backfill-enterprise-inbox and
    * AnalyticsV3. Until those are repointed at `teammates`, every teammates
    * mutation mirrors the full roster (active AND inactive — historical
    * attribution must keep resolving) back into the JSON blob.
