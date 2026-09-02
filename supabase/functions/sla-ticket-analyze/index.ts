@@ -1,3 +1,4 @@
+import { requireUser } from "../_shared/require-user.ts";
 // Read-only Intercom proxy: fetches full conversation payloads by id so the
 // frontend SLA engine (src/lib/slaMetrics.ts → computeSla) can analyze them.
 // STRICT: HTTP GET to Intercom only. No POST/PUT/DELETE, no DB writes.
@@ -57,6 +58,9 @@ async function fetchOne(id: string, token: string): Promise<Result> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  const gate = await requireUser(req, corsHeaders);
+  if (!gate.ok) return gate.response;
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "method_not_allowed" }), {
       status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" },

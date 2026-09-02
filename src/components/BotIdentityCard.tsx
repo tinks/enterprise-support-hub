@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RefreshCw, Bot, Copy, AlertTriangle, CheckCircle, ShieldAlert } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 interface BotIdentity {
@@ -43,11 +44,8 @@ const BotIdentityCard = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${edgeFunctionBaseUrl}/check-bot-identity`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await res.json();
+      const { data: invokeData, error: invokeError } = await supabase.functions.invoke("check-bot-identity", { body: {} });
+      const data = invokeError ? { error: invokeError.message } : invokeData;
       if (data.error) {
         setError(data);
         setIdentity(null);

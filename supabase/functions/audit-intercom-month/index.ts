@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
+import { requireEditor } from "../_shared/require-editor.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,6 +20,9 @@ const toIso = (ts: number) => new Date(ts * 1000).toISOString();
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  const gate = await requireEditor(req, corsHeaders);
+  if (!gate.ok) return gate.response;
 
   try {
     // Public ops endpoint (no auth) — verify_jwt = false in config.toml

@@ -79,13 +79,12 @@ const Index = () => {
     .filter(Boolean);
 
   const checkGmailConnection = async () => {
-    const { data } = await supabase
-      .from("gmail_oauth_tokens")
-      .select("email_address")
-      .limit(1)
-      .order("created_at", { ascending: false });
-    if (data && data.length > 0) {
-      setGmailConnected(data[0].email_address || "Connected");
+    // Security-definer RPC: returns only { connected, email_address } — never
+    // the token row itself.
+    const { data } = await supabase.rpc("gmail_connection_status");
+    const row = Array.isArray(data) ? data[0] : data;
+    if (row?.connected) {
+      setGmailConnected(row.email_address || "Connected");
     } else {
       setGmailConnected(null);
     }
@@ -94,16 +93,15 @@ const Index = () => {
   const connectGmail = async () => {
     setGmailLoading(true);
     try {
-      const res = await fetch(`${edgeFunctionBaseUrl}/gmail-auth-url`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const { data, error } = await supabase.functions.invoke("gmail-auth-url", {
+        body: {},
       });
-      const data = await res.json();
-      if (data.url) {
+      if (error) throw error;
+      if (data?.url) {
         window.open(data.url, "_blank", "width=600,height=700");
         toast.info("Complete the Google sign-in in the popup, then click 'Refresh status'");
       } else {
-        toast.error("Failed to get auth URL: " + (data.error || "Unknown error"));
+        toast.error("Failed to get auth URL: " + (data?.error || "Unknown error"));
       }
     } catch (err) {
       toast.error("Request failed: " + (err instanceof Error ? err.message : "Unknown"));
@@ -123,12 +121,8 @@ const Index = () => {
     try {
       while (true) {
         batchNum++;
-        const res = await fetch(`${edgeFunctionBaseUrl}/cleanup-bad-intercom-imports`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dryRun: false, batchSize: 80, offset }),
-        });
-        const data = await res.json();
+        const { data: invokeData, error: invokeError } = await supabase.functions.invoke("cleanup-bad-intercom-imports", { body: { dryRun: false, batchSize: 80, offset } });
+        const data: any = invokeError ? { error: invokeError.message } : invokeData;
         if (data.error) {
           toast.error("Cleanup failed: " + data.error);
           break;
@@ -160,12 +154,8 @@ const Index = () => {
     try {
       while (true) {
         batchNum++;
-        const res = await fetch(`${edgeFunctionBaseUrl}/backfill-enterprise-inbox`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ startingAfter, maxBatch: 25 }),
-        });
-        const data = await res.json();
+        const { data: invokeData, error: invokeError } = await supabase.functions.invoke("backfill-enterprise-inbox", { body: { startingAfter, maxBatch: 25 } });
+        const data: any = invokeError ? { error: invokeError.message } : invokeData;
         if (data.error) {
           toast.error("Backfill failed: " + data.error);
           break;
@@ -198,12 +188,8 @@ const Index = () => {
     try {
       while (true) {
         batchNum++;
-        const res = await fetch(`${edgeFunctionBaseUrl}/audit-out-of-inbox-tickets`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ apply, batchSize: 80, offset }),
-        });
-        const data = await res.json();
+        const { data: invokeData, error: invokeError } = await supabase.functions.invoke("audit-out-of-inbox-tickets", { body: { apply, batchSize: 80, offset } });
+        const data: any = invokeError ? { error: invokeError.message } : invokeData;
         if (data.error) { toast.error("Audit failed: " + data.error); break; }
         total = data.total || 0;
         totalChecked += data.checked || 0;
@@ -227,11 +213,8 @@ const Index = () => {
   const pollIntercomInbox = async () => {
     setIntercomPolling(true);
     try {
-      const res = await fetch(`${edgeFunctionBaseUrl}/poll-intercom-inbox`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      const data = await res.json();
+      const { data: invokeData, error: invokeError } = await supabase.functions.invoke("poll-intercom-inbox", { body: {} });
+      const data: any = invokeError ? { error: invokeError.message } : invokeData;
       if (data.error) {
         toast.error("Poll failed: " + data.error);
       } else {

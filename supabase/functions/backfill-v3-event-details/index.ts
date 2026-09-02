@@ -14,6 +14,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 import { V3_CORS_HEADERS, intercomHeaders } from "../_shared/v3.ts";
+import { requireEditor } from "../_shared/require-editor.ts";
 
 const TIME_BUDGET_MS = 110_000;
 const SINCE_ISO = "2026-07-15T00:00:00Z";
@@ -23,6 +24,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: V3_CORS_HEADERS });
+
+  const gate = await requireEditor(req, V3_CORS_HEADERS);
+  if (!gate.ok) return gate.response;
 
   const startedAt = Date.now();
   const token = Deno.env.get("INTERCOM_API_TOKEN");
