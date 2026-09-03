@@ -181,6 +181,19 @@ export default function InboxV3SyncCard() {
               : <ScanLine className="h-3.5 w-3.5 mr-1.5" />}
             Run gap scan
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              invoke("backfill-v3-responsiveness", { batch: 200, maxBatches: 10 }, "Responsiveness backfill")
+            }
+            disabled={!!running}
+          >
+            {running === "backfill-v3-responsiveness"
+              ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              : null}
+            Backfill responsiveness
+          </Button>
         </div>
       </CardContent>
     </Card>
