@@ -69,5 +69,18 @@
       Result: memory 70% -> 60%, disk 24% -> 22%. No resize needed.
 - [ ] Doc pass for the coverage-cache change (project knowledge, changelog row, FlowDiagram node).
 
+## Reporting metric standardization (2026-09-03)
+- [x] Persist responsiveness metrics — migration 0032, `computeResponsiveness()` in
+      `_shared/sla-core.ts`, written at finalize, `backfill-v3-responsiveness` deployed.
+- [x] `src/lib/reportingMetrics.ts` — population predicate, metric registry, aggregation.
+- [x] Conform Owner dashboard v3 (was raw wall clock) and Monthly lookback
+      (triage + human first reply headlines; any-agent reply demoted to context).
+- [ ] **RUN THE BACKFILL** — click "Backfill responsiveness" on the Inbox v3 sync card
+      (editor-gated; the agent cannot mint an editor session). Until then every
+      responsiveness column is NULL and the new cards show em dashes.
+- [ ] Verify after backfill: August old-vs-new delta, population reconciliation,
+      negative cases (never-triaged, Sam-only tickets). Currently UNVERIFIED.
+- [x] Doc pass — project knowledge, changelog row 2026-09-03, FlowDiagram node.
+
 ## Open by choice
 - [ ] Security batches 4 and 5 (deliberately unstarted)
