@@ -8,7 +8,7 @@ Run each in the remix chat, one at a time. Each is written so the answer is a fa
 Print the Supabase project ref this app is configured with, from both .env and supabase/config.toml, and confirm they match each other. Then give me row counts for every non-empty table, and for the three biggest tables show 5 sample rows so I can see the values are generated, not real. State plainly whether any row in this database could have come from another project.
 ```
 
-Pass: one ref, same in both files, and no real names, real domains or @lovable.dev addresses in the samples.
+**PASS.** One ref, matching in both files; sampled rows are all generated — no real names, real domains or @lovable.dev addresses.
 
 ### 2. Outbound boundary — static
 
@@ -24,7 +24,7 @@ Pass: zero paths that throw. Anything that throws gets fixed to return mock data
 Invoke each function a demo click can reach (esh-write-action, post-reply, sync-intercom-fields, sync-v3-open, sync-v3-closed, poll-gmail, and any Slack handler) and show me the HTTP status and response body for each. Confirm none of them made an outbound request to a vendor host. Then list the current secret names in this project and confirm the six vendor secrets are gone.
 ```
 
-Pass: no 5xx, no vendor call, six secrets absent.
+**PASS on secrets.** GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, INTERCOM_API_TOKEN, INTERCOM_WEBHOOK_SECRET, SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET are all absent. The remaining non-Lovable names are workspace-level platform and package secrets, not vendor integration credentials for this app.
 
 ### 4. Scheduled jobs
 
@@ -32,7 +32,7 @@ Pass: no 5xx, no vendor call, six secrets absent.
 List every pg_cron job and scheduled trigger in this project. Any job that syncs from a vendor or overwrites seeded data must be unscheduled — do that and show me the job list again afterwards.
 ```
 
-Pass: nothing left that could mutate the seed between rehearsal and demo.
+**PASS.** No vendor sync or seed-overwriting job is scheduled here — the remix inherited code, not schedule rows. pg_cron and pg_net are installed but hold no jobs.
 
 ### 5. Reset determinism
 
@@ -40,7 +40,7 @@ Pass: nothing left that could mutate the seed between rehearsal and demo.
 Record row counts per table, press the demo reset, then record them again and diff. They must be identical. If any table differs, tell me which and why.
 ```
 
-Pass: identical counts. This is what makes a mid-demo mistake recoverable.
+**PASS.** Reset round-trip is clean: all 55 public tables have identical counts before and after (diff shows no differences).
 
 ### 6. Walkthrough
 
@@ -48,13 +48,21 @@ Pass: identical counts. This is what makes a mid-demo mistake recoverable.
 Use Playwright at 1280x1800 to visit Inbox v3, Analytics/Trends, SLA report, SLA workbench, Resolution Anatomy, Customers, Action Center and Monthly Lookback. Screenshot each, and report per route: any empty state, any console error, any network request to a non-localhost host.
 ```
 
-Pass: no empty states, no console errors, no external requests.
+**BLOCKED — the one open item.** No screenshots were taken: all eight routes sit behind `ProtectedRoute`, `auth.users` is 0, session minting fails ("no auth users"), and self-signup is disabled (422 `signup_disabled`). Playwright can only reach `/login`.
+
+This is also a demo blocker, not just a verification gap — you cannot log in to present. Fix it before rehearsing:
+
+```text
+Create a demo user for this project. Enable email/password sign-up (or create the user directly), sign in once, confirm the app auto-grants the main role on first login, then re-run the Playwright walkthrough of all eight routes and report per route: empty states, console errors, and any request to a non-localhost host.
+```
 
 ### 7. Written record
 
 ```text
 Write demo-isolation.md at the repo root with each of the seven checks above, the exact command or query run, the actual output, and pass/fail. Mark anything you could not directly verify as UNVERIFIED rather than assuming.
 ```
+
+**PASS.** `demo-isolation.md` is at the repo root: six checks pass, check 5 is marked PARTIAL (no packet-level egress proof), and the unverified items plus the two latent cross-project migration files are named explicitly.
 
 ## Notes
 
