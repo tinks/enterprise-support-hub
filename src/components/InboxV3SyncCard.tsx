@@ -76,6 +76,12 @@ export default function InboxV3SyncCard() {
           failed: data?.failed,
           reopened: data?.reopened,
           discrepancies: data?.discrepancies?.length,
+          // backfill-v3-responsiveness reports its own counters
+          processed: data?.processed,
+          written: data?.written,
+          no_triage: data?.no_triage,
+          no_human_reply: data?.no_human_reply,
+          remaining: data?.remaining,
         }),
       });
       await load();
