@@ -32,7 +32,7 @@ Invoke each function a demo click can reach (esh-write-action, post-reply, sync-
 List every pg_cron job and scheduled trigger in this project. Any job that syncs from a vendor or overwrites seeded data must be unscheduled — do that and show me the job list again afterwards.
 ```
 
-Pass: nothing left that could mutate the seed between rehearsal and demo.
+**PASS.** No vendor sync or seed-overwriting job is scheduled here — the remix inherited code, not schedule rows. pg_cron and pg_net are installed but hold no jobs.
 
 ### 5. Reset determinism
 
