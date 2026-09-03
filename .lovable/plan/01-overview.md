@@ -1,31 +1,11 @@
-# Demo-ready remix of the Support Hub
+# Demo remix: skip the credentials, mock the connectors
 
-Yes — remix, then convert the copy into a demo. The original project is never touched: all purging, seeding, and genericizing happens in the remix, and only the remix gets published.
+That checklist is the remix asking you to reconnect the real world: live Gmail, Intercom, Slack, Linear, Notion, plus the cron secret. For a demo, do not connect any of them.
 
-Agreed on the presenter overlay only, no guided tour. Since you drive the demo live, a tour would compete with your narration; the overlay is a keyboard-triggered card you can pull up per page ("what this screen does, why it matters, time saved") and quietly ignore when you don't need it.
+Every one of those connections would either pull real customer data back into the remix or let a demo click write to a live vendor. The demo should run entirely on seeded, fictional data with local mocks standing in for each integration.
 
-## What the demo becomes
+Answer to the agent's checklist:
 
-- A fictional company — "Northwind Software" — with `@northwind.example` style customer domains, fictional teammates, and fictional accounts.
-- Generic vendor language: Intercom becomes "Helpdesk", Slack becomes "Chat", Linear becomes "Issue tracker", Gmail becomes "Email". No Lovable branding anywhere in the UI.
-- Hundreds of seeded tickets across several months, shaped so the interesting screens have something to say: SLA breaches, triage misses, engineering-wait cases, reopens, CSAT ratings, unattributed customers, open escalations.
-- Every external integration replaced by a local mock returning the same shape, so no button is dead and no secret is needed.
-
-## Core story scope
-
-Seeded and polished for the demo path:
-
-- Inbox v3 (list + detail pane, at ultrawide width)
-- Analytics v3 and Trend report
-- SLA report, SLA workbench, Resolution anatomy
-- Customers (coverage, attribution, proposals)
-- Action Center and Triage
-- Monthly lookback (the narrative/Slack-summary payoff)
-
-Reachable but intentionally thin: Backlog, Float coverage, Deep search, People, Changelog, Flow diagram, Project knowledge. Ingestion and admin tooling (imports, policy admin, users, test-channel review) get hidden from the nav so the demo has no dead ends.
-
-## Hard safety rules
-
-- Nothing runs against the source project. The first step in the remix is confirming it has its own backend — a remix can point at the live one, and a wipe there would destroy production data. If it is shared, work stops until that is resolved.
-- No connector is called even where credentials still exist; every integration is mocked.
-- The demo is only declared ready after a written audit passes, not when the seeding finishes.
+- Secrets 1-6 (Gmail, Intercom, Slack): leave unset. The code paths that need them get replaced by mocks.
+- Secret 7 (ESH_CRON_SECRET): generate a fresh random value in the remix. It is self-issued, not a vendor credential, and it keeps the scheduled endpoints from being open.
+- Connections 8-11 (Gmail, Linear, Notion, Slack): link none.
