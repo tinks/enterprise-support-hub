@@ -148,14 +148,23 @@ Deno.serve(async (req) => {
             cursor = retryData.response_metadata?.next_cursor || undefined;
             continue;
           } else {
-            // Can't join — likely a private channel
+            // Can't join — private channel, missing channels:join scope, or bad channel id.
+            const why = String(joinData.error || "unknown");
+            const hint =
+              why === "method_not_supported_for_channel_type" || why === "channel_not_found"
+                ? "This looks like a private channel or DM — the bot must be invited manually."
+                : why === "missing_scope"
+                  ? `The Slack app is missing a scope (needed: ${joinData.needed || "channels:join"}).`
+                  : `Slack refused the auto-join (${why}).`;
             return new Response(
               JSON.stringify({
-                error: "Bot is not in this channel. Invite the bot first by typing /invite @Ask Lovable in the channel.",
+                error: `${hint} Invite the bot by typing /invite @Ask Lovable in the channel, then retry.`,
+                slackError: why,
               }),
               { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
           }
+
         }
 
         return new Response(
