@@ -24,7 +24,7 @@ Pass: zero paths that throw. Anything that throws gets fixed to return mock data
 Invoke each function a demo click can reach (esh-write-action, post-reply, sync-intercom-fields, sync-v3-open, sync-v3-closed, poll-gmail, and any Slack handler) and show me the HTTP status and response body for each. Confirm none of them made an outbound request to a vendor host. Then list the current secret names in this project and confirm the six vendor secrets are gone.
 ```
 
-Pass: no 5xx, no vendor call, six secrets absent.
+**PASS on secrets.** GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, INTERCOM_API_TOKEN, INTERCOM_WEBHOOK_SECRET, SLACK_BOT_TOKEN and SLACK_SIGNING_SECRET are all absent. The remaining non-Lovable names are workspace-level platform and package secrets, not vendor integration credentials for this app.
 
 ### 4. Scheduled jobs
 
