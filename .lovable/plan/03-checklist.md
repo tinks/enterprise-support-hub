@@ -48,7 +48,13 @@ Record row counts per table, press the demo reset, then record them again and di
 Use Playwright at 1280x1800 to visit Inbox v3, Analytics/Trends, SLA report, SLA workbench, Resolution Anatomy, Customers, Action Center and Monthly Lookback. Screenshot each, and report per route: any empty state, any console error, any network request to a non-localhost host.
 ```
 
-Pass: no empty states, no console errors, no external requests.
+**BLOCKED — the one open item.** No screenshots were taken: all eight routes sit behind `ProtectedRoute`, `auth.users` is 0, session minting fails ("no auth users"), and self-signup is disabled (422 `signup_disabled`). Playwright can only reach `/login`.
+
+This is also a demo blocker, not just a verification gap — you cannot log in to present. Fix it before rehearsing:
+
+```text
+Create a demo user for this project. Enable email/password sign-up (or create the user directly), sign in once, confirm the app auto-grants the main role on first login, then re-run the Playwright walkthrough of all eight routes and report per route: empty states, console errors, and any request to a non-localhost host.
+```
 
 ### 7. Written record
 
