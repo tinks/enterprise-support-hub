@@ -62,6 +62,8 @@ Create a demo user for this project. Enable email/password sign-up (or create th
 Write demo-isolation.md at the repo root with each of the seven checks above, the exact command or query run, the actual output, and pass/fail. Mark anything you could not directly verify as UNVERIFIED rather than assuming.
 ```
 
+**PASS.** `demo-isolation.md` is at the repo root: six checks pass, check 5 is marked PARTIAL (no packet-level egress proof), and the unverified items plus the two latent cross-project migration files are named explicitly.
+
 ## Notes
 
 - Deleting the secrets is the structural guarantee; checks 2 and 3 exist to prove no feature broke as a side effect of it.
