@@ -40,7 +40,7 @@ List every pg_cron job and scheduled trigger in this project. Any job that syncs
 Record row counts per table, press the demo reset, then record them again and diff. They must be identical. If any table differs, tell me which and why.
 ```
 
-Pass: identical counts. This is what makes a mid-demo mistake recoverable.
+**PASS.** Reset round-trip is clean: all 55 public tables have identical counts before and after (diff shows no differences).
 
 ### 6. Walkthrough
 
