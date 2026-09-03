@@ -1116,6 +1116,7 @@ export type Database = {
           eng_wait_source: string | null
           eng_wait_start_at: string | null
           finalized_at: string | null
+          first_human_reply_at: string | null
           id: string
           intercom_closed_at: string | null
           intercom_conversation_id: string
@@ -1143,6 +1144,8 @@ export type Database = {
           resolution_eng_wait_bh_s: number | null
           resolution_eng_wait_s: number | null
           resolution_window_s: number | null
+          responsiveness_computed_at: string | null
+          responsiveness_engine_version: number | null
           rsa_override: boolean | null
           silent_update_count: number
           sla_clock_start_at: string | null
@@ -1158,8 +1161,13 @@ export type Database = {
           test_marked_by: string | null
           test_marked_reason: string | null
           time_to_first_admin_reply_s: number | null
+          time_to_first_human_reply_bh_s: number | null
+          time_to_first_human_reply_s: number | null
           time_to_resolve_s: number | null
+          time_to_triage_bh_s: number | null
+          time_to_triage_s: number | null
           transferred_at: string | null
+          triage_set_at: string | null
           updated_at: string
           workspace_id_detected: string | null
         }
@@ -1194,6 +1202,7 @@ export type Database = {
           eng_wait_source?: string | null
           eng_wait_start_at?: string | null
           finalized_at?: string | null
+          first_human_reply_at?: string | null
           id?: string
           intercom_closed_at?: string | null
           intercom_conversation_id: string
@@ -1221,6 +1230,8 @@ export type Database = {
           resolution_eng_wait_bh_s?: number | null
           resolution_eng_wait_s?: number | null
           resolution_window_s?: number | null
+          responsiveness_computed_at?: string | null
+          responsiveness_engine_version?: number | null
           rsa_override?: boolean | null
           silent_update_count?: number
           sla_clock_start_at?: string | null
@@ -1236,8 +1247,13 @@ export type Database = {
           test_marked_by?: string | null
           test_marked_reason?: string | null
           time_to_first_admin_reply_s?: number | null
+          time_to_first_human_reply_bh_s?: number | null
+          time_to_first_human_reply_s?: number | null
           time_to_resolve_s?: number | null
+          time_to_triage_bh_s?: number | null
+          time_to_triage_s?: number | null
           transferred_at?: string | null
+          triage_set_at?: string | null
           updated_at?: string
           workspace_id_detected?: string | null
         }
@@ -1272,6 +1288,7 @@ export type Database = {
           eng_wait_source?: string | null
           eng_wait_start_at?: string | null
           finalized_at?: string | null
+          first_human_reply_at?: string | null
           id?: string
           intercom_closed_at?: string | null
           intercom_conversation_id?: string
@@ -1299,6 +1316,8 @@ export type Database = {
           resolution_eng_wait_bh_s?: number | null
           resolution_eng_wait_s?: number | null
           resolution_window_s?: number | null
+          responsiveness_computed_at?: string | null
+          responsiveness_engine_version?: number | null
           rsa_override?: boolean | null
           silent_update_count?: number
           sla_clock_start_at?: string | null
@@ -1314,8 +1333,13 @@ export type Database = {
           test_marked_by?: string | null
           test_marked_reason?: string | null
           time_to_first_admin_reply_s?: number | null
+          time_to_first_human_reply_bh_s?: number | null
+          time_to_first_human_reply_s?: number | null
           time_to_resolve_s?: number | null
+          time_to_triage_bh_s?: number | null
+          time_to_triage_s?: number | null
           transferred_at?: string | null
+          triage_set_at?: string | null
           updated_at?: string
           workspace_id_detected?: string | null
         }
