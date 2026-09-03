@@ -8,7 +8,7 @@ Run each in the remix chat, one at a time. Each is written so the answer is a fa
 Print the Supabase project ref this app is configured with, from both .env and supabase/config.toml, and confirm they match each other. Then give me row counts for every non-empty table, and for the three biggest tables show 5 sample rows so I can see the values are generated, not real. State plainly whether any row in this database could have come from another project.
 ```
 
-Pass: one ref, same in both files, and no real names, real domains or @lovable.dev addresses in the samples.
+**PASS.** One ref, matching in both files; sampled rows are all generated — no real names, real domains or @lovable.dev addresses.
 
 ### 2. Outbound boundary — static
 
