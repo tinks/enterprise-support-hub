@@ -70,7 +70,6 @@ type Tab = "active" | "closed";
 
 // Metric labels + accessors come from the shared standard; this page must not
 // invent its own definition of "resolve time".
-const _metricsStandard = true;
 
 const ACTIVE_STATES = new Set(["open", "reopened_after_finalize"]);
 
