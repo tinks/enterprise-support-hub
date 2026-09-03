@@ -1,11 +1,10 @@
-# Demo remix: skip the credentials, mock the connectors
+# Demo isolation checklist
 
-That checklist is the remix asking you to reconnect the real world: live Gmail, Intercom, Slack, Linear, Notion, plus the cron secret. For a demo, do not connect any of them.
+A verification pass to run **in the remix**, not here. Goal: prove the demo cannot read or write the real Enterprise Support Hub — neither its database nor the vendor systems behind it — and that it stays that way after a reset.
 
-Every one of those connections would either pull real customer data back into the remix or let a demo click write to a live vendor. The demo should run entirely on seeded, fictional data with local mocks standing in for each integration.
+Two boundaries matter, and they fail differently:
 
-Answer to the agent's checklist:
+- **Data boundary** — the remix must use its own backend project ref, with only generated rows in it. Already reported as verified; the checklist re-proves it with commands rather than assertion.
+- **Outbound boundary** — no edge function may reach Intercom, Slack, or Gmail. Secrets are now deleted, which makes reach impossible, but a function that *throws* on a missing secret is a broken demo button. Each affected path must degrade to a mock instead.
 
-- Secrets 1-6 (Gmail, Intercom, Slack): leave unset. The code paths that need them get replaced by mocks.
-- Secret 7 (ESH_CRON_SECRET): generate a fresh random value in the remix. It is self-issued, not a vendor credential, and it keeps the scheduled endpoints from being open.
-- Connections 8-11 (Gmail, Linear, Notion, Slack): link none.
+Confirmed on this side: deleting the six vendor secrets in the remix did not touch this project — GMAIL_CLIENT_ID/SECRET, INTERCOM_API_TOKEN/WEBHOOK_SECRET and SLACK_BOT_TOKEN/SIGNING_SECRET are all still present here, along with the connector-managed keys.
