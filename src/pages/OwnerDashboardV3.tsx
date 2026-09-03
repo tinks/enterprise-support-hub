@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { PlanBadge } from "@/components/PlanScopeSelect";
 import { planTierOf } from "@/lib/planTier";
+import {
+  ACTIVE_LABEL,
+  RAW_LABEL,
+  SPLIT_LABEL,
+  activeSeconds,
+} from "@/lib/resolutionDisplay";
+import { metricLabel } from "@/lib/reportingMetrics";
 import { useParams } from "react-router-dom";
 import { format } from "date-fns";
 import { Loader2, RefreshCw, Info } from "lucide-react";
@@ -43,15 +50,26 @@ type Row = {
   csat_rating: number | null;
   csat_remark: string | null;
   time_to_resolve_s: number | null;
+  resolution_active_s: number | null;
+  resolution_customer_wait_s: number | null;
+  resolution_eng_wait_s: number | null;
+  resolution_closed_s: number | null;
+  resolution_window_s: number | null;
+  active_clock_engine_version: number | null;
+  time_to_triage_s: number | null;
+  time_to_first_human_reply_s: number | null;
   intercom_created_at: string | null;
   intercom_closed_at: string | null;
   last_synced_at: string | null;
 };
 
 const SELECT =
-  "id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,owner,customer_key,lifecycle_status,state,product_area,classification,tags,csat_rating,csat_remark,time_to_resolve_s,intercom_created_at,intercom_closed_at,last_synced_at,plan_tier";
+  "id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,owner,customer_key,lifecycle_status,state,product_area,classification,tags,csat_rating,csat_remark,time_to_resolve_s,resolution_active_s,resolution_customer_wait_s,resolution_eng_wait_s,resolution_closed_s,resolution_window_s,active_clock_engine_version,time_to_triage_s,time_to_first_human_reply_s,intercom_created_at,intercom_closed_at,last_synced_at,plan_tier";
 
 type Tab = "active" | "closed";
+
+// Metric labels + accessors come from the shared standard; this page must not
+// invent its own definition of "resolve time".
 
 const ACTIVE_STATES = new Set(["open", "reopened_after_finalize"]);
 
@@ -215,12 +233,14 @@ const OwnerDashboardV3 = () => {
         cell: (r) => (r.csat_rating == null ? "—" : String(r.csat_rating)),
       },
       {
+        // Active clock only — the shared reporting standard. Raw wall clock
+        // stays available in the detail pane, explicitly labelled.
         key: "resolve",
-        header: "Resolve",
-        width: "w-[100px]",
-        sortValue: (r) => r.time_to_resolve_s,
+        header: ACTIVE_LABEL,
+        width: "w-[140px]",
+        sortValue: (r) => activeSeconds(r),
         cellClassName: "text-xs tabular-nums",
-        cell: (r) => fmtDuration(r.time_to_resolve_s),
+        cell: (r) => fmtDuration(activeSeconds(r)),
       },
       {
         key: "created",
@@ -344,7 +364,22 @@ const OwnerDashboardV3 = () => {
               <IssueField label="Tags" value={selected.tags?.length ? selected.tags.join(", ") : null} />
               <IssueField label="CSAT" value={selected.csat_rating == null ? null : String(selected.csat_rating)} />
               <IssueField label="CSAT remark" value={selected.csat_remark} />
-              <IssueField label="Resolve time" value={fmtDuration(selected.time_to_resolve_s)} />
+              <IssueField label={ACTIVE_LABEL} value={fmtDuration(activeSeconds(selected))} />
+              <IssueField
+                label={SPLIT_LABEL.customerWait}
+                value={fmtDuration(selected.resolution_customer_wait_s)}
+              />
+              <IssueField label={SPLIT_LABEL.engWait} value={fmtDuration(selected.resolution_eng_wait_s)} />
+              <IssueField label={SPLIT_LABEL.closed} value={fmtDuration(selected.resolution_closed_s)} />
+              <IssueField label={RAW_LABEL} value={fmtDuration(selected.time_to_resolve_s)} />
+              <IssueField
+                label={metricLabel("time_to_triage")}
+                value={fmtDuration(selected.time_to_triage_s)}
+              />
+              <IssueField
+                label={metricLabel("time_to_first_human_reply")}
+                value={fmtDuration(selected.time_to_first_human_reply_s)}
+              />
               <IssueField
                 label="Created"
                 value={

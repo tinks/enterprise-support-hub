@@ -768,3 +768,105 @@ export function computeActiveClock(
     engineVersion: ACTIVE_CLOCK_ENGINE_VERSION,
   };
 }
+
+// ============================================================================
+// Responsiveness — time to triage + time to first HUMAN reply
+// ============================================================================
+//
+// Both are anchored at the SLA clock start (first anchor-inbox team
+// assignment, else conversation creation), NOT at conversation creation, so a
+// ticket that lived in another inbox before landing with Enterprise is not
+// charged for that time. Neither metric counts Sam / bots: `time_to_admin_reply`
+// from Intercom does, which is why the two disagree.
+
+/** Bump when the triage / human-reply RULE changes, so rows can be re-backfilled. */
+export const RESPONSIVENESS_ENGINE_VERSION = 1;
+
+/** Intercom custom attribute that carries the Hub-owned severity value. */
+export const SEVERITY_ATTRIBUTE_NAMES: ReadonlySet<string> = new Set(["Severity"]);
+
+/**
+ * First moment an admin SET the Severity attribute to a non-empty value.
+ * Clearing it does not count. Read from the timestamped
+ * `conversation_attribute_updated_by_admin` parts, same source as the Linear
+ * attribute scan.
+ */
+export function findTriageTs(timeline: TimelinePart[]): number | null {
+  let best: number | null = null;
+  for (const p of timeline) {
+    if (p.partType !== "conversation_attribute_updated_by_admin") continue;
+    const name = String(p.eventDetails?.attribute?.name ?? "");
+    if (!SEVERITY_ATTRIBUTE_NAMES.has(name)) continue;
+    const value = String(p.eventDetails?.value?.name ?? "").trim();
+    if (!value) continue;
+    if (best == null || p.ts < best) best = p.ts;
+  }
+  return best;
+}
+
+/**
+ * First PUBLIC reply from a human teammate. Sam (`sam_ai`), bots, notes, and
+ * the shared relay inbox (which carries CUSTOMER content) never count.
+ */
+export function findFirstHumanReplyTs(timeline: TimelinePart[]): number | null {
+  for (const p of timeline) {
+    if (!p.isPublicReply || p.isNote) continue;
+    if (p.actor !== "human_admin") continue;
+    return p.ts;
+  }
+  return null;
+}
+
+export type ResponsivenessResult = {
+  slaClockStartS: number | null;
+  triageAtS: number | null;
+  timeToTriageS: number | null;
+  timeToTriageBhS: number | null;
+  firstHumanReplyAtS: number | null;
+  timeToFirstHumanReplyS: number | null;
+  timeToFirstHumanReplyBhS: number | null;
+  partsCount: number;
+  engineVersion: number;
+};
+
+/**
+ * End-to-end responsiveness from a raw Intercom conversation payload. An event
+ * that predates the anchor (severity set while the ticket was still elsewhere)
+ * yields 0 seconds, never a negative number; the raw timestamp is still
+ * reported so the case stays inspectable.
+ */
+export function computeResponsiveness(
+  conversation: any,
+  opts?: { roster?: SupportRoster; businessHours?: BusinessHoursConfig },
+): ResponsivenessResult {
+  const businessHours = opts?.businessHours ?? DEFAULT_BUSINESS_HOURS;
+  const timeline = reattributeRelay(extractTimeline(conversation), opts?.roster);
+  const createdAtS =
+    typeof conversation?.created_at === "number" ? conversation.created_at : null;
+  const { slaClockStartS } = resolveClockStart(timeline, createdAtS);
+
+  const triageAtS = findTriageTs(timeline);
+  const firstHumanReplyAtS = findFirstHumanReplyTs(timeline);
+
+  const wall = (to: number | null) =>
+    to == null || slaClockStartS == null ? null : Math.max(0, to - slaClockStartS);
+  const bh = (to: number | null) =>
+    to == null || slaClockStartS == null
+      ? null
+      : businessHoursBetween(Math.min(slaClockStartS, to), Math.max(slaClockStartS, to), businessHours);
+
+  return {
+    slaClockStartS,
+    triageAtS,
+    timeToTriageS: wall(triageAtS),
+    timeToTriageBhS: triageAtS != null && slaClockStartS != null && triageAtS < slaClockStartS ? 0 : bh(triageAtS),
+    firstHumanReplyAtS,
+    timeToFirstHumanReplyS: wall(firstHumanReplyAtS),
+    timeToFirstHumanReplyBhS:
+      firstHumanReplyAtS != null && slaClockStartS != null && firstHumanReplyAtS < slaClockStartS
+        ? 0
+        : bh(firstHumanReplyAtS),
+    partsCount: timeline.length,
+    engineVersion: RESPONSIVENESS_ENGINE_VERSION,
+  };
+}

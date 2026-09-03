@@ -17,7 +17,7 @@ import {
 import { syncTicketAttributes } from "./v3-attributes.ts";
 import { writeV3Signals } from "./v3-signals.ts";
 import type { InboxResolver } from "./v3-inboxes.ts";
-import { computeActiveClock } from "./sla-core.ts";
+import { computeActiveClock, computeResponsiveness } from "./sla-core.ts";
 import type { SupportRoster, EngEscalation } from "./sla-core.ts";
 import { hasLinearReference, loadEngEscalation } from "./eng-wait.ts";
 
@@ -77,6 +77,40 @@ export function activeClockFields(
       sla_clock_start_at: null,
       active_clock_computed_at: null,
       active_clock_engine_version: null,
+    };
+  }
+}
+
+/**
+ * Responsiveness columns (time to triage, time to first HUMAN reply) for a
+ * finalize upsert. Never throws: an unreadable payload leaves the columns null
+ * rather than writing a fabricated zero.
+ */
+export function responsivenessFields(icData: any, roster?: SupportRoster) {
+  try {
+    const r = computeResponsiveness(icData, { roster });
+    return {
+      triage_set_at: r.triageAtS != null ? new Date(r.triageAtS * 1000).toISOString() : null,
+      time_to_triage_s: r.timeToTriageS,
+      time_to_triage_bh_s: r.timeToTriageBhS,
+      first_human_reply_at:
+        r.firstHumanReplyAtS != null ? new Date(r.firstHumanReplyAtS * 1000).toISOString() : null,
+      time_to_first_human_reply_s: r.timeToFirstHumanReplyS,
+      time_to_first_human_reply_bh_s: r.timeToFirstHumanReplyBhS,
+      responsiveness_computed_at: new Date().toISOString(),
+      responsiveness_engine_version: r.engineVersion,
+    };
+  } catch (e) {
+    console.error(`[v3-finalize] responsiveness failed: ${(e as Error).message}`);
+    return {
+      triage_set_at: null,
+      time_to_triage_s: null,
+      time_to_triage_bh_s: null,
+      first_human_reply_at: null,
+      time_to_first_human_reply_s: null,
+      time_to_first_human_reply_bh_s: null,
+      responsiveness_computed_at: null,
+      responsiveness_engine_version: null,
     };
   }
 }
@@ -218,6 +252,10 @@ export async function finalizeConversation(params: {
     // frontend engine (both call `_shared/sla-core.ts`). Recomputed on every
     // finalize, so a real reopen refreshes it.
     ...activeClockFields(icData, params.roster, clockEscalation),
+
+    // Responsiveness — time to triage (Severity set) and time to first HUMAN
+    // reply, both anchored at the SLA clock start. Same engine as the reports.
+    ...responsivenessFields(icData, params.roster),
   };
 
   const { data: upserted, error } = await supabase

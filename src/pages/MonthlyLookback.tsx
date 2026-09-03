@@ -11,6 +11,7 @@ import { Loader2, RefreshCw, Copy, Check, Beaker, ExternalLink } from "lucide-re
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from "date-fns";
 import { CLEAN_DATA_START_DATE, CLEAN_DATA_START_LABEL } from "@/pages/inbox-v3/constants";
 import { median, percentile, formatDuration } from "@/lib/durationStats";
+import { aggregateMetric, metricLabel } from "@/lib/reportingMetrics";
 import { summarizeCsat, isRatingCounted, useCsatFilters, useCsatOverrides } from "@/lib/csat";
 import { CsatFilterMenu } from "@/components/csat/CsatFilterMenu";
 import { isSlaExcluded } from "@/lib/slaExclusions";
@@ -48,6 +49,8 @@ type Row = {
   resolution_active_s: number | null;
   active_clock_engine_version: number | null;
   time_to_first_admin_reply_s: number | null;
+  time_to_triage_s: number | null;
+  time_to_first_human_reply_s: number | null;
   reopen_count: number | null;
   csat_rating: number | null;
   csat_rater_is_internal: boolean | null;
@@ -178,7 +181,7 @@ export default function MonthlyLookback() {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
             .select(
-              "id,intercom_conversation_id,subject,subject_override,product_area,classification,tags,plan_tier,owner,customer_key,customer_resolution_method,rsa_override,lifecycle_status,state,intercom_created_at,finalized_at,transferred_at,time_to_resolve_s,resolution_active_s,active_clock_engine_version,time_to_first_admin_reply_s,reopen_count,csat_rating,csat_rater_is_internal,custom_attributes,is_test_ticket",
+              "id,intercom_conversation_id,subject,subject_override,product_area,classification,tags,plan_tier,owner,customer_key,customer_resolution_method,rsa_override,lifecycle_status,state,intercom_created_at,finalized_at,transferred_at,time_to_resolve_s,resolution_active_s,active_clock_engine_version,time_to_first_admin_reply_s,time_to_triage_s,time_to_first_human_reply_s,reopen_count,csat_rating,csat_rater_is_internal,custom_attributes,is_test_ticket",
             )
             .gte("intercom_created_at", fromIso)
             .lte("intercom_created_at", toIso)
@@ -356,6 +359,10 @@ export default function MonthlyLookback() {
       p90Resolve: times.length >= 10 ? percentile(times, 90) : null,
       prevMedResolve: median(prevTimes),
       medFrt: median(frt),
+      // Shared reporting standard: triage + first HUMAN reply are the
+      // responsiveness headlines; the any-agent number stays as context.
+      triage: aggregateMetric(cur as any, "time_to_triage"),
+      humanReply: aggregateMetric(cur as any, "time_to_first_human_reply"),
       avgCsat: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null,
       csatN: ratings.length,
       csatExcluded: csat.internalExcluded + csat.overriddenExcluded,
@@ -471,7 +478,7 @@ export default function MonthlyLookback() {
     L.push("", "## Quality", "");
     L.push(`- Median resolution (active) ${formatDuration(quality.medResolve)}${quality.p90Resolve ? ` · P90 ${formatDuration(quality.p90Resolve)}` : ""} (${prevLabel} median ${formatDuration(quality.prevMedResolve)}). Active excludes closed and waiting-on-customer time; elapsed (raw) median was ${formatDuration(quality.medRaw)}.`);
     if (quality.notComputable > 0) L.push(`- ${notComputableNote(quality.notComputable)} closed tickets have no computable active clock and are excluded from the median.`);
-    L.push(`- Median time to first reply ${formatDuration(quality.medFrt)}.`);
+    L.push(`- Median time to triage ${formatDuration(quality.triage.median)} (${quality.triage.n} triaged, ${quality.triage.missing} never triaged); median first human reply ${formatDuration(quality.humanReply.median)}. First reply by any agent (Intercom, counts Sam) was ${formatDuration(quality.medFrt)}.`);
     L.push(`- CSAT ${quality.avgCsat == null ? "—" : quality.avgCsat.toFixed(2)} (n=${quality.csatN}${quality.csatExcluded ? `, ${quality.csatExcluded} excluded as internal or overridden` : ""}).`);
     L.push(`- ${quality.reopened} of ${quality.closedN} closed tickets were reopened at least once (${pct(quality.reopened, quality.closedN)}).`);
     if (notes.quality) L.push("", notes.quality);
@@ -512,7 +519,8 @@ export default function MonthlyLookback() {
     L.push(`• Tickets created: *${curAll.length}* ${arrow(curAll.length, prevAll.length)} (${prevLabel} ${prevAll.length}, ${deltaLabel(curAll.length, prevAll.length)})`);
     L.push(`• Closed: *${curClosed.length}* · still open: ${stillOpen.length}`);
     L.push(`• Median resolution (active): *${formatDuration(quality.medResolve)}* ${arrow(quality.prevMedResolve ?? 0, quality.medResolve ?? 0)} (${prevLabel} ${formatDuration(quality.prevMedResolve)})`);
-    L.push(`• Median first reply: *${formatDuration(quality.medFrt)}*`);
+    L.push(`• Median time to triage: *${formatDuration(quality.triage.median)}*`);
+    L.push(`• Median first human reply: *${formatDuration(quality.humanReply.median)}*`);
     L.push(`• CSAT: *${quality.avgCsat == null ? "—" : quality.avgCsat.toFixed(2)}* (n=${quality.csatN}) · reopened ${pct(quality.reopened, quality.closedN)}`);
     L.push("");
     L.push("*Top issue areas* (closed tickets)");
@@ -832,7 +840,21 @@ export default function MonthlyLookback() {
               {[
                 { label: `Median ${ACTIVE_LABEL.toLowerCase()}`, value: formatDuration(quality.medResolve), sub: `${prevLabel}: ${formatDuration(quality.prevMedResolve)} · raw ${formatDuration(quality.medRaw)}` },
                 { label: "P90 resolve (active)", value: formatDuration(quality.p90Resolve), sub: quality.p90Resolve == null ? "needs 10+ closed" : `${quality.closedN} closed` },
-                { label: "Median first reply", value: formatDuration(quality.medFrt), sub: "time to first admin reply" },
+                {
+                  label: `Median ${metricLabel("time_to_triage").toLowerCase()}`,
+                  value: formatDuration(quality.triage.median),
+                  sub: `${quality.triage.n} triaged · ${quality.triage.missing} never triaged`,
+                },
+                {
+                  label: `Median ${metricLabel("time_to_first_human_reply").toLowerCase()}`,
+                  value: formatDuration(quality.humanReply.median),
+                  sub: `${quality.humanReply.n} with a human reply · ${quality.humanReply.missing} without`,
+                },
+                {
+                  label: metricLabel("time_to_first_admin_reply"),
+                  value: formatDuration(quality.medFrt),
+                  sub: "context only — from creation, counts Sam",
+                },
                 { label: "CSAT", value: quality.avgCsat == null ? "—" : quality.avgCsat.toFixed(2), sub: `n=${quality.csatN}${quality.csatExcluded ? ` · ${quality.csatExcluded} excluded` : ""}` },
                 { label: "Reopened", value: `${quality.reopened}`, sub: `${pct(quality.reopened, quality.closedN)} of closed` },
               ].map((s) => (

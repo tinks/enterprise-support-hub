@@ -2173,6 +2173,26 @@ The "Load active clock" button is gone. Quality reads the persisted `intercom_ti
 
 **Display contract.** `src/lib/resolutionDisplay.ts` is the single owner of `ACTIVE_LABEL` ("Resolution (active)"), `RAW_LABEL` ("Elapsed (raw)"), their tooltips, `ACTIVE_CLOCK_ENGINE_VERSION`, and `collectActive()`. Rows with no computed value are **excluded and counted as "not computable"**, never coerced to 0.
 
+## Reporting metric standard (`src/lib/reportingMetrics.ts`) — 2026-09-03
+
+**Problem.** Different reports answered "how fast are we?" with different numbers: SLA surfaces computed from `useSlaBatch`, general reports read persisted or raw columns directly, and Owner dashboard v3 still showed Intercom's raw wall clock. Same question, several answers — which erodes trust in every number we publish.
+
+**Decision.** A **layered standard** enforced by a shared library, not one canonical page:
+1. **Population** — `inReportingPopulation()` / `reportingPopulation()`: drops `transferred_out`, applies the plan scope, hides Hub test tickets, and applies the shared SLA exclusion rules (`src/lib/slaExclusions.ts`). Volume surfaces may pass `applySlaExclusions: false` but must then label the wider population explicitly.
+2. **Responsiveness** — **time to triage** (first non-empty `Severity` attribute set) and **time to first human reply** (first public reply by a `human_admin`; Sam, bots, notes and the `enterprise-support@lovable.dev` shared relay never count). Both anchored at the SLA clock start (first Enterprise-inbox assignment, else creation), with Europe/Berlin business-hour variants. Intercom's `time_to_first_admin_reply_s` is demoted to labelled context ("First reply (any agent)") because it measures from creation and counts Sam.
+3. **Resolution** — the persisted four-way clock (active / customer wait / engineering wait / closed). Raw `time_to_resolve_s` is labelled wall-clock context only.
+
+`METRICS` is the registry: each key carries its label, one-sentence description, persisted column, and rank (`primary` headline-eligible vs `secondary` context). `metricValue()` returns `null` — never 0 — for a missing value, and `aggregateMetric()` reports `n` (rows with a value) alongside `missing`, so a metric can never quietly borrow a denominator it did not earn.
+
+**Engine + schema.** `computeResponsiveness()` in `supabase/functions/_shared/sla-core.ts` (`RESPONSIVENESS_ENGINE_VERSION = 1`) scans `conversation_attribute_updated_by_admin` events for the first non-empty Severity value and the conversation parts for the first public human reply. Migration `0032_v3_responsiveness_columns.sql` adds to `intercom_tickets_v3`: `triage_set_at`, `time_to_triage_s`, `time_to_triage_bh_s`, `first_human_reply_at`, `time_to_first_human_reply_s`, `time_to_first_human_reply_bh_s`, `responsiveness_computed_at`, `responsiveness_engine_version`. Written at finalize via `responsivenessFields()` in `_shared/v3-finalize.ts`; historical rows are filled by the re-runnable `backfill-v3-responsiveness` edge function (editor-gated, computed entirely from stored `raw_payload`, reachable from the "Backfill responsiveness" button on the Inbox v3 sync card). Payloads with no usable timeline are stamped with the engine version and left NULL rather than zeroed.
+
+**Surfaces conformed.**
+- **Owner dashboard v3** — was the largest outlier: it read raw `time_to_resolve_s`. It now shows `ACTIVE_LABEL` in the table, and the detail pane shows the full four-way split, the raw wall clock (labelled), time to triage and first human reply.
+- **Monthly lookback** — the "Median first reply" card (which was Intercom's any-agent number from creation, previously read as if it were our human response time) is replaced by two headline cards, **median time to triage** and **median first human reply**, each showing its own `n` and its missing count. The any-agent number remains as a third card marked "context only". The narrative export and the Slack summary carry the same three numbers with the same caveats.
+- Analytics v3, Trend report, Resolution anatomy and Escalations already read the persisted four-way clocks from `src/lib/resolutionDisplay.ts` and are unchanged by this pass.
+
+**Not done / UNVERIFIED.** The responsiveness backfill has **not been run** — every responsiveness column is NULL until an editor clicks "Backfill responsiveness", so the new Monthly lookback cards render em dashes for historical months. The old-vs-new August delta and the population reconciliation named in the plan are therefore UNVERIFIED.
+
 **Surfaces.**
 - **Analytics v3** — active median/average are the KPI headlines; raw median/average and the not-computable count sit in the sub-line.
 - **Trend report** — active series only. Raw is never plotted (a raw trend line moves with reopen behaviour, not with our speed) but appears in the tooltip alongside not-computable and zero-active counts.

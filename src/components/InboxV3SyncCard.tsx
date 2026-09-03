@@ -60,7 +60,7 @@ export default function InboxV3SyncCard() {
   useEffect(() => { load(); }, []);
 
   const invoke = async (
-    fn: "sync-v3-closed" | "sync-v3-open" | "sync-v3-gap-scan",
+    fn: "sync-v3-closed" | "sync-v3-open" | "sync-v3-gap-scan" | "backfill-v3-responsiveness",
     body: Record<string, unknown> = {},
     label: string = fn,
   ) => {
@@ -76,6 +76,12 @@ export default function InboxV3SyncCard() {
           failed: data?.failed,
           reopened: data?.reopened,
           discrepancies: data?.discrepancies?.length,
+          // backfill-v3-responsiveness reports its own counters
+          processed: data?.processed,
+          written: data?.written,
+          no_triage: data?.no_triage,
+          no_human_reply: data?.no_human_reply,
+          remaining: data?.remaining,
         }),
       });
       await load();
@@ -180,6 +186,19 @@ export default function InboxV3SyncCard() {
               ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
               : <ScanLine className="h-3.5 w-3.5 mr-1.5" />}
             Run gap scan
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              invoke("backfill-v3-responsiveness", { batch: 200, maxBatches: 10 }, "Responsiveness backfill")
+            }
+            disabled={!!running}
+          >
+            {running === "backfill-v3-responsiveness"
+              ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              : null}
+            Backfill responsiveness
           </Button>
         </div>
       </CardContent>
