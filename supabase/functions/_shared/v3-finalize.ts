@@ -17,7 +17,7 @@ import {
 import { syncTicketAttributes } from "./v3-attributes.ts";
 import { writeV3Signals } from "./v3-signals.ts";
 import type { InboxResolver } from "./v3-inboxes.ts";
-import { computeActiveClock } from "./sla-core.ts";
+import { computeActiveClock, computeResponsiveness } from "./sla-core.ts";
 import type { SupportRoster, EngEscalation } from "./sla-core.ts";
 import { hasLinearReference, loadEngEscalation } from "./eng-wait.ts";
 
@@ -252,6 +252,10 @@ export async function finalizeConversation(params: {
     // frontend engine (both call `_shared/sla-core.ts`). Recomputed on every
     // finalize, so a real reopen refreshes it.
     ...activeClockFields(icData, params.roster, clockEscalation),
+
+    // Responsiveness — time to triage (Severity set) and time to first HUMAN
+    // reply, both anchored at the SLA clock start. Same engine as the reports.
+    ...responsivenessFields(icData, params.roster),
   };
 
   const { data: upserted, error } = await supabase
