@@ -48,12 +48,12 @@ Record row counts per table, press the demo reset, then record them again and di
 Use Playwright at 1280x1800 to visit Inbox v3, Analytics/Trends, SLA report, SLA workbench, Resolution Anatomy, Customers, Action Center and Monthly Lookback. Screenshot each, and report per route: any empty state, any console error, any network request to a non-localhost host.
 ```
 
-**BLOCKED — the one open item.** No screenshots were taken: all eight routes sit behind `ProtectedRoute`, `auth.users` is 0, session minting fails ("no auth users"), and self-signup is disabled (422 `signup_disabled`). Playwright can only reach `/login`.
+**Login unblocked.** Initially blocked — all eight routes sit behind `ProtectedRoute`, `auth.users` was 0, and self-signup was disabled (422 `signup_disabled`), so Playwright could only reach `/login`. A demo user with a password now exists and signs in, which clears both the verification block and the "you can't log in to present" problem.
 
-This is also a demo blocker, not just a verification gap — you cannot log in to present. Fix it before rehearsing:
+Remaining: the walkthrough itself has not been run. Re-run it now that a session is available:
 
 ```text
-Create a demo user for this project. Enable email/password sign-up (or create the user directly), sign in once, confirm the app auto-grants the main role on first login, then re-run the Playwright walkthrough of all eight routes and report per route: empty states, console errors, and any request to a non-localhost host.
+Sign in as the demo user, then run the Playwright walkthrough at 1280x1800 across Inbox v3, Analytics/Trends, SLA report, SLA workbench, Resolution Anatomy, Customers, Action Center and Monthly Lookback. Screenshot each and report per route: any empty state, any console error, and any network request to a non-localhost host. Confirm the demo user's role gives full read access under RLS.
 ```
 
 ### 7. Written record
