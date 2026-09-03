@@ -60,7 +60,7 @@ export default function InboxV3SyncCard() {
   useEffect(() => { load(); }, []);
 
   const invoke = async (
-    fn: "sync-v3-closed" | "sync-v3-open" | "sync-v3-gap-scan",
+    fn: "sync-v3-closed" | "sync-v3-open" | "sync-v3-gap-scan" | "backfill-v3-responsiveness",
     body: Record<string, unknown> = {},
     label: string = fn,
   ) => {
