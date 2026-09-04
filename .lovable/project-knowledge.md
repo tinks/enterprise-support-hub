@@ -26,6 +26,7 @@ A Slack-to-Intercom support bridge for enterprise customers. When a user @mentio
 | `context-reminder` | 5-min cron: posts a reminder at 15 min and auto-creates the Intercom ticket at 30 min for stuck `awaiting_context` bot-flow conversations |
 | `promote-pending-intercom-links` | 2-min cron: late-reconciles or promotes `pending_intercom_links` rows older than 20 min into `manual_conversations` |
 | `poll-slack-closed-won` | Daily cron (04:00 UTC): reads the last 7 days of messages from Slack channel `C09CL5E028N` via the "11 - PICK THIS BOT CONNECTION" bot (`SLACK_API_KEY_1`), extracts `Company Name:` / `Company Domain:` lines, and inserts new rows into `v3_customer_accounts` (dedupe by `domains` + `account_key`). Malformed domains are rejected and reported; every run records `integration_health.slack_closed_won_poll` |
+| `poll-slack-incidents` | Reads incident.io announcements from Slack channel `C07TMQ5E6SC` (#incidents) and upserts `public.incidents` by incident number. Intended cadence: every 5 min with a 2-day rolling window; `{"full": true}` rescans the whole channel. Customer impact = presence of a public `statuspage.incident.io` link. Records `integration_health.slack_incidents_poll` |
 | `backfill-intercom-replies` | Reconciliation that fetches missing Intercom parts (replies + notes) into `manual_messages`. `?recent=true` is also called by a 5-min cron as a webhook safety net |
 | `backfill-enterprise-inbox` | One-shot/manual backfill of enterprise inbox Intercom conversations into `manual_conversations` |
 | `backfill-gmail-headers` | Backfills missing `to_emails`/`cc_emails`/`from_*` on existing `gmail_conversations` rows |
@@ -2298,3 +2299,27 @@ Closes the display gap left open by the three-way (30 Aug) and engineering-wait 
 **Verified 2 Sep 2026.** Typecheck and build clean. Against the live table across all finalized rows: **599** carry a full split, **2** do not (reported as "without split"), **0 identity violations** (`active + customer + eng + closed = window` within 2s). Population shares: active **23.0%** · customer wait **69.9%** · engineering wait **4.4%** · closed **2.7%**.
 
 **UNVERIFIED.** The four pages were not loaded in a browser at ultrawide width in this pass — verification was typecheck, build and the SQL reconciliation above only.
+
+
+## Incident feed from Slack #incidents (3 Sep 2026)
+
+Surfaces Lovable's incident.io incidents inside the Hub: a live "what's broken now" banner and a searchable historical log. **Slack-only by design** — the incident.io API is explicitly NOT used. A workspace incident.io connector exists but belongs to two other owners, and Matt will not use it without their explicit permission, so it stays backlog.
+
+**Storage.** Migration `0033_create_incidents_from_slack.sql` creates standalone `public.incidents` (unique `incident_number`, title, severity, status, `status_category`, `is_customer_impacting`, incident/status-page/Slack links, `declared_at`/`resolved_at`, provenance `slack_message_ts`). Authenticated read, service-role write. It touches **no v3 table and no existing trigger** — incidents are a separate dimension, not a ticket attribute.
+
+**Ingestion.** `poll-slack-incidents` (`verify_jwt = false`, gated by `requireEditorOrSecret`) reads the channel through the Slack connector gateway and upserts by `incident_number`. incident.io **edits its announcement in place** rather than posting updates, so a rolling window + upsert is the correct shape: re-reading a window costs nothing and always converges on the current card. `resolved_at` keeps the first observed value. Modes: `{lookbackDays}` (rolling), `{full: true}` (whole channel), `{dryRun: true}`.
+
+**Three announcement formats had to be parsed** — this is the part that is easy to get wrong:
+1. **Current** — header carries the title, a `*Status*:` section carries the lifecycle, `[Severity]` prefixes the raw text.
+2. **Terminal/older** — the whole card is replaced: the header becomes `Incident declined` / `closed` / `resolved` / `merged` and the *real title moves to the quoted line* of the section. Without handling this, 280 rows were titled "Incident declined" with a null status. Some cards also append severity to status (`Documenting (Minor)`), which is split into status + severity fallback.
+3. **Pre-Oct 2025** — no `*Status*:` line at all; the only lifecycle signal is the header emoji. **Only** `:white_check_mark:` is mapped (→ Closed), because incident.io uses it unambiguously for a finished incident. Every other emoji is left `unknown` rather than guessed into a live/closed bucket — a wrong live incident is worse than an honest gap.
+
+**Customer impact** is derived from the presence of a `statuspage.incident.io` public status-page link in the announcement. The API's status-page endpoints return 404, so this is the only available signal and it is a *derived* flag, labelled as such in the UI.
+
+**Surfaces.** `IncidentBanner` (rendered in `AppLayout`, above page content) polls live incidents every 60 s, links to the incident/status page/Slack channel, expands when several are live, and is dismissible for the session only — a changed live set reopens it. On a read failure it **stays silent rather than showing a false all-clear**. `/incidents` is the historical log: search, severity/category/customer-impact filters, sortable headers (shared `useTableSort`), CSV export.
+
+**Health.** `integration_health.slack_incidents_poll` registered in all three lists (`_shared/integration-health.ts`, `IntegrationHealthCard.tsx`, `integration-health-alert`), 30-min staleness threshold.
+
+**Verified 3 Sep 2026.** Full rescan: 2,026 Slack messages scanned, 1,049 announcements parsed, 964 skipped as non-announcements, 1,049 rows upserted, 0 errors, no unknown status formats. Resulting population: **1,008 closed · 10 live · 6 post-incident · 25 unknown**. The 25 unknown are all Jan–Feb 2025 (the earliest incident.io card format, no status signal at all) and are left honestly unknown. Typecheck clean.
+
+**NOT DONE / UNVERIFIED.** The 5-minute `pg_cron` job is **not scheduled** — agent SQL is refused on `cron.*` internals and the managed HTTP-schedule tools are not exposed on this project, so cron jobs here are created by hand in the SQL editor. Until Matt schedules it, the feed is static at the 3 Sep backfill and the banner will not reflect new incidents. The banner and `/incidents` page were not loaded in a browser at ultrawide width in this pass.

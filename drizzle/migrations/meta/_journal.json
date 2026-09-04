@@ -232,6 +232,13 @@
       "when": 1788452432528,
       "tag": "0032_v3_responsiveness_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1788528864733,
+      "tag": "0033_create_incidents_from_slack",
+      "breakpoints": true
     }
   ]
 }

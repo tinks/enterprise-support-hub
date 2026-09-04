@@ -19,6 +19,7 @@ import {
   Cog,
   Bell,
   Search as SearchIcon,
+  Siren,
   LucideIcon,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -27,6 +28,7 @@ import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { useDashboardTeammates } from "@/hooks/useDashboardTeammates";
 import { useActionSignals } from "@/hooks/useActionSignals";
+import IncidentBanner from "@/components/IncidentBanner";
 
 type NavChild = { to: string; label: string; end?: boolean; adminOnly?: boolean; editorOnly?: boolean };
 type NavLinkItem = { kind: "link"; to: string; icon: LucideIcon; label: string; end?: boolean };
@@ -51,6 +53,7 @@ const navEntries: NavEntry[] = [
     ],
   },
   { kind: "link", to: "/search", icon: SearchIcon, label: "Deep search" },
+  { kind: "link", to: "/incidents", icon: Siren, label: "Incidents" },
   { kind: "link", to: "/customer-report", icon: Beaker, label: "Customer report" },
   {
     kind: "group",
@@ -327,7 +330,11 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       )}
 
       {/* Main content */}
-      <div className="flex-1 min-w-0 overflow-auto">{children}</div>
+      <div className="flex-1 min-w-0 overflow-auto">
+        <IncidentBanner />
+        {children}
+      </div>
+
     </div>
   );
 };
