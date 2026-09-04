@@ -823,7 +823,7 @@ export default function Escalations() {
                     </span>
                     <div className="text-xs text-muted-foreground tabular-nums">
                       {detail.ticket.eng_wait_start_at
-                        ? `${format(new Date(detail.ticket.eng_wait_start_at), "d MMM yyyy HH:mm")} → ${
+                        ? `Envelope: ${format(new Date(detail.ticket.eng_wait_start_at), "d MMM yyyy HH:mm")} → ${
                             detail.ticket.eng_wait_end_at
                               ? format(new Date(detail.ticket.eng_wait_end_at), "d MMM yyyy HH:mm")
                               : "still open at close"
@@ -831,12 +831,40 @@ export default function Escalations() {
                         : "Window not recorded"}
                       {detail.ticket.eng_wait_source ? ` · source: ${detail.ticket.eng_wait_source}` : ""}
                     </div>
-                    {detail.links.length > 1 && (
-                      <div className="text-xs text-muted-foreground">
-                        Union of {detail.links.length} linked issues — overlapping windows counted once.
+                    <div className="text-[11px] text-muted-foreground">
+                      The seconds above are the union of each issue's window intersected with
+                      customer-wait time; the envelope is only the outer first-start → last-end.
+                    </div>
+                    {detail.links.length > 0 && (
+                      <div className="pt-1 space-y-0.5">
+                        {detail.links.map((l) => (
+                          <div key={l.linear_key} className="text-xs text-muted-foreground tabular-nums">
+                            <span className="font-medium text-foreground">{l.linear_key}</span>{" "}
+                            {l.linear_created_at
+                              ? format(new Date(l.linear_created_at), "d MMM yyyy HH:mm")
+                              : "created ?"}
+                            {" → "}
+                            {l.linear_completed_at
+                              ? format(new Date(l.linear_completed_at), "d MMM yyyy HH:mm")
+                              : l.linear_canceled_at
+                                ? `${format(new Date(l.linear_canceled_at), "d MMM yyyy HH:mm")} (canceled)`
+                                : "still open"}
+                            {l.linear_state ? ` · ${l.linear_state}` : ""}
+                          </div>
+                        ))}
+                        <div className="text-[11px] text-muted-foreground">
+                          Per-issue Linear lifespans as mirrored — overlapping time is counted once.
+                        </div>
+                      </div>
+                    )}
+                    {detail.noteOnlyKeys.length > 0 && (
+                      <div className="text-xs text-amber-700 dark:text-amber-400 pt-1">
+                        Mentioned in a note only: {detail.noteOnlyKeys.join(", ")} — advisory, not in
+                        the clock. Add it to the Escalated Issue attribute or the Hub override to count it.
                       </div>
                     )}
                   </div>
+
                 )
               }
             />
