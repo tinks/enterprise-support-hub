@@ -120,6 +120,7 @@ export function parseAnnouncement(msg: any): ParsedIncident | null {
   let severity = sevMatch ? sevMatch[1].trim() : null;
 
   const section = sectionTexts.join("\n");
+  const headerEmoji = (headerText.match(/^\s*:([a-z0-9_+-]+):/i)?.[1] ?? "").toLowerCase();
   const headerPlain = headerText.replace(/^\s*(:[a-z0-9_+-]+:\s*)+/i, "").trim();
 
   // Older / terminal announcements replace the whole card: the header becomes
@@ -157,6 +158,12 @@ export function parseAnnouncement(msg: any): ParsedIncident | null {
       if (!severity) severity = withSev[2].trim();
     }
   }
+
+  // Cards posted before ~Oct 2025 carry no "*Status*:" line at all: the only
+  // lifecycle signal is the header emoji. We map ONLY the resolved tick, which
+  // incident.io uses unambiguously for a finished incident; every other emoji
+  // stays unknown rather than being guessed into a live/closed bucket.
+  if (!status && headerEmoji === "white_check_mark") status = "Closed";
 
   const status_category = status
     ? (STATUS_CATEGORY[status.toLowerCase()] ?? "unknown")
