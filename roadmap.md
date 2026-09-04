@@ -47,12 +47,28 @@
   - Doc pass after: project-knowledge via sync-knowledge-pending, changelog row, FlowDiagram node
 
 ## Multi-Linear escalations (raised 2026-09-02 by Matt)
-- [ ] One Intercom ticket can carry MORE THAN ONE Linear issue (e.g. 215475479744265:
-      ENT-3478 in the `Escalated Issue` attribute + ENT-3798 posted only as a note).
-      Today: `dev_escalations` is one row per conversation and the eng-wait window
-      only covers the attribute-linked issue, so a second escalation's wait is
-      misfiled as customer wait. Decide: (a) leave as-is, (b) allow N escalation
-      rows per conversation and union their windows, (c) primary + secondary links.
+- [x] RESOLVED — option (b) was already BUILT and SHIPPED on 2 Sep, not left open.
+      `dev_escalation_links` (drizzle 0028) mirrors EVERY Linear key per conversation
+      (applied; 50 rows / 49 conversations). `sync-linear-escalations` extracts all
+      comma/newline-separated keys from `Escalated Issue` / `Linear Issue` / the Hub
+      override and upserts one link row per (conversation, key). `dev_escalations`
+      keeps the FIRST key as the board's Hub decision row. `loadEngEscalations`
+      returns N escalations and `resolveEngWaitWindows` unions the per-issue windows.
+      VERIFIED on 215475479744265 (ENT-3478 + ENT-3798, both in the attribute):
+      active 54,213 + customer wait 1,156,949 + eng wait 589,204 + closed 2
+      = 1,800,368 = `resolution_window_s` exactly. Union of the two issue windows
+      (~595,867s raw) is within the attribute-event start adjustment of the stored
+      589,204s — the second escalation is counted, NOT misfiled as customer wait.
+- [ ] OPEN (narrow): a Linear key referenced ONLY in a conversation note is advisory
+      and NOT clock-bearing — the attribute is the single clock-bearing source.
+      Decide whether to add a detector flagging notes that mention a key absent from
+      the attribute, so a human promotes it. UNVERIFIED: no such row exists today
+      (the one multi-issue ticket carries both keys in the attribute).
+- [ ] UNVERIFIED: `eng_wait_start_at` / `eng_wait_end_at` persist the OUTER ENVELOPE
+      (earliest start, latest end), so on a multi-issue ticket the displayed span is
+      wider than `resolution_eng_wait_s`. Decide whether the Escalations board should
+      label it as an envelope or show per-issue windows.
+
 
 ## Watch (engine v3)
 - [ ] `eng_wait_source` fallbacks `dev_escalation_row` and `linear_created` are UNVERIFIED —
