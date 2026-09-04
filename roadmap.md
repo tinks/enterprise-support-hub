@@ -78,11 +78,26 @@
 - [x] `src/lib/reportingMetrics.ts` — population predicate, metric registry, aggregation.
 - [x] Conform Owner dashboard v3 (was raw wall clock) and Monthly lookback
       (triage + human first reply headlines; any-agent reply demoted to context).
-- [ ] **RUN THE BACKFILL** — click "Backfill responsiveness" on the Inbox v3 sync card
-      (editor-gated; the agent cannot mint an editor session). Until then every
-      responsiveness column is NULL and the new cards show em dashes.
-- [ ] Verify after backfill: August old-vs-new delta, population reconciliation,
-      negative cases (never-triaged, Sam-only tickets). Currently UNVERIFIED.
+- [x] Backfill run 2026-09-03 by Matt: processed 611, written 611, failed 0, remaining 0.
+- [x] VERIFIED 2026-09-04 21:2x UTC (SQL, no code change):
+      * Population reconciliation, Aug 2026 (created_at in Aug): 243 rows created ->
+        232 after transferred_out + test-ticket -> **179 SLA reporting population**
+        (rsa_override=false, RSA_FALSE_TAGS, merged_ticket, excluded resolution
+        methods). Of those 179, 156 carry a responsiveness stamp; the 23 unstamped
+        are non-finalized (14) or finalized outside the backfill window (9).
+      * Aug medians on the 179-row population: triage 3m35s (n=155),
+        first HUMAN reply 11m58s (n=153), any-agent reply 17m19s (n=153).
+        P90: triage 4h58m, human reply 8h23m.
+      * Old-vs-new delta: the retired card read any-agent reply over the broader
+        232-row volume population = 14m17s. New headline (human reply, SLA
+        population) = 11m58s. The gap is definition + population, not a regression.
+      * Negative cases exercised: 281 stamped rows never triaged (NULL, not 0);
+        90 with no human reply, of which 65 had no admin reply at all and 25 were
+        agent-only. Spot-checked 215475758268164 against its raw timeline: the
+        only public comment was Sam's; Matt set attributes and closed but never
+        replied publicly — NULL human reply is correct, not a miss.
+      * responsiveness_engine_version: single value (1) across all 611 rows.
+
 - [x] Doc pass — project knowledge, changelog row 2026-09-03, FlowDiagram node.
 
 ## Open by choice
