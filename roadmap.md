@@ -59,15 +59,26 @@
       = 1,800,368 = `resolution_window_s` exactly. Union of the two issue windows
       (~595,867s raw) is within the attribute-event start adjustment of the stored
       589,204s — the second escalation is counted, NOT misfiled as customer wait.
-- [ ] OPEN (narrow): a Linear key referenced ONLY in a conversation note is advisory
-      and NOT clock-bearing — the attribute is the single clock-bearing source.
-      Decide whether to add a detector flagging notes that mention a key absent from
-      the attribute, so a human promotes it. UNVERIFIED: no such row exists today
-      (the one multi-issue ticket carries both keys in the attribute).
-- [ ] UNVERIFIED: `eng_wait_start_at` / `eng_wait_end_at` persist the OUTER ENVELOPE
-      (earliest start, latest end), so on a multi-issue ticket the displayed span is
-      wider than `resolution_eng_wait_s`. Decide whether the Escalations board should
-      label it as an envelope or show per-issue windows.
+- [x] DONE 4 Sep 2026 — note-only Linear key DETECTOR shipped (presentation only, no
+      schema, no clock change). `/escalations` extracts `[A-Z][A-Z0-9]{1,5}-\d{1,6}`
+      keys from the conversation notes already loaded for the board and subtracts the
+      clock-bearing set (dev_escalation_links keys + the attribute/override resolution).
+      Leftovers render as an amber "Note-only Linear keys" field in the row detail plus
+      a board banner with a "Show only these" filter; they never move a clock until a
+      human adds the key to the attribute or the Hub override.
+      VERIFIED 4 Sep 2026 at 2560px: with a temporary note carrying ENT-9999 on
+      215475479744265 the banner read "1 escalation mentions..." and the detail field
+      listed ENT-9999; the note was deleted afterwards. Live population = 0 rows
+      (zero `intercom_v3` notes contain a key today), so real-data firing is UNVERIFIED.
+- [x] DONE 4 Sep 2026 — envelope vs per-issue windows resolved: BOTH. The persisted
+      span is now labelled `Envelope:` and the row detail lists each mirrored issue's
+      Linear lifespan (created -> completed/canceled/still open, with state), plus a
+      line stating the seconds are the union intersected with customer wait, not the
+      envelope. `resolution_eng_wait_s` is unchanged — it was already exact per-issue;
+      only the two timestamps were coarse. VERIFIED on 215475479744265 (ENT-3478
+      14 Aug -> 19 Aug Done; ENT-3798 1 Sep -> still open In Review; envelope
+      14 Aug 18:53 -> 3 Sep 17:09; eng wait 6d 19h).
+
 
 
 ## Watch (engine v3)

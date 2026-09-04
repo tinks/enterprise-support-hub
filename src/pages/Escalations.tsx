@@ -75,7 +75,14 @@ type EscalationRow = {
   hasLinear: boolean;
   type: string;
   createdMs: number | null;
+  /**
+   * Linear keys mentioned ONLY in a conversation note — never in the Escalated
+   * Issue / Linear Issue attribute or the Hub override, so the SLA engine never
+   * saw them. Advisory only: they do not move any clock until promoted.
+   */
+  noteOnlyKeys: string[];
 };
+
 
 
 const ANY = "__any__";
@@ -138,6 +145,18 @@ function qualifies(t: Ticket, override: string | null): boolean {
   return !!resolveLinear(t.custom_attributes, override).raw;
 }
 
+/**
+ * Linear-key detector for free text. Deliberately narrow: 2-6 uppercase letters,
+ * a dash, digits — so "COVID-19" style noise and lowercase words do not match.
+ */
+const LINEAR_KEY_RE = /\b([A-Z][A-Z0-9]{1,5}-\d{1,6})\b/g;
+
+function extractLinearKeys(text: string | null | undefined): string[] {
+  if (!text) return [];
+  return Array.from(new Set((text.match(LINEAR_KEY_RE) ?? []).map((k) => k.toUpperCase())));
+}
+
+
 type EscalationLink = {
   intercom_conversation_id: string;
   linear_key: string;
@@ -168,6 +187,9 @@ export default function Escalations() {
   const [typeFilter, setTypeFilter] = useState(ANY);
   const [ownerFilter, setOwnerFilter] = useState(ANY);
   const [customerFilter, setCustomerFilter] = useState(ANY);
+  /** Detector filter: only rows with a Linear key mentioned solely in a note. */
+  const [noteOnlyOnly, setNoteOnlyOnly] = useState(false);
+
 
   const [detail, setDetail] = useState<EscalationRow | null>(null);
   const [linkDraft, setLinkDraft] = useState("");
@@ -254,19 +276,36 @@ export default function Escalations() {
         const hubState = (esc?.hub_state ?? "open") as HubState;
         const linear = resolveLinear(t.custom_attributes, esc?.linear_url_override ?? null);
         const createdMs = t.intercom_created_at ? new Date(t.intercom_created_at).getTime() : null;
+        const linkRows = links.get(t.intercom_conversation_id) ?? [];
+
+        // Clock-bearing keys: the mirrored links plus whatever the attribute /
+        // override resolves to. Anything a note mentions beyond that set never
+        // reached the engine.
+        const known = new Set<string>();
+        for (const l of linkRows) known.add(String(l.linear_key).toUpperCase());
+        if (linear.key) known.add(linear.key.toUpperCase());
+        for (const k of extractLinearKeys(linear.raw)) known.add(k);
+        const noteOnlyKeys = Array.from(
+          new Set(
+            (notes.get(t.id) ?? []).flatMap((n) => extractLinearKeys(n.note_text)),
+          ),
+        ).filter((k) => !known.has(k));
+
         return {
           ticket: t,
           esc,
           hubState,
           linear,
-          links: links.get(t.intercom_conversation_id) ?? [],
+          links: linkRows,
           hasLinear: !!linear.url,
           type: ticketType(t.custom_attributes) ?? "—",
           createdMs,
+          noteOnlyKeys,
         } as EscalationRow;
       })
       .sort((a, b) => (a.createdMs ?? 0) - (b.createdMs ?? 0));
-  }, [tickets, escalations, links]);
+  }, [tickets, escalations, links, notes]);
+
 
   const ownerOpts = useMemo(
     () => Array.from(new Set(rows.map((r) => r.ticket.owner).filter(Boolean))).sort() as string[],
@@ -303,9 +342,17 @@ export default function Escalations() {
       if (typeFilter !== ANY && r.type !== typeFilter) return false;
       if (ownerFilter !== ANY && r.ticket.owner !== ownerFilter) return false;
       if (customerFilter !== ANY && r.ticket.customer_key !== customerFilter) return false;
+      if (noteOnlyOnly && r.noteOnlyKeys.length === 0) return false;
       return matchesSearch(r);
     });
-  }, [rows, matchesSearch, stateFilter, typeFilter, ownerFilter, customerFilter]);
+  }, [rows, matchesSearch, stateFilter, typeFilter, ownerFilter, customerFilter, noteOnlyOnly]);
+
+  /** Detector: rows whose only mention of a Linear key lives in a note. */
+  const noteOnlyCount = useMemo(
+    () => rows.filter((r) => r.noteOnlyKeys.length > 0).length,
+    [rows],
+  );
+
 
   const needsLinear = useMemo(() => filtered.filter((r) => !r.hasLinear), [filtered]);
   const linked = useMemo(() => filtered.filter((r) => r.hasLinear), [filtered]);
@@ -701,6 +748,19 @@ export default function Escalations() {
           </p>
         )}
 
+        {(noteOnlyCount > 0 || noteOnlyOnly) && (
+          <p className="text-xs text-muted-foreground">
+            {noteOnlyCount} escalation{noteOnlyCount === 1 ? " mentions" : "s mention"} a Linear issue only in a
+            note — advisory, not counted in any clock until the key is added to the Escalated Issue
+            attribute or the Hub override.{" "}
+            <button className="underline" onClick={() => setNoteOnlyOnly((v) => !v)}>
+              {noteOnlyOnly ? "Show all rows" : "Show only these"}
+            </button>
+          </p>
+        )}
+
+
+
         {search.trim() && hiddenByState > 0 && (
           <p className="text-xs text-muted-foreground">
             {hiddenByState} more {hiddenByState === 1 ? "hit is" : "hits are"} hidden by the state filter — switch to{" "}
@@ -763,7 +823,7 @@ export default function Escalations() {
                     </span>
                     <div className="text-xs text-muted-foreground tabular-nums">
                       {detail.ticket.eng_wait_start_at
-                        ? `${format(new Date(detail.ticket.eng_wait_start_at), "d MMM yyyy HH:mm")} → ${
+                        ? `Envelope: ${format(new Date(detail.ticket.eng_wait_start_at), "d MMM yyyy HH:mm")} → ${
                             detail.ticket.eng_wait_end_at
                               ? format(new Date(detail.ticket.eng_wait_end_at), "d MMM yyyy HH:mm")
                               : "still open at close"
@@ -771,15 +831,52 @@ export default function Escalations() {
                         : "Window not recorded"}
                       {detail.ticket.eng_wait_source ? ` · source: ${detail.ticket.eng_wait_source}` : ""}
                     </div>
-                    {detail.links.length > 1 && (
-                      <div className="text-xs text-muted-foreground">
-                        Union of {detail.links.length} linked issues — overlapping windows counted once.
+                    <div className="text-[11px] text-muted-foreground">
+                      The seconds above are the union of each issue's window intersected with
+                      customer-wait time; the envelope is only the outer first-start → last-end.
+                    </div>
+                    {detail.links.length > 0 && (
+                      <div className="pt-1 space-y-0.5">
+                        {detail.links.map((l) => (
+                          <div key={l.linear_key} className="text-xs text-muted-foreground tabular-nums">
+                            <span className="font-medium text-foreground">{l.linear_key}</span>{" "}
+                            {l.linear_created_at
+                              ? format(new Date(l.linear_created_at), "d MMM yyyy HH:mm")
+                              : "created ?"}
+                            {" → "}
+                            {l.linear_completed_at
+                              ? format(new Date(l.linear_completed_at), "d MMM yyyy HH:mm")
+                              : l.linear_canceled_at
+                                ? `${format(new Date(l.linear_canceled_at), "d MMM yyyy HH:mm")} (canceled)`
+                                : "still open"}
+                            {l.linear_state ? ` · ${l.linear_state}` : ""}
+                          </div>
+                        ))}
+                        <div className="text-[11px] text-muted-foreground">
+                          Per-issue Linear lifespans as mirrored — overlapping time is counted once.
+                        </div>
                       </div>
                     )}
                   </div>
+
                 )
               }
             />
+
+            {detail.noteOnlyKeys.length > 0 && (
+              <IssueField
+                label="Note-only Linear keys"
+                value={
+                  <div className="text-xs text-amber-700 dark:text-amber-400">
+                    {detail.noteOnlyKeys.join(", ")} — mentioned in a note but absent from the
+                    Escalated Issue / Linear Issue attribute and the Hub override, so the engine
+                    never saw {detail.noteOnlyKeys.length === 1 ? "it" : "them"}. Advisory only: add
+                    the key to the attribute or the override below to make it clock-bearing.
+                  </div>
+                }
+              />
+            )}
+
 
             <div className="pt-2 border-t border-border" />
 
