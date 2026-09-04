@@ -145,6 +145,18 @@ function qualifies(t: Ticket, override: string | null): boolean {
   return !!resolveLinear(t.custom_attributes, override).raw;
 }
 
+/**
+ * Linear-key detector for free text. Deliberately narrow: 2-6 uppercase letters,
+ * a dash, digits — so "COVID-19" style noise and lowercase words do not match.
+ */
+const LINEAR_KEY_RE = /\b([A-Z][A-Z0-9]{1,5}-\d{1,6})\b/g;
+
+function extractLinearKeys(text: string | null | undefined): string[] {
+  if (!text) return [];
+  return Array.from(new Set((text.match(LINEAR_KEY_RE) ?? []).map((k) => k.toUpperCase())));
+}
+
+
 type EscalationLink = {
   intercom_conversation_id: string;
   linear_key: string;
