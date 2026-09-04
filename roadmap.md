@@ -33,7 +33,10 @@
 
 ## Next session (deferred 2026-09-01 by Matt)
 
-- [ ] Display pass for the persisted resolution clocks — REMIND MATT AT START OF NEXT SESSION
+- [x] Display pass for the persisted resolution clocks — DONE 2026-09-04 (Analytics v3,
+      Trend report and Resolution anatomy landed 2 Sep; escalations eng-wait window 4 Sep;
+      doc pass done). UNVERIFIED: the "still open at close" branch (all 37 windowed rows
+      have an end).
   - Now a FOUR-way split (engine v3): active / customer wait / engineering wait / closed
   - Analytics v3: add the four-way sub-line under resolution
   - Trend report: four-way split in the resolution tooltip
