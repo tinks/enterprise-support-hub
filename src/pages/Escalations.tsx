@@ -273,19 +273,36 @@ export default function Escalations() {
         const hubState = (esc?.hub_state ?? "open") as HubState;
         const linear = resolveLinear(t.custom_attributes, esc?.linear_url_override ?? null);
         const createdMs = t.intercom_created_at ? new Date(t.intercom_created_at).getTime() : null;
+        const linkRows = links.get(t.intercom_conversation_id) ?? [];
+
+        // Clock-bearing keys: the mirrored links plus whatever the attribute /
+        // override resolves to. Anything a note mentions beyond that set never
+        // reached the engine.
+        const known = new Set<string>();
+        for (const l of linkRows) known.add(String(l.linear_key).toUpperCase());
+        if (linear.key) known.add(linear.key.toUpperCase());
+        for (const k of extractLinearKeys(linear.raw)) known.add(k);
+        const noteOnlyKeys = Array.from(
+          new Set(
+            (notes.get(t.id) ?? []).flatMap((n) => extractLinearKeys(n.note_text)),
+          ),
+        ).filter((k) => !known.has(k));
+
         return {
           ticket: t,
           esc,
           hubState,
           linear,
-          links: links.get(t.intercom_conversation_id) ?? [],
+          links: linkRows,
           hasLinear: !!linear.url,
           type: ticketType(t.custom_attributes) ?? "—",
           createdMs,
+          noteOnlyKeys,
         } as EscalationRow;
       })
       .sort((a, b) => (a.createdMs ?? 0) - (b.createdMs ?? 0));
-  }, [tickets, escalations, links]);
+  }, [tickets, escalations, links, notes]);
+
 
   const ownerOpts = useMemo(
     () => Array.from(new Set(rows.map((r) => r.ticket.owner).filter(Boolean))).sort() as string[],
