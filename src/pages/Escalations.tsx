@@ -471,9 +471,26 @@ export default function Escalations() {
         if ((r.ticket.active_clock_engine_version ?? 0) < 3 || s == null) {
           return <span className="text-muted-foreground" title="Engine v3 stamps this only on finalized tickets.">—</span>;
         }
+        // The persisted window the seconds were measured over. Rendered only
+        // when the engine actually stamped a start — never inferred.
+        const start = r.ticket.eng_wait_start_at;
+        const end = r.ticket.eng_wait_end_at;
+        const win = start
+          ? `${format(new Date(start), "d MMM")} → ${end ? format(new Date(end), "d MMM") : "open"}`
+          : null;
         return (
           <div className="min-w-0">
             <span style={{ color: "#E66FD2" }}>{formatDuration(s)}</span>
+            {win && (
+              <div
+                className="text-[10px] text-muted-foreground tabular-nums truncate"
+                title={`Engineering-wait window ${new Date(start!).toLocaleString()} → ${
+                  end ? new Date(end).toLocaleString() : "still open at close"
+                }${r.ticket.eng_wait_source ? ` · source: ${r.ticket.eng_wait_source}` : ""}`}
+              >
+                {win}
+              </div>
+            )}
             {r.links.length > 1 && (
               <div className="text-[10px] text-muted-foreground">
                 union of {r.links.length} issues
