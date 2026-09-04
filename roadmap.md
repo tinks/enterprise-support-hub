@@ -125,10 +125,18 @@
 - [x] Parser handles all three announcement formats (current, terminal/declined
       with quoted title, pre-Oct-2025 emoji-only). Rescan: 1049 upserted, 0 errors,
       1008 closed / 10 live / 6 post-incident / 25 unknown (all Jan-Feb 2025).
-- [ ] **SCHEDULE THE CRON** (Matt, SQL editor — agent SQL is refused on cron.*):
-      every 5 min, POST poll-slack-incidents with {"lookbackDays": 2} using
-      public.esh_cron_headers(). Until then the feed is static at the backfill.
+- [x] Cron scheduled 2026-09-04 by Matt in the SQL editor (agent SQL + migration
+      tool both refuse HTTP cron here): job poll_slack_incidents_15min,
+      '*/15 * * * *' (96 runs/day), net.http_post → poll-slack-incidents with
+      public.esh_cron_headers(), body {"mode":"rolling"}, 60s timeout. 15 min
+      chosen over 5 min to avoid keeping the DB awake for no work; worst-case
+      banner lag 15 min. Job exists in the DB only — NO migration file.
+      First fire 21:45:06 UTC verified: health ok, 0 failures, 7 rows re-stamped,
+      1049 → 1050 incidents.
 - [x] Doc pass 2026-09-04: knowledge doc updated + staged via sync-knowledge-pending
       (200 ok, 319,586 chars — approve on /knowledge), changelog rows 2026-09-04
       (incident feed + "Incidents page defaults to live"), FlowDiagram node updated.
+- [ ] UNVERIFIED: cron.job / cron.job_run_details are permission-denied to every
+      agent role, so the schedule row and multi-fire recurrence were never read
+      back directly — only the single successful :45 fire.
 - [ ] UNVERIFIED: banner and /incidents not yet loaded in a browser at ultrawide.
