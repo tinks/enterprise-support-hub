@@ -95,10 +95,17 @@
       window, parses the incident.io announcement blocks, upserts by incident
       reference, integration_health key `slack_incidents_poll`. Deployed 2026-09-04;
       full backfill loaded 1049 incidents. Cron still to schedule.
-- [ ] Live banner in AppLayout (status category `live` only).
-- [ ] `/incidents` sortable log page + nav entry.
+- [x] Live banner in AppLayout (status category `live` only), 60s refresh, session-only dismissal, silent on read failure.
+- [x] `/incidents` sortable log page + nav entry + CSV export.
 - [x] Customer-impacting: derived from the public status-page link present in the
       Slack announcement (the API could not give this — both status-page
       endpoints 404).
-- [ ] Doc pass: project knowledge via sync-knowledge-pending, changelog row,
-      FlowDiagram node.
+- [x] Parser handles all three announcement formats (current, terminal/declined
+      with quoted title, pre-Oct-2025 emoji-only). Rescan: 1049 upserted, 0 errors,
+      1008 closed / 10 live / 6 post-incident / 25 unknown (all Jan-Feb 2025).
+- [ ] **SCHEDULE THE CRON** (Matt, SQL editor — agent SQL is refused on cron.*):
+      every 5 min, POST poll-slack-incidents with {"lookbackDays": 2} using
+      public.esh_cron_headers(). Until then the feed is static at the backfill.
+- [ ] Doc pass: knowledge doc updated locally + changelog row 2026-09-04 +
+      FlowDiagram node done; still needs staging via sync-knowledge-pending.
+- [ ] UNVERIFIED: banner and /incidents not yet loaded in a browser at ultrawide.
