@@ -39,6 +39,10 @@ type Ticket = {
   resolution_eng_wait_s: number | null;
   resolution_active_s: number | null;
   active_clock_engine_version: number | null;
+  /** The engineering-wait window the persisted seconds were measured over. */
+  eng_wait_start_at: string | null;
+  eng_wait_end_at: string | null;
+  eng_wait_source: string | null;
 };
 
 type Escalation = {
