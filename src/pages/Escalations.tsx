@@ -857,17 +857,26 @@ export default function Escalations() {
                         </div>
                       </div>
                     )}
-                    {detail.noteOnlyKeys.length > 0 && (
-                      <div className="text-xs text-amber-700 dark:text-amber-400 pt-1">
-                        Mentioned in a note only: {detail.noteOnlyKeys.join(", ")} — advisory, not in
-                        the clock. Add it to the Escalated Issue attribute or the Hub override to count it.
-                      </div>
-                    )}
                   </div>
 
                 )
               }
             />
+
+            {detail.noteOnlyKeys.length > 0 && (
+              <IssueField
+                label="Note-only Linear keys"
+                value={
+                  <div className="text-xs text-amber-700 dark:text-amber-400">
+                    {detail.noteOnlyKeys.join(", ")} — mentioned in a note but absent from the
+                    Escalated Issue / Linear Issue attribute and the Hub override, so the engine
+                    never saw {detail.noteOnlyKeys.length === 1 ? "it" : "them"}. Advisory only: add
+                    the key to the attribute or the override below to make it clock-bearing.
+                  </div>
+                }
+              />
+            )}
+
 
             <div className="pt-2 border-t border-border" />
 
