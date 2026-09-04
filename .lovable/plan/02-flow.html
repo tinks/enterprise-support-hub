@@ -1,0 +1,48 @@
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" style="font-family: var(--font-sans)">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="hsl(var(--muted-foreground))"/>
+    </marker>
+  </defs>
+
+  <rect x="16" y="34" width="150" height="60" rx="8" fill="none" stroke="hsl(var(--muted-foreground))"/>
+  <text x="91" y="58" text-anchor="middle" style="font-size:14px;font-weight:480;fill:hsl(var(--foreground))">incident.io API</text>
+  <text x="91" y="78" text-anchor="middle" style="font-size:12px;fill:hsl(var(--muted-foreground))">via connector gateway</text>
+
+  <rect x="16" y="126" width="150" height="52" rx="8" fill="none" stroke="hsl(var(--muted-foreground))" stroke-dasharray="4 3"/>
+  <text x="91" y="148" text-anchor="middle" style="font-size:14px;font-weight:480;fill:hsl(var(--foreground))">#incidents Slack</text>
+  <text x="91" y="166" text-anchor="middle" style="font-size:12px;fill:hsl(var(--muted-foreground))">fallback only</text>
+
+  <rect x="226" y="60" width="150" height="60" rx="8" fill="none" stroke="hsl(var(--accent))"/>
+  <text x="301" y="84" text-anchor="middle" style="font-size:14px;font-weight:480;fill:hsl(var(--foreground))">sync-incidents</text>
+  <text x="301" y="104" text-anchor="middle" style="font-size:12px;fill:hsl(var(--muted-foreground))">cron · upsert by ref</text>
+
+  <rect x="226" y="166" width="150" height="52" rx="8" fill="hsl(var(--muted))" stroke="hsl(var(--muted-foreground))"/>
+  <text x="301" y="188" text-anchor="middle" style="font-size:14px;font-weight:480;fill:hsl(var(--foreground))">incidents table</text>
+  <text x="301" y="206" text-anchor="middle" style="font-size:12px;fill:hsl(var(--muted-foreground))">read-only to the app</text>
+
+  <rect x="440" y="34" width="184" height="56" rx="8" fill="none" stroke="hsl(var(--muted-foreground))"/>
+  <text x="532" y="56" text-anchor="middle" style="font-size:14px;font-weight:480;fill:hsl(var(--foreground))">Live banner</text>
+  <text x="532" y="76" text-anchor="middle" style="font-size:12px;fill:hsl(var(--muted-foreground))">open incidents only</text>
+
+  <rect x="440" y="112" width="184" height="56" rx="8" fill="none" stroke="hsl(var(--muted-foreground))"/>
+  <text x="532" y="134" text-anchor="middle" style="font-size:14px;font-weight:480;fill:hsl(var(--foreground))">/incidents log</text>
+  <text x="532" y="154" text-anchor="middle" style="font-size:12px;fill:hsl(var(--muted-foreground))">full history, sortable</text>
+
+  <rect x="440" y="190" width="184" height="56" rx="8" fill="none" stroke="hsl(var(--muted-foreground))" stroke-dasharray="4 3"/>
+  <text x="532" y="212" text-anchor="middle" style="font-size:14px;font-weight:480;fill:hsl(var(--foreground))">Integration health</text>
+  <text x="532" y="232" text-anchor="middle" style="font-size:12px;fill:hsl(var(--muted-foreground))">incidentio_sync key</text>
+
+  <line x1="166" y1="64" x2="222" y2="82" stroke="hsl(var(--muted-foreground))" marker-end="url(#ah)"/>
+  <line x1="166" y1="152" x2="222" y2="106" stroke="hsl(var(--muted-foreground))" stroke-dasharray="4 3" marker-end="url(#ah)"/>
+  <line x1="301" y1="120" x2="301" y2="162" stroke="hsl(var(--muted-foreground))" marker-end="url(#ah)"/>
+  <line x1="376" y1="182" x2="436" y2="70" stroke="hsl(var(--muted-foreground))" marker-end="url(#ah)"/>
+  <line x1="376" y1="188" x2="436" y2="140" stroke="hsl(var(--muted-foreground))" marker-end="url(#ah)"/>
+  <line x1="376" y1="96" x2="436" y2="212" stroke="hsl(var(--muted-foreground))" stroke-dasharray="4 3" marker-end="url(#ah)"/>
+
+  <circle cx="256" cy="52" r="9" fill="hsl(var(--accent))"/>
+  <text x="256" y="56" text-anchor="middle" style="font-size:11px;fill:hsl(var(--accent-foreground))">1</text>
+  <text x="272" y="56" style="font-size:12px;fill:hsl(var(--muted-foreground))">one writer, idempotent, never invents a status</text>
+
+  <text x="16" y="282" style="font-size:12px;fill:hsl(var(--muted-foreground))">solid = phase 1 · dashed = only if the API key is unavailable</text>
+</svg>
