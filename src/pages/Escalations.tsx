@@ -750,7 +750,7 @@ export default function Escalations() {
 
         {(noteOnlyCount > 0 || noteOnlyOnly) && (
           <p className="text-xs text-muted-foreground">
-            {noteOnlyCount} escalation{noteOnlyCount === 1 ? "" : "s"} mention a Linear issue only in a
+            {noteOnlyCount} escalation{noteOnlyCount === 1 ? " mentions" : "s mention"} a Linear issue only in a
             note — advisory, not counted in any clock until the key is added to the Escalated Issue
             attribute or the Hub override.{" "}
             <button className="underline" onClick={() => setNoteOnlyOnly((v) => !v)}>
