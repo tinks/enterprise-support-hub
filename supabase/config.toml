@@ -89,6 +89,8 @@ verify_jwt = false
 verify_jwt = false
 [functions.poll-slack-closed-won]
 verify_jwt = false
+[functions.poll-slack-incidents]
+verify_jwt = false
 [functions.publish-registry-notion]
 verify_jwt = false
 [functions.sla-ticket-analyze]

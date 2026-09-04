@@ -12,6 +12,7 @@ export type IntegrationKey =
   | "gmail_poll"
   | "v3_closed_sync"
   | "slack_closed_won_poll"
+  | "slack_incidents_poll"
   | "reconcile-v3-open"
   | "parahelp_routing_sync"
   | "notion_registry_publish"

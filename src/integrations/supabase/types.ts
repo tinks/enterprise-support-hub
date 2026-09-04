@@ -940,6 +940,81 @@ export type Database = {
         }
         Relationships: []
       }
+      incidents: {
+        Row: {
+          declared_at: string
+          first_seen_at: string
+          id: string
+          incident_channel_id: string | null
+          incident_channel_name: string | null
+          incident_number: number
+          incident_url: string | null
+          internal_status_url: string | null
+          is_customer_impacting: boolean
+          last_synced_at: string
+          last_update_at: string | null
+          raw: Json | null
+          reference: string | null
+          resolved_at: string | null
+          severity: string | null
+          severity_rank: number | null
+          slack_channel_id: string
+          slack_message_ts: string
+          status: string | null
+          status_category: string
+          status_page_url: string | null
+          title: string
+        }
+        Insert: {
+          declared_at: string
+          first_seen_at?: string
+          id?: string
+          incident_channel_id?: string | null
+          incident_channel_name?: string | null
+          incident_number: number
+          incident_url?: string | null
+          internal_status_url?: string | null
+          is_customer_impacting?: boolean
+          last_synced_at?: string
+          last_update_at?: string | null
+          raw?: Json | null
+          reference?: string | null
+          resolved_at?: string | null
+          severity?: string | null
+          severity_rank?: number | null
+          slack_channel_id: string
+          slack_message_ts: string
+          status?: string | null
+          status_category?: string
+          status_page_url?: string | null
+          title: string
+        }
+        Update: {
+          declared_at?: string
+          first_seen_at?: string
+          id?: string
+          incident_channel_id?: string | null
+          incident_channel_name?: string | null
+          incident_number?: number
+          incident_url?: string | null
+          internal_status_url?: string | null
+          is_customer_impacting?: boolean
+          last_synced_at?: string
+          last_update_at?: string | null
+          raw?: Json | null
+          reference?: string | null
+          resolved_at?: string | null
+          severity?: string | null
+          severity_rank?: number | null
+          slack_channel_id?: string
+          slack_message_ts?: string
+          status?: string | null
+          status_category?: string
+          status_page_url?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
       integration_health: {
         Row: {
           consecutive_failures: number

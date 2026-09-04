@@ -86,17 +86,19 @@
 - [ ] Security batches 4 and 5 (deliberately unstarted)
 
 ## Incidents in the hub (2026-09-04, approved plan)
-- [ ] Link an incident.io connection to this project (workspace already has two
-      working ones — no new API key needed from Matt).
-- [ ] `incidents` table + RLS/GRANTs (SQL for Matt to review).
-- [ ] `sync-incidents` edge function, cursor-paginated upsert by external_id,
-      5-min cron for `recent`, `full` mode for backfill, integration_health key
-      `incidentio_sync`.
+- [ ] BACKLOG: incident.io API connection (Matt's call, 2026-09-04: do not connect
+      yet). Matt will ASK the two owners of the existing incident.io workspace
+      connection for permission before we assume we may use it.
+- [x] Source decided: poll the #incidents Slack channel C07TMQ5E6SC instead.
+- [x] `incidents` table + RLS/GRANTs (migration 0033).
+- [x] `poll-slack-incidents` edge function: reads C07TMQ5E6SC on a rolling
+      window, parses the incident.io announcement blocks, upserts by incident
+      reference, integration_health key `slack_incidents_poll`. Deployed 2026-09-04;
+      full backfill loaded 1049 incidents. Cron still to schedule.
 - [ ] Live banner in AppLayout (status category `live` only).
 - [ ] `/incidents` sortable log page + nav entry.
-- [ ] OPEN ISSUE: customer-impacting is NOT derivable from the incident.io API —
-      /v1/status_pages and /v1/status_page_incidents both 404. Options: manual
-      Hub flag, or a small Slack supplement reading the status-page link from the
-      #incidents announcement. Needs Matt's call.
+- [x] Customer-impacting: derived from the public status-page link present in the
+      Slack announcement (the API could not give this — both status-page
+      endpoints 404).
 - [ ] Doc pass: project knowledge via sync-knowledge-pending, changelog row,
       FlowDiagram node.

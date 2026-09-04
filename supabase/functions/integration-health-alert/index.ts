@@ -32,6 +32,7 @@ const INTEGRATIONS: Config[] = [
   { key: "gmail_poll",        label: "Gmail poll",               maxStaleMin: 30 },
   { key: "v3_closed_sync",    label: "Inbox V3 closed sync",     maxStaleMin: 24 * 60 },
   { key: "slack_closed_won_poll", label: "Closed-won account import", maxStaleMin: 36 * 60 },
+  { key: "slack_incidents_poll", label: "Incident feed", maxStaleMin: 30 },
   { key: "parahelp_routing_sync", label: "Parahelp routing queue", maxStaleMin: 36 * 60 },
   { key: "notion_registry_publish", label: "Notion domain page", maxStaleMin: 36 * 60 },
   { key: "reconcile-v3-open", label: "Transferred-out reconciliation", maxStaleMin: 180 },
