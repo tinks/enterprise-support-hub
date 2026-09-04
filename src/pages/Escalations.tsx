@@ -75,7 +75,14 @@ type EscalationRow = {
   hasLinear: boolean;
   type: string;
   createdMs: number | null;
+  /**
+   * Linear keys mentioned ONLY in a conversation note — never in the Escalated
+   * Issue / Linear Issue attribute or the Hub override, so the SLA engine never
+   * saw them. Advisory only: they do not move any clock until promoted.
+   */
+  noteOnlyKeys: string[];
 };
+
 
 
 const ANY = "__any__";
