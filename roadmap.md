@@ -70,7 +70,9 @@
       esh_search_index, inbox_v2_tickets, v3_ticket_attributes, intercom_sync_jobs_v3.
       Autovacuum scale factors tightened (0.02-0.05) on those tables to stop regrowth.
       Result: memory 70% -> 60%, disk 24% -> 22%. No resize needed.
-- [ ] Doc pass for the coverage-cache change (project knowledge, changelog row, FlowDiagram node).
+- [x] Doc pass for the coverage-cache change — DONE 2026-09-04 (knowledge staged via
+      sync-knowledge-pending 200 ok, changelog row, FlowDiagram node; combined with the
+      responsiveness-verification doc pass).
 
 ## Reporting metric standardization (2026-09-03)
 - [x] Persist responsiveness metrics — migration 0032, `computeResponsiveness()` in
@@ -99,6 +101,8 @@
       * responsiveness_engine_version: single value (1) across all 611 rows.
 
 - [x] Doc pass — project knowledge, changelog row 2026-09-03, FlowDiagram node.
+- [x] Verification doc pass 2026-09-04: Aug reconciliation + negative cases written into
+      project-knowledge (staged via sync-knowledge-pending) and a changelog row.
 
 ## Open by choice
 - [ ] Security batches 4 and 5 (deliberately unstarted)
