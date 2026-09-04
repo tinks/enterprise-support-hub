@@ -748,6 +748,39 @@ export default function Escalations() {
               value={detail.createdMs ? format(new Date(detail.createdMs), "d MMM yyyy HH:mm") : "—"}
             />
 
+            <IssueField
+              label="Engineering wait"
+              value={
+                (detail.ticket.active_clock_engine_version ?? 0) < 3 ||
+                detail.ticket.resolution_eng_wait_s == null ? (
+                  <span className="text-muted-foreground">
+                    Not stamped — engine v3 writes this at finalize only.
+                  </span>
+                ) : (
+                  <div className="space-y-0.5">
+                    <span style={{ color: "#E66FD2" }}>
+                      {formatDuration(detail.ticket.resolution_eng_wait_s)}
+                    </span>
+                    <div className="text-xs text-muted-foreground tabular-nums">
+                      {detail.ticket.eng_wait_start_at
+                        ? `${format(new Date(detail.ticket.eng_wait_start_at), "d MMM yyyy HH:mm")} → ${
+                            detail.ticket.eng_wait_end_at
+                              ? format(new Date(detail.ticket.eng_wait_end_at), "d MMM yyyy HH:mm")
+                              : "still open at close"
+                          }`
+                        : "Window not recorded"}
+                      {detail.ticket.eng_wait_source ? ` · source: ${detail.ticket.eng_wait_source}` : ""}
+                    </div>
+                    {detail.links.length > 1 && (
+                      <div className="text-xs text-muted-foreground">
+                        Union of {detail.links.length} linked issues — overlapping windows counted once.
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+            />
+
             <div className="pt-2 border-t border-border" />
 
             <IssueField
