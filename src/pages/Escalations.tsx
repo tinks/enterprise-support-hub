@@ -748,6 +748,19 @@ export default function Escalations() {
           </p>
         )}
 
+        {(noteOnlyCount > 0 || noteOnlyOnly) && (
+          <p className="text-xs text-muted-foreground">
+            {noteOnlyCount} escalation{noteOnlyCount === 1 ? "" : "s"} mention a Linear issue only in a
+            note — advisory, not counted in any clock until the key is added to the Escalated Issue
+            attribute or the Hub override.{" "}
+            <button className="underline" onClick={() => setNoteOnlyOnly((v) => !v)}>
+              {noteOnlyOnly ? "Show all rows" : "Show only these"}
+            </button>
+          </p>
+        )}
+
+
+
         {search.trim() && hiddenByState > 0 && (
           <p className="text-xs text-muted-foreground">
             {hiddenByState} more {hiddenByState === 1 ? "hit is" : "hits are"} hidden by the state filter — switch to{" "}
