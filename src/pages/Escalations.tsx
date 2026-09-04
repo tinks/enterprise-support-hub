@@ -39,6 +39,10 @@ type Ticket = {
   resolution_eng_wait_s: number | null;
   resolution_active_s: number | null;
   active_clock_engine_version: number | null;
+  /** The engineering-wait window the persisted seconds were measured over. */
+  eng_wait_start_at: string | null;
+  eng_wait_end_at: string | null;
+  eng_wait_source: string | null;
 };
 
 type Escalation = {
@@ -188,7 +192,7 @@ export default function Escalations() {
       supabase
         .from("intercom_tickets_v3")
         .select(
-          "id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,owner,customer_key,customer_resolution_method,lifecycle_status,state,custom_attributes,intercom_created_at,last_synced_at,resolution_eng_wait_s,resolution_active_s,active_clock_engine_version",
+          "id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,owner,customer_key,customer_resolution_method,lifecycle_status,state,custom_attributes,intercom_created_at,last_synced_at,resolution_eng_wait_s,resolution_active_s,active_clock_engine_version,eng_wait_start_at,eng_wait_end_at,eng_wait_source",
         )
         .limit(2000),
       supabase.from("dev_escalations").select("*"),
@@ -467,9 +471,26 @@ export default function Escalations() {
         if ((r.ticket.active_clock_engine_version ?? 0) < 3 || s == null) {
           return <span className="text-muted-foreground" title="Engine v3 stamps this only on finalized tickets.">—</span>;
         }
+        // The persisted window the seconds were measured over. Rendered only
+        // when the engine actually stamped a start — never inferred.
+        const start = r.ticket.eng_wait_start_at;
+        const end = r.ticket.eng_wait_end_at;
+        const win = start
+          ? `${format(new Date(start), "d MMM")} → ${end ? format(new Date(end), "d MMM") : "open"}`
+          : null;
         return (
           <div className="min-w-0">
             <span style={{ color: "#E66FD2" }}>{formatDuration(s)}</span>
+            {win && (
+              <div
+                className="text-[10px] text-muted-foreground tabular-nums truncate"
+                title={`Engineering-wait window ${new Date(start!).toLocaleString()} → ${
+                  end ? new Date(end).toLocaleString() : "still open at close"
+                }${r.ticket.eng_wait_source ? ` · source: ${r.ticket.eng_wait_source}` : ""}`}
+              >
+                {win}
+              </div>
+            )}
             {r.links.length > 1 && (
               <div className="text-[10px] text-muted-foreground">
                 union of {r.links.length} issues
@@ -725,6 +746,39 @@ export default function Escalations() {
             <IssueField
               label="Created"
               value={detail.createdMs ? format(new Date(detail.createdMs), "d MMM yyyy HH:mm") : "—"}
+            />
+
+            <IssueField
+              label="Engineering wait"
+              value={
+                (detail.ticket.active_clock_engine_version ?? 0) < 3 ||
+                detail.ticket.resolution_eng_wait_s == null ? (
+                  <span className="text-muted-foreground">
+                    Not stamped — engine v3 writes this at finalize only.
+                  </span>
+                ) : (
+                  <div className="space-y-0.5">
+                    <span style={{ color: "#E66FD2" }}>
+                      {formatDuration(detail.ticket.resolution_eng_wait_s)}
+                    </span>
+                    <div className="text-xs text-muted-foreground tabular-nums">
+                      {detail.ticket.eng_wait_start_at
+                        ? `${format(new Date(detail.ticket.eng_wait_start_at), "d MMM yyyy HH:mm")} → ${
+                            detail.ticket.eng_wait_end_at
+                              ? format(new Date(detail.ticket.eng_wait_end_at), "d MMM yyyy HH:mm")
+                              : "still open at close"
+                          }`
+                        : "Window not recorded"}
+                      {detail.ticket.eng_wait_source ? ` · source: ${detail.ticket.eng_wait_source}` : ""}
+                    </div>
+                    {detail.links.length > 1 && (
+                      <div className="text-xs text-muted-foreground">
+                        Union of {detail.links.length} linked issues — overlapping windows counted once.
+                      </div>
+                    )}
+                  </div>
+                )
+              }
             />
 
             <div className="pt-2 border-t border-border" />
