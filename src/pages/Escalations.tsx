@@ -187,6 +187,9 @@ export default function Escalations() {
   const [typeFilter, setTypeFilter] = useState(ANY);
   const [ownerFilter, setOwnerFilter] = useState(ANY);
   const [customerFilter, setCustomerFilter] = useState(ANY);
+  /** Detector filter: only rows with a Linear key mentioned solely in a note. */
+  const [noteOnlyOnly, setNoteOnlyOnly] = useState(false);
+
 
   const [detail, setDetail] = useState<EscalationRow | null>(null);
   const [linkDraft, setLinkDraft] = useState("");
