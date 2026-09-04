@@ -330,7 +330,11 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       )}
 
       {/* Main content */}
-      <div className="flex-1 min-w-0 overflow-auto">{children}</div>
+      <div className="flex-1 min-w-0 overflow-auto">
+        <IncidentBanner />
+        {children}
+      </div>
+
     </div>
   );
 };
