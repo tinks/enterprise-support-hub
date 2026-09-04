@@ -339,9 +339,17 @@ export default function Escalations() {
       if (typeFilter !== ANY && r.type !== typeFilter) return false;
       if (ownerFilter !== ANY && r.ticket.owner !== ownerFilter) return false;
       if (customerFilter !== ANY && r.ticket.customer_key !== customerFilter) return false;
+      if (noteOnlyOnly && r.noteOnlyKeys.length === 0) return false;
       return matchesSearch(r);
     });
-  }, [rows, matchesSearch, stateFilter, typeFilter, ownerFilter, customerFilter]);
+  }, [rows, matchesSearch, stateFilter, typeFilter, ownerFilter, customerFilter, noteOnlyOnly]);
+
+  /** Detector: rows whose only mention of a Linear key lives in a note. */
+  const noteOnlyCount = useMemo(
+    () => rows.filter((r) => r.noteOnlyKeys.length > 0).length,
+    [rows],
+  );
+
 
   const needsLinear = useMemo(() => filtered.filter((r) => !r.hasLinear), [filtered]);
   const linked = useMemo(() => filtered.filter((r) => r.hasLinear), [filtered]);
