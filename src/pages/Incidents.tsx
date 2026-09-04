@@ -79,7 +79,9 @@ export default function Incidents() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [severity, setSeverity] = useState(ANY);
-  const [category, setCategory] = useState(ANY);
+  // Default to live: the page's first job is "what's broken right now".
+  // Switch to "All statuses" for the historical log.
+  const [category, setCategory] = useState<string>("live");
   const [impact, setImpact] = useState<"all" | "customer" | "internal">("all");
 
   useEffect(() => {
