@@ -2316,7 +2316,7 @@ Surfaces Lovable's incident.io incidents inside the Hub: a live "what's broken n
 
 **Customer impact** is derived from the presence of a `statuspage.incident.io` public status-page link in the announcement. The API's status-page endpoints return 404, so this is the only available signal and it is a *derived* flag, labelled as such in the UI.
 
-**Surfaces.** `IncidentBanner` (rendered in `AppLayout`, above page content) polls live incidents every 60 s, links to the incident/status page/Slack channel, expands when several are live, and is dismissible for the session only — a changed live set reopens it. On a read failure it **stays silent rather than showing a false all-clear**. `/incidents` is the historical log: search, severity/category/customer-impact filters, sortable headers (shared `useTableSort`), CSV export.
+**Surfaces.** `IncidentBanner` (rendered in `AppLayout`, above page content) polls live incidents every 60 s, links to the incident/status page/Slack channel, expands when several are live, and is dismissible for the session only — a changed live set reopens it. On a read failure it **stays silent rather than showing a false all-clear**. `/incidents` is the historical log: search, severity/category/customer-impact filters, sortable headers (shared `useTableSort`), CSV export. **Default status filter = `live` (4 Sep 2026)** — the page opens on "what's broken now"; "All statuses" is one click away for the historical log. The default only changes the initial filter state, not the underlying query or data.
 
 **Health.** `integration_health.slack_incidents_poll` registered in all three lists (`_shared/integration-health.ts`, `IntegrationHealthCard.tsx`, `integration-health-alert`), 30-min staleness threshold.
 

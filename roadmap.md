@@ -106,6 +106,7 @@
 - [ ] **SCHEDULE THE CRON** (Matt, SQL editor — agent SQL is refused on cron.*):
       every 5 min, POST poll-slack-incidents with {"lookbackDays": 2} using
       public.esh_cron_headers(). Until then the feed is static at the backfill.
-- [ ] Doc pass: knowledge doc updated locally + changelog row 2026-09-04 +
-      FlowDiagram node done; still needs staging via sync-knowledge-pending.
+- [x] Doc pass 2026-09-04: knowledge doc updated + staged via sync-knowledge-pending
+      (200 ok, 319,586 chars — approve on /knowledge), changelog rows 2026-09-04
+      (incident feed + "Incidents page defaults to live"), FlowDiagram node updated.
 - [ ] UNVERIFIED: banner and /incidents not yet loaded in a browser at ultrawide.
