@@ -84,3 +84,19 @@
 
 ## Open by choice
 - [ ] Security batches 4 and 5 (deliberately unstarted)
+
+## Incidents in the hub (2026-09-04, approved plan)
+- [ ] Link an incident.io connection to this project (workspace already has two
+      working ones — no new API key needed from Matt).
+- [ ] `incidents` table + RLS/GRANTs (SQL for Matt to review).
+- [ ] `sync-incidents` edge function, cursor-paginated upsert by external_id,
+      5-min cron for `recent`, `full` mode for backfill, integration_health key
+      `incidentio_sync`.
+- [ ] Live banner in AppLayout (status category `live` only).
+- [ ] `/incidents` sortable log page + nav entry.
+- [ ] OPEN ISSUE: customer-impacting is NOT derivable from the incident.io API —
+      /v1/status_pages and /v1/status_page_incidents both 404. Options: manual
+      Hub flag, or a small Slack supplement reading the status-page link from the
+      #incidents announcement. Needs Matt's call.
+- [ ] Doc pass: project knowledge via sync-knowledge-pending, changelog row,
+      FlowDiagram node.
