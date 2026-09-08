@@ -126,6 +126,34 @@ export default function IntegrationHealthCard() {
     }
   }
 
+  // Records an acknowledgement ("this company is already covered by an existing
+  // account") and re-runs the poller so the health card recomputes from real data
+  // rather than being cleared cosmetically.
+  async function dismissBlankDomain(name: string) {
+    setDismissing(name);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const { error } = await supabase.from("v3_closed_won_acknowledged_names").insert({
+        name_key: toNameKey(name),
+        display_name: name,
+        note: "Dismissed from Integration health — already covered by an existing customer account",
+        acknowledged_by: userData?.user?.id ?? null,
+        acknowledged_by_email: userData?.user?.email ?? null,
+      });
+      if (error && error.code !== "23505") throw error;
+      const { error: runErr } = await supabase.functions.invoke("poll-slack-closed-won", { body: {} });
+      if (runErr) throw runErr;
+      toast.success(`Dismissed "${name}"`);
+    } catch (e: any) {
+      toast.error(`Could not dismiss "${name}": ${e?.message || e}`);
+    } finally {
+      setDismissing(null);
+      await load();
+    }
+  }
+
+
+
   useEffect(() => {
     load();
     const t = setInterval(load, 60_000);
