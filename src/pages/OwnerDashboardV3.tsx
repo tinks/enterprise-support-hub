@@ -659,8 +659,9 @@ const OwnerDashboardV3 = () => {
         />
 
         <p className="text-xs text-muted-foreground">
-          Showing all {visible.length} {tab === "active" ? "active" : "closed"} conversations
-          {search.trim() ? " matching the search" : ""}.
+          Showing {visible.length} {tab === "active" ? "active" : "finalized"} conversations
+          {search.trim() ? " matching the search" : ""}
+          {showAll ? "" : " (top 8)"}.
         </p>
 
         <IssueDetailSheet
