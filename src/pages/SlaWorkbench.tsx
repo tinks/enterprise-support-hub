@@ -1004,63 +1004,6 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
 
 
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">
-            Per-ticket (in-scope)
-            {loading && <Loader2 className="h-4 w-4 inline ml-2 animate-spin text-muted-foreground" />}
-          </CardTitle>
-          <CardDescription>{filteredInScope.length} in-scope tickets · computed with corrected engine over stored raw_payload</CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <CorrectedSortableTh label="Closed" k="closed" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                  <th className="text-left px-3 py-2 font-medium">Subject</th>
-                  <th className="text-left px-3 py-2 font-medium">Origin</th>
-                  <CorrectedSortableTh label="Human FRT · BH" k="humanBH" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
-                  <CorrectedSortableTh label="Human FRT · cal" k="humanCal" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
-                  <CorrectedSortableTh label="TTR · BH" k="ttrBH" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((r) => (
-                  <tr key={r.id} className="border-t border-border hover:bg-muted/20">
-                    <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
-                      {r.intercom_closed_at ? format(new Date(r.intercom_closed_at), "MMM d, yyyy") : "—"}
-                    </td>
-                    <td className="px-3 py-2 max-w-[320px] truncate">
-                      <a
-                        href={`https://app.intercom.com/a/inbox/_/inbox/conversation/${r.intercom_conversation_id}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-foreground hover:underline"
-                        title={displaySubject(r, "")}
-                      >
-                        {displaySubject(r, `Intercom #${r.intercom_conversation_id}`)}
-                      </a>
-                    </td>
-                    <td className="px-3 py-2"><OriginBadge origin={r.origin} /></td>
-                    <td className="px-3 py-2 text-right tabular-nums font-medium">{formatDuration(r.sla.firstHumanReplyFromOpenBusinessHoursS)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatDuration(r.sla.firstHumanReplyFromOpenS)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatDuration(r.sla.ttrBusinessHoursS)}</td>
-                  </tr>
-                ))}
-                {!loading && !sorted.length && (
-                  <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">No in-scope tickets found.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          {(excluded.length > 0 || noCustomer.length > 0 || manuallyLogged.length > 0) && (
-            <div className="px-4 py-3 text-xs text-muted-foreground border-t border-border bg-muted/20">
-              {excluded.length} excluded (not-enterprise / duplicate / merged / RSA off), {noCustomer.length} internal / no-customer, {manuallyLogged.length} manually-logged bulk-import — not shown in aggregates above.
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
 
 
