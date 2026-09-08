@@ -132,8 +132,8 @@ export default function SlaWorkbench() {
 
         <Tabs defaultValue="batch" className="w-full">
           <TabsList>
-            <TabsTrigger value="batch">Population review (snapshot)</TabsTrigger>
-            <TabsTrigger value="live">Analyze by ID (live)</TabsTrigger>
+            <TabsTrigger value="batch">SLA violations</TabsTrigger>
+            <TabsTrigger value="live">Analyze a ticket</TabsTrigger>
           </TabsList>
 
           <TabsContent value="batch" className="mt-4">
@@ -1066,7 +1066,7 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
 
       <p className="text-xs text-muted-foreground leading-relaxed">
         Corrected engine over stored payloads (finalized tickets). Business hours = Europe/Berlin, Mon–Fri 09:00–24:00.
-        Escalation-based metrics omitted (still being tuned). The live "Analyze by ID" tab is authoritative per-ticket;
+        Escalation-based metrics omitted (still being tuned). The "Analyze a ticket" tab is authoritative per-ticket;
         stored Slack payload completeness is not yet verified.
       </p>
 
