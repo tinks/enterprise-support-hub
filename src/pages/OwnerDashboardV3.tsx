@@ -5,6 +5,10 @@ import {
   ACTIVE_LABEL,
   RAW_LABEL,
   SPLIT_LABEL,
+  SPLIT_KEYS,
+  SPLIT_CLASS,
+  SPLIT_TOOLTIP,
+  summarizeSplit,
   activeSeconds,
 } from "@/lib/resolutionDisplay";
 import { metricLabel } from "@/lib/reportingMetrics";
@@ -80,6 +84,60 @@ const fmtDuration = (s: number | null) => {
   return `${(h / 24).toFixed(1)}d`;
 };
 
+type ListFilter = "all" | "at_risk" | "reopened";
+type MixKey = "area" | "type";
+
+const StatCard = ({
+  label,
+  value,
+  sub,
+  tone,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "warn";
+  onClick?: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={!onClick}
+    className={`rounded-lg border px-4 py-3 text-left transition-colors ${
+      tone === "warn" ? "border-[#FF6B6B]/50 bg-[#FF6B6B]/5" : "border-border bg-card"
+    } ${onClick ? "hover:bg-muted/60 cursor-pointer" : "cursor-default"}`}
+  >
+    <div className="text-xs text-muted-foreground truncate" title={label}>{label}</div>
+    <div className="text-2xl font-semibold tabular-nums leading-tight pt-1">{value}</div>
+    {sub && <div className="text-[11px] text-muted-foreground pt-0.5">{sub}</div>}
+  </button>
+);
+
+const Panel = ({
+  title,
+  desc,
+  action,
+  children,
+}: {
+  title: string;
+  desc?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) => (
+  <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <h2 className="text-sm font-medium">{title}</h2>
+        {desc && <p className="text-xs text-muted-foreground">{desc}</p>}
+      </div>
+      {action}
+    </div>
+    <div className="space-y-2">{children}</div>
+  </div>
+);
+
+
 const OwnerDashboardV3 = () => {
   const { owner } = useParams<{ owner: string }>();
   const ownerName = owner ? owner.charAt(0).toUpperCase() + owner.slice(1) : "";
@@ -90,6 +148,9 @@ const OwnerDashboardV3 = () => {
   const [tab, setTab] = useState<Tab>("active");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Row | null>(null);
+  const [listFilter, setListFilter] = useState<ListFilter>("all");
+  const [mix, setMix] = useState<MixKey>("area");
+  const [showAll, setShowAll] = useState(false);
 
   const { accountLabel } = useCustomerLabels();
 
@@ -141,17 +202,29 @@ const OwnerDashboardV3 = () => {
   }, [rows]);
 
   const visible = useMemo(() => {
-    const base = tab === "active" ? active : closed;
+    let base = tab === "active" ? active : closed;
+    if (tab === "active") {
+      if (listFilter === "at_risk")
+        base = base.filter(
+          (r) =>
+            r.intercom_created_at &&
+            Date.now() - new Date(r.intercom_created_at).getTime() > 7 * 86_400_000,
+        );
+      if (listFilter === "reopened")
+        base = base.filter((r) => r.lifecycle_status === "reopened_after_finalize");
+    }
     const q = search.trim().toLowerCase();
-    if (!q) return base;
-    return base.filter((r) =>
-      [displaySubject(r), r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, r.product_area, r.classification]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(q),
-    );
-  }, [tab, active, closed, search]);
+    if (q) {
+      base = base.filter((r) =>
+        [displaySubject(r), r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, r.product_area, r.classification]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(q),
+      );
+    }
+    return showAll ? base : base.slice(0, 8);
+  }, [tab, active, closed, search, listFilter, showAll]);
 
   const baseColumns: IssueColumn<Row>[] = useMemo(
     () => [
@@ -260,19 +333,102 @@ const OwnerDashboardV3 = () => {
     return Math.floor((Date.now() - new Date(first).getTime()) / 86_400_000);
   }, [active]);
 
+  const ageDays = (r: Row) =>
+    r.intercom_created_at ? (Date.now() - new Date(r.intercom_created_at).getTime()) / 86_400_000 : 0;
+
+  const median = (xs: number[]) => {
+    const s = xs.filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
+    if (!s.length) return null;
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  };
+
+  // ---- Dashboard aggregates (all durations come from the shared SLA clocks) ----
+  const stats = useMemo(() => {
+    const atRisk = active.filter((r) => ageDays(r) > 7);
+    const reopened = active.filter((r) => r.lifecycle_status === "reopened_after_finalize");
+
+    const bands = [
+      { label: "< 1d", rows: active.filter((r) => ageDays(r) < 1) },
+      { label: "1–3d", rows: active.filter((r) => ageDays(r) >= 1 && ageDays(r) < 3) },
+      { label: "3–7d", rows: active.filter((r) => ageDays(r) >= 3 && ageDays(r) < 7) },
+      { label: "7d+", rows: atRisk },
+    ];
+
+    const medActive = median(
+      closed.map((r) => activeSeconds(r)).filter((n): n is number => n != null),
+    );
+
+    const csatRows = closed.filter((r) => r.csat_rating != null);
+    const csatAvg = csatRows.length
+      ? csatRows.reduce((a, r) => a + (r.csat_rating ?? 0), 0) / csatRows.length
+      : null;
+
+    // Where the time went, for this owner's finalized cohort — shared engine only.
+    const split = summarizeSplit(closed);
+
+    // Opened vs finalized, last 8 weeks.
+    const weekStart = (d: Date) => {
+      const x = new Date(d);
+      x.setHours(0, 0, 0, 0);
+      x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+      return x;
+    };
+    const weeks: { key: string; label: string; opened: number; finalized: number }[] = [];
+    const thisWeek = weekStart(new Date());
+    for (let i = 7; i >= 0; i--) {
+      const d = new Date(thisWeek);
+      d.setDate(d.getDate() - i * 7);
+      weeks.push({ key: d.toISOString().slice(0, 10), label: format(d, "d MMM"), opened: 0, finalized: 0 });
+    }
+    const byKey = new Map(weeks.map((w) => [w.key, w]));
+    for (const r of rows) {
+      if (r.intercom_created_at) {
+        const w = byKey.get(weekStart(new Date(r.intercom_created_at)).toISOString().slice(0, 10));
+        if (w) w.opened++;
+      }
+      if (r.intercom_closed_at) {
+        const w = byKey.get(weekStart(new Date(r.intercom_closed_at)).toISOString().slice(0, 10));
+        if (w) w.finalized++;
+      }
+    }
+    const weekMax = Math.max(1, ...weeks.map((w) => Math.max(w.opened, w.finalized)));
+
+    const mixOf = (pick: (r: Row) => string | null) => {
+      const m = new Map<string, number>();
+      for (const r of closed) m.set(pick(r) || "Unspecified", (m.get(pick(r) || "Unspecified") ?? 0) + 1);
+      return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+    };
+
+    return {
+      atRisk,
+      reopened,
+      bands,
+      medActive,
+      csatAvg,
+      csatN: csatRows.length,
+      split,
+      weeks,
+      weekMax,
+      areaMix: mixOf((r) => r.product_area),
+      typeMix: mixOf((r) => r.classification),
+    };
+  }, [active, closed, rows]);
+
+
   return (
     <AppLayout>
       <div className="p-6 space-y-4">
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-semibold tracking-tight">{ownerName} — v3</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">{ownerName}'s dashboard</h1>
               <Badge variant="outline" className="text-[10px]">Read-only</Badge>
+              <Badge variant="outline" className="text-[10px]">v3 reporting set</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              Enterprise Intercom tickets owned by {ownerName || "—"} from the v3 reporting set, since{" "}
-              {CLEAN_DATA_START_LABEL}. Slack, Gmail and manual-only conversations that never became an Intercom
-              ticket live on the legacy dashboard.
+              Enterprise Intercom tickets owned by {ownerName || "—"} since {CLEAN_DATA_START_LABEL}. Slack, Gmail and
+              manual-only conversations live on the legacy dashboard.
             </p>
           </div>
           <Button onClick={load} size="sm" variant="outline" disabled={loading}>
@@ -280,44 +436,207 @@ const OwnerDashboardV3 = () => {
           </Button>
         </div>
 
-        <div className="inline-flex rounded-md border border-border p-0.5">
-          {([
-            ["active", `Active (${active.length})`],
-            ["closed", `Closed (${closed.length})`],
-          ] as Array<[Tab, string]>).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setTab(key)}
-              className={`rounded px-3 py-1.5 text-xs transition-colors ${
-                tab === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-          <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-          <span>
-            Active = open or reopened (oldest first{oldestActiveDays != null ? `, oldest ${oldestActiveDays}d` : ""}).
-            Closed = finalized. Transferred-out tickets are excluded. Everything loads in one pass — scroll, no pager.
-          </span>
-        </div>
-
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search subject, contact, Intercom ID…"
-          className="max-w-sm h-8 text-sm"
-        />
-
         {error && (
           <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
             Failed to load: {error}
           </div>
         )}
+
+        {/* ---- Row 1: decision cards ---- */}
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="Open now"
+            value={String(active.length)}
+            sub={oldestActiveDays != null ? `oldest ${oldestActiveDays}d` : "nothing open"}
+            onClick={() => { setTab("active"); setListFilter("all"); }}
+          />
+          <StatCard
+            label="At risk"
+            value={String(stats.atRisk.length)}
+            sub="open more than 7 days"
+            tone={stats.atRisk.length > 0 ? "warn" : undefined}
+            onClick={() => { setTab("active"); setListFilter("at_risk"); }}
+          />
+          <StatCard
+            label={ACTIVE_LABEL + " — median"}
+            value={stats.medActive == null ? "—" : fmtDuration(stats.medActive)}
+            sub={`${closed.length} finalized`}
+          />
+          <StatCard
+            label="CSAT"
+            value={stats.csatAvg == null ? "—" : stats.csatAvg.toFixed(2)}
+            sub={stats.csatN ? `${stats.csatN} responses` : "no responses yet"}
+          />
+        </div>
+
+        {/* ---- Row 2: ageing + resolution anatomy ---- */}
+        <div className="grid gap-3 lg:grid-cols-2">
+          <Panel title="Workload and ageing" desc="Active tickets by how long they have been open.">
+            {stats.bands.map((b) => {
+              const pct = active.length ? (b.rows.length / active.length) * 100 : 0;
+              return (
+                <div key={b.label} className="flex items-center gap-3 text-xs">
+                  <span className="w-12 text-muted-foreground">{b.label}</span>
+                  <div className="h-2 flex-1 rounded bg-muted overflow-hidden">
+                    <div
+                      className={b.label === "7d+" ? "h-full bg-[#FF6B6B]" : "h-full bg-primary"}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="w-8 text-right tabular-nums">{b.rows.length}</span>
+                </div>
+              );
+            })}
+            {active.length === 0 && <p className="text-xs text-muted-foreground">No active tickets.</p>}
+          </Panel>
+
+          <Panel
+            title="Where the time went"
+            desc={`Finalized cohort, shared SLA clocks. n=${stats.split.n}${
+              stats.split.noSplit ? `, ${stats.split.noSplit} without a split` : ""
+            }`}
+          >
+            <div className="flex h-3 w-full overflow-hidden rounded">
+              {SPLIT_KEYS.map((k) => (
+                <div
+                  key={k}
+                  className={SPLIT_CLASS[k]}
+                  style={{ width: `${stats.split.share[k] ?? 0}%` }}
+                  title={SPLIT_TOOLTIP[k]}
+                />
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1">
+              {SPLIT_KEYS.map((k) => (
+                <div key={k} className="flex items-center justify-between gap-2 text-xs" title={SPLIT_TOOLTIP[k]}>
+                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                    <span className={`h-2 w-2 rounded-sm ${SPLIT_CLASS[k]}`} />
+                    {SPLIT_LABEL[k]}
+                  </span>
+                  <span className="tabular-nums">
+                    {stats.split.share[k] == null ? "—" : `${(stats.split.share[k] as number).toFixed(0)}%`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        </div>
+
+        {/* ---- Row 3: throughput + work mix ---- */}
+        <div className="grid gap-3 lg:grid-cols-2">
+          <Panel title="Throughput" desc="Opened vs finalized, last 8 weeks.">
+            <div className="flex items-end gap-2 h-28">
+              {stats.weeks.map((w) => (
+                <div key={w.key} className="flex-1 flex flex-col items-center gap-1" title={`${w.label}: ${w.opened} opened, ${w.finalized} finalized`}>
+                  <div className="flex items-end gap-0.5 h-24 w-full justify-center">
+                    <div className="w-2.5 rounded-t bg-primary" style={{ height: `${(w.opened / stats.weekMax) * 100}%` }} />
+                    <div className="w-2.5 rounded-t bg-[#9B87F5]" style={{ height: `${(w.finalized / stats.weekMax) * 100}%` }} />
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">{w.label}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-4 text-[11px] text-muted-foreground">
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-primary" />Opened</span>
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-[#9B87F5]" />Finalized</span>
+            </div>
+          </Panel>
+
+          <Panel
+            title="Work mix"
+            desc="Finalized tickets by what they were about."
+            action={
+              <div className="inline-flex rounded-md border border-border p-0.5">
+                {([["area", "Product area"], ["type", "Ticket type"]] as Array<[MixKey, string]>).map(([k, l]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setMix(k)}
+                    className={`rounded px-2 py-1 text-[11px] transition-colors ${
+                      mix === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            }
+          >
+            {(mix === "area" ? stats.areaMix : stats.typeMix).map(([label, n]) => {
+              const pct = closed.length ? (n / closed.length) * 100 : 0;
+              return (
+                <div key={label} className="flex items-center gap-3 text-xs">
+                  <span className="w-32 truncate text-muted-foreground" title={label}>{label}</span>
+                  <div className="h-2 flex-1 rounded bg-muted overflow-hidden">
+                    <div className="h-full bg-[#E66FD2]" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="w-8 text-right tabular-nums">{n}</span>
+                </div>
+              );
+            })}
+            {closed.length === 0 && <p className="text-xs text-muted-foreground">No finalized tickets yet.</p>}
+          </Panel>
+        </div>
+
+        {/* ---- Row 4: focused worklists ---- */}
+        <div className="flex items-center justify-between gap-3 pt-2">
+          <div className="inline-flex rounded-md border border-border p-0.5">
+            {([
+              ["active", `Needs attention (${listFilter === "at_risk" ? stats.atRisk.length : active.length})`],
+              ["closed", `Recently finalized (${closed.length})`],
+            ] as Array<[Tab, string]>).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTab(key)}
+                className={`rounded px-3 py-1.5 text-xs transition-colors ${
+                  tab === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            {tab === "active" && (
+              <div className="inline-flex rounded-md border border-border p-0.5">
+                {([
+                  ["all", "All active"],
+                  ["at_risk", "7d+"],
+                  ["reopened", "Reopened"],
+                ] as Array<[ListFilter, string]>).map(([k, l]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setListFilter(k)}
+                    className={`rounded px-2 py-1 text-[11px] transition-colors ${
+                      listFilter === k ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            )}
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search subject, contact, Intercom ID…"
+              className="w-64 h-8 text-sm"
+            />
+            <Button size="sm" variant="outline" onClick={() => setShowAll((v) => !v)}>
+              {showAll ? "Show top 8" : "View all"}
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+          <span>
+            This is the reporting view. Day-to-day queue work will live on its own page under Issues; these lists are the
+            shortlist that the cards above link into.
+          </span>
+        </div>
 
         <IssueTable
           rows={visible}
@@ -340,8 +659,9 @@ const OwnerDashboardV3 = () => {
         />
 
         <p className="text-xs text-muted-foreground">
-          Showing all {visible.length} {tab === "active" ? "active" : "closed"} conversations
-          {search.trim() ? " matching the search" : ""}.
+          Showing {visible.length} {tab === "active" ? "active" : "finalized"} conversations
+          {search.trim() ? " matching the search" : ""}
+          {showAll ? "" : " (top 8)"}.
         </p>
 
         <IssueDetailSheet
