@@ -68,15 +68,15 @@ const navEntries: NavEntry[] = [
   },
   {
     kind: "group",
-    label: "Dashboards",
+    label: "Dashboards (legacy)",
     icon: Users,
-    items: [{ to: "/sla", label: "SLA Dashboard" }],
+    items: [],
   },
   {
     kind: "group",
     label: "Dashboards (v3)",
     icon: Users,
-    items: [],
+    items: [{ to: "/sla", label: "SLA Dashboard" }],
   },
   {
     kind: "group",
@@ -143,7 +143,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     const items = e.items.filter(
       (i) => (!i.adminOnly || isAdmin) && (!i.editorOnly || canEdit),
     );
-    if (e.label === "Dashboards") return { ...e, items: [...items, ...dashboardTeammates] };
+    if (e.label === "Dashboards (legacy)") return { ...e, items: [...items, ...dashboardTeammates] };
     // v3 mirror: same roster, pointed at the v3 reporting dashboards.
     if (e.label === "Dashboards (v3)") {
       return {
