@@ -60,11 +60,28 @@ const SEVERITY_META: Record<Severity, { label: string; className: string; Icon: 
   unknown: { label: "No data yet", className: "bg-muted text-muted-foreground border-border", Icon: Circle },
 };
 
+// The closed-won poller reports unhandled blank-domain companies with a fixed
+// phrase. Pull the company names back out so each one can be dismissed
+// individually (an acknowledgement row, not a registry change).
+function blankDomainNames(lastError: string | null | undefined): string[] {
+  if (!lastError) return [];
+  const out: string[] = [];
+  const re = /blank Company Domain for "([^"]+)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(lastError))) out.push(m[1]);
+  return [...new Set(out)];
+}
+
+function toNameKey(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+}
+
 export default function IntegrationHealthCard() {
   const [rows, setRows] = useState<HealthRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
   const [running, setRunning] = useState<string | null>(null);
+  const [dismissing, setDismissing] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
