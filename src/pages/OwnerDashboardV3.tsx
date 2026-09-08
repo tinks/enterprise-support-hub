@@ -84,6 +84,60 @@ const fmtDuration = (s: number | null) => {
   return `${(h / 24).toFixed(1)}d`;
 };
 
+type ListFilter = "all" | "at_risk" | "reopened";
+type MixKey = "area" | "type";
+
+const StatCard = ({
+  label,
+  value,
+  sub,
+  tone,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "warn";
+  onClick?: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={!onClick}
+    className={`rounded-lg border px-4 py-3 text-left transition-colors ${
+      tone === "warn" ? "border-[#FF6B6B]/50 bg-[#FF6B6B]/5" : "border-border bg-card"
+    } ${onClick ? "hover:bg-muted/60 cursor-pointer" : "cursor-default"}`}
+  >
+    <div className="text-xs text-muted-foreground truncate" title={label}>{label}</div>
+    <div className="text-2xl font-semibold tabular-nums leading-tight pt-1">{value}</div>
+    {sub && <div className="text-[11px] text-muted-foreground pt-0.5">{sub}</div>}
+  </button>
+);
+
+const Panel = ({
+  title,
+  desc,
+  action,
+  children,
+}: {
+  title: string;
+  desc?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) => (
+  <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <h2 className="text-sm font-medium">{title}</h2>
+        {desc && <p className="text-xs text-muted-foreground">{desc}</p>}
+      </div>
+      {action}
+    </div>
+    <div className="space-y-2">{children}</div>
+  </div>
+);
+
+
 const OwnerDashboardV3 = () => {
   const { owner } = useParams<{ owner: string }>();
   const ownerName = owner ? owner.charAt(0).toUpperCase() + owner.slice(1) : "";
