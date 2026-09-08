@@ -237,15 +237,25 @@ Deno.serve(async (req) => {
     // A blank Company Domain only stays a problem while the account is absent from the
     // registry. Once someone adds it by hand (domain-less or otherwise) the run is healthy
     // again — otherwise the health card would stay red forever on an already-handled row.
+    // It is also cleared by an explicit acknowledgement row in
+    // v3_closed_won_acknowledged_names — the "already covered by an existing account under a
+    // different key" case, where nothing should be added to the registry at all.
     const missing_domain: string[] = [];
     const missing_domain_handled: string[] = [];
     if (missingRaw.length) {
+      const keys = missingRaw.map((m) => m.account_key).filter(Boolean);
       const { data: handledRows, error: errMissing } = await supabase
         .from("v3_customer_accounts")
         .select("account_key")
-        .in("account_key", missingRaw.map((m) => m.account_key).filter(Boolean));
+        .in("account_key", keys);
       if (errMissing) throw errMissing;
+      const { data: ackRows, error: errAck } = await supabase
+        .from("v3_closed_won_acknowledged_names")
+        .select("name_key")
+        .in("name_key", keys);
+      if (errAck) throw errAck;
       const handled = new Set<string>((handledRows ?? []).map((r: any) => r.account_key));
+      for (const r of ackRows ?? []) handled.add((r as any).name_key);
       for (const m of missingRaw) {
         if (m.account_key && handled.has(m.account_key)) missing_domain_handled.push(m.name);
         else missing_domain.push(m.name);

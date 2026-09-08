@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, CheckCircle2, AlertTriangle, ShieldAlert, Circle, Send, Play } from "lucide-react";
+import { RefreshCw, CheckCircle2, AlertTriangle, ShieldAlert, Circle, Send, Play, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -60,11 +60,28 @@ const SEVERITY_META: Record<Severity, { label: string; className: string; Icon: 
   unknown: { label: "No data yet", className: "bg-muted text-muted-foreground border-border", Icon: Circle },
 };
 
+// The closed-won poller reports unhandled blank-domain companies with a fixed
+// phrase. Pull the company names back out so each one can be dismissed
+// individually (an acknowledgement row, not a registry change).
+function blankDomainNames(lastError: string | null | undefined): string[] {
+  if (!lastError) return [];
+  const out: string[] = [];
+  const re = /blank Company Domain for "([^"]+)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(lastError))) out.push(m[1]);
+  return [...new Set(out)];
+}
+
+function toNameKey(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+}
+
 export default function IntegrationHealthCard() {
   const [rows, setRows] = useState<HealthRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
   const [running, setRunning] = useState<string | null>(null);
+  const [dismissing, setDismissing] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -108,6 +125,34 @@ export default function IntegrationHealthCard() {
       await load();
     }
   }
+
+  // Records an acknowledgement ("this company is already covered by an existing
+  // account") and re-runs the poller so the health card recomputes from real data
+  // rather than being cleared cosmetically.
+  async function dismissBlankDomain(name: string) {
+    setDismissing(name);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const { error } = await supabase.from("v3_closed_won_acknowledged_names").insert({
+        name_key: toNameKey(name),
+        display_name: name,
+        note: "Dismissed from Integration health — already covered by an existing customer account",
+        acknowledged_by: userData?.user?.id ?? null,
+        acknowledged_by_email: userData?.user?.email ?? null,
+      });
+      if (error && error.code !== "23505") throw error;
+      const { error: runErr } = await supabase.functions.invoke("poll-slack-closed-won", { body: {} });
+      if (runErr) throw runErr;
+      toast.success(`Dismissed "${name}"`);
+    } catch (e: any) {
+      toast.error(`Could not dismiss "${name}": ${e?.message || e}`);
+    } finally {
+      setDismissing(null);
+      await load();
+    }
+  }
+
+
 
   useEffect(() => {
     load();
@@ -159,6 +204,24 @@ export default function IntegrationHealthCard() {
                   <p className="mt-1 truncate text-xs text-red-700" title={row.last_error}>
                     {row.last_error}
                   </p>
+                )}
+                {cfg.key === "slack_closed_won_poll" && blankDomainNames(row?.last_error).length > 0 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Already handled?</span>
+                    {blankDomainNames(row?.last_error).map((name) => (
+                      <Button
+                        key={name}
+                        variant="outline"
+                        size="sm"
+                        className="h-6 gap-1 px-2 text-xs"
+                        disabled={dismissing === name}
+                        onClick={() => dismissBlankDomain(name)}
+                      >
+                        <X className="h-3 w-3" />
+                        {dismissing === name ? "Dismissing…" : `Dismiss "${name}"`}
+                      </Button>
+                    ))}
+                  </div>
                 )}
               </div>
               <div className="flex items-center gap-3 sm:justify-end">

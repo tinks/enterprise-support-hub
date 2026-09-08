@@ -2378,6 +2378,33 @@ export type Database = {
           },
         ]
       }
+      v3_closed_won_acknowledged_names: {
+        Row: {
+          acknowledged_at: string
+          acknowledged_by: string | null
+          acknowledged_by_email: string | null
+          display_name: string
+          name_key: string
+          note: string | null
+        }
+        Insert: {
+          acknowledged_at?: string
+          acknowledged_by?: string | null
+          acknowledged_by_email?: string | null
+          display_name: string
+          name_key: string
+          note?: string | null
+        }
+        Update: {
+          acknowledged_at?: string
+          acknowledged_by?: string | null
+          acknowledged_by_email?: string | null
+          display_name?: string
+          name_key?: string
+          note?: string | null
+        }
+        Relationships: []
+      }
       v3_coverage_snapshots: {
         Row: {
           attributed: number
