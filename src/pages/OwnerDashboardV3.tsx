@@ -415,14 +415,6 @@ const OwnerDashboardV3 = () => {
     };
   }, [active, closed, rows]);
 
-  const needsAttention = useMemo(
-    () =>
-      [...active]
-        .sort((a, b) => ageDays(b) - ageDays(a))
-        .slice(0, 8),
-    [active],
-  );
-  const recentlyFinalized = useMemo(() => closed.slice(0, 8), [closed]);
 
   return (
     <AppLayout>
