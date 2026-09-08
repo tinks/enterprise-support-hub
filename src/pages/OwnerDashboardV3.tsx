@@ -666,10 +666,13 @@ const OwnerDashboardV3 = () => {
         />
 
         <p className="text-xs text-muted-foreground">
-          Showing {visible.length} {tab === "active" ? "active" : "finalized"} conversations
-          {search.trim() ? " matching the search" : ""}
-          {showAll ? "" : " (top 8)"}.
+          Showing {visible.length} of {matching.length} {tab === "active" ? "active" : "finalized"} conversations
+          {tab === "active" && listFilter === "at_risk" ? " open more than 7 days" : ""}
+          {tab === "active" && listFilter === "reopened" ? " that were reopened" : ""}
+          {search.trim() ? " matching the search" : ""}.
+          {!showAll && matching.length > visible.length ? " Use “View all” to see the rest." : ""}
         </p>
+
 
         <IssueDetailSheet
           open={!!selected}
