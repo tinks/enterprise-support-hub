@@ -148,6 +148,9 @@ const OwnerDashboardV3 = () => {
   const [tab, setTab] = useState<Tab>("active");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Row | null>(null);
+  const [listFilter, setListFilter] = useState<ListFilter>("all");
+  const [mix, setMix] = useState<MixKey>("area");
+  const [showAll, setShowAll] = useState(false);
 
   const { accountLabel } = useCustomerLabels();
 
