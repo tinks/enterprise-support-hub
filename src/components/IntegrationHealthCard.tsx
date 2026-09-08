@@ -160,6 +160,24 @@ export default function IntegrationHealthCard() {
                     {row.last_error}
                   </p>
                 )}
+                {cfg.key === "slack_closed_won_poll" && blankDomainNames(row?.last_error).length > 0 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Already handled?</span>
+                    {blankDomainNames(row?.last_error).map((name) => (
+                      <Button
+                        key={name}
+                        variant="outline"
+                        size="sm"
+                        className="h-6 gap-1 px-2 text-xs"
+                        disabled={dismissing === name}
+                        onClick={() => dismissBlankDomain(name)}
+                      >
+                        <X className="h-3 w-3" />
+                        {dismissing === name ? "Dismissing…" : `Dismiss "${name}"`}
+                      </Button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-3 sm:justify-end">
               {cfg.fn && (
