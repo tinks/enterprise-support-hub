@@ -74,7 +74,7 @@ import {
 // ============================================================================
 type Enriched = Row & { sla: TicketSla };
 type SortKey = "closed" | "firstReply" | "rawResolve" | "responseGap" | "bhHandling" | "parts";
-type CorrectedSortKey = "closed" | "humanBH" | "humanCal" | "anyCal" | "ttrBH";
+
 
 
 // ============================================================================
@@ -696,8 +696,6 @@ const UNATTRIBUTED = "__unattributed__";
 const ALL_CUSTOMERS = "__all__";
 
 function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverrides, customerLabels, testAccountKeys, showTestData, activePolicy, policyError, resolveForAnchor, policyConfigLoaded }: { rows: Row[]; loading: boolean; isExcused: (cid: string, metric: SlaOverrideMetric) => boolean; getOverride: (cid: string, metric: SlaOverrideMetric) => SlaOverride | undefined; refreshOverrides: () => void; customerLabels: Map<string, string>; testAccountKeys: Set<string>; showTestData: boolean; activePolicy: SlaPolicy; policyError: string | null; resolveForAnchor: (anchorMs: number, plan?: PlanTier) => SlaPolicy | null; policyConfigLoaded: boolean }) {
-  const [sortKey, setSortKey] = useState<CorrectedSortKey>("closed");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [dateWindow, setDateWindow] = useState<DateWindow>("month");
   const [customerFilter, setCustomerFilter] = useState<string>(ALL_CUSTOMERS);
   // SSE has no FR/resolution commitment, so the default population is Enterprise
@@ -833,24 +831,6 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
   }, [filteredInScope]);
 
 
-  const sorted = useMemo(() => {
-    const dir = sortDir === "asc" ? 1 : -1;
-    const val = (r: CorrectedEnriched): number => {
-      switch (sortKey) {
-        case "closed": return r.intercom_closed_at ? new Date(r.intercom_closed_at).getTime() : 0;
-        case "humanBH": return r.sla.firstHumanReplyFromOpenBusinessHoursS ?? -1;
-        case "humanCal": return r.sla.firstHumanReplyFromOpenS ?? -1;
-        case "anyCal": return r.sla.firstResponseAnyAgentS ?? -1;
-        case "ttrBH": return r.sla.ttrBusinessHoursS ?? -1;
-      }
-    };
-    return [...filteredInScope].sort((a, b) => (val(a) - val(b)) * dir);
-  }, [filteredInScope, sortKey, sortDir]);
-
-  const toggleSort = (k: CorrectedSortKey) => {
-    if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortKey(k); setSortDir("desc"); }
-  };
 
   return (
     <div className="space-y-4">
@@ -1004,63 +984,6 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
 
 
 
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">
-            Per-ticket (in-scope)
-            {loading && <Loader2 className="h-4 w-4 inline ml-2 animate-spin text-muted-foreground" />}
-          </CardTitle>
-          <CardDescription>{filteredInScope.length} in-scope tickets · computed with corrected engine over stored raw_payload</CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <CorrectedSortableTh label="Closed" k="closed" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
-                  <th className="text-left px-3 py-2 font-medium">Subject</th>
-                  <th className="text-left px-3 py-2 font-medium">Origin</th>
-                  <CorrectedSortableTh label="Human FRT · BH" k="humanBH" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
-                  <CorrectedSortableTh label="Human FRT · cal" k="humanCal" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
-                  <CorrectedSortableTh label="TTR · BH" k="ttrBH" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((r) => (
-                  <tr key={r.id} className="border-t border-border hover:bg-muted/20">
-                    <td className="px-3 py-2 whitespace-nowrap text-muted-foreground">
-                      {r.intercom_closed_at ? format(new Date(r.intercom_closed_at), "MMM d, yyyy") : "—"}
-                    </td>
-                    <td className="px-3 py-2 max-w-[320px] truncate">
-                      <a
-                        href={`https://app.intercom.com/a/inbox/_/inbox/conversation/${r.intercom_conversation_id}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-foreground hover:underline"
-                        title={displaySubject(r, "")}
-                      >
-                        {displaySubject(r, `Intercom #${r.intercom_conversation_id}`)}
-                      </a>
-                    </td>
-                    <td className="px-3 py-2"><OriginBadge origin={r.origin} /></td>
-                    <td className="px-3 py-2 text-right tabular-nums font-medium">{formatDuration(r.sla.firstHumanReplyFromOpenBusinessHoursS)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{formatDuration(r.sla.firstHumanReplyFromOpenS)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatDuration(r.sla.ttrBusinessHoursS)}</td>
-                  </tr>
-                ))}
-                {!loading && !sorted.length && (
-                  <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">No in-scope tickets found.</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          {(excluded.length > 0 || noCustomer.length > 0 || manuallyLogged.length > 0) && (
-            <div className="px-4 py-3 text-xs text-muted-foreground border-t border-border bg-muted/20">
-              {excluded.length} excluded (not-enterprise / duplicate / merged / RSA off), {noCustomer.length} internal / no-customer, {manuallyLogged.length} manually-logged bulk-import — not shown in aggregates above.
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
 
 
@@ -1074,26 +997,6 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
   );
 }
 
-function CorrectedSortableTh({
-  label, k, sortKey, sortDir, onSort, align,
-}: {
-  label: string; k: CorrectedSortKey; sortKey: CorrectedSortKey; sortDir: "asc" | "desc";
-  onSort: (k: CorrectedSortKey) => void; align?: "right";
-}) {
-  const active = sortKey === k;
-  return (
-    <th className={`px-3 py-2 font-medium ${align === "right" ? "text-right" : "text-left"}`}>
-      <button
-        className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${active ? "text-foreground" : ""}`}
-        onClick={() => onSort(k)}
-      >
-        {label}
-        <ArrowUpDown className={`h-3 w-3 ${active ? "opacity-100" : "opacity-40"}`} />
-        {active && <span className="text-[10px]">{sortDir === "asc" ? "↑" : "↓"}</span>}
-      </button>
-    </th>
-  );
-}
 
 // ----- Legacy view (unchanged behavior) -----
 function LegacyBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
