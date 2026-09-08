@@ -48,6 +48,7 @@ import {
 } from "@/hooks/useSlaBatch";
 import { PlanScopeSelect } from "@/components/PlanScopeSelect";
 import { PLAN_LABEL, inPlanScope, type PlanScope } from "@/lib/planTier";
+import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
 
 /** Business-day length for the given policy's calendar — drives "Nbd" rendering. */
 const bizDay = (p: SlaPolicy) => businessDaySeconds(p.businessHours);
@@ -2164,6 +2165,7 @@ function ViolationsSection({
           First response and resolution use their per-severity targets and clocks (Sev 1 wall-clock 24/7; Sev 2–4 Europe/Berlin business hours).
           Communication cadence (PROVISIONAL, drumbeat model incl. tail gap) = the worst gap between proactive updates; Sev 1 target 1h wall-clock, Sev 2 target 4h business hours. Sev 3/4 carry no cadence commitment and never show a cadence violation; non-evaluable tickets are never scored as a miss.
           Cells that met their target show the measured value in grey; red values are misses. "Not evaluable" means the metric could not be measured for that ticket.
+          "Check severity" runs the AI severity classifier for that ticket — it only proposes; nothing changes unless you accept it.
         </p>
       </CardContent>
       <ExcuseDialog
@@ -2171,6 +2173,16 @@ function ViolationsSection({
         onClose={() => setExcuseTarget(null)}
         onSaved={() => { refreshOverrides(); setExcuseTarget(null); }}
       />
+      <Dialog open={!!sevTarget} onOpenChange={(o) => !o && setSevTarget(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base">
+              Severity check{sevTarget?.subject ? ` — ${sevTarget.subject}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          {sevTarget && <SeverityProposalCard conversationId={sevTarget.cid} />}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
