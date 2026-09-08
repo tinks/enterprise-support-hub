@@ -588,8 +588,9 @@ const OwnerDashboardV3 = () => {
         <div className="flex items-center justify-between gap-3 pt-2">
           <div className="inline-flex rounded-md border border-border p-0.5">
             {([
-              ["active", `Needs attention (${listFilter === "at_risk" ? stats.atRisk.length : active.length})`],
-              ["closed", `Recently finalized (${closed.length})`],
+              ["active", `Active (${active.length})`],
+              ["closed", `Finalized (${closed.length})`],
+
             ] as Array<[Tab, string]>).map(([key, label]) => (
               <button
                 key={key}
