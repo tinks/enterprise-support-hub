@@ -201,7 +201,7 @@ const OwnerDashboardV3 = () => {
     return { active: a, closed: c };
   }, [rows]);
 
-  const visible = useMemo(() => {
+  const matching = useMemo(() => {
     let base = tab === "active" ? active : closed;
     if (tab === "active") {
       if (listFilter === "at_risk")
@@ -223,8 +223,14 @@ const OwnerDashboardV3 = () => {
           .includes(q),
       );
     }
-    return showAll ? base : base.slice(0, 8);
-  }, [tab, active, closed, search, listFilter, showAll]);
+    return base;
+  }, [tab, active, closed, search, listFilter]);
+
+  const visible = useMemo(
+    () => (showAll ? matching : matching.slice(0, 8)),
+    [matching, showAll],
+  );
+
 
   const baseColumns: IssueColumn<Row>[] = useMemo(
     () => [
@@ -582,8 +588,9 @@ const OwnerDashboardV3 = () => {
         <div className="flex items-center justify-between gap-3 pt-2">
           <div className="inline-flex rounded-md border border-border p-0.5">
             {([
-              ["active", `Needs attention (${listFilter === "at_risk" ? stats.atRisk.length : active.length})`],
-              ["closed", `Recently finalized (${closed.length})`],
+              ["active", `Active (${active.length})`],
+              ["closed", `Finalized (${closed.length})`],
+
             ] as Array<[Tab, string]>).map(([key, label]) => (
               <button
                 key={key}
@@ -659,10 +666,13 @@ const OwnerDashboardV3 = () => {
         />
 
         <p className="text-xs text-muted-foreground">
-          Showing {visible.length} {tab === "active" ? "active" : "finalized"} conversations
-          {search.trim() ? " matching the search" : ""}
-          {showAll ? "" : " (top 8)"}.
+          Showing {visible.length} of {matching.length} {tab === "active" ? "active" : "finalized"} conversations
+          {tab === "active" && listFilter === "at_risk" ? " open more than 7 days" : ""}
+          {tab === "active" && listFilter === "reopened" ? " that were reopened" : ""}
+          {search.trim() ? " matching the search" : ""}.
+          {!showAll && matching.length > visible.length ? " Use “View all” to see the rest." : ""}
         </p>
+
 
         <IssueDetailSheet
           open={!!selected}
