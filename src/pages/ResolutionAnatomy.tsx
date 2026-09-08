@@ -25,7 +25,8 @@ import {
   computeAnatomy, anatomyReconciles, type AnatomyResult, type OwedBy,
 } from "@/lib/resolutionAnatomy";
 import {
-  SPLIT_FOOTNOTE, SPLIT_KEYS, SPLIT_LABEL, SPLIT_CLASS, summarizeSplit, splitMedians,
+  SPLIT_FOOTNOTE, SPLIT_KEYS, SPLIT_LABEL, SPLIT_CLASS, SPLIT_TOOLTIP, SPLIT_DESC,
+  summarizeSplit, splitMedians,
 } from "@/lib/resolutionDisplay";
 import { ResolutionSplitLine } from "@/components/ResolutionSplitLine";
 
@@ -618,7 +619,7 @@ export default function ResolutionAnatomy() {
             <ResolutionSplitLine summary={persistedSplit} />
             <div className="grid gap-2 sm:grid-cols-4 text-xs">
               {SPLIT_KEYS.map((k) => (
-                <div key={k} className="rounded-md border p-2">
+                <div key={k} className="rounded-md border p-2" title={SPLIT_TOOLTIP[k]}>
                   <div className="flex items-center gap-1.5 text-muted-foreground">
                     <span className={`inline-block h-2 w-2 rounded-sm ${SPLIT_CLASS[k]}`} />
                     {SPLIT_LABEL[k]} median
@@ -626,6 +627,7 @@ export default function ResolutionAnatomy() {
                   <div className="mt-0.5 font-medium">
                     {persistedMedians[k] == null ? "—" : formatDuration(persistedMedians[k]!)}
                   </div>
+                  <div className="mt-1 leading-snug text-muted-foreground">{SPLIT_DESC[k]}</div>
                 </div>
               ))}
             </div>
