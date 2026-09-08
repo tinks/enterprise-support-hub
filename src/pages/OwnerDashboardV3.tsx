@@ -291,16 +291,8 @@ const OwnerDashboardV3 = () => {
       ? csatRows.reduce((a, r) => a + (r.csat_rating ?? 0), 0) / csatRows.length
       : null;
 
-    // Where the time went, for this owner's finalized cohort.
-    const sum = (pick: (r: Row) => number | null) =>
-      closed.reduce((a, r) => a + (pick(r) ?? 0), 0);
-    const anatomy = [
-      { label: SPLIT_LABEL.active ?? ACTIVE_LABEL, value: sum((r) => activeSeconds(r)) },
-      { label: SPLIT_LABEL.customerWait, value: sum((r) => r.resolution_customer_wait_s) },
-      { label: SPLIT_LABEL.engWait, value: sum((r) => r.resolution_eng_wait_s) },
-      { label: SPLIT_LABEL.closed, value: sum((r) => r.resolution_closed_s) },
-    ];
-    const anatomyTotal = anatomy.reduce((a, x) => a + x.value, 0);
+    // Where the time went, for this owner's finalized cohort — shared engine only.
+    const split = summarizeSplit(closed);
 
     // Opened vs finalized, last 8 weeks.
     const weekStart = (d: Date) => {
