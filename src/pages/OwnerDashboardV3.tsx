@@ -201,7 +201,7 @@ const OwnerDashboardV3 = () => {
     return { active: a, closed: c };
   }, [rows]);
 
-  const visible = useMemo(() => {
+  const matching = useMemo(() => {
     let base = tab === "active" ? active : closed;
     if (tab === "active") {
       if (listFilter === "at_risk")
@@ -223,8 +223,14 @@ const OwnerDashboardV3 = () => {
           .includes(q),
       );
     }
-    return showAll ? base : base.slice(0, 8);
-  }, [tab, active, closed, search, listFilter, showAll]);
+    return base;
+  }, [tab, active, closed, search, listFilter]);
+
+  const visible = useMemo(
+    () => (showAll ? matching : matching.slice(0, 8)),
+    [matching, showAll],
+  );
+
 
   const baseColumns: IssueColumn<Row>[] = useMemo(
     () => [
