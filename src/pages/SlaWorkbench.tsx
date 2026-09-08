@@ -130,18 +130,18 @@ export default function SlaWorkbench() {
 
         {showTestData && <TestDataBanner />}
 
-        <Tabs defaultValue="live" className="w-full">
+        <Tabs defaultValue="batch" className="w-full">
           <TabsList>
-            <TabsTrigger value="live">Analyze by ID (live)</TabsTrigger>
             <TabsTrigger value="batch">Population review (snapshot)</TabsTrigger>
+            <TabsTrigger value="live">Analyze by ID (live)</TabsTrigger>
           </TabsList>
-
-          <TabsContent value="live" className="mt-4">
-            <LiveAnalyzeTab />
-          </TabsContent>
 
           <TabsContent value="batch" className="mt-4">
             <BatchStoredTab showTestData={showTestData} />
+          </TabsContent>
+
+          <TabsContent value="live" className="mt-4">
+            <LiveAnalyzeTab />
           </TabsContent>
         </Tabs>
       </div>
