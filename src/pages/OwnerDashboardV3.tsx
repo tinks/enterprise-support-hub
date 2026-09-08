@@ -357,13 +357,13 @@ const OwnerDashboardV3 = () => {
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-semibold tracking-tight">{ownerName} — v3</h1>
+              <h1 className="text-2xl font-semibold tracking-tight">{ownerName}'s dashboard</h1>
               <Badge variant="outline" className="text-[10px]">Read-only</Badge>
+              <Badge variant="outline" className="text-[10px]">v3 reporting set</Badge>
             </div>
             <p className="text-sm text-muted-foreground">
-              Enterprise Intercom tickets owned by {ownerName || "—"} from the v3 reporting set, since{" "}
-              {CLEAN_DATA_START_LABEL}. Slack, Gmail and manual-only conversations that never became an Intercom
-              ticket live on the legacy dashboard.
+              Enterprise Intercom tickets owned by {ownerName || "—"} since {CLEAN_DATA_START_LABEL}. Slack, Gmail and
+              manual-only conversations live on the legacy dashboard.
             </p>
           </div>
           <Button onClick={load} size="sm" variant="outline" disabled={loading}>
@@ -371,44 +371,207 @@ const OwnerDashboardV3 = () => {
           </Button>
         </div>
 
-        <div className="inline-flex rounded-md border border-border p-0.5">
-          {([
-            ["active", `Active (${active.length})`],
-            ["closed", `Closed (${closed.length})`],
-          ] as Array<[Tab, string]>).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setTab(key)}
-              className={`rounded px-3 py-1.5 text-xs transition-colors ${
-                tab === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-          <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-          <span>
-            Active = open or reopened (oldest first{oldestActiveDays != null ? `, oldest ${oldestActiveDays}d` : ""}).
-            Closed = finalized. Transferred-out tickets are excluded. Everything loads in one pass — scroll, no pager.
-          </span>
-        </div>
-
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search subject, contact, Intercom ID…"
-          className="max-w-sm h-8 text-sm"
-        />
-
         {error && (
           <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
             Failed to load: {error}
           </div>
         )}
+
+        {/* ---- Row 1: decision cards ---- */}
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="Open now"
+            value={String(active.length)}
+            sub={oldestActiveDays != null ? `oldest ${oldestActiveDays}d` : "nothing open"}
+            onClick={() => { setTab("active"); setListFilter("all"); }}
+          />
+          <StatCard
+            label="At risk"
+            value={String(stats.atRisk.length)}
+            sub="open more than 7 days"
+            tone={stats.atRisk.length > 0 ? "warn" : undefined}
+            onClick={() => { setTab("active"); setListFilter("at_risk"); }}
+          />
+          <StatCard
+            label={ACTIVE_LABEL + " — median"}
+            value={stats.medActive == null ? "—" : fmtDuration(stats.medActive)}
+            sub={`${closed.length} finalized`}
+          />
+          <StatCard
+            label="CSAT"
+            value={stats.csatAvg == null ? "—" : stats.csatAvg.toFixed(2)}
+            sub={stats.csatN ? `${stats.csatN} responses` : "no responses yet"}
+          />
+        </div>
+
+        {/* ---- Row 2: ageing + resolution anatomy ---- */}
+        <div className="grid gap-3 lg:grid-cols-2">
+          <Panel title="Workload and ageing" desc="Active tickets by how long they have been open.">
+            {stats.bands.map((b) => {
+              const pct = active.length ? (b.rows.length / active.length) * 100 : 0;
+              return (
+                <div key={b.label} className="flex items-center gap-3 text-xs">
+                  <span className="w-12 text-muted-foreground">{b.label}</span>
+                  <div className="h-2 flex-1 rounded bg-muted overflow-hidden">
+                    <div
+                      className={b.label === "7d+" ? "h-full bg-[#FF6B6B]" : "h-full bg-primary"}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="w-8 text-right tabular-nums">{b.rows.length}</span>
+                </div>
+              );
+            })}
+            {active.length === 0 && <p className="text-xs text-muted-foreground">No active tickets.</p>}
+          </Panel>
+
+          <Panel
+            title="Where the time went"
+            desc={`Finalized cohort, shared SLA clocks. n=${stats.split.n}${
+              stats.split.noSplit ? `, ${stats.split.noSplit} without a split` : ""
+            }`}
+          >
+            <div className="flex h-3 w-full overflow-hidden rounded">
+              {SPLIT_KEYS.map((k) => (
+                <div
+                  key={k}
+                  className={SPLIT_CLASS[k]}
+                  style={{ width: `${stats.split.share[k] ?? 0}%` }}
+                  title={SPLIT_TOOLTIP[k]}
+                />
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1">
+              {SPLIT_KEYS.map((k) => (
+                <div key={k} className="flex items-center justify-between gap-2 text-xs" title={SPLIT_TOOLTIP[k]}>
+                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                    <span className={`h-2 w-2 rounded-sm ${SPLIT_CLASS[k]}`} />
+                    {SPLIT_LABEL[k]}
+                  </span>
+                  <span className="tabular-nums">
+                    {stats.split.share[k] == null ? "—" : `${(stats.split.share[k] as number).toFixed(0)}%`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        </div>
+
+        {/* ---- Row 3: throughput + work mix ---- */}
+        <div className="grid gap-3 lg:grid-cols-2">
+          <Panel title="Throughput" desc="Opened vs finalized, last 8 weeks.">
+            <div className="flex items-end gap-2 h-28">
+              {stats.weeks.map((w) => (
+                <div key={w.key} className="flex-1 flex flex-col items-center gap-1" title={`${w.label}: ${w.opened} opened, ${w.finalized} finalized`}>
+                  <div className="flex items-end gap-0.5 h-24 w-full justify-center">
+                    <div className="w-2.5 rounded-t bg-primary" style={{ height: `${(w.opened / stats.weekMax) * 100}%` }} />
+                    <div className="w-2.5 rounded-t bg-[#9B87F5]" style={{ height: `${(w.finalized / stats.weekMax) * 100}%` }} />
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">{w.label}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-4 text-[11px] text-muted-foreground">
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-primary" />Opened</span>
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-[#9B87F5]" />Finalized</span>
+            </div>
+          </Panel>
+
+          <Panel
+            title="Work mix"
+            desc="Finalized tickets by what they were about."
+            action={
+              <div className="inline-flex rounded-md border border-border p-0.5">
+                {([["area", "Product area"], ["type", "Ticket type"]] as Array<[MixKey, string]>).map(([k, l]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setMix(k)}
+                    className={`rounded px-2 py-1 text-[11px] transition-colors ${
+                      mix === k ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            }
+          >
+            {(mix === "area" ? stats.areaMix : stats.typeMix).map(([label, n]) => {
+              const pct = closed.length ? (n / closed.length) * 100 : 0;
+              return (
+                <div key={label} className="flex items-center gap-3 text-xs">
+                  <span className="w-32 truncate text-muted-foreground" title={label}>{label}</span>
+                  <div className="h-2 flex-1 rounded bg-muted overflow-hidden">
+                    <div className="h-full bg-[#E66FD2]" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="w-8 text-right tabular-nums">{n}</span>
+                </div>
+              );
+            })}
+            {closed.length === 0 && <p className="text-xs text-muted-foreground">No finalized tickets yet.</p>}
+          </Panel>
+        </div>
+
+        {/* ---- Row 4: focused worklists ---- */}
+        <div className="flex items-center justify-between gap-3 pt-2">
+          <div className="inline-flex rounded-md border border-border p-0.5">
+            {([
+              ["active", `Needs attention (${listFilter === "at_risk" ? stats.atRisk.length : active.length})`],
+              ["closed", `Recently finalized (${closed.length})`],
+            ] as Array<[Tab, string]>).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTab(key)}
+                className={`rounded px-3 py-1.5 text-xs transition-colors ${
+                  tab === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            {tab === "active" && (
+              <div className="inline-flex rounded-md border border-border p-0.5">
+                {([
+                  ["all", "All active"],
+                  ["at_risk", "7d+"],
+                  ["reopened", "Reopened"],
+                ] as Array<[ListFilter, string]>).map(([k, l]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setListFilter(k)}
+                    className={`rounded px-2 py-1 text-[11px] transition-colors ${
+                      listFilter === k ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            )}
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search subject, contact, Intercom ID…"
+              className="w-64 h-8 text-sm"
+            />
+            <Button size="sm" variant="outline" onClick={() => setShowAll((v) => !v)}>
+              {showAll ? "Show top 8" : "View all"}
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+          <span>
+            This is the reporting view. Day-to-day queue work will live on its own page under Issues; these lists are the
+            shortlist that the cards above link into.
+          </span>
+        </div>
 
         <IssueTable
           rows={visible}
