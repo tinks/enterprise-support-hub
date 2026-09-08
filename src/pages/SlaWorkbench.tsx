@@ -1852,6 +1852,10 @@ function ViolationsSection({
   const [hideExcused, setHideExcused] = useState(false);
   const [sortKey, setSortKey] = useState<ViolSortKey>("worst");
   const [excuseTarget, setExcuseTarget] = useState<{ cid: string; metric: ViolMetric; subject: string | null; suggestedReason?: SlaOverrideReason } | null>(null);
+  // Severity is the input to every SLA target, so a misclassified ticket can look
+  // like a violation. This opens the AI severity check for one ticket, read-only
+  // until a human accepts inside the card itself.
+  const [sevTarget, setSevTarget] = useState<{ cid: string; subject: string | null } | null>(null);
 
   const rows = useMemo<ViolationRow[]>(() => {
     const out: ViolationRow[] = [];
@@ -2077,7 +2081,15 @@ function ViolationsSection({
                         </div>
                       </td>
                       <td className="px-3 py-2 max-w-[160px] truncate" title={customer}>{customer}</td>
-                      <td className="px-3 py-2 text-xs whitespace-nowrap">{v.severity == null ? "—" : `Sev ${v.severity}`}</td>
+                      <td className="px-3 py-2 text-xs whitespace-nowrap">
+                        <div>{v.severity == null ? "—" : `Sev ${v.severity}`}</div>
+                        <button
+                          className="mt-1 text-[11px] text-muted-foreground hover:text-foreground hover:underline"
+                          onClick={() => setSevTarget({ cid, subject: row.subject })}
+                        >
+                          Check severity
+                        </button>
+                      </td>
 
                       <MetricCell
                         miss={v.triageMiss}
