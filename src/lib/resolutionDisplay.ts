@@ -136,11 +136,22 @@ export const SPLIT_SHORT: Record<SplitKey, string> = {
 };
 
 export const SPLIT_TOOLTIP: Record<SplitKey, string> = {
-  active: "Open and waiting on us — the only bucket the headline metric counts.",
-  customerWait: "Open, but the last move was ours: we were waiting on the customer.",
+  active:
+    "Ticket open and the ball with Support: the customer had written last and was waiting on a reply from us. This is elapsed time the ticket sat with us, not hands-on-keyboard effort — a ticket left untouched overnight still accrues active time. The only bucket the headline metric counts.",
+  customerWait:
+    "Ticket open, but Support replied last: we were waiting on the customer to answer, confirm, or send more detail. Ends the moment the customer writes back, or when the ticket is closed.",
   engWait:
-    "Open and escalated to engineering. Looks like customer wait from the outside, but the customer was waiting on US.",
-  closed: "The ticket sat closed before a reopen — nobody owed a reply.",
+    "Ticket open with a Linear issue pending: Support had escalated and was waiting on Lovable engineering, not on the customer. Carved out of customer wait, because the customer was really waiting on us. Ends when the Linear issue is done or cancelled.",
+  closed:
+    "The ticket was closed and later reopened — this is the gap between the close and the reopen. Nobody owed a reply during it, so it is excluded from the headline metric. Tickets that were never reopened have zero here.",
+};
+
+/** One-line plain-English definitions, shown under each bucket in the UI. */
+export const SPLIT_DESC: Record<SplitKey, string> = {
+  active: "Open, customer replied last — waiting on Support.",
+  customerWait: "Open, Support replied last — waiting on the customer.",
+  engWait: "Open with a Linear issue pending — waiting on Lovable engineering.",
+  closed: "Gap between a close and a reopen — nobody owed a reply.",
 };
 
 /** Tailwind classes for the split, in a fixed order so every surface matches. */
