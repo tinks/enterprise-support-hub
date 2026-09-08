@@ -202,17 +202,29 @@ const OwnerDashboardV3 = () => {
   }, [rows]);
 
   const visible = useMemo(() => {
-    const base = tab === "active" ? active : closed;
+    let base = tab === "active" ? active : closed;
+    if (tab === "active") {
+      if (listFilter === "at_risk")
+        base = base.filter(
+          (r) =>
+            r.intercom_created_at &&
+            Date.now() - new Date(r.intercom_created_at).getTime() > 7 * 86_400_000,
+        );
+      if (listFilter === "reopened")
+        base = base.filter((r) => r.lifecycle_status === "reopened_after_finalize");
+    }
     const q = search.trim().toLowerCase();
-    if (!q) return base;
-    return base.filter((r) =>
-      [displaySubject(r), r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, r.product_area, r.classification]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(q),
-    );
-  }, [tab, active, closed, search]);
+    if (q) {
+      base = base.filter((r) =>
+        [displaySubject(r), r.subject, r.contact_name, r.contact_email, r.intercom_conversation_id, r.product_area, r.classification]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(q),
+      );
+    }
+    return showAll ? base : base.slice(0, 8);
+  }, [tab, active, closed, search, listFilter, showAll]);
 
   const baseColumns: IssueColumn<Row>[] = useMemo(
     () => [
