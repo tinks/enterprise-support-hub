@@ -696,8 +696,6 @@ const UNATTRIBUTED = "__unattributed__";
 const ALL_CUSTOMERS = "__all__";
 
 function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverrides, customerLabels, testAccountKeys, showTestData, activePolicy, policyError, resolveForAnchor, policyConfigLoaded }: { rows: Row[]; loading: boolean; isExcused: (cid: string, metric: SlaOverrideMetric) => boolean; getOverride: (cid: string, metric: SlaOverrideMetric) => SlaOverride | undefined; refreshOverrides: () => void; customerLabels: Map<string, string>; testAccountKeys: Set<string>; showTestData: boolean; activePolicy: SlaPolicy; policyError: string | null; resolveForAnchor: (anchorMs: number, plan?: PlanTier) => SlaPolicy | null; policyConfigLoaded: boolean }) {
-  const [sortKey, setSortKey] = useState<CorrectedSortKey>("closed");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [dateWindow, setDateWindow] = useState<DateWindow>("month");
   const [customerFilter, setCustomerFilter] = useState<string>(ALL_CUSTOMERS);
   // SSE has no FR/resolution commitment, so the default population is Enterprise
