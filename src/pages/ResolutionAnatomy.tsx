@@ -25,7 +25,8 @@ import {
   computeAnatomy, anatomyReconciles, type AnatomyResult, type OwedBy,
 } from "@/lib/resolutionAnatomy";
 import {
-  SPLIT_FOOTNOTE, SPLIT_KEYS, SPLIT_LABEL, SPLIT_CLASS, summarizeSplit, splitMedians,
+  SPLIT_FOOTNOTE, SPLIT_KEYS, SPLIT_LABEL, SPLIT_CLASS, SPLIT_TOOLTIP, SPLIT_DESC,
+  summarizeSplit, splitMedians,
 } from "@/lib/resolutionDisplay";
 import { ResolutionSplitLine } from "@/components/ResolutionSplitLine";
 
