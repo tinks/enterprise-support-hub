@@ -1,5 +1,8 @@
 # Roadmap
 
+## One-off lookup (2026-09-08)
+- [ ] Identify the Intercom conversation ID associated with Linear issue IAM-576.
+
 ## Blocking publish (2026-09-02 — code complete, rescan pending)
 - [x] `gmail_oauth_hijack` — `gmail-auth-url` behind `requireEditor`; single-use server-stored
       `state` nonce (`public.gmail_oauth_states`, migration 0029) verified in
