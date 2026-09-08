@@ -260,6 +260,106 @@ const OwnerDashboardV3 = () => {
     return Math.floor((Date.now() - new Date(first).getTime()) / 86_400_000);
   }, [active]);
 
+  const ageDays = (r: Row) =>
+    r.intercom_created_at ? (Date.now() - new Date(r.intercom_created_at).getTime()) / 86_400_000 : 0;
+
+  const median = (xs: number[]) => {
+    const s = xs.filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
+    if (!s.length) return null;
+    const m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  };
+
+  // ---- Dashboard aggregates (all durations come from the shared SLA clocks) ----
+  const stats = useMemo(() => {
+    const atRisk = active.filter((r) => ageDays(r) > 7);
+    const reopened = active.filter((r) => r.lifecycle_status === "reopened_after_finalize");
+
+    const bands = [
+      { label: "< 1d", rows: active.filter((r) => ageDays(r) < 1) },
+      { label: "1–3d", rows: active.filter((r) => ageDays(r) >= 1 && ageDays(r) < 3) },
+      { label: "3–7d", rows: active.filter((r) => ageDays(r) >= 3 && ageDays(r) < 7) },
+      { label: "7d+", rows: atRisk },
+    ];
+
+    const medActive = median(
+      closed.map((r) => activeSeconds(r)).filter((n): n is number => n != null),
+    );
+
+    const csatRows = closed.filter((r) => r.csat_rating != null);
+    const csatAvg = csatRows.length
+      ? csatRows.reduce((a, r) => a + (r.csat_rating ?? 0), 0) / csatRows.length
+      : null;
+
+    // Where the time went, for this owner's finalized cohort.
+    const sum = (pick: (r: Row) => number | null) =>
+      closed.reduce((a, r) => a + (pick(r) ?? 0), 0);
+    const anatomy = [
+      { label: SPLIT_LABEL.active ?? ACTIVE_LABEL, value: sum((r) => activeSeconds(r)) },
+      { label: SPLIT_LABEL.customerWait, value: sum((r) => r.resolution_customer_wait_s) },
+      { label: SPLIT_LABEL.engWait, value: sum((r) => r.resolution_eng_wait_s) },
+      { label: SPLIT_LABEL.closed, value: sum((r) => r.resolution_closed_s) },
+    ];
+    const anatomyTotal = anatomy.reduce((a, x) => a + x.value, 0);
+
+    // Opened vs finalized, last 8 weeks.
+    const weekStart = (d: Date) => {
+      const x = new Date(d);
+      x.setHours(0, 0, 0, 0);
+      x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+      return x;
+    };
+    const weeks: { key: string; label: string; opened: number; finalized: number }[] = [];
+    const thisWeek = weekStart(new Date());
+    for (let i = 7; i >= 0; i--) {
+      const d = new Date(thisWeek);
+      d.setDate(d.getDate() - i * 7);
+      weeks.push({ key: d.toISOString().slice(0, 10), label: format(d, "d MMM"), opened: 0, finalized: 0 });
+    }
+    const byKey = new Map(weeks.map((w) => [w.key, w]));
+    for (const r of rows) {
+      if (r.intercom_created_at) {
+        const w = byKey.get(weekStart(new Date(r.intercom_created_at)).toISOString().slice(0, 10));
+        if (w) w.opened++;
+      }
+      if (r.intercom_closed_at) {
+        const w = byKey.get(weekStart(new Date(r.intercom_closed_at)).toISOString().slice(0, 10));
+        if (w) w.finalized++;
+      }
+    }
+    const weekMax = Math.max(1, ...weeks.map((w) => Math.max(w.opened, w.finalized)));
+
+    const mixOf = (pick: (r: Row) => string | null) => {
+      const m = new Map<string, number>();
+      for (const r of closed) m.set(pick(r) || "Unspecified", (m.get(pick(r) || "Unspecified") ?? 0) + 1);
+      return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+    };
+
+    return {
+      atRisk,
+      reopened,
+      bands,
+      medActive,
+      csatAvg,
+      csatN: csatRows.length,
+      anatomy,
+      anatomyTotal,
+      weeks,
+      weekMax,
+      areaMix: mixOf((r) => r.product_area),
+      typeMix: mixOf((r) => r.classification),
+    };
+  }, [active, closed, rows]);
+
+  const needsAttention = useMemo(
+    () =>
+      [...active]
+        .sort((a, b) => ageDays(b) - ageDays(a))
+        .slice(0, 8),
+    [active],
+  );
+  const recentlyFinalized = useMemo(() => closed.slice(0, 8), [closed]);
+
   return (
     <AppLayout>
       <div className="p-6 space-y-4">
