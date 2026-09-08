@@ -42,7 +42,7 @@ const navEntries: NavEntry[] = [
     label: "Reports",
     icon: BarChart3,
     items: [
-      { to: "/", label: "Analytics", end: true },
+      { to: "/stats", label: "Analytics (legacy)" },
       { to: "/analytics-v3", label: "Analytics v3" },
       { to: "/trend-report", label: "Trend report (v3)" },
       { to: "/monthly-lookback", label: "Monthly lookback" },
