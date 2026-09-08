@@ -74,7 +74,7 @@ import {
 // ============================================================================
 type Enriched = Row & { sla: TicketSla };
 type SortKey = "closed" | "firstReply" | "rawResolve" | "responseGap" | "bhHandling" | "parts";
-type CorrectedSortKey = "closed" | "humanBH" | "humanCal" | "anyCal" | "ttrBH";
+
 
 
 // ============================================================================
