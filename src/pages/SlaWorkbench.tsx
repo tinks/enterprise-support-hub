@@ -833,24 +833,6 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
   }, [filteredInScope]);
 
 
-  const sorted = useMemo(() => {
-    const dir = sortDir === "asc" ? 1 : -1;
-    const val = (r: CorrectedEnriched): number => {
-      switch (sortKey) {
-        case "closed": return r.intercom_closed_at ? new Date(r.intercom_closed_at).getTime() : 0;
-        case "humanBH": return r.sla.firstHumanReplyFromOpenBusinessHoursS ?? -1;
-        case "humanCal": return r.sla.firstHumanReplyFromOpenS ?? -1;
-        case "anyCal": return r.sla.firstResponseAnyAgentS ?? -1;
-        case "ttrBH": return r.sla.ttrBusinessHoursS ?? -1;
-      }
-    };
-    return [...filteredInScope].sort((a, b) => (val(a) - val(b)) * dir);
-  }, [filteredInScope, sortKey, sortDir]);
-
-  const toggleSort = (k: CorrectedSortKey) => {
-    if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortKey(k); setSortDir("desc"); }
-  };
 
   return (
     <div className="space-y-4">
