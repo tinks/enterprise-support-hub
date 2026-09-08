@@ -997,26 +997,6 @@ function CorrectedBatch({ rows, loading, isExcused, getOverride, refreshOverride
   );
 }
 
-function CorrectedSortableTh({
-  label, k, sortKey, sortDir, onSort, align,
-}: {
-  label: string; k: CorrectedSortKey; sortKey: CorrectedSortKey; sortDir: "asc" | "desc";
-  onSort: (k: CorrectedSortKey) => void; align?: "right";
-}) {
-  const active = sortKey === k;
-  return (
-    <th className={`px-3 py-2 font-medium ${align === "right" ? "text-right" : "text-left"}`}>
-      <button
-        className={`inline-flex items-center gap-1 hover:text-foreground transition-colors ${active ? "text-foreground" : ""}`}
-        onClick={() => onSort(k)}
-      >
-        {label}
-        <ArrowUpDown className={`h-3 w-3 ${active ? "opacity-100" : "opacity-40"}`} />
-        {active && <span className="text-[10px]">{sortDir === "asc" ? "↑" : "↓"}</span>}
-      </button>
-    </th>
-  );
-}
 
 // ----- Legacy view (unchanged behavior) -----
 function LegacyBatch({ rows, loading }: { rows: Row[]; loading: boolean }) {
