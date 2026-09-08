@@ -48,6 +48,7 @@ import {
 } from "@/hooks/useSlaBatch";
 import { PlanScopeSelect } from "@/components/PlanScopeSelect";
 import { PLAN_LABEL, inPlanScope, type PlanScope } from "@/lib/planTier";
+import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
 
 /** Business-day length for the given policy's calendar — drives "Nbd" rendering. */
 const bizDay = (p: SlaPolicy) => businessDaySeconds(p.businessHours);
@@ -1852,6 +1853,10 @@ function ViolationsSection({
   const [hideExcused, setHideExcused] = useState(false);
   const [sortKey, setSortKey] = useState<ViolSortKey>("worst");
   const [excuseTarget, setExcuseTarget] = useState<{ cid: string; metric: ViolMetric; subject: string | null; suggestedReason?: SlaOverrideReason } | null>(null);
+  // Severity is the input to every SLA target, so a misclassified ticket can look
+  // like a violation. This opens the AI severity check for one ticket, read-only
+  // until a human accepts inside the card itself.
+  const [sevTarget, setSevTarget] = useState<{ cid: string; subject: string | null } | null>(null);
 
   const rows = useMemo<ViolationRow[]>(() => {
     const out: ViolationRow[] = [];
@@ -2077,7 +2082,15 @@ function ViolationsSection({
                         </div>
                       </td>
                       <td className="px-3 py-2 max-w-[160px] truncate" title={customer}>{customer}</td>
-                      <td className="px-3 py-2 text-xs whitespace-nowrap">{v.severity == null ? "—" : `Sev ${v.severity}`}</td>
+                      <td className="px-3 py-2 text-xs whitespace-nowrap">
+                        <div>{v.severity == null ? "—" : `Sev ${v.severity}`}</div>
+                        <button
+                          className="mt-1 text-[11px] text-muted-foreground hover:text-foreground hover:underline"
+                          onClick={() => setSevTarget({ cid, subject: row.subject })}
+                        >
+                          Check severity
+                        </button>
+                      </td>
 
                       <MetricCell
                         miss={v.triageMiss}
@@ -2152,6 +2165,7 @@ function ViolationsSection({
           First response and resolution use their per-severity targets and clocks (Sev 1 wall-clock 24/7; Sev 2–4 Europe/Berlin business hours).
           Communication cadence (PROVISIONAL, drumbeat model incl. tail gap) = the worst gap between proactive updates; Sev 1 target 1h wall-clock, Sev 2 target 4h business hours. Sev 3/4 carry no cadence commitment and never show a cadence violation; non-evaluable tickets are never scored as a miss.
           Cells that met their target show the measured value in grey; red values are misses. "Not evaluable" means the metric could not be measured for that ticket.
+          "Check severity" runs the AI severity classifier for that ticket — it only proposes; nothing changes unless you accept it.
         </p>
       </CardContent>
       <ExcuseDialog
@@ -2159,6 +2173,16 @@ function ViolationsSection({
         onClose={() => setExcuseTarget(null)}
         onSaved={() => { refreshOverrides(); setExcuseTarget(null); }}
       />
+      <Dialog open={!!sevTarget} onOpenChange={(o) => !o && setSevTarget(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base">
+              Severity check{sevTarget?.subject ? ` — ${sevTarget.subject}` : ""}
+            </DialogTitle>
+          </DialogHeader>
+          {sevTarget && <SeverityProposalCard conversationId={sevTarget.cid} />}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
