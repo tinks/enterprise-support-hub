@@ -193,6 +193,17 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Slack retries a delivery when we don't ack within 3s. Retries are safe:
+    // every handler below claims its event atomically first, so an already
+    // claimed (or still-processing) event short-circuits to 200 OK.
+    const slackRetryNum = req.headers.get("x-slack-retry-num");
+    const isSlackRetry = slackRetryNum !== null;
+    if (isSlackRetry) {
+      console.log(
+        `[RETRY] Slack retry #${slackRetryNum} (reason=${req.headers.get("x-slack-retry-reason") || "unknown"}) for event ts=${event.ts}`,
+      );
+    }
+
     console.log(`Slack event: type=${event.type}, subtype=${event.subtype || "none"}, channel=${event.channel}`);
 
     const slackHeaders = {
