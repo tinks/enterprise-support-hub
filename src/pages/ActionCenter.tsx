@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { AlertTriangle, ArrowRight, Bell, CheckCircle2, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { formatDistanceToNowStrict } from "date-fns";
-import { useActionSignals, type SignalState } from "@/hooks/useActionSignals";
+import { useActionSignals, type SignalState } from "@/lib/actionSignalsContext";
 import { FAMILY_LABEL, type SignalFamily } from "@/lib/actionSignals";
 
 const FAMILY_ORDER: SignalFamily[] = ["queues", "sla", "pipeline", "review"];
