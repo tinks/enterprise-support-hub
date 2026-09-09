@@ -1,7 +1,7 @@
 // One-off admin utility: move already re-hosted Slack attachments out of the
 // public `public-assets` bucket into the private `customer-attachments` bucket.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { requireEditor } from "../_shared/require-editor.ts";
+import { requireEditorOrSecret } from "../_shared/require-editor-or-secret.ts";
 import { ATTACHMENT_BUCKET, ATTACHMENT_PREFIX } from "../_shared/attachments.ts";
 
 const corsHeaders = {
@@ -14,7 +14,7 @@ const SOURCE_BUCKET = "public-assets";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  const gate = await requireEditor(req, corsHeaders);
+  const gate = await requireEditorOrSecret(req, corsHeaders);
   if (!gate.ok) return gate.response;
 
   const supabase = createClient(
