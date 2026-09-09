@@ -377,21 +377,31 @@ Deno.serve(async (req) => {
 
   // ---------------------------------------------------------------------------
   // Tail hop: AI subject labels for OPEN placeholder tickets.
-  // Gated on real remaining work (a count query, not a guess) so an idle sync
-  // never kicks the model. Best-effort: a failure here never fails the sync.
+  // Gated on real remaining work (a placeholder query, not a guess) so an idle
+  // sync never kicks the model. Best-effort: a failure here never fails the sync.
   // generate-ticket-subject owns its own kill switch, daily cap and hash-skip.
   // ---------------------------------------------------------------------------
   let subjectAi: Record<string, unknown> | null = null;
   if (inserted > 0 || reopened > 0) {
     try {
-      const { count: pending } = await supabase
+      const { data: cands } = await supabase
         .from("intercom_tickets_v3")
-        .select("id", { count: "exact", head: true })
+        .select("subject")
         .eq("state", "open")
         .is("subject_ai", null)
-        .is("subject_override", null);
+        .is("subject_override", null)
+        .limit(200);
 
-      if ((pending ?? 0) > 0) {
+      // Mirrors PLACEHOLDER_RE in generate-ticket-subject and isPlaceholderSubject
+      // in src/lib/subjectDisplay.ts — the three must agree.
+      const placeholder = /^(intercom\s*#\d+|\(no subject\)|no subject|untitled|-|n\/a)$/i;
+      const pending = (cands ?? []).filter((r: any) => {
+        const t = String(r.subject ?? "").trim();
+        return t.length === 0 || placeholder.test(t);
+      }).length;
+
+      if (pending > 0) {
+
         const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-ticket-subject`, {
           method: "POST",
           headers: {
