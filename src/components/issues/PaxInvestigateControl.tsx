@@ -116,7 +116,7 @@ export function PaxInvestigateControl({ conversationId }: { conversationId: stri
   return (
     <div className="space-y-2">
       {!inv ? (
-        <Button size="sm" onClick={() => run("start")} disabled={busy}>
+        <Button size="sm" onClick={() => run("start")} disabled={busy || PAX_DISABLED} title={PAX_DISABLED ? PAX_DISABLED_REASON : undefined}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Bot className="h-4 w-4 mr-1" />}
           Ask Pax to investigate
         </Button>
