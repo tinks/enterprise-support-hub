@@ -887,8 +887,12 @@ Deno.serve(async (req) => {
             }
           }
         } catch (err) {
-          console.error("Inline thread-reply forwarding error:", err);
+          console.error("Background thread-reply forwarding error:", err);
+          await releaseClaim("forwarding_exception");
         }
+        };
+
+
 
         // ---- Background: cosmetic work (button removal, status notices) ----
         const cosmeticWork = async () => {
