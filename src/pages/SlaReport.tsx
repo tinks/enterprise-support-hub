@@ -585,6 +585,17 @@ export default function SlaReport() {
           </CardContent>
         </Card>
 
+        {!sseScope && (
+          <SeverityTable activePolicy={activePolicy}
+            title="§3c Resolution by Severity"
+            metric="resolution"
+            bySev={bySev}
+            isExcused={isExcused}
+          />
+        )}
+
+
+
 
 
         {/* §4 Breaches */}
