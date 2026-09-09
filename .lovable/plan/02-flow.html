@@ -1,0 +1,56 @@
+<svg viewBox="0 0 640 330" xmlns="http://www.w3.org/2000/svg" style="font-family: var(--font-sans)">
+  <defs>
+    <marker id="ch" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="hsl(var(--muted-foreground))"/>
+    </marker>
+  </defs>
+
+  <text x="0" y="14" style="font-size:12px" fill="hsl(var(--muted-foreground))">two ways a subject gets written</text>
+
+  <!-- scheduled path -->
+  <rect x="0" y="30" width="150" height="52" rx="8" fill="none" stroke="hsl(var(--muted-foreground))"/>
+  <text x="75" y="52" text-anchor="middle" style="font-size:14px;font-weight:480" fill="hsl(var(--foreground))">Scheduled pass</text>
+  <text x="75" y="69" text-anchor="middle" style="font-size:12px" fill="hsl(var(--muted-foreground))">open + placeholder</text>
+
+  <rect x="0" y="102" width="150" height="52" rx="8" fill="none" stroke="hsl(var(--muted-foreground))"/>
+  <text x="75" y="124" text-anchor="middle" style="font-size:14px;font-weight:480" fill="hsl(var(--foreground))">Button</text>
+  <text x="75" y="141" text-anchor="middle" style="font-size:12px" fill="hsl(var(--muted-foreground))">any ticket, on demand</text>
+
+  <line x1="150" y1="56" x2="216" y2="86" stroke="hsl(var(--muted-foreground))" marker-end="url(#ch)"/>
+  <line x1="150" y1="128" x2="216" y2="98" stroke="hsl(var(--muted-foreground))" marker-end="url(#ch)"/>
+
+  <rect x="220" y="66" width="150" height="52" rx="8" fill="none" stroke="hsl(var(--muted-foreground))"/>
+  <text x="295" y="88" text-anchor="middle" style="font-size:14px;font-weight:480" fill="hsl(var(--foreground))">Summarize</text>
+  <text x="295" y="105" text-anchor="middle" style="font-size:12px" fill="hsl(var(--muted-foreground))">thread → 4–10 words</text>
+
+  <line x1="370" y1="92" x2="436" y2="92" stroke="hsl(var(--muted-foreground))" marker-end="url(#ch)"/>
+
+  <rect x="440" y="66" width="180" height="52" rx="8" fill="none" stroke="hsl(var(--accent))"/>
+  <text x="530" y="88" text-anchor="middle" style="font-size:14px;font-weight:480" fill="hsl(var(--foreground))">AI subject column</text>
+  <text x="530" y="105" text-anchor="middle" style="font-size:12px" fill="hsl(var(--muted-foreground))">Hub only · never Intercom</text>
+
+  <!-- display precedence -->
+  <text x="0" y="196" style="font-size:12px" fill="hsl(var(--muted-foreground))">what the Hub shows, first match wins</text>
+
+  <rect x="0" y="208" width="146" height="46" rx="8" fill="hsl(var(--accent))" stroke="none"/>
+  <text x="73" y="229" text-anchor="middle" style="font-size:14px;font-weight:480" fill="hsl(var(--accent-foreground))">Manual label</text>
+  <text x="73" y="245" text-anchor="middle" style="font-size:12px" fill="hsl(var(--accent-foreground))">always wins</text>
+
+  <line x1="146" y1="231" x2="176" y2="231" stroke="hsl(var(--muted-foreground))" marker-end="url(#ch)"/>
+  <rect x="180" y="208" width="146" height="46" rx="8" fill="none" stroke="hsl(var(--muted-foreground))"/>
+  <text x="253" y="229" text-anchor="middle" style="font-size:14px;font-weight:480" fill="hsl(var(--foreground))">AI subject</text>
+  <text x="253" y="245" text-anchor="middle" style="font-size:12px" fill="hsl(var(--muted-foreground))">marked as AI</text>
+
+  <line x1="326" y1="231" x2="356" y2="231" stroke="hsl(var(--muted-foreground))" marker-end="url(#ch)"/>
+  <rect x="360" y="208" width="146" height="46" rx="8" fill="none" stroke="hsl(var(--muted-foreground))"/>
+  <text x="433" y="229" text-anchor="middle" style="font-size:14px;font-weight:480" fill="hsl(var(--foreground))">Intercom subject</text>
+  <text x="433" y="245" text-anchor="middle" style="font-size:12px" fill="hsl(var(--muted-foreground))">source truth</text>
+
+  <line x1="506" y1="231" x2="536" y2="231" stroke="hsl(var(--muted-foreground))" marker-end="url(#ch)"/>
+  <rect x="540" y="208" width="90" height="46" rx="8" fill="none" stroke="hsl(var(--border))"/>
+  <text x="585" y="235" text-anchor="middle" style="font-size:14px;font-weight:480" fill="hsl(var(--muted-foreground))">Untitled</text>
+
+  <rect x="0" y="278" width="630" height="44" rx="8" fill="none" stroke="hsl(var(--border))" stroke-dasharray="4 3"/>
+  <text x="12" y="296" style="font-size:12px" fill="hsl(var(--muted-foreground))">never touched: Intercom's own title · SLA email-vs-messenger inference · severity eval inputs · closed tickets</text>
+  <text x="12" y="313" style="font-size:12px" fill="hsl(var(--muted-foreground))">the original Intercom subject stays readable underneath every AI or manual label</text>
+</svg>
