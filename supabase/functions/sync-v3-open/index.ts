@@ -375,14 +375,65 @@ Deno.serve(async (req) => {
     return acc;
   }, {});
 
+  // ---------------------------------------------------------------------------
+  // Tail hop: AI subject labels for OPEN placeholder tickets.
+  // Gated on real remaining work (a placeholder query, not a guess) so an idle
+  // sync never kicks the model. Best-effort: a failure here never fails the sync.
+  // generate-ticket-subject owns its own kill switch, daily cap and hash-skip.
+  // ---------------------------------------------------------------------------
+  let subjectAi: Record<string, unknown> | null = null;
+  if (inserted > 0 || reopened > 0) {
+    try {
+      const { data: cands } = await supabase
+        .from("intercom_tickets_v3")
+        .select("subject")
+        .eq("state", "open")
+        .is("subject_ai", null)
+        .is("subject_override", null)
+        .limit(200);
+
+      // Mirrors PLACEHOLDER_RE in generate-ticket-subject and isPlaceholderSubject
+      // in src/lib/subjectDisplay.ts — the three must agree.
+      const placeholder = /^(intercom\s*#\d+|\(no subject\)|no subject|untitled|-|n\/a)$/i;
+      const pending = (cands ?? []).filter((r: any) => {
+        const t = String(r.subject ?? "").trim();
+        return t.length === 0 || placeholder.test(t);
+      }).length;
+
+      if (pending > 0) {
+
+        const r = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/generate-ticket-subject`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({ mode: "auto", limit: 10 }),
+        });
+        const txt = await r.text();
+        subjectAi = { status: r.status, body: txt.slice(0, 400) };
+        console.log(`[sync-v3-open] subject-ai hop pending=${pending} [${r.status}] ${txt.slice(0, 300)}`);
+        if (!r.ok) console.error(`[sync-v3-open] subject-ai hop [${r.status}]: ${txt.slice(0, 400)}`);
+      } else {
+        subjectAi = { skipped: "no open placeholders pending" };
+        console.log("[sync-v3-open] subject-ai hop skipped — no open placeholders pending");
+      }
+
+    } catch (e) {
+      subjectAi = { error: (e as Error).message };
+      console.error(`[sync-v3-open] subject-ai hop failed: ${(e as Error).message}`);
+    }
+  }
+
   return json({
     ok: true, windowHours, fetched: conversations.length,
     inserted, updated, skipped, failed, reopened, silent_nudges: silentNudges, tickets_finalized: ticketsFinalized,
     attr_refreshed: attrRefreshed, alerted,
-
+    subject_ai: subjectAi,
     stateCounts,
     elapsed_ms: Date.now() - startedAt,
   });
+
 });
 
 function json(p: unknown, status = 200) {

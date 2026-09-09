@@ -2058,7 +2058,11 @@ Cost discipline: kill switch, daily cap counted off `subject_ai_at`, max 25 ids 
 
 Verified 9 Sep 2026: #215475214997973 titled "Lovable app backend migration from EU to US"; an immediate re-run reported `modelCalls: 0` (hash skip); kill switch off returned 403; unauthenticated returned 401 and a bad cron secret returned 401; the open-only backfill wrote 19 rows and left the 263 closed placeholders at exactly 263, with `subject_ai` on closed tickets = 0. Typecheck and build clean.
 
-**UNVERIFIED / NOT DONE**: the hourly automatic pass is **not scheduled** — HTTP cron authoring is blocked on this project (no managed schedule tool, and SQL cron authoring is refused), so auto mode only runs when invoked. The read-only refusal path for the AI buttons has not been exercised, and the daily-cap refusal has not been hit.
+### Trigger (9 Sep 2026)
+
+There is no HTTP cron for this — authoring one is blocked on this project. Instead `sync-v3-open` (already on a 5-minute schedule) ends with a **tail hop**: if that pass inserted or reopened at least one ticket **and** a placeholder query shows an open ticket with neither an AI nor a human label, it invokes `generate-ticket-subject` with `{mode:"auto", limit:10}` using the service-role key. The hop is best-effort — any failure is logged and never fails the sync — and both branches log (`subject-ai hop pending=N [status]` / `skipped — no open placeholders pending`). The placeholder regex in `sync-v3-open` mirrors `PLACEHOLDER_RE` in the writer and `isPlaceholderSubject` in `src/lib/subjectDisplay.ts`; the three must stay in step. Practical effect: new placeholder tickets get a title within minutes of arriving, and titling pauses if the sync pauses.
+
+**UNVERIFIED / NOT DONE**: the tail hop has not yet fired live — it was deployed with 0 open placeholders pending, so it has had no work to do; the next placeholder ticket exercises it and leaves a log line. The read-only refusal path for the AI buttons has not been exercised, and the daily-cap refusal has not been hit.
 
 
 
