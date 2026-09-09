@@ -419,10 +419,27 @@ export function TicketFieldsPanel({
                   Clear
                 </Button>
               ) : null}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={subjectSaving || subjectAiBusy}
+                title="Ask AI for a title. Written as a Hub label only — Intercom is never changed."
+                onClick={() => void rewriteWithAi()}
+              >
+                {subjectAiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Rewrite with AI"}
+              </Button>
+              {subjectRow?.subject_ai ? (
+                <Button size="sm" variant="ghost" disabled={subjectAiBusy} onClick={() => void dropAiSubject()}>
+                  Use Intercom's
+                </Button>
+              ) : null}
             </div>
           </div>
           <p className="text-[10px] text-muted-foreground pl-[118px]">
             Hub label only — Intercom keeps {subjectRow?.subject ? `"${subjectRow.subject}"` : "its own subject"}.
+            {subjectRow?.subject_ai && !subjectRow?.subject_override
+              ? ` Currently showing an AI-written subject: "${subjectRow.subject_ai}".`
+              : ""}
           </p>
           {subjectMsg && (
             <p className={`text-xs pl-[118px] ${subjectMsg.ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
