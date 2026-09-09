@@ -30,7 +30,7 @@ import { excludeTestTickets, showTestDataNow } from "@/lib/testTickets";
 
 const sel = (s: string): string => s;
 const SELECT_COLS = sel(
-  "id,intercom_conversation_id,subject,subject_override,csat_rating,csat_remark,csat_rated_at," +
+  "id,intercom_conversation_id,subject,subject_override,subject_ai,csat_rating,csat_remark,csat_rated_at," +
   "csat_rater_name,csat_rater_email,csat_rater_is_internal,contact_name,contact_email," +
   "customer_key,owner,classification,finalized_at,intercom_created_at,plan_tier,is_test_ticket",
 );

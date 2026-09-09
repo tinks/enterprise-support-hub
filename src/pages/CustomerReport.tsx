@@ -137,7 +137,7 @@ export default function CustomerReport() {
       setOpenLoading(true);
       const { data } = await supabase
         .from("intercom_tickets_v3")
-        .select("id,intercom_conversation_id,subject,subject_override,intercom_created_at,intercom_updated_at,lifecycle_status,csat_rating,csat_rater_is_internal,raw_payload")
+        .select("id,intercom_conversation_id,subject,subject_override,subject_ai,intercom_created_at,intercom_updated_at,lifecycle_status,csat_rating,csat_rater_is_internal,raw_payload")
         .eq("customer_key", customer)
         .in("lifecycle_status", ["open", "reopened_after_finalize"])
         .order("intercom_created_at", { ascending: false });

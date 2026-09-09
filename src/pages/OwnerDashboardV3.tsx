@@ -68,7 +68,7 @@ type Row = {
 };
 
 const SELECT =
-  "id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,owner,customer_key,lifecycle_status,state,product_area,classification,tags,csat_rating,csat_remark,time_to_resolve_s,resolution_active_s,resolution_customer_wait_s,resolution_eng_wait_s,resolution_closed_s,resolution_window_s,active_clock_engine_version,time_to_triage_s,time_to_first_human_reply_s,intercom_created_at,intercom_closed_at,last_synced_at,plan_tier";
+  "id,intercom_conversation_id,subject,subject_override,subject_ai,contact_name,contact_email,owner,customer_key,lifecycle_status,state,product_area,classification,tags,csat_rating,csat_remark,time_to_resolve_s,resolution_active_s,resolution_customer_wait_s,resolution_eng_wait_s,resolution_closed_s,resolution_window_s,active_clock_engine_version,time_to_triage_s,time_to_first_human_reply_s,intercom_created_at,intercom_closed_at,last_synced_at,plan_tier";
 
 type Tab = "active" | "closed";
 

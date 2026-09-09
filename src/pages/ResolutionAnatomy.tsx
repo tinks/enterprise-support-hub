@@ -63,7 +63,7 @@ import { inPlanScope, type PlanScope } from "@/lib/planTier";
 import { showTestDataNow } from "@/lib/testTickets";
 
 const SCALAR_COLS =
-  "id,intercom_conversation_id,subject,subject_override,owner,product_area,classification," +
+  "id,intercom_conversation_id,subject,subject_override,subject_ai,owner,product_area,classification," +
   "customer_key,finalized_at,intercom_created_at,intercom_closed_at,time_to_resolve_s," +
   "reopen_count_at_finalize,tags,rsa_override,customer_resolution_method,plan_tier,is_test_ticket," +
   // Engine-v3 persisted clocks — the authoritative split for the whole cohort.

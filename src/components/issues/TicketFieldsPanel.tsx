@@ -182,7 +182,7 @@ export function TicketFieldsPanel({
     setSubjectMsg(null);
     supabase
       .from("intercom_tickets_v3")
-      .select("subject,subject_override")
+      .select("subject,subject_override,subject_ai")
       .eq("intercom_conversation_id", conversationId)
       .maybeSingle()
       .then(({ data }) => {

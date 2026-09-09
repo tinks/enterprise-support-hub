@@ -149,7 +149,7 @@ export default function Triage() {
     let q = supabase
       .from("intercom_tickets_v3")
       .select(
-        "id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,owner,admin_assignee_id,customer_key,custom_attributes,intercom_created_at,last_synced_at,raw_payload,plan_tier,is_test_ticket",
+        "id,intercom_conversation_id,subject,subject_override,subject_ai,contact_name,contact_email,owner,admin_assignee_id,customer_key,custom_attributes,intercom_created_at,last_synced_at,raw_payload,plan_tier,is_test_ticket",
       )
       .in("lifecycle_status", ["open", "reopened_after_finalize"]);
     if (!showTestDataNow()) q = q.eq("is_test_ticket", false);
