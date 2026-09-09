@@ -260,7 +260,7 @@ Deno.serve(async (req) => {
 
       let permalink: string | null = null;
       try {
-        const pl = await slack(slackToken, "chat.getPermalink", { channel, message_ts: ts });
+        const pl = await slackGet(slackToken, "chat.getPermalink", { channel, message_ts: ts });
         permalink = String(pl.permalink);
       } catch (e) {
         console.error("permalink lookup failed:", e);
