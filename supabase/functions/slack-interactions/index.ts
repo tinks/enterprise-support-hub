@@ -47,15 +47,15 @@ async function downloadAndUploadFiles(
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const path = `slack-attachments/${threadTs.replace(".", "_")}/${safeName}`;
       const { error: uploadErr } = await supabase.storage
-        .from("public-assets")
+        .from(ATTACHMENT_BUCKET)
         .upload(path, blob, { contentType: file.mimetype, upsert: true });
       if (uploadErr) {
         console.error(`Failed to upload file ${file.name}:`, uploadErr);
         continue;
       }
-      const { data } = supabase.storage.from("public-assets").getPublicUrl(path);
-      publicUrls.push(data.publicUrl);
-      console.log(`Uploaded ${file.name} → ${data.publicUrl}`);
+      const link = attachmentUrl(path);
+      publicUrls.push(link);
+      console.log(`Uploaded ${file.name} → ${link}`);
     } catch (e) {
       console.error(`Error processing file ${file.name}:`, e);
     }

@@ -99,3 +99,6 @@ verify_jwt = true
 verify_jwt = true
 [functions.sync-intercom-fields]
 verify_jwt = false
+
+[functions.attachment]
+verify_jwt = false
