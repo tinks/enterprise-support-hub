@@ -17,6 +17,7 @@ import { displaySubject } from "@/lib/subjectDisplay";
 import { idColumn, subjectColumn, contactColumn, customerColumn, ownerColumn } from "@/components/issues/issueColumns";
 import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
+import { PaxInvestigateControl } from "@/components/issues/PaxInvestigateControl";
 
 import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
 
@@ -544,6 +545,10 @@ export default function Triage() {
               value={selected.intercom_created_at ? format(new Date(selected.intercom_created_at), "PPpp") : "—"}
             />
             <div className="pt-2 border-t border-border space-y-3">
+              <div>
+                <div className="text-xs text-muted-foreground mb-2">Investigation</div>
+                <PaxInvestigateControl conversationId={selected.intercom_conversation_id} />
+              </div>
               <SeverityProposalCard
                 conversationId={selected.intercom_conversation_id}
                 onAccepted={(sev) => {
