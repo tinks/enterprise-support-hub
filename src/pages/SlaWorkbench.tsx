@@ -1383,16 +1383,16 @@ function ComplianceSection({
               <tr>
                 <th className="text-left px-3 py-2 font-medium">Severity</th>
                 <th className="text-right px-3 py-2 font-medium">n</th>
-                <th className="text-left px-3 py-2 font-medium">FR target</th>
-                <th className="text-right px-3 py-2 font-medium">FR %met</th>
-                <th className="text-right px-3 py-2 font-medium">FR breaches</th>
-                <th className="text-right px-3 py-2 font-medium">FR n/a</th>
-                <th className="text-left px-3 py-2 font-medium">Res target</th>
-                <th className="text-right px-3 py-2 font-medium">Res %met</th>
-                <th className="text-right px-3 py-2 font-medium">Res breaches</th>
-                <th className="text-left px-3 py-2 font-medium">Cadence target</th>
-                <th className="text-right px-3 py-2 font-medium">Cadence %met</th>
-                <th className="text-right px-3 py-2 font-medium">Cadence breaches</th>
+                <th className="text-left px-3 py-2 font-medium">First response time target</th>
+                <th className="text-right px-3 py-2 font-medium">First response time %met</th>
+                <th className="text-right px-3 py-2 font-medium">First response time breaches</th>
+                <th className="text-right px-3 py-2 font-medium">First response time n/a</th>
+                <th className="text-left px-3 py-2 font-medium">Communication cadence target</th>
+                <th className="text-right px-3 py-2 font-medium">Communication cadence %met</th>
+                <th className="text-right px-3 py-2 font-medium">Communication cadence breaches</th>
+                <th className="text-left px-3 py-2 font-medium">Resolution target</th>
+                <th className="text-right px-3 py-2 font-medium">Resolution %met</th>
+                <th className="text-right px-3 py-2 font-medium">Resolution breaches</th>
               </tr>
             </thead>
             <tbody>
@@ -1414,20 +1414,6 @@ function ComplianceSection({
                       {s.frExcused > 0 && <span className="ml-1 text-muted-foreground text-[11px]">· {s.frExcused} excused</span>}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{s.frNotEval || "—"}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {t.resolutionS == null
-                        ? <span className="italic">best-effort — n/a</span>
-                        : <>{(t.resolutionClock === "business" ? formatBusinessDuration : formatDuration)(t.resolutionS)} <span className="text-muted-foreground/70">({t.resolutionClock === "business" ? "bh" : "cal"})</span></>}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums font-medium">
-                      {sev === 4
-                        ? <span className="text-muted-foreground italic">best-effort — n/a</span>
-                        : s.resPct == null ? "—" : `${s.resPct.toFixed(0)}%`}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-destructive">
-                      {s.resBreach || "—"}
-                      {s.resExcused > 0 && <span className="ml-1 text-muted-foreground text-[11px]">· {s.resExcused} excused</span>}
-                    </td>
                     {(() => {
                       const c = activePolicy.cadence?.[sev] ?? null;
                       return (
@@ -1449,6 +1435,20 @@ function ComplianceSection({
                         </>
                       );
                     })()}
+                    <td className="px-3 py-2 text-xs text-muted-foreground">
+                      {t.resolutionS == null
+                        ? <span className="italic">best-effort — n/a</span>
+                        : <>{(t.resolutionClock === "business" ? formatBusinessDuration : formatDuration)(t.resolutionS)} <span className="text-muted-foreground/70">({t.resolutionClock === "business" ? "bh" : "cal"})</span></>}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums font-medium">
+                      {sev === 4
+                        ? <span className="text-muted-foreground italic">best-effort — n/a</span>
+                        : s.resPct == null ? "—" : `${s.resPct.toFixed(0)}%`}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-destructive">
+                      {s.resBreach || "—"}
+                      {s.resExcused > 0 && <span className="ml-1 text-muted-foreground text-[11px]">· {s.resExcused} excused</span>}
+                    </td>
                   </tr>
                 );
               })}
@@ -1698,7 +1698,7 @@ const REASONS_BY_METRIC: Record<ViolMetric, SlaOverrideReason[]> = {
 
 const METRIC_LABELS: Record<ViolMetric, string> = {
   triage: "Triage",
-  first_response: "First response",
+  first_response: "First response time",
   resolution: "Resolution",
   cadence: "Communication cadence",
 };
@@ -1934,9 +1934,9 @@ function ViolationsSection({
                   <th className="text-left px-3 py-2 font-medium">Customer</th>
                   <th className="text-left px-3 py-2 font-medium">Sev</th>
                   <th className="text-left px-3 py-2 font-medium">Triage</th>
-                  <th className="text-left px-3 py-2 font-medium">First response</th>
+                  <th className="text-left px-3 py-2 font-medium">First response time</th>
+                  <th className="text-left px-3 py-2 font-medium">Communication cadence</th>
                   <th className="text-left px-3 py-2 font-medium">Resolution</th>
-                  <th className="text-left px-3 py-2 font-medium">Cadence</th>
                 </tr>
               </thead>
               <tbody>
@@ -2022,19 +2022,6 @@ function ViolationsSection({
                         onRemove={() => removeOverride("first_response")}
                       />
 
-                      <MetricCell
-                        miss={v.resMiss}
-                        measured={(v.compliance?.resolution.clock === "business" ? formatBusinessDuration : formatDuration)(v.compliance?.resolution.value ?? null)}
-                        target={(v.compliance?.resolution.clock === "business" ? formatBusinessDuration : formatDuration)(v.compliance?.resolution.target ?? null)}
-                        clock={v.compliance?.resolution.clock === "business" ? "business hrs" : "calendar"}
-                        notEvaluable={v.compliance?.resolution.met == null}
-                        excused={isExcused(cid, "resolution")}
-                        override={getOverride(cid, "resolution")}
-                        isAdmin={isAdmin}
-                        onExcuse={() => openExcuse("resolution")}
-                        onRemove={() => removeOverride("resolution")}
-                      />
-
                       {cadTarget == null ? (
                         <td className="px-3 py-2 text-xs text-muted-foreground">no target</td>
                       ) : (
@@ -2052,6 +2039,19 @@ function ViolationsSection({
                           onRemove={() => removeOverride("cadence")}
                         />
                       )}
+
+                      <MetricCell
+                        miss={v.resMiss}
+                        measured={(v.compliance?.resolution.clock === "business" ? formatBusinessDuration : formatDuration)(v.compliance?.resolution.value ?? null)}
+                        target={(v.compliance?.resolution.clock === "business" ? formatBusinessDuration : formatDuration)(v.compliance?.resolution.target ?? null)}
+                        clock={v.compliance?.resolution.clock === "business" ? "business hrs" : "calendar"}
+                        notEvaluable={v.compliance?.resolution.met == null}
+                        excused={isExcused(cid, "resolution")}
+                        override={getOverride(cid, "resolution")}
+                        isAdmin={isAdmin}
+                        onExcuse={() => openExcuse("resolution")}
+                        onRemove={() => removeOverride("resolution")}
+                      />
                     </tr>
                   );
                 })}

@@ -39,9 +39,9 @@ type BhState = {
 
 const SEVERITIES = [1, 2, 3, 4] as const;
 const GRID_METRICS: { key: Exclude<Metric, "triage">; label: string }[] = [
-  { key: "first_response", label: "First response" },
+  { key: "first_response", label: "First response time" },
+  { key: "cadence", label: "Communication cadence" },
   { key: "resolution", label: "Resolution" },
-  { key: "cadence", label: "Cadence" },
 ];
 
 // JS getUTCDay() numbering — matches DEFAULT_BUSINESS_HOURS.workDays (0 = Sun)

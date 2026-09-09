@@ -339,9 +339,9 @@ export default function SlaReport() {
               <CardTitle className="text-base">No SLA commitment on this plan</CardTitle>
               <CardDescription className="text-xs">
                 Self-serve Enterprise carries no first-response or resolution SLA. The compliance sections
-                (§2 headline, §3a/§3b by severity, §4 breaches) are hidden rather than reported as 0% —
+                (§2 headline, §3a/§3c by severity, §4 breaches) are hidden rather than reported as 0% —
                 a target that does not exist cannot be met or breached. Triage (§2b, 1 hour target),
-                cadence (§3c), source mix (§5) and the data-quality footer (§6) still apply and are shown below.
+                communication cadence (§3b), source mix (§5) and the data-quality footer (§6) still apply and are shown below.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -359,7 +359,7 @@ export default function SlaReport() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 text-sm">
-            {[["First Response", overallFr], ["Resolution", overallRes]].map(([label, st]) => {
+            {[["First response time", overallFr], ["Resolution", overallRes]].map(([label, st]) => {
               const s = st as MetricStats;
               return (
                 <div key={label as string} className="rounded-md border border-border p-3 space-y-1">
@@ -499,26 +499,18 @@ export default function SlaReport() {
 
 
         {!sseScope && (
-          <>
-            <SeverityTable activePolicy={activePolicy}
-              title="§3a First Response by Severity"
-              metric="first_response"
-              bySev={bySev}
-              isExcused={isExcused}
-            />
-            <SeverityTable activePolicy={activePolicy}
-              title="§3b Resolution by Severity"
-              metric="resolution"
-              bySev={bySev}
-              isExcused={isExcused}
-            />
-          </>
+          <SeverityTable activePolicy={activePolicy}
+            title="§3a First response time by Severity"
+            metric="first_response"
+            bySev={bySev}
+            isExcused={isExcused}
+          />
         )}
 
-        {/* §3c Communication cadence — PROVISIONAL, Sev1/Sev2 only */}
+        {/* §3b Communication cadence — PROVISIONAL, Sev1/Sev2 only */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">§3c Communication cadence — PROVISIONAL (Sev 1 / Sev 2 only)</CardTitle>
+            <CardTitle className="text-base">§3b Communication cadence — PROVISIONAL (Sev 1 / Sev 2 only)</CardTitle>
             <CardDescription className="text-xs">
               Proactive-update frequency during an active incident. <strong>Drumbeat model</strong>: customer
               silence does <em>not</em> pause the obligation, and the window includes the tail gap
@@ -592,6 +584,17 @@ export default function SlaReport() {
             </div>
           </CardContent>
         </Card>
+
+        {!sseScope && (
+          <SeverityTable activePolicy={activePolicy}
+            title="§3c Resolution by Severity"
+            metric="resolution"
+            bySev={bySev}
+            isExcused={isExcused}
+          />
+        )}
+
+
 
 
 
