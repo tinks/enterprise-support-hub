@@ -57,6 +57,7 @@ type OpenTicket = {
   intercom_conversation_id: string;
   subject: string | null;
   subject_override?: string | null;
+  subject_ai?: string | null;
   intercom_created_at: string | null;
   intercom_updated_at: string | null;
   lifecycle_status: string | null;
@@ -137,7 +138,7 @@ export default function CustomerReport() {
       setOpenLoading(true);
       const { data } = await supabase
         .from("intercom_tickets_v3")
-        .select("id,intercom_conversation_id,subject,subject_override,intercom_created_at,intercom_updated_at,lifecycle_status,csat_rating,csat_rater_is_internal,raw_payload")
+        .select("id,intercom_conversation_id,subject,subject_override,subject_ai,intercom_created_at,intercom_updated_at,lifecycle_status,csat_rating,csat_rater_is_internal,raw_payload")
         .eq("customer_key", customer)
         .in("lifecycle_status", ["open", "reopened_after_finalize"])
         .order("intercom_created_at", { ascending: false });
@@ -215,6 +216,7 @@ export default function CustomerReport() {
       id: string;
       subject: string | null;
       subject_override?: string | null;
+      subject_ai?: string | null;
       intercom_conversation_id: string;
       severity: Severity | null;
       ticketType: string;
@@ -231,6 +233,7 @@ export default function CustomerReport() {
         id: t.id,
         subject: t.subject,
         subject_override: (t as any).subject_override ?? null,
+        subject_ai: (t as any).subject_ai ?? null,
         intercom_conversation_id: t.intercom_conversation_id,
         severity: parseSeverity(ca?.Severity),
         ticketType: ca?.["Ticket type"] || "—",
@@ -247,6 +250,7 @@ export default function CustomerReport() {
         id: row.id,
         subject: row.subject,
         subject_override: (row as any).subject_override ?? null,
+        subject_ai: (row as any).subject_ai ?? null,
         intercom_conversation_id: row.intercom_conversation_id,
         severity: parseSeverity(ca?.Severity),
         ticketType: ca?.["Ticket type"] || "—",

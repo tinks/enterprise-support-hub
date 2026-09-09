@@ -7,7 +7,7 @@ import { Loader2, AlertTriangle, Check, RotateCw } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { Input } from "@/components/ui/input";
-import { displaySubject, saveSubjectOverride } from "@/lib/subjectDisplay";
+import { clearAiSubject, displaySubject, requestAiSubject, saveSubjectOverride } from "@/lib/subjectDisplay";
 import {
   OVERRIDE_REASON_CODES,
   recordSeverityDecision,
@@ -171,9 +171,12 @@ export function TicketFieldsPanel({
 
   // Hub-only subject label. Separate from the Intercom fields above: it never
   // reaches Intercom, so it does not go through `esh-write-action`.
-  const [subjectRow, setSubjectRow] = useState<{ subject: string | null; subject_override: string | null } | null>(null);
+  const [subjectRow, setSubjectRow] = useState<
+    { subject: string | null; subject_override: string | null; subject_ai: string | null } | null
+  >(null);
   const [subjectDraft, setSubjectDraft] = useState("");
   const [subjectSaving, setSubjectSaving] = useState(false);
+  const [subjectAiBusy, setSubjectAiBusy] = useState(false);
   const [subjectMsg, setSubjectMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
@@ -182,7 +185,7 @@ export function TicketFieldsPanel({
     setSubjectMsg(null);
     supabase
       .from("intercom_tickets_v3")
-      .select("subject,subject_override")
+      .select("subject,subject_override,subject_ai")
       .eq("intercom_conversation_id", conversationId)
       .maybeSingle()
       .then(({ data }) => {
@@ -207,6 +210,38 @@ export function TicketFieldsPanel({
     setSubjectDraft(saved ?? subjectRow?.subject ?? "");
     setSubjectMsg({ ok: true, text: saved ? "Subject label saved (Hub only)." : "Override cleared — showing Intercom's subject." });
     onSubjectSaved?.(saved);
+  };
+
+  // Ask the model for a title. Works on any ticket, including one whose
+  // Intercom subject is fine. The AI subject is written server-side; the draft
+  // is offered here so it can be edited into a human label instead.
+  const rewriteWithAi = async () => {
+    setSubjectAiBusy(true);
+    setSubjectMsg(null);
+    const { error, subject } = await requestAiSubject(conversationId);
+    setSubjectAiBusy(false);
+    if (error || !subject) {
+      setSubjectMsg({ ok: false, text: error ?? "The model returned no usable title" });
+      return;
+    }
+    setSubjectRow((r) => (r ? { ...r, subject_ai: subject } : r));
+    setSubjectDraft(subject);
+    setSubjectMsg({ ok: true, text: "AI subject written (Hub only). Edit and save to make it a human label." });
+    onSubjectSaved?.(subjectRow?.subject_override ?? null);
+  };
+
+  const dropAiSubject = async () => {
+    setSubjectAiBusy(true);
+    const { error } = await clearAiSubject(conversationId);
+    setSubjectAiBusy(false);
+    if (error) {
+      setSubjectMsg({ ok: false, text: error });
+      return;
+    }
+    setSubjectRow((r) => (r ? { ...r, subject_ai: null } : r));
+    setSubjectDraft(subjectRow?.subject_override ?? subjectRow?.subject ?? "");
+    setSubjectMsg({ ok: true, text: "AI subject removed — showing Intercom's subject." });
+    onSubjectSaved?.(subjectRow?.subject_override ?? null);
   };
 
   const [owners, setOwners] = useState<string[]>([]);
@@ -384,10 +419,27 @@ export function TicketFieldsPanel({
                   Clear
                 </Button>
               ) : null}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={subjectSaving || subjectAiBusy}
+                title="Ask AI for a title. Written as a Hub label only — Intercom is never changed."
+                onClick={() => void rewriteWithAi()}
+              >
+                {subjectAiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Rewrite with AI"}
+              </Button>
+              {subjectRow?.subject_ai ? (
+                <Button size="sm" variant="ghost" disabled={subjectAiBusy} onClick={() => void dropAiSubject()}>
+                  Use Intercom's
+                </Button>
+              ) : null}
             </div>
           </div>
           <p className="text-[10px] text-muted-foreground pl-[118px]">
             Hub label only — Intercom keeps {subjectRow?.subject ? `"${subjectRow.subject}"` : "its own subject"}.
+            {subjectRow?.subject_ai && !subjectRow?.subject_override
+              ? ` Currently showing an AI-written subject: "${subjectRow.subject_ai}".`
+              : ""}
           </p>
           {subjectMsg && (
             <p className={`text-xs pl-[118px] ${subjectMsg.ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>

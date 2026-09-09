@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import {
   displaySubject,
+  isSubjectAiWritten,
   isSubjectOverridden,
   originalSubject,
   saveSubjectOverride,
@@ -39,6 +40,7 @@ export function EditableSubject({
 
   const shown = displaySubject(row);
   const overridden = isSubjectOverridden(row);
+  const aiWritten = isSubjectAiWritten(row);
   const original = originalSubject(row);
 
   const commit = async (next: string | null) => {
@@ -112,6 +114,10 @@ export function EditableSubject({
       {overridden ? (
         <div className="text-[10px] text-muted-foreground truncate" title={original ?? undefined}>
           edited · Intercom: {original ?? "—"}
+        </div>
+      ) : aiWritten ? (
+        <div className="text-[10px] text-muted-foreground truncate" title={original ?? undefined}>
+          AI · Intercom: {original ?? "—"}
         </div>
       ) : null}
       {secondary ? <div className="text-[10px] text-muted-foreground truncate">{secondary}</div> : null}

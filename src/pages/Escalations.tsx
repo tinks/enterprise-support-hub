@@ -25,6 +25,7 @@ type Ticket = {
   intercom_conversation_id: string;
   subject: string | null;
   subject_override: string | null;
+  subject_ai: string | null;
   contact_name: string | null;
   contact_email: string | null;
   owner: string | null;
@@ -214,7 +215,7 @@ export default function Escalations() {
       supabase
         .from("intercom_tickets_v3")
         .select(
-          "id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,owner,customer_key,customer_resolution_method,lifecycle_status,state,custom_attributes,intercom_created_at,last_synced_at,resolution_eng_wait_s,resolution_active_s,active_clock_engine_version,eng_wait_start_at,eng_wait_end_at,eng_wait_source",
+          "id,intercom_conversation_id,subject,subject_override,subject_ai,contact_name,contact_email,owner,customer_key,customer_resolution_method,lifecycle_status,state,custom_attributes,intercom_created_at,last_synced_at,resolution_eng_wait_s,resolution_active_s,active_clock_engine_version,eng_wait_start_at,eng_wait_end_at,eng_wait_source",
         )
         .limit(2000),
       supabase.from("dev_escalations").select("*"),

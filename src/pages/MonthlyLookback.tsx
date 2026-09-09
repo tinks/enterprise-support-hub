@@ -1,3 +1,4 @@
+import { displaySubject } from "@/lib/subjectDisplay";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,6 +33,7 @@ type Row = {
   intercom_conversation_id: string;
   subject: string | null;
   subject_override: string | null;
+  subject_ai: string | null;
   product_area: string | null;
   classification: string | null;
   tags: string[] | null;
@@ -181,7 +183,7 @@ export default function MonthlyLookback() {
           const { data, error } = await supabase
             .from("intercom_tickets_v3")
             .select(
-              "id,intercom_conversation_id,subject,subject_override,product_area,classification,tags,plan_tier,owner,customer_key,customer_resolution_method,rsa_override,lifecycle_status,state,intercom_created_at,finalized_at,transferred_at,time_to_resolve_s,resolution_active_s,active_clock_engine_version,time_to_first_admin_reply_s,time_to_triage_s,time_to_first_human_reply_s,reopen_count,csat_rating,csat_rater_is_internal,custom_attributes,is_test_ticket",
+              "id,intercom_conversation_id,subject,subject_override,subject_ai,product_area,classification,tags,plan_tier,owner,customer_key,customer_resolution_method,rsa_override,lifecycle_status,state,intercom_created_at,finalized_at,transferred_at,time_to_resolve_s,resolution_active_s,active_clock_engine_version,time_to_first_admin_reply_s,time_to_triage_s,time_to_first_human_reply_s,reopen_count,csat_rating,csat_rater_is_internal,custom_attributes,is_test_ticket",
             )
             .gte("intercom_created_at", fromIso)
             .lte("intercom_created_at", toIso)
@@ -958,7 +960,7 @@ export default function MonthlyLookback() {
                 <TableBody>
                   {gapRows.map((r) => (
                     <TableRow key={r.id}>
-                      <TableCell className="text-sm">{r.subject_override || r.subject || "—"}</TableCell>
+                      <TableCell className="text-sm">{displaySubject(r, "—")}</TableCell>
                       <TableCell className="text-sm">
                         <a
                           className="inline-flex items-center gap-1 hover:underline text-muted-foreground"

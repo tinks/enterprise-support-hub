@@ -17,6 +17,7 @@ type Ticket = {
   intercom_conversation_id: string;
   subject: string | null;
   subject_override: string | null;
+  subject_ai: string | null;
   contact_name: string | null;
   contact_email: string | null;
   contact_domain: string | null;
@@ -63,7 +64,7 @@ export default function Prospects() {
     const { data, error } = await supabase
       .from("intercom_tickets_v3")
       .select(
-        "id,intercom_conversation_id,subject,subject_override,contact_name,contact_email,contact_domain,owner,product_area,classification,state,lifecycle_status,tags,customer_key,customer_source,intercom_created_at,intercom_closed_at",
+        "id,intercom_conversation_id,subject,subject_override,subject_ai,contact_name,contact_email,contact_domain,owner,product_area,classification,state,lifecycle_status,tags,customer_key,customer_source,intercom_created_at,intercom_closed_at",
       )
       .overlaps("tags", tags)
       .order("intercom_created_at", { ascending: false, nullsFirst: false })

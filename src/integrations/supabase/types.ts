@@ -1229,6 +1229,10 @@ export type Database = {
           slack_channel_id_detected: string | null
           state: string | null
           subject: string | null
+          subject_ai: string | null
+          subject_ai_at: string | null
+          subject_ai_model: string | null
+          subject_ai_source_hash: string | null
           subject_override: string | null
           subject_override_at: string | null
           subject_override_by: string | null
@@ -1317,6 +1321,10 @@ export type Database = {
           slack_channel_id_detected?: string | null
           state?: string | null
           subject?: string | null
+          subject_ai?: string | null
+          subject_ai_at?: string | null
+          subject_ai_model?: string | null
+          subject_ai_source_hash?: string | null
           subject_override?: string | null
           subject_override_at?: string | null
           subject_override_by?: string | null
@@ -1405,6 +1413,10 @@ export type Database = {
           slack_channel_id_detected?: string | null
           state?: string | null
           subject?: string | null
+          subject_ai?: string | null
+          subject_ai_at?: string | null
+          subject_ai_model?: string | null
+          subject_ai_source_hash?: string | null
           subject_override?: string | null
           subject_override_at?: string | null
           subject_override_by?: string | null
@@ -1852,6 +1864,8 @@ export type Database = {
           severity_ai_enabled: boolean
           slack_bot_user_id: string
           sse_intercom_inbox_id: string
+          subject_ai_daily_call_cap: number
+          subject_ai_enabled: boolean
           test_intercom_inbox_id: string
           testing_mode: boolean
           updated_at: string
@@ -1883,6 +1897,8 @@ export type Database = {
           severity_ai_enabled?: boolean
           slack_bot_user_id?: string
           sse_intercom_inbox_id?: string
+          subject_ai_daily_call_cap?: number
+          subject_ai_enabled?: boolean
           test_intercom_inbox_id?: string
           testing_mode?: boolean
           updated_at?: string
@@ -1914,6 +1930,8 @@ export type Database = {
           severity_ai_enabled?: boolean
           slack_bot_user_id?: string
           sse_intercom_inbox_id?: string
+          subject_ai_daily_call_cap?: number
+          subject_ai_enabled?: boolean
           test_intercom_inbox_id?: string
           testing_mode?: boolean
           updated_at?: string

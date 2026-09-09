@@ -30,7 +30,7 @@ import { excludeTestTickets, showTestDataNow } from "@/lib/testTickets";
 
 const sel = (s: string): string => s;
 const SELECT_COLS = sel(
-  "id,intercom_conversation_id,subject,subject_override,csat_rating,csat_remark,csat_rated_at," +
+  "id,intercom_conversation_id,subject,subject_override,subject_ai,csat_rating,csat_remark,csat_rated_at," +
   "csat_rater_name,csat_rater_email,csat_rater_is_internal,contact_name,contact_email," +
   "customer_key,owner,classification,finalized_at,intercom_created_at,plan_tier,is_test_ticket",
 );
@@ -42,6 +42,7 @@ type Row = {
   intercom_conversation_id: string;
   subject: string | null;
   subject_override: string | null;
+  subject_ai: string | null;
   csat_rating: number | null;
   csat_remark: string | null;
   csat_rated_at: string | null;
