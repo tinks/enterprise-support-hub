@@ -7,7 +7,7 @@ import { Loader2, AlertTriangle, Check, RotateCw } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { Input } from "@/components/ui/input";
-import { displaySubject, saveSubjectOverride } from "@/lib/subjectDisplay";
+import { clearAiSubject, displaySubject, requestAiSubject, saveSubjectOverride } from "@/lib/subjectDisplay";
 import {
   OVERRIDE_REASON_CODES,
   recordSeverityDecision,
