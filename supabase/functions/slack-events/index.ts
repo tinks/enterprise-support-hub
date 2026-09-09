@@ -803,6 +803,7 @@ Deno.serve(async (req) => {
             } else {
               console.error("No intercom_contact_id or admin_id available to forward reply");
               replyPayload = null as any;
+              await releaseClaim("no_reply_target");
             }
 
 
