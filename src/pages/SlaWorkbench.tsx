@@ -1383,16 +1383,16 @@ function ComplianceSection({
               <tr>
                 <th className="text-left px-3 py-2 font-medium">Severity</th>
                 <th className="text-right px-3 py-2 font-medium">n</th>
-                <th className="text-left px-3 py-2 font-medium">FR target</th>
-                <th className="text-right px-3 py-2 font-medium">FR %met</th>
-                <th className="text-right px-3 py-2 font-medium">FR breaches</th>
-                <th className="text-right px-3 py-2 font-medium">FR n/a</th>
-                <th className="text-left px-3 py-2 font-medium">Res target</th>
-                <th className="text-right px-3 py-2 font-medium">Res %met</th>
-                <th className="text-right px-3 py-2 font-medium">Res breaches</th>
-                <th className="text-left px-3 py-2 font-medium">Cadence target</th>
-                <th className="text-right px-3 py-2 font-medium">Cadence %met</th>
-                <th className="text-right px-3 py-2 font-medium">Cadence breaches</th>
+                <th className="text-left px-3 py-2 font-medium">First response time target</th>
+                <th className="text-right px-3 py-2 font-medium">First response time %met</th>
+                <th className="text-right px-3 py-2 font-medium">First response time breaches</th>
+                <th className="text-right px-3 py-2 font-medium">First response time n/a</th>
+                <th className="text-left px-3 py-2 font-medium">Communication cadence target</th>
+                <th className="text-right px-3 py-2 font-medium">Communication cadence %met</th>
+                <th className="text-right px-3 py-2 font-medium">Communication cadence breaches</th>
+                <th className="text-left px-3 py-2 font-medium">Resolution target</th>
+                <th className="text-right px-3 py-2 font-medium">Resolution %met</th>
+                <th className="text-right px-3 py-2 font-medium">Resolution breaches</th>
               </tr>
             </thead>
             <tbody>
