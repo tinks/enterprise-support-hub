@@ -41,6 +41,15 @@ async function readError(error: unknown): Promise<{ message: string; blocked: bo
   return { message: error instanceof Error ? error.message : String(error), blocked: false };
 }
 
+/**
+ * Temporarily disabled: Pax rejects requests posted by the Ask Lovable bot
+ * identity (no verified lovable.dev user). Re-enable once a dedicated
+ * automation Slack user exists, or Pax allowlists the app.
+ */
+const PAX_DISABLED = true;
+const PAX_DISABLED_REASON =
+  "Paused — Pax only accepts requests from a verified lovable.dev user. Waiting on a dedicated automation account.";
+
 export function PaxInvestigateControl({ conversationId }: { conversationId: string }) {
   const { canEdit, isLoading: roleLoading } = useCanEdit();
   const [inv, setInv] = useState<Investigation | null>(null);
@@ -107,7 +116,7 @@ export function PaxInvestigateControl({ conversationId }: { conversationId: stri
   return (
     <div className="space-y-2">
       {!inv ? (
-        <Button size="sm" onClick={() => run("start")} disabled={busy}>
+        <Button size="sm" onClick={() => run("start")} disabled={busy || PAX_DISABLED} title={PAX_DISABLED ? PAX_DISABLED_REASON : undefined}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Bot className="h-4 w-4 mr-1" />}
           Ask Pax to investigate
         </Button>
@@ -146,7 +155,7 @@ export function PaxInvestigateControl({ conversationId }: { conversationId: stri
                   {inv.note_error ? ` ${inv.note_error}` : ""}
                 </span>
               </p>
-              <Button size="sm" variant="outline" onClick={() => run("retry_note")} disabled={busy}>
+              <Button size="sm" variant="outline" onClick={() => run("retry_note")} disabled={busy || PAX_DISABLED} title={PAX_DISABLED ? PAX_DISABLED_REASON : undefined}>
                 {busy ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                 Retry link
               </Button>
@@ -159,6 +168,13 @@ export function PaxInvestigateControl({ conversationId }: { conversationId: stri
         <p className="flex items-start gap-1.5 text-xs text-destructive">
           <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
           <span>{error}</span>
+        </p>
+      )}
+
+      {PAX_DISABLED && (
+        <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+          <span>{PAX_DISABLED_REASON}</span>
         </p>
       )}
 
