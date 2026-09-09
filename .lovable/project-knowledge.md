@@ -2031,6 +2031,37 @@ Intercom frequently produces useless titles (`Intercom #215474865211089`). The H
 
 Verified live on Intercom #215474865211089: set via SQL and rendered in Inbox v3 with the `edited · Intercom:` subline; then edited **through the UI** to a new label and cleared through the UI, with both actions landing in `conversation_audit_logs` under the acting editor's email and the row falling back to Intercom's subject. Typecheck and build clean. **UNVERIFIED**: the read-only refusal path (an `editor`-less account attempting a save) has not been exercised.
 
+## AI-written subjects for placeholder tickets (9 Sep 2026)
+
+The human override above only helps when someone types a label. Most placeholder titles never get one. A second, lower-priority label layer now fills that gap automatically. Same boundary as the override: **Hub-only display, nothing written to Intercom, no measurement changes.**
+
+### Storage
+
+`intercom_tickets_v3.subject_ai` (text), with `subject_ai_at`, `subject_ai_model` and `subject_ai_source_hash`. Separate from both `subject` (Intercom's, rewritten every sync) and `subject_override` (the human label). Settings: `subject_ai_enabled` (kill switch, default true) and `subject_ai_daily_call_cap` (default 200). Migration `0040_v3_ai_subject.sql`.
+
+### Display rule (extended, still single-source)
+
+`displaySubject(row) = subject_override → subject_ai → subject → "Untitled"`. **A typed human label always beats the AI one.** AI-labelled rows render an `AI · Intercom: <original>` subline, so the source title stays readable. Callers extended to select `subject_ai`: Triage, Inbox v3, Prospects, Owner dashboard v3, Resolution anatomy, CSAT report, Escalations, Monthly lookback, Customer report, `useSlaBatch`.
+
+### The writer
+
+`supabase/functions/generate-ticket-subject`, model `openai/gpt-6-astra` over `/v1/responses` (streamed). Two modes:
+
+- **auto** — selects OPEN tickets only, whose `subject` matches the shared placeholder rule (`^Intercom #\d+$`, blank, `(no subject)`, `no subject`, `untitled`, `-`, `n/a`) and that have neither an override nor an existing AI subject. Closed tickets are never rewritten. Callers: cron secret, service role, or a signed-in editor.
+- **manual** — one conversation id, any ticket including one with a perfectly good Intercom title ("Rewrite with AI" in `TicketFieldsPanel`). Editors only.
+
+Input is the Intercom source subject/body plus up to six non-note conversation parts, HTML-stripped and truncated to 4000 characters. Output is one noun-led 4–10 word title, or `Unclear request` when the content is too thin to summarise honestly.
+
+Cost discipline: kill switch, daily cap counted off `subject_ai_at`, max 25 ids per call, and `subject_ai_source_hash` so re-running on unchanged content costs zero model calls. Every write appends `subject_ai_written` to `conversation_audit_logs`.
+
+### Verification status
+
+Verified 9 Sep 2026: #215475214997973 titled "Lovable app backend migration from EU to US"; an immediate re-run reported `modelCalls: 0` (hash skip); kill switch off returned 403; unauthenticated returned 401 and a bad cron secret returned 401; the open-only backfill wrote 19 rows and left the 263 closed placeholders at exactly 263, with `subject_ai` on closed tickets = 0. Typecheck and build clean.
+
+**UNVERIFIED / NOT DONE**: the hourly automatic pass is **not scheduled** — HTTP cron authoring is blocked on this project (no managed schedule tool, and SQL cron authoring is refused), so auto mode only runs when invoked. The read-only refusal path for the AI buttons has not been exercised, and the daily-cap refusal has not been hit.
+
+
+
 ## PostgREST filter injection guard on contact emails (28 Aug 2026)
 
 The Gmail linker in three edge functions built a PostgREST `.or()` filter by interpolating an Intercom contact email straight into the filter string. PostgREST treats `,` `(` `)` `%` `\` `"` `'` and whitespace as structure, so a crafted address could restructure the filter and match Gmail rows it had no claim to. Low severity (the address has to arrive from Intercom), but it is a real injection surface into a linking decision that changes ticket attribution.
