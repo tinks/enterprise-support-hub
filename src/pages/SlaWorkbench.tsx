@@ -1381,20 +1381,26 @@ function ComplianceSection({
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="text-left px-3 py-2 font-medium">Severity</th>
-                <th className="text-right px-3 py-2 font-medium">n</th>
-                <th className="text-left px-3 py-2 font-medium">First response time target</th>
-                <th className="text-right px-3 py-2 font-medium">First response time %met</th>
-                <th className="text-right px-3 py-2 font-medium">First response time breaches</th>
-                <th className="text-right px-3 py-2 font-medium">First response time n/a</th>
-                <th className="text-left px-3 py-2 font-medium">Communication cadence target</th>
-                <th className="text-right px-3 py-2 font-medium">Communication cadence %met</th>
-                <th className="text-right px-3 py-2 font-medium">Communication cadence breaches</th>
-                <th className="text-left px-3 py-2 font-medium">Resolution target</th>
-                <th className="text-right px-3 py-2 font-medium">Resolution %met</th>
-                <th className="text-right px-3 py-2 font-medium">Resolution breaches</th>
+                <th rowSpan={2} className="text-left px-3 py-2 font-medium align-bottom">Severity</th>
+                <th rowSpan={2} className="text-right px-3 py-2 font-medium align-bottom">N</th>
+                <th colSpan={4} className="text-center px-3 pt-2 pb-1 font-semibold border-b border-border/60">First response time</th>
+                <th colSpan={3} className="text-center px-3 pt-2 pb-1 font-semibold border-b border-border/60 border-l border-border/60">Communication cadence</th>
+                <th colSpan={3} className="text-center px-3 pt-2 pb-1 font-semibold border-b border-border/60 border-l border-border/60">Resolution</th>
+              </tr>
+              <tr>
+                <th className="text-left px-3 pb-2 font-medium">Target</th>
+                <th className="text-right px-3 pb-2 font-medium">Met</th>
+                <th className="text-right px-3 pb-2 font-medium">Missed</th>
+                <th className="text-right px-3 pb-2 font-medium">N/A</th>
+                <th className="text-left px-3 pb-2 font-medium border-l border-border/60">Target</th>
+                <th className="text-right px-3 pb-2 font-medium">Met</th>
+                <th className="text-right px-3 pb-2 font-medium">Missed</th>
+                <th className="text-left px-3 pb-2 font-medium border-l border-border/60">Target</th>
+                <th className="text-right px-3 pb-2 font-medium">Met</th>
+                <th className="text-right px-3 pb-2 font-medium">Missed</th>
               </tr>
             </thead>
+
             <tbody>
               {([1, 2, 3, 4] as const).map((sev) => {
                 const s = rowSummary(buckets[sev]);
