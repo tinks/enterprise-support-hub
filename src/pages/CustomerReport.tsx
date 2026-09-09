@@ -57,6 +57,7 @@ type OpenTicket = {
   intercom_conversation_id: string;
   subject: string | null;
   subject_override?: string | null;
+  subject_ai?: string | null;
   intercom_created_at: string | null;
   intercom_updated_at: string | null;
   lifecycle_status: string | null;
@@ -215,6 +216,7 @@ export default function CustomerReport() {
       id: string;
       subject: string | null;
       subject_override?: string | null;
+      subject_ai?: string | null;
       intercom_conversation_id: string;
       severity: Severity | null;
       ticketType: string;

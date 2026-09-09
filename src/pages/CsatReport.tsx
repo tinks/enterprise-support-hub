@@ -42,6 +42,7 @@ type Row = {
   intercom_conversation_id: string;
   subject: string | null;
   subject_override: string | null;
+  subject_ai: string | null;
   csat_rating: number | null;
   csat_remark: string | null;
   csat_rated_at: string | null;

@@ -32,6 +32,7 @@ type Row = {
   intercom_conversation_id: string;
   subject: string | null;
   subject_override: string | null;
+  subject_ai: string | null;
   product_area: string | null;
   classification: string | null;
   tags: string[] | null;

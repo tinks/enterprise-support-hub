@@ -17,6 +17,7 @@ type Ticket = {
   intercom_conversation_id: string;
   subject: string | null;
   subject_override: string | null;
+  subject_ai: string | null;
   contact_name: string | null;
   contact_email: string | null;
   contact_domain: string | null;
