@@ -2022,19 +2022,6 @@ function ViolationsSection({
                         onRemove={() => removeOverride("first_response")}
                       />
 
-                      <MetricCell
-                        miss={v.resMiss}
-                        measured={(v.compliance?.resolution.clock === "business" ? formatBusinessDuration : formatDuration)(v.compliance?.resolution.value ?? null)}
-                        target={(v.compliance?.resolution.clock === "business" ? formatBusinessDuration : formatDuration)(v.compliance?.resolution.target ?? null)}
-                        clock={v.compliance?.resolution.clock === "business" ? "business hrs" : "calendar"}
-                        notEvaluable={v.compliance?.resolution.met == null}
-                        excused={isExcused(cid, "resolution")}
-                        override={getOverride(cid, "resolution")}
-                        isAdmin={isAdmin}
-                        onExcuse={() => openExcuse("resolution")}
-                        onRemove={() => removeOverride("resolution")}
-                      />
-
                       {cadTarget == null ? (
                         <td className="px-3 py-2 text-xs text-muted-foreground">no target</td>
                       ) : (
@@ -2052,6 +2039,19 @@ function ViolationsSection({
                           onRemove={() => removeOverride("cadence")}
                         />
                       )}
+
+                      <MetricCell
+                        miss={v.resMiss}
+                        measured={(v.compliance?.resolution.clock === "business" ? formatBusinessDuration : formatDuration)(v.compliance?.resolution.value ?? null)}
+                        target={(v.compliance?.resolution.clock === "business" ? formatBusinessDuration : formatDuration)(v.compliance?.resolution.target ?? null)}
+                        clock={v.compliance?.resolution.clock === "business" ? "business hrs" : "calendar"}
+                        notEvaluable={v.compliance?.resolution.met == null}
+                        excused={isExcused(cid, "resolution")}
+                        override={getOverride(cid, "resolution")}
+                        isAdmin={isAdmin}
+                        onExcuse={() => openExcuse("resolution")}
+                        onRemove={() => removeOverride("resolution")}
+                      />
                     </tr>
                   );
                 })}
