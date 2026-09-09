@@ -193,6 +193,17 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Slack retries a delivery when we don't ack within 3s. Retries are safe:
+    // every handler below claims its event atomically first, so an already
+    // claimed (or still-processing) event short-circuits to 200 OK.
+    const slackRetryNum = req.headers.get("x-slack-retry-num");
+    const isSlackRetry = slackRetryNum !== null;
+    if (isSlackRetry) {
+      console.log(
+        `[RETRY] Slack retry #${slackRetryNum} (reason=${req.headers.get("x-slack-retry-reason") || "unknown"}) for event ts=${event.ts}`,
+      );
+    }
+
     console.log(`Slack event: type=${event.type}, subtype=${event.subtype || "none"}, channel=${event.channel}`);
 
     const slackHeaders = {
@@ -600,20 +611,44 @@ Deno.serve(async (req) => {
           .rpc("claim_slack_event", { p_mapping_id: mapping.id, p_event_ts: eventTs });
 
         if (claimResult === false) {
-          console.log(`[DEDUP] Event ${eventTs} already claimed for thread ${threadTs} in ${channelId}`);
+          console.log(
+            `[DEDUP] Event ${eventTs} already claimed/processing for thread ${threadTs} in ${channelId}${isSlackRetry ? ` (slack retry #${slackRetryNum})` : ""} — acking 200`,
+          );
           return new Response(JSON.stringify({ ok: true }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
         console.log(`[DEDUP] Successfully claimed event ${eventTs} for thread ${threadTs} in ${channelId} (mapping=${mapping.id}, status=${mapping.status})`);
 
-        // ---- Inline: forward reply to Intercom (must complete before response) ----
-        console.log(`[INLINE] Processing thread reply ${eventTs} in ${channelId}/${threadTs} from ${event.user}`);
+        // ---- Background: forward reply to Intercom (never blocks the ack) ----
+        // If forwarding cannot deliver, release the dedup claim so a Slack
+        // retry (or a later delivery) reprocesses instead of the reply being
+        // silently lost. Conditional on the claim still being ours, so a
+        // concurrent newer event is never clobbered.
+        const releaseClaim = async (reason: string) => {
+          try {
+            const { data: released } = await supabase
+              .from("conversation_mappings")
+              .update({ last_processed_event_ts: null })
+              .eq("id", mapping.id)
+              .eq("last_processed_event_ts", eventTs)
+              .select("id");
+            console.log(
+              `[DEDUP] Release claim ${eventTs} (${reason}): released=${!!(released && released.length)}`,
+            );
+          } catch (e) {
+            console.error("Failed to release Slack event claim:", e);
+          }
+        };
+
+        const forwardWork = async () => {
+        console.log(`[BG] Processing thread reply ${eventTs} in ${channelId}/${threadTs} from ${event.user}`);
 
         try {
           const INTERCOM_API_TOKEN = Deno.env.get("INTERCOM_API_TOKEN");
           if (!INTERCOM_API_TOKEN) {
             console.error("INTERCOM_API_TOKEN not configured");
+            await releaseClaim("intercom_token_missing");
           } else {
             const replyText = cleanSlackMarkup(event.text || "");
             console.log(`Thread reply in ${channelId}/${threadTs} from ${event.user}: "${replyText.substring(0, 100)}"`);
@@ -781,6 +816,7 @@ Deno.serve(async (req) => {
             } else {
               console.error("No intercom_contact_id or admin_id available to forward reply");
               replyPayload = null as any;
+              await releaseClaim("no_reply_target");
             }
 
 
@@ -836,6 +872,8 @@ Deno.serve(async (req) => {
               if (!replyRes.ok) {
                 const errText2 = await replyRes.text();
                 console.error(`Final failure forwarding reply to Intercom ${targetId} (${replyRes.status}): ${errText2}`);
+                // Nothing was delivered — free the claim so a retry can re-run.
+                await releaseClaim(`intercom_reply_failed:${replyRes.status}`);
                 // Notify the Slack thread that forwarding failed
                 await fetch(`${SLACK_API_URL}/chat.postMessage`, {
                   method: "POST",
@@ -862,8 +900,12 @@ Deno.serve(async (req) => {
             }
           }
         } catch (err) {
-          console.error("Inline thread-reply forwarding error:", err);
+          console.error("Background thread-reply forwarding error:", err);
+          await releaseClaim("forwarding_exception");
         }
+        };
+
+
 
         // ---- Background: cosmetic work (button removal, status notices) ----
         const cosmeticWork = async () => {
@@ -945,7 +987,14 @@ Deno.serve(async (req) => {
           }
         };
 
-        EdgeRuntime.waitUntil(cosmeticWork());
+        // Ack Slack in milliseconds; forwarding + cosmetics run after the
+        // response. Forwarding first so status transitions are ordered.
+        EdgeRuntime.waitUntil(
+          (async () => {
+            await forwardWork();
+            await cosmeticWork();
+          })(),
+        );
       }
     }
 
