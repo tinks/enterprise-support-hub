@@ -1,0 +1,47 @@
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" style="font-family: var(--font-sans)">
+  <style>
+    .lbl { fill: hsl(var(--foreground)); font-size: 14px; font-weight: 480; }
+    .note { fill: hsl(var(--muted-foreground)); font-size: 12px; }
+    .bx { fill: none; stroke: hsl(var(--muted-foreground)); stroke-width: 1; }
+    .zn { fill: none; stroke: hsl(var(--border)); stroke-width: 1; stroke-dasharray: 4 3; }
+    .wire { stroke: hsl(var(--muted-foreground)); stroke-width: 1; fill: none; }
+    .acc { fill: hsl(var(--accent)); }
+    .accink { fill: hsl(var(--accent-foreground)); font-size: 11px; }
+  </style>
+  <defs>
+    <marker id="ch" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8" fill="none" stroke="hsl(var(--muted-foreground))" stroke-width="1"/>
+    </marker>
+  </defs>
+
+  <rect class="bx" x="16" y="40" width="150" height="48" rx="8"/>
+  <text class="lbl" x="91" y="62" text-anchor="middle">anon</text>
+  <text class="note" x="91" y="78" text-anchor="middle">no grants</text>
+
+  <rect class="bx" x="16" y="120" width="150" height="48" rx="8"/>
+  <text class="lbl" x="91" y="142" text-anchor="middle">authenticated</text>
+  <text class="note" x="91" y="158" text-anchor="middle">no grants</text>
+
+  <rect class="bx" x="16" y="216" width="150" height="48" rx="8"/>
+  <text class="lbl" x="91" y="238" text-anchor="middle">service role</text>
+  <text class="note" x="91" y="254" text-anchor="middle">bypasses RLS</text>
+
+  <line class="wire" x1="166" y1="64" x2="290" y2="64" marker-end="url(#ch)"/>
+  <line class="wire" x1="166" y1="144" x2="290" y2="144" marker-end="url(#ch)"/>
+  <line class="wire" x1="166" y1="240" x2="430" y2="240" marker-end="url(#ch)"/>
+
+  <text class="note" x="228" y="56" text-anchor="middle" style="paint-order: stroke; stroke: hsl(var(--background)); stroke-width: 3px;">blocked</text>
+  <text class="note" x="228" y="136" text-anchor="middle" style="paint-order: stroke; stroke: hsl(var(--background)); stroke-width: 3px;">blocked</text>
+  <text class="note" x="298" y="232" text-anchor="middle" style="paint-order: stroke; stroke: hsl(var(--background)); stroke-width: 3px;">allowed</text>
+
+  <rect class="acc" x="292" y="88" width="120" height="72" rx="8"/>
+  <text class="accink" x="352" y="118" text-anchor="middle" style="font-size:13px;font-weight:480">deny-all policy</text>
+  <text class="accink" x="352" y="136" text-anchor="middle">the one addition</text>
+
+  <rect class="zn" x="430" y="40" width="194" height="224" rx="8"/>
+  <text class="note" x="440" y="60">internal tables</text>
+  <rect class="bx" x="452" y="86" width="150" height="44" rx="8"/>
+  <text class="lbl" x="527" y="112" text-anchor="middle" style="font-family: var(--font-mono); font-size:12px">cron_auth</text>
+  <rect class="bx" x="452" y="150" width="150" height="44" rx="8"/>
+  <text class="lbl" x="527" y="176" text-anchor="middle" style="font-family: var(--font-mono); font-size:12px">gmail_oauth_states</text>
+</svg>
