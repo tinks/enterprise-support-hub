@@ -1934,9 +1934,9 @@ function ViolationsSection({
                   <th className="text-left px-3 py-2 font-medium">Customer</th>
                   <th className="text-left px-3 py-2 font-medium">Sev</th>
                   <th className="text-left px-3 py-2 font-medium">Triage</th>
-                  <th className="text-left px-3 py-2 font-medium">First response</th>
+                  <th className="text-left px-3 py-2 font-medium">First response time</th>
+                  <th className="text-left px-3 py-2 font-medium">Communication cadence</th>
                   <th className="text-left px-3 py-2 font-medium">Resolution</th>
-                  <th className="text-left px-3 py-2 font-medium">Cadence</th>
                 </tr>
               </thead>
               <tbody>
