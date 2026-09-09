@@ -412,10 +412,13 @@ Deno.serve(async (req) => {
         });
         const txt = await r.text();
         subjectAi = { status: r.status, body: txt.slice(0, 400) };
+        console.log(`[sync-v3-open] subject-ai hop pending=${pending} [${r.status}] ${txt.slice(0, 300)}`);
         if (!r.ok) console.error(`[sync-v3-open] subject-ai hop [${r.status}]: ${txt.slice(0, 400)}`);
       } else {
         subjectAi = { skipped: "no open placeholders pending" };
+        console.log("[sync-v3-open] subject-ai hop skipped — no open placeholders pending");
       }
+
     } catch (e) {
       subjectAi = { error: (e as Error).message };
       console.error(`[sync-v3-open] subject-ai hop failed: ${(e as Error).message}`);
