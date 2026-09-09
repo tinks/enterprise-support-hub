@@ -2339,3 +2339,20 @@ Surfaces Lovable's incident.io incidents inside the Hub: a live "what's broken n
 **Verified 4 Sep 2026 (first fire).** 21:45:06 UTC: `integration_health.slack_incidents_poll` → `last_status = ok`, `last_success_at = 21:45:06`, `consecutive_failures = 0`; 7 incident rows re-stamped in that run and the population moved 1,049 → 1,050 (one new incident ingested by the cron, not by a manual call).
 
 **UNVERIFIED.** The schedule row itself was never read back: `cron.job` and `cron.job_run_details` are permission-denied for both the agent SQL role and the psql role, so recurrence is inferred from the on-the-minute success at `:45` plus the job id returned in the SQL editor, not directly observed across two fires. The banner and `/incidents` page were still not loaded in a browser at ultrawide width.
+
+### Outbound-initiated conversations and the timeline close fallback (9 Sep 2026)
+
+**Problem.** Two finalized rows (`215474972075677`, `215475476004105`) carried no resolution metrics at all. Root cause was not the tickets: Intercom returned an **empty `statistics` block** on both, and `resolveCloseAt()` read close time only from `statistics.last_close_at` / `first_close_at`. No close time → every clock null → the rows were reported as "not computable" forever. Both payloads did contain a real `close` part in the timeline.
+
+**Fix 1 — timeline close fallback.** `resolveCloseAt(stats, timeline?)` still treats statistics as authoritative; only when both statistical fields are absent does it take the **last `close` part** on the timeline. No fabricated timestamp is ever used.
+
+**Fix 2 — outbound-initiated ball ownership.** `isOutboundInitiated(conversation)` is true when `source.author.type` is `admin` or `bot`, i.e. **we** opened the conversation. For those, the opening message is ours, so the ball starts on the **customer's** side: `computeResolutionActive()` and `customerWaitSegments()` take `initialBallWithUs` and start the waiting-on-customer stretch at the clock start. Previously an outbound email with no reply billed the entire silence to us as active time — measuring our own outreach as support work. Inbound conversations are unaffected (the default stays `true`).
+
+**Schema.** Migration `0036_v3_outbound_initiated_flags.sql` adds `intercom_tickets_v3.outbound_initiated` and `.customer_replied` (customer authored anything after the opening message). `outbound_initiated AND NOT customer_replied` is the **outbound-only / no customer response** case. Both are stamped at finalize by `activeClockFields()` and by `backfill-v3-active-clock`.
+
+**Verified 9 Sep 2026.** `ACTIVE_CLOCK_ENGINE_VERSION` bumped 3 → 4 and all **656** finalized/reopened rows re-backfilled (500 + 156, `failed 0`, `skipped_no_parts 0`, `remaining 0`). Post-state: **uncomputable 0** (was 2), **identity violations 0**, `outbound_initiated` **3**, outbound-only **2**.
+- `215474972075677` "Connect GitHub repository" — outbound, never answered: window 475,203s, **active 0**, customer wait 475,203s, closed 0. This is the correct read: we emailed and waited.
+- `215475476004105` — outbound, never answered: window 604,305s, all customer wait.
+- `215475789771012` "[Lovable support] - investigation for mybellwether project" — outbound but the customer **did** reply: active 297,679s / customer wait 137,929s.
+
+**UNVERIFIED / open.** The pre-backfill values of the third outbound row were not snapshotted, so its active-second delta from the ownership change is not quantified. `215475476004105` is an internal allowlist request, not a support problem; Matt proposed classifying it **Enterprise FYI** and excluding it from issue-based SLA/resolution reporting — **not applied**, awaiting his call.
