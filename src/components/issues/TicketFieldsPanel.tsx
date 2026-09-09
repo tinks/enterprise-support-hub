@@ -212,6 +212,38 @@ export function TicketFieldsPanel({
     onSubjectSaved?.(saved);
   };
 
+  // Ask the model for a title. Works on any ticket, including one whose
+  // Intercom subject is fine. The AI subject is written server-side; the draft
+  // is offered here so it can be edited into a human label instead.
+  const rewriteWithAi = async () => {
+    setSubjectAiBusy(true);
+    setSubjectMsg(null);
+    const { error, subject } = await requestAiSubject(conversationId);
+    setSubjectAiBusy(false);
+    if (error || !subject) {
+      setSubjectMsg({ ok: false, text: error ?? "The model returned no usable title" });
+      return;
+    }
+    setSubjectRow((r) => (r ? { ...r, subject_ai: subject } : r));
+    setSubjectDraft(subject);
+    setSubjectMsg({ ok: true, text: "AI subject written (Hub only). Edit and save to make it a human label." });
+    onSubjectSaved?.(subjectRow?.subject_override ?? null);
+  };
+
+  const dropAiSubject = async () => {
+    setSubjectAiBusy(true);
+    const { error } = await clearAiSubject(conversationId);
+    setSubjectAiBusy(false);
+    if (error) {
+      setSubjectMsg({ ok: false, text: error });
+      return;
+    }
+    setSubjectRow((r) => (r ? { ...r, subject_ai: null } : r));
+    setSubjectDraft(subjectRow?.subject_override ?? subjectRow?.subject ?? "");
+    setSubjectMsg({ ok: true, text: "AI subject removed — showing Intercom's subject." });
+    onSubjectSaved?.(subjectRow?.subject_override ?? null);
+  };
+
   const [owners, setOwners] = useState<string[]>([]);
   const [areas, setAreas] = useState<string[]>([]);
   const [types, setTypes] = useState<string[]>([]);
