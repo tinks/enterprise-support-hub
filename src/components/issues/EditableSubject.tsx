@@ -113,6 +113,10 @@ export function EditableSubject({
         <div className="text-[10px] text-muted-foreground truncate" title={original ?? undefined}>
           edited · Intercom: {original ?? "—"}
         </div>
+      ) : aiWritten ? (
+        <div className="text-[10px] text-muted-foreground truncate" title={original ?? undefined}>
+          AI · Intercom: {original ?? "—"}
+        </div>
       ) : null}
       {secondary ? <div className="text-[10px] text-muted-foreground truncate">{secondary}</div> : null}
     </div>
