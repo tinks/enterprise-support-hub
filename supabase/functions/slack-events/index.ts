@@ -607,8 +607,29 @@ Deno.serve(async (req) => {
         }
         console.log(`[DEDUP] Successfully claimed event ${eventTs} for thread ${threadTs} in ${channelId} (mapping=${mapping.id}, status=${mapping.status})`);
 
-        // ---- Inline: forward reply to Intercom (must complete before response) ----
-        console.log(`[INLINE] Processing thread reply ${eventTs} in ${channelId}/${threadTs} from ${event.user}`);
+        // ---- Background: forward reply to Intercom (never blocks the ack) ----
+        // If forwarding cannot deliver, release the dedup claim so a Slack
+        // retry (or a later delivery) reprocesses instead of the reply being
+        // silently lost. Conditional on the claim still being ours, so a
+        // concurrent newer event is never clobbered.
+        const releaseClaim = async (reason: string) => {
+          try {
+            const { data: released } = await supabase
+              .from("conversation_mappings")
+              .update({ last_processed_event_ts: null })
+              .eq("id", mapping.id)
+              .eq("last_processed_event_ts", eventTs)
+              .select("id");
+            console.log(
+              `[DEDUP] Release claim ${eventTs} (${reason}): released=${!!(released && released.length)}`,
+            );
+          } catch (e) {
+            console.error("Failed to release Slack event claim:", e);
+          }
+        };
+
+        const forwardWork = async () => {
+        console.log(`[BG] Processing thread reply ${eventTs} in ${channelId}/${threadTs} from ${event.user}`);
 
         try {
           const INTERCOM_API_TOKEN = Deno.env.get("INTERCOM_API_TOKEN");
