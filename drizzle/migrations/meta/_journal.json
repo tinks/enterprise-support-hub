@@ -260,6 +260,13 @@
       "when": 1788973005406,
       "tag": "0036_v3_outbound_initiated_flags",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1788978253447,
+      "tag": "0037_deny_all_internal_tables",
+      "breakpoints": true
     }
   ]
 }
