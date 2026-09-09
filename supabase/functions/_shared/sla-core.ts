@@ -366,11 +366,41 @@ export function resolveClockStart(
 }
 
 /** Last close timestamp from Intercom statistics (last_close_at, else first_close_at). */
-export function resolveCloseAt(stats: any): number | null {
+export function resolveCloseAt(stats: any, timeline?: TimelinePart[]): number | null {
   if (typeof stats?.last_close_at === "number") return stats.last_close_at;
   if (typeof stats?.first_close_at === "number") return stats.first_close_at;
+  // Intercom leaves the whole statistics block empty on some admin-initiated
+  // conversations and Tickets. The timeline still carries a real `close` part,
+  // so fall back to it rather than reporting the ticket as not computable.
+  if (timeline?.length) {
+    let last: number | null = null;
+    for (const p of timeline) if (p.partType === "close") last = p.ts;
+    if (last != null) return last;
+  }
   return null;
 }
+
+/**
+ * True when the conversation was STARTED by us (admin-initiated / outbound
+ * email), not by the customer. The opening message is ours, so the ball begins
+ * on the customer's side — counting the stretch before their first reply as
+ * active time would bill us for our own outreach.
+ */
+export function isOutboundInitiated(conversation: any): boolean {
+  const t = String(conversation?.source?.author?.type || "").toLowerCase();
+  return t === "admin" || t === "bot";
+}
+
+/** True when the customer authored anything after the conversation opened. */
+export function hasCustomerReply(conversation: any): boolean {
+  const timeline = extractTimeline(conversation);
+  return timeline.some(
+    (p, i) => i > 0 && (p.actor === "customer" || p.actor === "shared_inbox"),
+  );
+}
+
+
+
 
 /**
  * Stop-the-clock resolution — active in-our-court time from the SLA clock-start
@@ -387,12 +417,15 @@ export function computeResolutionActive(
   slaClockStartS: number | null,
   closeAtS: number | null,
   clip: (a: number, b: number) => number,
+  /** false for outbound-initiated conversations — the ball starts with them. */
+  initialBallWithUs = true,
 ): number | null {
   if (slaClockStartS == null || closeAtS == null) return null;
   if (closeAtS < slaClockStartS) return 0;
   let total = 0;
-  let ballWithUs = true;
+  let ballWithUs = initialBallWithUs;
   let segStart = slaClockStartS;
+
   for (const p of timeline) {
     if (p.ts < slaClockStartS || p.ts > closeAtS) continue;
     if (p.partType === "close") {
@@ -462,14 +495,18 @@ export function customerWaitSegments(
   timeline: TimelinePart[],
   slaClockStartS: number | null,
   closeAtS: number | null,
+  /** false for outbound-initiated conversations — the ball starts with them. */
+  initialBallWithUs = true,
 ): WaitSegment[] | null {
   if (slaClockStartS == null || closeAtS == null) return null;
   if (closeAtS < slaClockStartS) return [];
   const segments: WaitSegment[] = [];
-  // State at the clock start: ball with us, ticket open.
-  let ballWithUs = true;
+  // State at the clock start: ball with us (inbound) or with them (outbound).
+  let ballWithUs = initialBallWithUs;
   let closed = false;
-  let segStart: number | null = null; // start of the current waiting-on-customer stretch
+  // Outbound-initiated: the waiting-on-customer stretch opens at the clock start.
+  let segStart: number | null = initialBallWithUs ? null : slaClockStartS;
+
   const endWait = (at: number) => {
     if (segStart != null) {
       if (at > segStart) segments.push({ startS: segStart, endS: at });
@@ -687,7 +724,10 @@ export function computeEngineeringWait(
 export type ActiveClockResult = {
   slaClockStartS: number | null;
   closeAtS: number | null;
+  /** Conversation opened by us (outbound email / admin-initiated), not the customer. */
+  outboundInitiated: boolean;
   resolutionActiveS: number | null;
+
   resolutionActiveBhS: number | null;
   resolutionClosedS: number | null;
   /** Waiting on the customer, with engineering wait already carved out. */
@@ -725,14 +765,16 @@ export function computeActiveClock(
     typeof conversation?.created_at === "number" ? conversation.created_at : null;
   const { slaClockStartS } = resolveClockStart(timeline, createdAtS);
   const stats = conversation?.statistics ?? {};
-  const closeAtS = resolveCloseAt(stats);
+  const closeAtS = resolveCloseAt(stats, timeline);
+  const outbound = isOutboundInitiated(conversation);
+  const initialBallWithUs = !outbound;
   const rawResolveS =
     typeof stats?.time_to_last_close === "number" ? stats.time_to_last_close : null;
 
   const wall = (a: number, b: number) => Math.max(0, b - a);
   const bh = (a: number, b: number) => businessHoursBetween(a, b, businessHours);
 
-  const waitSegs = customerWaitSegments(timeline, slaClockStartS, closeAtS);
+  const waitSegs = customerWaitSegments(timeline, slaClockStartS, closeAtS, initialBallWithUs);
   const engWindows = resolveEngWaitWindows(timeline, slaClockStartS, closeAtS, opts?.escalation);
   const waitTotalS = waitSegs == null ? null : waitSegs.reduce((n, s) => n + wall(s.startS, s.endS), 0);
   const waitTotalBhS = waitSegs == null ? null : waitSegs.reduce((n, s) => n + bh(s.startS, s.endS), 0);
@@ -746,9 +788,11 @@ export function computeActiveClock(
   return {
     slaClockStartS,
     closeAtS,
-    resolutionActiveS: computeResolutionActive(timeline, slaClockStartS, closeAtS, wall),
-    resolutionActiveBhS: computeResolutionActive(timeline, slaClockStartS, closeAtS, bh),
+    outboundInitiated: outbound,
+    resolutionActiveS: computeResolutionActive(timeline, slaClockStartS, closeAtS, wall, initialBallWithUs),
+    resolutionActiveBhS: computeResolutionActive(timeline, slaClockStartS, closeAtS, bh, initialBallWithUs),
     resolutionClosedS: computeClosedDormant(timeline, slaClockStartS, closeAtS),
+
     resolutionCustomerWaitS:
       waitTotalS == null ? null : Math.max(0, waitTotalS - (engS ?? 0)),
     resolutionCustomerWaitBhS:
