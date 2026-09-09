@@ -13,12 +13,19 @@ import {
   X,
   AlertTriangle,
   RefreshCw,
+  DownloadCloud,
   Columns2,
   AlignJustify,
   ChevronsUpDown,
 } from "lucide-react";
 
 const DOC_ID = "project-knowledge";
+
+// Must stay in step with ALLOWED_SOURCE_HOSTS in supabase/functions/sync-knowledge-pending.
+const SYNC_ALLOWED_HOSTS = [
+  "enterprise-support-hub.lovable.app",
+  "id-preview--0bb0198a-d579-40ab-9101-dfd268f239a5.lovable.app",
+];
 
 const ProjectKnowledge = () => {
   const [content, setContent] = useState("");
@@ -28,6 +35,7 @@ const ProjectKnowledge = () => {
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [mode, setMode] = useState<"preview" | "edit" | "review">("preview");
 
   const loadFromDb = useCallback(async () => {
@@ -137,6 +145,38 @@ const ProjectKnowledge = () => {
       toast.success("Pending changes rejected");
     }
   }, []);
+
+  // Stage the doc shipped with the running app as pending_content for review.
+  // The edge function refuses any host outside this project's own origins, so
+  // we only pass an explicit sourceUrl when we are actually on one of them.
+  const handleSync = useCallback(async () => {
+    setSyncing(true);
+    const host = window.location.hostname;
+    const sourceUrl = SYNC_ALLOWED_HOSTS.includes(host)
+      ? `${window.location.origin}/.lovable/project-knowledge.md`
+      : undefined;
+
+    const { data, error } = await supabase.functions.invoke(
+      "sync-knowledge-pending",
+      {
+        body: {
+          ...(sourceUrl ? { sourceUrl } : {}),
+          summary: "Sync from app — staged from the Knowledge page",
+        },
+      }
+    );
+
+    if (error || (data as any)?.error) {
+      toast.error("Sync failed", {
+        description: (data as any)?.error || error?.message,
+      });
+    } else {
+      await loadFromDb();
+      setMode("review");
+      toast.success("Update staged — review the diff, then Approve");
+    }
+    setSyncing(false);
+  }, [loadFromDb]);
 
   const hasEdits = editContent !== content;
 
@@ -610,6 +650,17 @@ const ProjectKnowledge = () => {
                     Review
                   </Button>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSync}
+                  disabled={syncing}
+                  className="text-xs"
+                  title="Stage the documentation shipped with this app for review"
+                >
+                  <DownloadCloud className="mr-1 h-3.5 w-3.5" />
+                  {syncing ? "Syncing…" : "Sync from app"}
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
