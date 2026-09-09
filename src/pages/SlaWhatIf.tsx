@@ -435,7 +435,7 @@ export default function SlaWhatIf() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">First response</CardTitle>
+                <CardTitle className="text-base">First response time</CardTitle>
                 <CardDescription>
                   Customer-initiated tickets only, same basis as the monthly report.
                 </CardDescription>
@@ -444,36 +444,13 @@ export default function SlaWhatIf() {
                 {sevs.map((sev) => (
                   <KnobCard
                     key={sev}
-                    title={`Sev ${sev} — first response`}
+                    title={`Sev ${sev} — first response time`}
                     clock={whatIf[sev].firstResponseClock}
                     value={whatIf[sev].firstResponseS}
                     currentValue={SLA_TARGETS[sev].firstResponseS}
                     knob={knobFor("first_response", sev)}
                     onChange={(v) => setFr(sev, v)}
                     comparison={frCompare[sev]}
-                  />
-                ))}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Resolution</CardTitle>
-                <CardDescription>
-                  Stop-the-clock active in-our-court time, all in-scope tickets. Sev 4 is best-effort.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {sevs.map((sev) => (
-                  <KnobCard
-                    key={sev}
-                    title={`Sev ${sev} — resolution`}
-                    clock={whatIf[sev].resolutionClock}
-                    value={sev === 4 ? null : whatIf[sev].resolutionS}
-                    currentValue={SLA_TARGETS[sev].resolutionS}
-                    knob={knobFor("resolution", sev)}
-                    onChange={(v) => setRes(sev, v)}
-                    comparison={resCompare[sev]}
                   />
                 ))}
               </CardContent>
@@ -506,6 +483,29 @@ export default function SlaWhatIf() {
                   the cadence clock. These targets are <strong>provisional</strong>, same as every
                   other target on this page.
                 </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Resolution</CardTitle>
+                <CardDescription>
+                  Stop-the-clock active in-our-court time, all in-scope tickets. Sev 4 is best-effort.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {sevs.map((sev) => (
+                  <KnobCard
+                    key={sev}
+                    title={`Sev ${sev} — resolution`}
+                    clock={whatIf[sev].resolutionClock}
+                    value={sev === 4 ? null : whatIf[sev].resolutionS}
+                    currentValue={SLA_TARGETS[sev].resolutionS}
+                    knob={knobFor("resolution", sev)}
+                    onChange={(v) => setRes(sev, v)}
+                    comparison={resCompare[sev]}
+                  />
+                ))}
               </CardContent>
             </Card>
           </>
