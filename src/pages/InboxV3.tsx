@@ -21,6 +21,7 @@ import { IntercomIdChip } from "@/components/issues/IssueTable";
 import { useTableSort, SortableHead } from "@/components/issues/useTableSort";
 import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
 import { SeverityProposalCard } from "@/components/issues/SeverityProposalCard";
+import { PaxInvestigateControl } from "@/components/issues/PaxInvestigateControl";
 import { useInitialQ } from "@/hooks/useInitialQ";
 import { useCsatOverrides } from "@/lib/csat";
 import { CsatOverrideDialog } from "@/components/csat/CsatOverrideDialog";
@@ -624,6 +625,12 @@ export default function InboxV3() {
                   </dd>
                 </div>
 
+                <div className="grid grid-cols-[140px_1fr] gap-3 items-start">
+                  <dt className="text-xs text-muted-foreground">Investigation</dt>
+                  <dd>
+                    <PaxInvestigateControl conversationId={selected.intercom_conversation_id} />
+                  </dd>
+                </div>
                 <div className="grid grid-cols-[140px_1fr] gap-3 items-start">
                   <dt className="text-xs text-muted-foreground">Severity AI</dt>
                   <dd>

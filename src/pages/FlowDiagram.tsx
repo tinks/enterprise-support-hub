@@ -898,6 +898,26 @@ function buildNodes(
       },
     },
     {
+      id: "ask-pax-investigate",
+      type: "flowNode",
+      position: { x: COL_W * 1.6, y: ROW_H * 4.3 },
+      data: {
+        label: "Ask Pax to investigate (9 Sep 2026)",
+        desc: "One click from a ticket posts an investigation request in #pax-ets-help and links that Slack thread back into Intercom as an INTERNAL NOTE. Note only — never a customer-facing reply, never a ticket field.",
+        icon: ClipboardList,
+        edgeFunction: "ask-pax-investigate",
+        details: [
+          "UI: PaxInvestigateControl (src/components/issues/PaxInvestigateControl.tsx) renders in the /inbox-v3 and /triage detail sheets. Before a request exists it shows one button; afterwards it shows the Slack thread permalink, who asked, and the note state.",
+          "Idempotent by construction: public.pax_investigations has intercom_conversation_id as PRIMARY KEY. A repeat click NEVER posts a second Pax request — the function returns the existing thread.",
+          "Partial failure is surfaced, not repaired. If Slack posts but the Intercom note write fails, the row stays note_state='failed' with the provider error and the UI shows 'Link to Intercom failed' plus an explicit Retry link action (mode=retry_note) that re-attempts ONLY the note. No second Slack post, no silent auto-retry.",
+          "Attribution: the note is authored as the acting teammate's intercom_admin_id resolved from public.teammates, never a bot admin — so the SLA actor classification keeps reading it as human_admin.",
+          "Gated on the same global kill switch as every other Hub write (settings.esh_write_enabled). Every attempt writes an esh_ticket_actions row (action ask_pax_investigate / pax_retry_note) with outcome succeeded | blocked | failed.",
+          "Channel + prompt are configuration, not code: settings.pax_help_channel_id (or env PAX_HELP_CHANNEL_ID) and settings.pax_request_template with {url} / {id} / {subject} placeholders. With neither set, the channel is resolved by name (#pax-ets-help) via conversations.list.",
+        ],
+        accent: "blue",
+      },
+    },
+    {
       id: "intercom-field-options",
       type: "flowNode",
       position: { x: COL_W * 0.5, y: ROW_H * 4.7 },

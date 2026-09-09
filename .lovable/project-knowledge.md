@@ -2376,3 +2376,26 @@ Run summaries report `recheck_fetched`, `recheck_changed`, `recheck_missing`; an
 - `215475789771012` "[Lovable support] - investigation for mybellwether project" — outbound but the customer **did** reply: active 297,679s / customer wait 137,929s.
 
 **UNVERIFIED / open.** The pre-backfill values of the third outbound row were not snapshotted, so its active-second delta from the ownership change is not quantified. `215475476004105` is an internal allowlist request, not a support problem; Matt proposed classifying it **Enterprise FYI** and excluding it from issue-based SLA/resolution reporting — **not applied**, awaiting his call.
+
+
+## Ask Pax to investigate — Slack request + Intercom internal note (9 Sep 2026)
+
+**Why.** Almost every enterprise ticket goes through the same manual investigatory step: paste the Intercom conversation into `#pax-ets-help`, ask the Pax bot to look, then copy the Slack thread into an Intercom note so a takeover sees the investigation. This automates exactly that, and nothing more.
+
+**Scope of the write.** A deliberate, narrow exception to the v3 read-only posture. Two writes per ticket, ever:
+1. one Slack message in the Pax help channel naming the Intercom conversation, and
+2. **one Intercom internal note** carrying the Slack thread permalink.
+
+It never writes a customer-facing reply and never touches an Intercom-owned column of `intercom_tickets_v3`.
+
+**Function.** `supabase/functions/ask-pax-investigate` — `requireEditor`, then the same global kill switch (`settings.esh_write_enabled`) that gates every other Hub write. Every attempt (succeeded / blocked / failed) writes an `esh_ticket_actions` row under action `ask_pax_investigate` or `pax_retry_note`. The note is authored as the acting teammate's `intercom_admin_id` from `public.teammates`, never a bot admin, so `classifyActor` still reads it as `human_admin`.
+
+**Schema.** Migration `0038_pax_investigations.sql` creates `public.pax_investigations` with `intercom_conversation_id` as **PRIMARY KEY** — that is the idempotency guard, not application logic. Columns: Slack channel/ts/permalink, `note_state` (`pending` | `linked` | `failed`), `note_error`, `note_linked_at`, requester (uuid, name, email). Authenticated read, service_role write. `settings` gains `pax_help_channel_id` and `pax_request_template`.
+
+**Partial failure is visible, never silently repaired.** If the Slack post succeeds and the Intercom note fails, the row is left at `note_state='failed'` with the provider error and the caller gets a 502 `{noteFailed:true}`. The UI shows **"Link to Intercom failed"** with an explicit **Retry link** action (`mode=retry_note`) that re-attempts **only** the note. A repeat click on the main button posts nothing — it returns the existing thread.
+
+**UI.** `src/components/issues/PaxInvestigateControl.tsx`, mounted in the `/inbox-v3` and `/triage` detail sheets. Read-only accounts see the state but no actions.
+
+**Configuration.** Channel resolves from `PAX_HELP_CHANNEL_ID` → `settings.pax_help_channel_id` → lookup by name `#pax-ets-help` via `conversations.list` (requires the bot to be in the channel). Prompt text from `settings.pax_request_template` with `{url}`, `{id}`, `{subject}` placeholders; default asks Pax to look at the conversation.
+
+**UNVERIFIED.** Not yet exercised against live Slack or Intercom: no real Pax request has been posted, the note write has not been observed landing, and the note-failure/Retry path has not been triggered. Both the positive case and the negative case (kill switch off ⇒ blocked and logged) still need a run on a real ticket before this is treated as proven.

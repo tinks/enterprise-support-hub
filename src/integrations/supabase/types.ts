@@ -1695,6 +1695,51 @@ export type Database = {
         }
         Relationships: []
       }
+      pax_investigations: {
+        Row: {
+          created_at: string
+          intercom_conversation_id: string
+          note_error: string | null
+          note_linked_at: string | null
+          note_state: string
+          requested_by: string | null
+          requested_by_email: string | null
+          requested_by_name: string | null
+          slack_channel_id: string
+          slack_permalink: string | null
+          slack_thread_ts: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          intercom_conversation_id: string
+          note_error?: string | null
+          note_linked_at?: string | null
+          note_state?: string
+          requested_by?: string | null
+          requested_by_email?: string | null
+          requested_by_name?: string | null
+          slack_channel_id: string
+          slack_permalink?: string | null
+          slack_thread_ts: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          intercom_conversation_id?: string
+          note_error?: string | null
+          note_linked_at?: string | null
+          note_state?: string
+          requested_by?: string | null
+          requested_by_email?: string | null
+          requested_by_name?: string | null
+          slack_channel_id?: string
+          slack_permalink?: string | null
+          slack_thread_ts?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pending_intercom_links: {
         Row: {
           attempts: number
@@ -1799,6 +1844,8 @@ export type Database = {
           notion_registry_hash: string | null
           notion_registry_page_id: string
           notion_registry_synced_at: string | null
+          pax_help_channel_id: string | null
+          pax_request_template: string | null
           product_areas: string
           severity_ai_daily_call_cap: number
           severity_ai_enabled: boolean
@@ -1827,6 +1874,8 @@ export type Database = {
           notion_registry_hash?: string | null
           notion_registry_page_id?: string
           notion_registry_synced_at?: string | null
+          pax_help_channel_id?: string | null
+          pax_request_template?: string | null
           product_areas?: string
           severity_ai_daily_call_cap?: number
           severity_ai_enabled?: boolean
@@ -1855,6 +1904,8 @@ export type Database = {
           notion_registry_hash?: string | null
           notion_registry_page_id?: string
           notion_registry_synced_at?: string | null
+          pax_help_channel_id?: string | null
+          pax_request_template?: string | null
           product_areas?: string
           severity_ai_daily_call_cap?: number
           severity_ai_enabled?: boolean
