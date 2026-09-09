@@ -21,11 +21,6 @@ import {
 
 const DOC_ID = "project-knowledge";
 
-// Must stay in step with ALLOWED_SOURCE_HOSTS in supabase/functions/sync-knowledge-pending.
-const SYNC_ALLOWED_HOSTS = [
-  "enterprise-support-hub.lovable.app",
-  "id-preview--0bb0198a-d579-40ab-9101-dfd268f239a5.lovable.app",
-];
 
 const ProjectKnowledge = () => {
   const [content, setContent] = useState("");
