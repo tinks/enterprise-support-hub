@@ -68,6 +68,22 @@ async function slack(token: string, method: string, body: Json) {
   return data;
 }
 
+/** Some Slack methods (chat.getPermalink) only accept query params, not a JSON body. */
+async function slackGet(token: string, method: string, params: Record<string, string>) {
+  const res = await fetch(`${SLACK_API}/${method}?${new URLSearchParams(params)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const text = await res.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error(`Slack ${method} returned non-JSON (HTTP ${res.status}): ${text.slice(0, 200)}`);
+  }
+  if (!res.ok || !data.ok) throw new Error(`Slack ${method} failed: ${data.error ?? res.status}`);
+  return data;
+}
+
 /** Channel id from settings/env, else resolved by name once. */
 async function resolveChannel(token: string, configured: string | null): Promise<string> {
   const fromEnv = Deno.env.get("PAX_HELP_CHANNEL_ID");
@@ -244,7 +260,7 @@ Deno.serve(async (req) => {
 
       let permalink: string | null = null;
       try {
-        const pl = await slack(slackToken, "chat.getPermalink", { channel, message_ts: ts });
+        const pl = await slackGet(slackToken, "chat.getPermalink", { channel, message_ts: ts });
         permalink = String(pl.permalink);
       } catch (e) {
         console.error("permalink lookup failed:", e);
