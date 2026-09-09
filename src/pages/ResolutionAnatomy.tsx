@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { displaySubject as sharedDisplaySubject } from "@/lib/subjectDisplay";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
