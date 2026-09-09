@@ -859,6 +859,8 @@ Deno.serve(async (req) => {
               if (!replyRes.ok) {
                 const errText2 = await replyRes.text();
                 console.error(`Final failure forwarding reply to Intercom ${targetId} (${replyRes.status}): ${errText2}`);
+                // Nothing was delivered — free the claim so a retry can re-run.
+                await releaseClaim(`intercom_reply_failed:${replyRes.status}`);
                 // Notify the Slack thread that forwarding failed
                 await fetch(`${SLACK_API_URL}/chat.postMessage`, {
                   method: "POST",
