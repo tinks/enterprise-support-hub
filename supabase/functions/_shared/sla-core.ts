@@ -9,7 +9,7 @@
 // Pure TypeScript: no network, no DB, no Deno/Node globals.
 
 /** Bump when the active-clock RULE changes, so stale rows can be re-backfilled. */
-export const ACTIVE_CLOCK_ENGINE_VERSION = 3;
+export const ACTIVE_CLOCK_ENGINE_VERSION = 4;
 
 // ============================================================================
 // Actor model

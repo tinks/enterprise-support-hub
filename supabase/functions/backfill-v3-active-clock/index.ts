@@ -7,7 +7,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { computeActiveClock, ACTIVE_CLOCK_ENGINE_VERSION } from "../_shared/sla-core.ts";
+import { computeActiveClock, hasCustomerReply, ACTIVE_CLOCK_ENGINE_VERSION } from "../_shared/sla-core.ts";
 import { loadSupportRoster, registerConfiguredAnchors } from "../_shared/sla-roster.ts";
 import { loadEngEscalations } from "../_shared/eng-wait.ts";
 import { requireEditor } from "../_shared/require-editor.ts";
@@ -82,7 +82,10 @@ Deno.serve(async (req) => {
           if (!usable) skippedNoParts++;
 
           const patch = {
+            outbound_initiated: usable ? ac!.outboundInitiated : null,
+            customer_replied: usable ? hasCustomerReply(raw) : null,
             resolution_active_s: usable ? ac!.resolutionActiveS : null,
+
             resolution_active_bh_s: usable ? ac!.resolutionActiveBhS : null,
             resolution_closed_s: usable ? ac!.resolutionClosedS : null,
             resolution_customer_wait_s: usable ? ac!.resolutionCustomerWaitS : null,
