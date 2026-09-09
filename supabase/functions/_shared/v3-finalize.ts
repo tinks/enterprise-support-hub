@@ -17,7 +17,7 @@ import {
 import { syncTicketAttributes } from "./v3-attributes.ts";
 import { writeV3Signals } from "./v3-signals.ts";
 import type { InboxResolver } from "./v3-inboxes.ts";
-import { computeActiveClock, computeResponsiveness } from "./sla-core.ts";
+import { computeActiveClock, computeResponsiveness, hasCustomerReply } from "./sla-core.ts";
 import type { SupportRoster, EngEscalation } from "./sla-core.ts";
 import { hasLinearReference, loadEngEscalation } from "./eng-wait.ts";
 
@@ -39,7 +39,10 @@ export function activeClockFields(
   try {
     const ac = computeActiveClock(icData, { roster, escalation });
     return {
+      outbound_initiated: ac.outboundInitiated,
+      customer_replied: hasCustomerReply(icData),
       resolution_active_s: ac.resolutionActiveS,
+
       resolution_active_bh_s: ac.resolutionActiveBhS,
       resolution_closed_s: ac.resolutionClosedS,
       resolution_customer_wait_s: ac.resolutionCustomerWaitS,
@@ -63,9 +66,12 @@ export function activeClockFields(
   } catch (e) {
     console.error(`[v3-finalize] active clock failed: ${(e as Error).message}`);
     return {
+      outbound_initiated: null,
+      customer_replied: null,
       resolution_active_s: null,
       resolution_active_bh_s: null,
       resolution_closed_s: null,
+
       resolution_customer_wait_s: null,
       resolution_customer_wait_bh_s: null,
       resolution_eng_wait_s: null,

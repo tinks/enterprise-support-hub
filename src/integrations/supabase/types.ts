@@ -1185,6 +1185,7 @@ export type Database = {
           customer_override_by: string | null
           customer_override_key: string | null
           customer_override_reason: string | null
+          customer_replied: boolean | null
           customer_resolution_method: string | null
           customer_source: string | null
           eng_wait_end_at: string | null
@@ -1203,6 +1204,7 @@ export type Database = {
           last_silent_change: Json | null
           last_synced_at: string | null
           lifecycle_status: string
+          outbound_initiated: boolean | null
           owner: string | null
           plan_tier: string
           product_area: string | null
@@ -1271,6 +1273,7 @@ export type Database = {
           customer_override_by?: string | null
           customer_override_key?: string | null
           customer_override_reason?: string | null
+          customer_replied?: boolean | null
           customer_resolution_method?: string | null
           customer_source?: string | null
           eng_wait_end_at?: string | null
@@ -1289,6 +1292,7 @@ export type Database = {
           last_silent_change?: Json | null
           last_synced_at?: string | null
           lifecycle_status?: string
+          outbound_initiated?: boolean | null
           owner?: string | null
           plan_tier?: string
           product_area?: string | null
@@ -1357,6 +1361,7 @@ export type Database = {
           customer_override_by?: string | null
           customer_override_key?: string | null
           customer_override_reason?: string | null
+          customer_replied?: boolean | null
           customer_resolution_method?: string | null
           customer_source?: string | null
           eng_wait_end_at?: string | null
@@ -1375,6 +1380,7 @@ export type Database = {
           last_silent_change?: Json | null
           last_synced_at?: string | null
           lifecycle_status?: string
+          outbound_initiated?: boolean | null
           owner?: string | null
           plan_tier?: string
           product_area?: string | null

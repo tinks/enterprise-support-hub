@@ -253,6 +253,13 @@
       "when": 1788874970194,
       "tag": "0035_closed_won_acknowledged_names",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1788973005406,
+      "tag": "0036_v3_outbound_initiated_flags",
+      "breakpoints": true
     }
   ]
 }
