@@ -635,6 +635,7 @@ Deno.serve(async (req) => {
           const INTERCOM_API_TOKEN = Deno.env.get("INTERCOM_API_TOKEN");
           if (!INTERCOM_API_TOKEN) {
             console.error("INTERCOM_API_TOKEN not configured");
+            await releaseClaim("intercom_token_missing");
           } else {
             const replyText = cleanSlackMarkup(event.text || "");
             console.log(`Thread reply in ${channelId}/${threadTs} from ${event.user}: "${replyText.substring(0, 100)}"`);
