@@ -166,10 +166,10 @@ const ProjectKnowledge = () => {
       }
     );
 
-    if (error) {
-      toast.error("Sync failed", { description: error.message });
-    } else if ((data as any)?.unchanged) {
-      toast.info("Already up to date — nothing to review");
+    if (error || (data as any)?.error) {
+      toast.error("Sync failed", {
+        description: (data as any)?.error || error?.message,
+      });
     } else {
       await loadFromDb();
       setMode("review");
