@@ -171,9 +171,12 @@ export function TicketFieldsPanel({
 
   // Hub-only subject label. Separate from the Intercom fields above: it never
   // reaches Intercom, so it does not go through `esh-write-action`.
-  const [subjectRow, setSubjectRow] = useState<{ subject: string | null; subject_override: string | null } | null>(null);
+  const [subjectRow, setSubjectRow] = useState<
+    { subject: string | null; subject_override: string | null; subject_ai: string | null } | null
+  >(null);
   const [subjectDraft, setSubjectDraft] = useState("");
   const [subjectSaving, setSubjectSaving] = useState(false);
+  const [subjectAiBusy, setSubjectAiBusy] = useState(false);
   const [subjectMsg, setSubjectMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
