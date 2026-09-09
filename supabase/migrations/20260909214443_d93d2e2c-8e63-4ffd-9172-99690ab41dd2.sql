@@ -1,0 +1,1 @@
+update public.settings set pax_help_channel_id = 'C0BD2BQA63G' where pax_help_channel_id is null or pax_help_channel_id <> 'C0BD2BQA63G';
