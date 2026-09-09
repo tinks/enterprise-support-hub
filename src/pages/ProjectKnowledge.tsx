@@ -13,6 +13,7 @@ import {
   X,
   AlertTriangle,
   RefreshCw,
+  DownloadCloud,
   Columns2,
   AlignJustify,
   ChevronsUpDown,
@@ -649,6 +650,17 @@ const ProjectKnowledge = () => {
                     Review
                   </Button>
                 )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSync}
+                  disabled={syncing}
+                  className="text-xs"
+                  title="Stage the documentation shipped with this app for review"
+                >
+                  <DownloadCloud className="mr-1 h-3.5 w-3.5" />
+                  {syncing ? "Syncing…" : "Sync from app"}
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
