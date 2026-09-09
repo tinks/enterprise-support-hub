@@ -313,11 +313,11 @@ export default function SlaDashboard() {
                   <tr>
                     <th className="text-left px-4 py-2 font-medium">Severity</th>
                     <th className="text-right px-4 py-2 font-medium">n</th>
-                    <th className="text-left px-4 py-2 font-medium">First response</th>
-                    <th className="text-left px-4 py-2 font-medium">Resolution</th>
+                    <th className="text-left px-4 py-2 font-medium">First response time</th>
                     <th className="text-left px-4 py-2 font-medium">
-                      Cadence <span className="normal-case font-normal text-muted-foreground/80">(provisional)</span>
+                      Communication cadence <span className="normal-case font-normal text-muted-foreground/80">(provisional)</span>
                     </th>
+                    <th className="text-left px-4 py-2 font-medium">Resolution</th>
                   </tr>
                 </thead>
                 <tbody>
