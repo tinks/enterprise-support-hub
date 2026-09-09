@@ -74,7 +74,7 @@ const SCALAR_COLS =
 const ANY = "__any__";
 
 function displaySubject(r: ScalarRow) {
-  return r.subject_override?.trim() || r.subject || `Intercom #${r.intercom_conversation_id}`;
+  return sharedDisplaySubject(r, `Intercom #${r.intercom_conversation_id}`);
 }
 
 function pct(part: number | null, total: number | null): number | null {

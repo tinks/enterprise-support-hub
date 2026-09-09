@@ -1,3 +1,4 @@
+import { displaySubject } from "@/lib/subjectDisplay";
 import { useEffect, useMemo, useState } from "react";
 import AppLayout from "@/components/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -959,7 +960,7 @@ export default function MonthlyLookback() {
                 <TableBody>
                   {gapRows.map((r) => (
                     <TableRow key={r.id}>
-                      <TableCell className="text-sm">{r.subject_override || r.subject || "—"}</TableCell>
+                      <TableCell className="text-sm">{displaySubject(r, "—")}</TableCell>
                       <TableCell className="text-sm">
                         <a
                           className="inline-flex items-center gap-1 hover:underline text-muted-foreground"
