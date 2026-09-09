@@ -1698,7 +1698,7 @@ const REASONS_BY_METRIC: Record<ViolMetric, SlaOverrideReason[]> = {
 
 const METRIC_LABELS: Record<ViolMetric, string> = {
   triage: "Triage",
-  first_response: "First response",
+  first_response: "First response time",
   resolution: "Resolution",
   cadence: "Communication cadence",
 };
