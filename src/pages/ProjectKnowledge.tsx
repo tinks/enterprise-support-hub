@@ -21,11 +21,6 @@ import {
 
 const DOC_ID = "project-knowledge";
 
-// Must stay in step with ALLOWED_SOURCE_HOSTS in supabase/functions/sync-knowledge-pending.
-const SYNC_ALLOWED_HOSTS = [
-  "enterprise-support-hub.lovable.app",
-  "id-preview--0bb0198a-d579-40ab-9101-dfd268f239a5.lovable.app",
-];
 
 const ProjectKnowledge = () => {
   const [content, setContent] = useState("");
@@ -151,16 +146,38 @@ const ProjectKnowledge = () => {
   // we only pass an explicit sourceUrl when we are actually on one of them.
   const handleSync = useCallback(async () => {
     setSyncing(true);
-    const host = window.location.hostname;
-    const sourceUrl = SYNC_ALLOWED_HOSTS.includes(host)
-      ? `${window.location.origin}/.lovable/project-knowledge.md`
-      : undefined;
+
+    // Read the doc shipped with the running app in the browser (same origin,
+    // same session) and hand the text to the function, so it never has to
+    // fetch a possibly auth-walled URL itself.
+    let markdown = "";
+    try {
+      const res = await fetch("/.lovable/project-knowledge.md", {
+        cache: "no-cache",
+      });
+      const text = res.ok ? await res.text() : "";
+      const looksLikeHtml = /^\s*<!doctype html|<html[\s>]/i.test(
+        text.slice(0, 200)
+      );
+      if (!looksLikeHtml && text.length >= 100) markdown = text;
+    } catch {
+      /* fall through to the function's own fetch */
+    }
+
+    if (!markdown) {
+      toast.error("Sync failed", {
+        description:
+          "Couldn't read the documentation file from this app. Try again from the preview or the published site.",
+      });
+      setSyncing(false);
+      return;
+    }
 
     const { data, error } = await supabase.functions.invoke(
       "sync-knowledge-pending",
       {
         body: {
-          ...(sourceUrl ? { sourceUrl } : {}),
+          markdown,
           summary: "Sync from app — staged from the Knowledge page",
         },
       }
