@@ -1734,6 +1734,9 @@ A read-only landing surface that answers one question: **is anything in the ESH 
 
 `src/lib/actionSignals.ts` exports `ACTION_SIGNALS` — a single array that feeds **both** the page and the sidebar badge, so the badge and the page can never disagree. Each entry is `{ id, label, family, route, routeLabel, meaning, load() }`; adding a signal is one entry and nothing else. `src/hooks/useActionSignals.tsx` runs the loaders in parallel and shares the result through `ActionSignalsProvider` (wrapped around the router in `App.tsx`), so the layout badge and the page cost one fetch, not two. Called outside the provider, the hook returns a no-op zero state rather than throwing.
 
+**Context split (9 Sep 2026).** The context object, the `useActionSignals()` hook and the `SignalState` / `ActionSignalsCtx` types now live in `src/lib/actionSignalsContext.ts`; `src/hooks/useActionSignals.tsx` exports **only** the `ActionSignalsProvider` component. Reason: a module that exports both a component and non-component values is incompatible with React Fast Refresh (`hmr invalidate … "useActionSignals" export is incompatible`), which re-evaluates the module and creates a **second** context object. Consumers then read the no-op fallback while the provider writes to the original, and the page reports `0 signals watched · 0 need attention` even though every loader succeeded — a silent lie of exactly the kind this board exists to prevent. Do not move the hook or context back into the provider module. Verified in-browser after the split at 1920px: 14 signals watched, 1 needs attention (Open dev escalations, 50).
+
+
 ### The ten signals
 
 | Family | Signal | Source |
