@@ -1846,6 +1846,7 @@ export type Database = {
           notion_registry_synced_at: string | null
           pax_help_channel_id: string | null
           pax_request_template: string | null
+          pax_slack_user_id: string | null
           product_areas: string
           severity_ai_daily_call_cap: number
           severity_ai_enabled: boolean
@@ -1876,6 +1877,7 @@ export type Database = {
           notion_registry_synced_at?: string | null
           pax_help_channel_id?: string | null
           pax_request_template?: string | null
+          pax_slack_user_id?: string | null
           product_areas?: string
           severity_ai_daily_call_cap?: number
           severity_ai_enabled?: boolean
@@ -1906,6 +1908,7 @@ export type Database = {
           notion_registry_synced_at?: string | null
           pax_help_channel_id?: string | null
           pax_request_template?: string | null
+          pax_slack_user_id?: string | null
           product_areas?: string
           severity_ai_daily_call_cap?: number
           severity_ai_enabled?: boolean

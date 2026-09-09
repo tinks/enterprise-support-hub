@@ -33,7 +33,7 @@ const SLACK_API = "https://slack.com/api";
 const PAX_CHANNEL_NAME = "pax-ets-help";
 
 const DEFAULT_TEMPLATE =
-  "@Pax please take a look at this Intercom conversation.\n{url}\nConversation ID: {id}\nSubject: {subject}";
+  "{pax} please take a look at this Intercom conversation.\n{url}\nConversation ID: {id}\nSubject: {subject}";
 
 type Json = Record<string, unknown>;
 
@@ -109,6 +109,37 @@ async function resolveChannel(token: string, configured: string | null): Promise
   throw new Error(`Slack channel #${PAX_CHANNEL_NAME} not found (is the bot a member?)`);
 }
 
+/**
+ * Pax only runs when Slack actually delivers a mention — plain "@Pax" text is
+ * inert. Resolve the bot's user id (settings/env first, then one users.list
+ * scan) so the posted message carries a real <@Uxxxx> mention.
+ */
+async function resolvePaxUserId(token: string, configured: string | null): Promise<string | null> {
+  const fromEnv = Deno.env.get("PAX_SLACK_USER_ID");
+  if (fromEnv) return fromEnv;
+  if (configured) return configured;
+  let cursor = "";
+  do {
+    const params = new URLSearchParams({ limit: "200" });
+    if (cursor) params.set("cursor", cursor);
+    const res = await fetch(`${SLACK_API}/users.list?${params}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(`Slack users.list failed: ${data.error}`);
+    const hit = (data.members ?? []).find((m: any) => {
+      if (m.deleted) return false;
+      const names = [m.name, m.real_name, m.profile?.display_name, m.profile?.real_name]
+        .filter(Boolean)
+        .map((n: string) => n.toLowerCase());
+      return names.includes("pax");
+    });
+    if (hit) return hit.id as string;
+    cursor = data.response_metadata?.next_cursor ?? "";
+  } while (cursor);
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const gate = await requireEditor(req, corsHeaders);
@@ -165,7 +196,7 @@ Deno.serve(async (req) => {
     // Kill switch — the same global switch that gates every other Hub write.
     const { data: settings } = await supabase
       .from("settings")
-      .select("esh_write_enabled, pax_help_channel_id, pax_request_template")
+      .select("id, esh_write_enabled, pax_help_channel_id, pax_request_template, pax_slack_user_id")
       .limit(1)
       .maybeSingle();
     if (!settings?.esh_write_enabled) {
@@ -244,8 +275,26 @@ Deno.serve(async (req) => {
         .eq("intercom_conversation_id", conversationId)
         .maybeSingle();
 
+      // A real mention is what actually triggers Pax; "@Pax" as plain text does nothing.
+      const paxUserId = await resolvePaxUserId(slackToken, (settings as any).pax_slack_user_id ?? null);
+      if (!paxUserId) {
+        const msg =
+          "Could not find the Pax bot in Slack. Set settings.pax_slack_user_id to Pax's member ID.";
+        await log("blocked", { error: msg });
+        return json({ error: msg, blocked: true }, 409);
+      }
+      if (!(settings as any).pax_slack_user_id && (settings as any).id) {
+        await supabase
+          .from("settings")
+          .update({ pax_slack_user_id: paxUserId })
+          .eq("id", (settings as any).id);
+      }
+      const mention = `<@${paxUserId}>`;
+
       const template = (settings.pax_request_template || DEFAULT_TEMPLATE) as string;
       const text = template
+        .replaceAll("{pax}", mention)
+        .replaceAll("@Pax", mention)
         .replaceAll("{url}", intercomUrl(conversationId))
         .replaceAll("{id}", conversationId)
         .replaceAll("{subject}", ticket?.subject ?? "(no subject)");
@@ -253,6 +302,7 @@ Deno.serve(async (req) => {
       const posted = await slack(slackToken, "chat.postMessage", {
         channel,
         text,
+        link_names: true,
         unfurl_links: false,
         unfurl_media: false,
       });
