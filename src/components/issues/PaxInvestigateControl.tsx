@@ -41,6 +41,15 @@ async function readError(error: unknown): Promise<{ message: string; blocked: bo
   return { message: error instanceof Error ? error.message : String(error), blocked: false };
 }
 
+/**
+ * Temporarily disabled: Pax rejects requests posted by the Ask Lovable bot
+ * identity (no verified lovable.dev user). Re-enable once a dedicated
+ * automation Slack user exists, or Pax allowlists the app.
+ */
+const PAX_DISABLED = true;
+const PAX_DISABLED_REASON =
+  "Paused — Pax only accepts requests from a verified lovable.dev user. Waiting on a dedicated automation account.";
+
 export function PaxInvestigateControl({ conversationId }: { conversationId: string }) {
   const { canEdit, isLoading: roleLoading } = useCanEdit();
   const [inv, setInv] = useState<Investigation | null>(null);
