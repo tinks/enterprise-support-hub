@@ -1414,20 +1414,6 @@ function ComplianceSection({
                       {s.frExcused > 0 && <span className="ml-1 text-muted-foreground text-[11px]">· {s.frExcused} excused</span>}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{s.frNotEval || "—"}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {t.resolutionS == null
-                        ? <span className="italic">best-effort — n/a</span>
-                        : <>{(t.resolutionClock === "business" ? formatBusinessDuration : formatDuration)(t.resolutionS)} <span className="text-muted-foreground/70">({t.resolutionClock === "business" ? "bh" : "cal"})</span></>}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums font-medium">
-                      {sev === 4
-                        ? <span className="text-muted-foreground italic">best-effort — n/a</span>
-                        : s.resPct == null ? "—" : `${s.resPct.toFixed(0)}%`}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-destructive">
-                      {s.resBreach || "—"}
-                      {s.resExcused > 0 && <span className="ml-1 text-muted-foreground text-[11px]">· {s.resExcused} excused</span>}
-                    </td>
                     {(() => {
                       const c = activePolicy.cadence?.[sev] ?? null;
                       return (
@@ -1449,6 +1435,20 @@ function ComplianceSection({
                         </>
                       );
                     })()}
+                    <td className="px-3 py-2 text-xs text-muted-foreground">
+                      {t.resolutionS == null
+                        ? <span className="italic">best-effort — n/a</span>
+                        : <>{(t.resolutionClock === "business" ? formatBusinessDuration : formatDuration)(t.resolutionS)} <span className="text-muted-foreground/70">({t.resolutionClock === "business" ? "bh" : "cal"})</span></>}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums font-medium">
+                      {sev === 4
+                        ? <span className="text-muted-foreground italic">best-effort — n/a</span>
+                        : s.resPct == null ? "—" : `${s.resPct.toFixed(0)}%`}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-destructive">
+                      {s.resBreach || "—"}
+                      {s.resExcused > 0 && <span className="ml-1 text-muted-foreground text-[11px]">· {s.resExcused} excused</span>}
+                    </td>
                   </tr>
                 );
               })}
