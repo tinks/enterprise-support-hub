@@ -499,26 +499,18 @@ export default function SlaReport() {
 
 
         {!sseScope && (
-          <>
-            <SeverityTable activePolicy={activePolicy}
-              title="§3a First Response by Severity"
-              metric="first_response"
-              bySev={bySev}
-              isExcused={isExcused}
-            />
-            <SeverityTable activePolicy={activePolicy}
-              title="§3b Resolution by Severity"
-              metric="resolution"
-              bySev={bySev}
-              isExcused={isExcused}
-            />
-          </>
+          <SeverityTable activePolicy={activePolicy}
+            title="§3a First response time by Severity"
+            metric="first_response"
+            bySev={bySev}
+            isExcused={isExcused}
+          />
         )}
 
-        {/* §3c Communication cadence — PROVISIONAL, Sev1/Sev2 only */}
+        {/* §3b Communication cadence — PROVISIONAL, Sev1/Sev2 only */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">§3c Communication cadence — PROVISIONAL (Sev 1 / Sev 2 only)</CardTitle>
+            <CardTitle className="text-base">§3b Communication cadence — PROVISIONAL (Sev 1 / Sev 2 only)</CardTitle>
             <CardDescription className="text-xs">
               Proactive-update frequency during an active incident. <strong>Drumbeat model</strong>: customer
               silence does <em>not</em> pause the obligation, and the window includes the tail gap
