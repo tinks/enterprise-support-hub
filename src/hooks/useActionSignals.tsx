@@ -1,38 +1,14 @@
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ACTION_SIGNALS } from "@/lib/actionSignals";
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
-import { ACTION_SIGNALS, type ActionSignal, type SignalReading } from "@/lib/actionSignals";
+  ActionSignalsContext,
+  type ActionSignalsCtx,
+  type SignalState,
+} from "@/lib/actionSignalsContext";
 
-export type SignalState = {
-  signal: ActionSignal;
-  status: "loading" | "ok" | "error";
-  reading: SignalReading | null;
-  error: string | null;
-  /** Muted signals still load and display, but never raise the badge. */
-  muted: boolean;
-};
-
-type Ctx = {
-  states: SignalState[];
-  /** Number of unmuted signals with count > 0. Errors are NOT counted as attention. */
-  attentionCount: number;
-  /** Number of signals whose loader failed. */
-  errorCount: number;
-  loading: boolean;
-  lastLoadedAt: number | null;
-  refresh: () => void;
-  mutedIds: string[];
-  toggleMuted: (id: string) => void;
-};
-
-const ActionSignalsContext = createContext<Ctx | null>(null);
+// This module exports ONLY the provider component. Context, hook and types live
+// in "@/lib/actionSignalsContext" so Fast Refresh never invalidates the context
+// identity (see the comment there).
 
 const MUTED_KEY = "esh.actionSignals.muted";
 
@@ -48,7 +24,6 @@ const readMuted = (): string[] => {
 
 const initialStates = (): SignalState[] =>
   ACTION_SIGNALS.map((signal) => ({ signal, status: "loading", reading: null, error: null, muted: false }));
-
 
 export function ActionSignalsProvider({ children }: { children: ReactNode }) {
   const [states, setStates] = useState<SignalState[]>(initialStates);
@@ -86,7 +61,6 @@ export function ActionSignalsProvider({ children }: { children: ReactNode }) {
     setLastLoadedAt(Date.now());
   }, []);
 
-
   useEffect(() => {
     load();
   }, [load]);
@@ -111,7 +85,7 @@ export function ActionSignalsProvider({ children }: { children: ReactNode }) {
     };
   }, [load]);
 
-  const value = useMemo<Ctx>(() => {
+  const value = useMemo<ActionSignalsCtx>(() => {
     const withMute = states.map((s) => ({ ...s, muted: mutedIds.includes(s.signal.id) }));
     const attentionCount = withMute.filter(
       (s) => !s.muted && s.status === "ok" && (s.reading?.count ?? 0) > 0,
@@ -132,20 +106,4 @@ export function ActionSignalsProvider({ children }: { children: ReactNode }) {
   return <ActionSignalsContext.Provider value={value}>{children}</ActionSignalsContext.Provider>;
 }
 
-export function useActionSignals(): Ctx {
-  const ctx = useContext(ActionSignalsContext);
-  if (!ctx) {
-    return {
-      states: [],
-      attentionCount: 0,
-      errorCount: 0,
-      loading: false,
-      lastLoadedAt: null,
-      refresh: () => {},
-      mutedIds: [],
-      toggleMuted: () => {},
-    };
-  }
-  return ctx;
-
-}
+export default ActionSignalsProvider;
