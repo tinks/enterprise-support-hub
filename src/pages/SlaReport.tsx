@@ -339,9 +339,9 @@ export default function SlaReport() {
               <CardTitle className="text-base">No SLA commitment on this plan</CardTitle>
               <CardDescription className="text-xs">
                 Self-serve Enterprise carries no first-response or resolution SLA. The compliance sections
-                (§2 headline, §3a/§3b by severity, §4 breaches) are hidden rather than reported as 0% —
+                (§2 headline, §3a/§3c by severity, §4 breaches) are hidden rather than reported as 0% —
                 a target that does not exist cannot be met or breached. Triage (§2b, 1 hour target),
-                cadence (§3c), source mix (§5) and the data-quality footer (§6) still apply and are shown below.
+                communication cadence (§3b), source mix (§5) and the data-quality footer (§6) still apply and are shown below.
               </CardDescription>
             </CardHeader>
           </Card>
