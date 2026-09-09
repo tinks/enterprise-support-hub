@@ -2343,6 +2343,21 @@ Surfaces Lovable's incident.io incidents inside the Hub: a live "what's broken n
 
 **UNVERIFIED.** The schedule row itself was never read back: `cron.job` and `cron.job_run_details` are permission-denied for both the agent SQL role and the psql role, so recurrence is inferred from the on-the-minute success at `:45` plus the job id returned in the SQL editor, not directly observed across two fires. The banner and `/incidents` page were still not loaded in a browser at ultrawide width.
 
+### Stuck-live fix — targeted re-check (9 Sep 2026)
+
+**The bug.** Slack's `oldest` filter matches a message's **original post time**, not its last edit. Because incident.io edits one announcement in place for the whole lifecycle, any incident declared before the rolling window (default 2 days) and resolved inside it was never re-read — its row sat `live` forever. Observed: INC-1899/1901/1904/1913 marked live with `last_synced_at` 3–5 days stale, and the banner claiming 15 live incidents.
+
+**The fix (option C — targeted re-check, chosen over widening the window or a nightly full rescan).** Step 2b of `poll-slack-incidents` now, on every non-`full` run, selects rows still in `live`/`unknown` (newest 60, `RECHECK_CAP`) and re-fetches **each one's own Slack message by its stored `slack_message_ts`**, then merges the parse into the same upsert path. Cost is one small Slack call per stuck row, unrelated to how far back the incident was declared. Two implementation details that were failure modes, both hit in testing:
+- Slack can return **zero messages when `oldest === latest`** even with `inclusive=true`; the bracket is `ts ± 1s` with an exact-`ts` match picked out of the result.
+- **Terminal cards carry the incident link only as an inline mrkdwn `<url|label>`** inside the section text — there is no button block with a `url` field. The parser previously harvested only `node.url`, so every merged/declined card was silently dropped as "not an announcement", which is exactly what kept INC-1913 (merged) live. Inline URLs are now harvested too.
+
+Run summaries report `recheck_fetched`, `recheck_changed`, `recheck_missing`; an unfetchable or unparseable re-check logs a warning and is named in the summary rather than being swallowed.
+
+**Verified 9 Sep 2026.** Rolling run after the fix: `recheck_fetched: 37, recheck_changed: 1, recheck_missing: []`. INC-1913 moved `Investigating`/live → `Merged`/closed with `resolved_at 2026-09-06 13:02:04Z`. Live population **15 → 13**. Negative case exercised for real: before the inline-URL fix the same run logged `recheck INC-1913: unparseable announcement` and left the row untouched — the failure was visible, not silent. Full rescan re-run with the new parser: 2,038 scanned, 1,228 parsed (was 1,049), 797 skipped, **171 previously-unparseable terminal cards recovered**, 0 errors. Population now **1,182 closed · 13 live · 8 post-incident · 25 unknown**.
+
+**UNVERIFIED.** No cron fire has been observed since the change (next `*/15` run); the re-check path has only been exercised by manual invocation.
+
+
 ### Outbound-initiated conversations and the timeline close fallback (9 Sep 2026)
 
 **Problem.** Two finalized rows (`215474972075677`, `215475476004105`) carried no resolution metrics at all. Root cause was not the tickets: Intercom returned an **empty `statistics` block** on both, and `resolveCloseAt()` read close time only from `statistics.last_close_at` / `first_close_at`. No close time → every clock null → the rows were reported as "not computable" forever. Both payloads did contain a real `close` part in the timeline.

@@ -29,6 +29,8 @@ const CHANNEL_ID = "C07TMQ5E6SC";
 const GATEWAY_URL = "https://connector-gateway.lovable.dev/slack/api";
 const DEFAULT_LOOKBACK_DAYS = 2;
 const CHANNEL_NAME_LOOKUP_CAP = 10;
+// Max still-live incidents re-read by ts each run (one Slack call each).
+const RECHECK_CAP = 60;
 
 // incident.io status -> lifecycle bucket. Anything not listed stays "unknown"
 // and is reported, never guessed into "live" or "closed".
@@ -99,6 +101,14 @@ export function parseAnnouncement(msg: any): ParsedIncident | null {
   const sectionTexts: string[] = [];
   let headerText = "";
 
+  // Terminal cards (merged / declined) carry the incident link ONLY as an
+  // inline mrkdwn link `<url|label>` inside the section text — there is no
+  // button block with a `url` field. Harvesting both is what keeps a merged
+  // incident parseable instead of silently dropped (and stuck "live").
+  const harvestInlineUrls = (text: string) => {
+    for (const m of text.matchAll(/<(https?:\/\/[^|>\s]+)(?:\|[^>]*)?>/g)) urls.push(m[1]);
+  };
+
   walkBlocks(blocks, (node) => {
     if (typeof node.url === "string") urls.push(node.url);
     if (node.type === "header" && typeof node.text?.text === "string") {
@@ -106,6 +116,7 @@ export function parseAnnouncement(msg: any): ParsedIncident | null {
     }
     if (node.type === "section" && typeof node.text?.text === "string") {
       sectionTexts.push(node.text.text);
+      harvestInlineUrls(node.text.text);
     }
   });
 
@@ -335,6 +346,67 @@ Deno.serve(async (req) => {
         byNumber.set(p.incident_number, p);
       }
     }
+    // 2b. Targeted re-check of stuck-live rows. incident.io EDITS the original
+    //     announcement in place, but Slack's `oldest` filter matches the
+    //     ORIGINAL post time — so an incident declared before the window and
+    //     resolved inside it would never be re-read, and would sit "live"
+    //     forever. Here we fetch each still-live message directly by its stored
+    //     ts (oldest=latest=ts, inclusive) and merge it in.
+    let recheck_fetched = 0;
+    let recheck_changed = 0;
+    const recheck_missing: string[] = [];
+    if (!full) {
+      const { data: stuck, error: stuckErr } = await supabase
+        .from("incidents")
+        .select("incident_number, slack_message_ts, status_category")
+        .in("status_category", ["live", "unknown"])
+        .order("declared_at", { ascending: false })
+        .limit(RECHECK_CAP);
+      if (stuckErr) throw stuckErr;
+
+      for (const row of stuck ?? []) {
+        if (byNumber.has(row.incident_number)) continue; // already in window
+        if (!row.slack_message_ts) continue;
+        const { status: rcStatus, body: rcBody, data } = await slackGet(
+          "conversations.history",
+          new URLSearchParams({
+            channel: CHANNEL_ID,
+            // Slack can return nothing when oldest === latest even with
+            // inclusive=true, so bracket the stored ts by a second and pick
+            // the exact match out of the (tiny) result set.
+            latest: String(Number(row.slack_message_ts) + 1),
+            oldest: String(Number(row.slack_message_ts) - 1),
+            inclusive: "true",
+            limit: "5",
+          }),
+          LOVABLE_API_KEY,
+          SLACK_API_KEY,
+        );
+        recheck_fetched++;
+        const msg = data?.ok
+          ? ((data.messages ?? []).find((m: any) => String(m.ts) === row.slack_message_ts) ?? null)
+          : null;
+        if (!msg) {
+          console.warn(
+            `recheck INC-${row.incident_number}: no message (status ${rcStatus}) ${rcBody.slice(0, 200)}`,
+          );
+          recheck_missing.push(`INC-${row.incident_number}`);
+          continue;
+        }
+        const p = parseAnnouncement(msg);
+        if (!p) {
+          console.warn(`recheck INC-${row.incident_number}: unparseable announcement`);
+          recheck_missing.push(`INC-${row.incident_number}`);
+          continue;
+        }
+        if (p.status_category === "unknown" && p.status && unknown_status.length < 10) {
+          unknown_status.push(`${p.reference}: "${p.status}"`);
+        }
+        if (p.status_category !== row.status_category) recheck_changed++;
+        byNumber.set(p.incident_number, p);
+      }
+    }
+
     const parsed = [...byNumber.values()];
 
     // 3. Resolve incident channel names for live incidents only (a handful per
@@ -412,6 +484,9 @@ Deno.serve(async (req) => {
       live: rows.filter((r) => r.status_category === "live").length,
       customer_impacting: rows.filter((r) => r.is_customer_impacting).length,
       unknown_status,
+      recheck_fetched,
+      recheck_changed,
+      recheck_missing,
       upserted: 0,
       errors: [] as string[],
     };
