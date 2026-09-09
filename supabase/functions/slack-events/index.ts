@@ -611,7 +611,9 @@ Deno.serve(async (req) => {
           .rpc("claim_slack_event", { p_mapping_id: mapping.id, p_event_ts: eventTs });
 
         if (claimResult === false) {
-          console.log(`[DEDUP] Event ${eventTs} already claimed for thread ${threadTs} in ${channelId}`);
+          console.log(
+            `[DEDUP] Event ${eventTs} already claimed/processing for thread ${threadTs} in ${channelId}${isSlackRetry ? ` (slack retry #${slackRetryNum})` : ""} — acking 200`,
+          );
           return new Response(JSON.stringify({ ok: true }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
