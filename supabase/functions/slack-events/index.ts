@@ -974,7 +974,14 @@ Deno.serve(async (req) => {
           }
         };
 
-        EdgeRuntime.waitUntil(cosmeticWork());
+        // Ack Slack in milliseconds; forwarding + cosmetics run after the
+        // response. Forwarding first so status transitions are ordered.
+        EdgeRuntime.waitUntil(
+          (async () => {
+            await forwardWork();
+            await cosmeticWork();
+          })(),
+        );
       }
     }
 
