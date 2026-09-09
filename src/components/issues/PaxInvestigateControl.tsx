@@ -171,6 +171,13 @@ export function PaxInvestigateControl({ conversationId }: { conversationId: stri
         </p>
       )}
 
+      {PAX_DISABLED && (
+        <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+          <span>{PAX_DISABLED_REASON}</span>
+        </p>
+      )}
+
       <p className="text-[10px] text-muted-foreground">
         Posts one request in #pax-ets-help and adds an internal note only — never a customer-facing reply.
       </p>
