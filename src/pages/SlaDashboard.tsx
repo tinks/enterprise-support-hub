@@ -350,34 +350,6 @@ export default function SlaDashboard() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2 flex-wrap">
-                            {r.sev === 4 ? (
-                              <span className="inline-flex items-center rounded px-2 py-0.5 text-sm text-muted-foreground italic bg-muted/40">
-                                best-effort
-                              </span>
-                            ) : (
-                              <>
-                                <span className={`inline-flex items-center rounded px-2 py-0.5 text-sm font-semibold tabular-nums ${resTone.bg} ${resTone.text}`}>
-                                  {r.resPct == null ? "—" : `${r.resPct.toFixed(0)}%`}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  · target {formatTarget(r.target.resolutionS, r.target.resolutionClock)}
-                                </span>
-                                {r.resBreach > 0 && (
-                                  <Link to="/sla-workbench" title="View breach detail in the Workbench">
-                                    <Badge variant="destructive" className="text-[10px] px-1.5 py-0 cursor-pointer hover:opacity-80">
-                                      {r.resBreach} breach{r.resBreach === 1 ? "" : "es"}
-                                    </Badge>
-                                  </Link>
-                                )}
-                                {r.resExcused > 0 && (
-                                  <span className="text-[10px] text-muted-foreground">· {r.resExcused} excused</span>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2 flex-wrap">
                             {r.cadTarget == null ? (
                               <span className="inline-flex items-center rounded px-2 py-0.5 text-sm text-muted-foreground italic bg-muted/40">
                                 no target
@@ -402,6 +374,34 @@ export default function SlaDashboard() {
                                 )}
                                 {r.cadExcused > 0 && (
                                   <span className="text-[10px] text-muted-foreground">· {r.cadExcused} excused</span>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {r.sev === 4 ? (
+                              <span className="inline-flex items-center rounded px-2 py-0.5 text-sm text-muted-foreground italic bg-muted/40">
+                                best-effort
+                              </span>
+                            ) : (
+                              <>
+                                <span className={`inline-flex items-center rounded px-2 py-0.5 text-sm font-semibold tabular-nums ${resTone.bg} ${resTone.text}`}>
+                                  {r.resPct == null ? "—" : `${r.resPct.toFixed(0)}%`}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  · target {formatTarget(r.target.resolutionS, r.target.resolutionClock)}
+                                </span>
+                                {r.resBreach > 0 && (
+                                  <Link to="/sla-workbench" title="View breach detail in the Workbench">
+                                    <Badge variant="destructive" className="text-[10px] px-1.5 py-0 cursor-pointer hover:opacity-80">
+                                      {r.resBreach} breach{r.resBreach === 1 ? "" : "es"}
+                                    </Badge>
+                                  </Link>
+                                )}
+                                {r.resExcused > 0 && (
+                                  <span className="text-[10px] text-muted-foreground">· {r.resExcused} excused</span>
                                 )}
                               </>
                             )}
