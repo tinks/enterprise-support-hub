@@ -155,7 +155,7 @@ export function PaxInvestigateControl({ conversationId }: { conversationId: stri
                   {inv.note_error ? ` ${inv.note_error}` : ""}
                 </span>
               </p>
-              <Button size="sm" variant="outline" onClick={() => run("retry_note")} disabled={busy}>
+              <Button size="sm" variant="outline" onClick={() => run("retry_note")} disabled={busy || PAX_DISABLED} title={PAX_DISABLED ? PAX_DISABLED_REASON : undefined}>
                 {busy ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                 Retry link
               </Button>
