@@ -359,7 +359,7 @@ export default function SlaReport() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 text-sm">
-            {[["First Response", overallFr], ["Resolution", overallRes]].map(([label, st]) => {
+            {[["First response time", overallFr], ["Resolution", overallRes]].map(([label, st]) => {
               const s = st as MetricStats;
               return (
                 <div key={label as string} className="rounded-md border border-border p-3 space-y-1">
