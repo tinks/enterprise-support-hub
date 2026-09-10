@@ -56,7 +56,6 @@ export default function IncidentBanner() {
           "incident_number, title, severity, status, is_customer_impacting, incident_url, status_page_url, incident_channel_id, incident_channel_name, declared_at",
         )
         .eq("status_category", "live")
-        .order("severity_rank", { ascending: true, nullsFirst: false })
         .order("declared_at", { ascending: false })
         .limit(25);
       if (cancelled) return;
