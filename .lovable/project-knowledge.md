@@ -2466,3 +2466,24 @@ Staging a documentation update used to be possible only from outside the UI — 
 `/knowledge` now has a **Sync from app** button beside Review. It invokes `sync-knowledge-pending` as the signed-in editor, passing `sourceUrl = <origin>/.lovable/project-knowledge.md` **only when the current hostname is one of the two allowlisted project origins** (`SYNC_ALLOWED_HOSTS` in `src/pages/ProjectKnowledge.tsx` mirrors `ALLOWED_SOURCE_HOSTS` in the function — the two must stay in step); otherwise it sends no `sourceUrl` and the function falls back to the published URL. On success the page reloads the row and switches into review mode.
 
 **The approval gate is unchanged.** Sync only writes `pending_content`; the live `content` still changes solely on an explicit Approve. Because the fetch reads the doc served by the running app, the preview origin reflects the current working copy while the published origin reflects the last publish.
+
+## My queue — the personal operational view (10 Sep 2026)
+
+**Why.** v3 was built for clean reporting, not for working tickets. A Support Engineer had no single place answering "what is mine, and which of these is actually waiting on me?" — Triage answers a data-hygiene question, Inbox v3 is a browsing surface, and the owner dashboards report on the past.
+
+**Routes.** `/my-queue` (defaults to the signed-in teammate, matched on the local part of the work email against the active roster) and `/my-queue/:owner` (teammate switcher, roster from `useDashboardTeammates`). New top-level rail item **My queue**, above Issues. `/my/:owner` and `/my-v3/:owner` are untouched — they remain the reporting dashboards.
+
+**Read-only over reporting truth.** `src/pages/MyQueue.tsx` selects from `intercom_tickets_v3` (`state <> 'closed'`, `is_test_ticket` false/null, owner via `normalizeOwner`) and derives every bucket at render time. **No queue state is persisted anywhere** — no new table, no new column, no write to a reporting field — so nothing on this page can move a reported number.
+
+**Who holds the ball.** Taken from Intercom's own conversation statistics carried in `raw_payload.statistics`: `last_contact_reply_at` vs `last_admin_reply_at`. This is the same authorial signal `sla-core` classifies from the message timeline, read from the persisted summary so the page needs no extra Intercom fetch.
+- `customer_replied` is **deliberately not used** — it is populated on only 4 of 65 open tickets.
+- `first_human_reply_at` is likewise unusable here: the responsiveness fields are computed **at finalize**, so they are null on essentially every open ticket.
+- 6 of 65 open rows carry no `statistics` at all. Those are shown in their own **No activity data** bucket rather than being guessed into a state.
+
+**Buckets, in priority order.** Action needed (customer spoke last) → Waiting on engineering (`eng_wait_start_at` set, `eng_wait_end_at` null) → Ready for follow-up (we spoke last and nothing has moved for 3+ days) → Waiting on customer → No activity data. Each bucket is a clickable KPI card that filters the table; rows sort by bucket, then oldest wait first.
+
+**Data hygiene.** A "Missing fields" filter counts rows lacking `Severity`, `Affected Product Area` (falling back to `Product Area`) or `Ticket type` (falling back to `Type`) in `custom_attributes`; the gaps also render as the muted second line under the subject.
+
+**Writes stay where they already live.** The detail sheet embeds the existing `TicketFieldsPanel` (every field write still routes through `esh-write-action`, kill switch and audit unchanged) and `PaxInvestigateControl`. Subjects use the existing Hub-only override path. The queue itself writes nothing.
+
+**Verified 10 Sep 2026** at 1920px: `/my-queue` defaulted to Matt and rendered 26 open tickets — 7 Action needed, 0 Waiting on engineering, 5 Ready for follow-up, 10 Waiting on customer, 4 No activity data, 4 with missing fields. **UNVERIFIED:** the teammate switcher for another owner, and the non-zero Waiting-on-engineering bucket (no open ticket currently has an engineering wait clock).
