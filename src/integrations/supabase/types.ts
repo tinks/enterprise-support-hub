@@ -2320,6 +2320,66 @@ export type Database = {
         }
         Relationships: []
       }
+      slack_event_claims: {
+        Row: {
+          channel_id: string | null
+          claimed_at: string
+          completed_at: string | null
+          event_id: string
+          event_type: string | null
+          status: string
+        }
+        Insert: {
+          channel_id?: string | null
+          claimed_at?: string
+          completed_at?: string | null
+          event_id: string
+          event_type?: string | null
+          status?: string
+        }
+        Update: {
+          channel_id?: string | null
+          claimed_at?: string
+          completed_at?: string | null
+          event_id?: string
+          event_type?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
+      slack_event_failures: {
+        Row: {
+          channel_id: string | null
+          created_at: string
+          error: string | null
+          event_id: string | null
+          event_type: string | null
+          id: string
+          payload: Json | null
+          replayed_at: string | null
+        }
+        Insert: {
+          channel_id?: string | null
+          created_at?: string
+          error?: string | null
+          event_id?: string | null
+          event_type?: string | null
+          id?: string
+          payload?: Json | null
+          replayed_at?: string | null
+        }
+        Update: {
+          channel_id?: string | null
+          created_at?: string
+          error?: string | null
+          event_id?: string | null
+          event_type?: string | null
+          id?: string
+          payload?: Json | null
+          replayed_at?: string | null
+        }
+        Relationships: []
+      }
       teammates: {
         Row: {
           active: boolean

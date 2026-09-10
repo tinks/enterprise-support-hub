@@ -288,6 +288,13 @@
       "when": 1788993096414,
       "tag": "0040_v3_ai_subject",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1789043418716,
+      "tag": "0041_slack_event_claims",
+      "breakpoints": true
     }
   ]
 }
