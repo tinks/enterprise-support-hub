@@ -1,0 +1,531 @@
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import AppLayout from "@/components/AppLayout";
+import { supabase } from "@/integrations/supabase/client";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, RefreshCw, Info } from "lucide-react";
+import { format, formatDistanceToNowStrict } from "date-fns";
+import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
+import { IssueDetailSheet, IssueField } from "@/components/issues/IssueDetailSheet";
+import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
+import { PaxInvestigateControl } from "@/components/issues/PaxInvestigateControl";
+import {
+  idColumn,
+  subjectColumn,
+  contactColumn,
+  customerColumn,
+  ageColumn,
+} from "@/components/issues/issueColumns";
+import { useCustomerLabels } from "@/hooks/useCustomerLabels";
+import { useDashboardTeammates } from "@/hooks/useDashboardTeammates";
+import { displaySubject, SUBJECT_SELECT } from "@/lib/subjectDisplay";
+import { normalizeOwner } from "@/lib/normalizeOwner";
+
+/**
+ * My Queue — the personal operational flight deck.
+ *
+ * READ-ONLY over v3 reporting truth: it never writes a queue state anywhere.
+ * Every bucket below is derived at render time from columns that already exist
+ * on `intercom_tickets_v3`, so nothing here can move a reported number.
+ *
+ * "Who holds the ball" comes from Intercom's own conversation statistics
+ * (`last_contact_reply_at` vs `last_admin_reply_at`) carried in `raw_payload`.
+ * That is the same authorial signal the SLA engine classifies from the message
+ * timeline, but read from the persisted summary so the queue needs no extra
+ * Intercom fetch. Tickets whose payload carries no statistics are shown in a
+ * separate "No activity data" bucket rather than guessed at.
+ */
+
+type Row = {
+  id: string;
+  intercom_conversation_id: string;
+  subject: string | null;
+  subject_override: string | null;
+  subject_ai: string | null;
+  contact_name: string | null;
+  contact_email: string | null;
+  owner: string | null;
+  customer_key: string | null;
+  state: string | null;
+  plan_tier: string | null;
+  custom_attributes: Record<string, unknown> | null;
+  intercom_created_at: string | null;
+  intercom_updated_at: string | null;
+  eng_wait_start_at: string | null;
+  eng_wait_end_at: string | null;
+  raw_payload: Record<string, any> | null;
+};
+
+type Bucket = "action" | "eng" | "customer" | "stale" | "unknown";
+
+const BUCKET_META: Record<Bucket, { label: string; blurb: string; pill: string; row?: string }> = {
+  action: {
+    label: "Action needed",
+    blurb: "The customer spoke last — the ball is with us.",
+    pill: "bg-destructive/15 text-destructive border-destructive/40",
+    row: "bg-destructive/5 hover:bg-destructive/10",
+  },
+  eng: {
+    label: "Waiting on engineering",
+    blurb: "An engineering wait clock is open on this ticket.",
+    pill: "bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-500/40",
+  },
+  stale: {
+    label: "Ready for follow-up",
+    blurb: "We replied last and nothing has moved for 3+ days.",
+    pill: "bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/50",
+    row: "bg-amber-500/5 hover:bg-amber-500/10",
+  },
+  customer: {
+    label: "Waiting on customer",
+    blurb: "We replied last and the ticket is still fresh.",
+    pill: "bg-muted text-muted-foreground border-border",
+  },
+  unknown: {
+    label: "No activity data",
+    blurb: "No Intercom statistics on this row yet — state cannot be derived.",
+    pill: "bg-muted text-muted-foreground border-border",
+  },
+};
+
+const BUCKET_ORDER: Bucket[] = ["action", "eng", "stale", "customer", "unknown"];
+
+const STALE_MS = 3 * 86_400_000;
+const ANY = "__any__";
+
+/** Intercom stats timestamps are unix seconds. */
+function statMs(row: Row, key: string): number | null {
+  const raw = row.raw_payload?.statistics?.[key];
+  if (raw === null || raw === undefined || raw === "") return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n * 1000 : null;
+}
+
+function attr(row: Row, key: string): string | null {
+  const v = row.custom_attributes?.[key as keyof typeof row.custom_attributes];
+  if (v === null || v === undefined || v === "") return null;
+  return String(v);
+}
+
+type QueueRow = Row & {
+  bucket: Bucket;
+  lastContactMs: number | null;
+  lastAdminMs: number | null;
+  /** Time since whichever side spoke last. Drives "how long has this sat". */
+  waitingSinceMs: number | null;
+  severity: string | null;
+  productArea: string | null;
+  ticketType: string | null;
+  gaps: string[];
+};
+
+function classify(row: Row): QueueRow {
+  const lastContactMs = statMs(row, "last_contact_reply_at");
+  const lastAdminMs = statMs(row, "last_admin_reply_at");
+  const hasStats = !!row.raw_payload?.statistics;
+
+  const engOpen = !!row.eng_wait_start_at && !row.eng_wait_end_at;
+  const ballWithUs =
+    lastContactMs !== null && (lastAdminMs === null || lastContactMs > lastAdminMs);
+
+  let bucket: Bucket;
+  let waitingSinceMs: number | null;
+
+  if (!hasStats) {
+    bucket = "unknown";
+    waitingSinceMs = row.intercom_updated_at ? new Date(row.intercom_updated_at).getTime() : null;
+  } else if (ballWithUs) {
+    bucket = "action";
+    waitingSinceMs = lastContactMs;
+  } else if (engOpen) {
+    bucket = "eng";
+    waitingSinceMs = new Date(row.eng_wait_start_at as string).getTime();
+  } else {
+    waitingSinceMs = lastAdminMs ?? (row.intercom_updated_at ? new Date(row.intercom_updated_at).getTime() : null);
+    const idle = waitingSinceMs !== null && Date.now() - waitingSinceMs >= STALE_MS;
+    bucket = idle ? "stale" : "customer";
+  }
+
+  const severity = attr(row, "Severity");
+  const productArea = attr(row, "Affected Product Area") ?? attr(row, "Product Area");
+  const ticketType = attr(row, "Ticket type") ?? attr(row, "Type");
+
+  const gaps: string[] = [];
+  if (!severity) gaps.push("Severity");
+  if (!productArea) gaps.push("Affected product area");
+  if (!ticketType) gaps.push("Ticket type");
+
+  return {
+    ...row,
+    bucket,
+    lastContactMs,
+    lastAdminMs,
+    waitingSinceMs,
+    severity,
+    productArea,
+    ticketType,
+    gaps,
+  };
+}
+
+function StatCard({
+  label,
+  value,
+  hint,
+  active,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  hint?: string;
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={hint}
+      className={`rounded-md border p-3 text-left transition-colors ${
+        active ? "border-primary bg-accent" : "border-border hover:bg-accent/50"
+      }`}
+    >
+      <div className="text-2xl font-semibold tabular-nums">{value}</div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+    </button>
+  );
+}
+
+export default function MyQueue() {
+  const { owner: ownerParam } = useParams();
+  const navigate = useNavigate();
+  const { items: teammates } = useDashboardTeammates();
+  const { accountLabel } = useCustomerLabels();
+
+  const [me, setMe] = useState<string | null>(null);
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [bucketFilter, setBucketFilter] = useState<Bucket | "all" | "gaps">("all");
+  const [selected, setSelected] = useState<QueueRow | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  // Default owner: the signed-in teammate, matched on the local part of the
+  // work email against the roster. Falls back to the URL param.
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const email = data.user?.email ?? "";
+      const local = email.split("@")[0] ?? "";
+      const first = local.split(/[._-]/)[0] ?? "";
+      setMe(first ? first.charAt(0).toUpperCase() + first.slice(1) : null);
+    });
+  }, []);
+
+  const rosterNames = useMemo(() => teammates.map((t) => t.label), [teammates]);
+
+  const activeOwner = useMemo(() => {
+    if (ownerParam) {
+      const match = rosterNames.find((n) => n.toLowerCase() === ownerParam.toLowerCase());
+      return match ?? ownerParam.charAt(0).toUpperCase() + ownerParam.slice(1);
+    }
+    if (me && rosterNames.some((n) => n.toLowerCase() === me.toLowerCase())) return me;
+    return me ?? "";
+  }, [ownerParam, me, rosterNames]);
+
+  useEffect(() => {
+    if (!activeOwner) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    supabase
+      .from("intercom_tickets_v3")
+      .select(
+        `id,intercom_conversation_id,${SUBJECT_SELECT},contact_name,contact_email,owner,customer_key,state,plan_tier,custom_attributes,intercom_created_at,intercom_updated_at,eng_wait_start_at,eng_wait_end_at,raw_payload`,
+      )
+      .neq("state", "closed")
+      .or("is_test_ticket.is.null,is_test_ticket.eq.false")
+      .order("intercom_updated_at", { ascending: false })
+      .limit(500)
+      .then(({ data, error: err }) => {
+        if (cancelled) return;
+        if (err) {
+          setError(err.message);
+          setRows([]);
+        } else {
+          const mine = ((data ?? []) as unknown as Row[]).filter(
+            (r) => (normalizeOwner(r.owner) ?? "").toLowerCase() === activeOwner.toLowerCase(),
+          );
+          setRows(mine);
+        }
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeOwner, reloadKey]);
+
+  const queue = useMemo(() => rows.map(classify), [rows]);
+
+  const counts = useMemo(() => {
+    const c: Record<Bucket, number> = { action: 0, eng: 0, stale: 0, customer: 0, unknown: 0 };
+    let gaps = 0;
+    for (const r of queue) {
+      c[r.bucket] += 1;
+      if (r.gaps.length) gaps += 1;
+    }
+    return { ...c, gaps, total: queue.length };
+  }, [queue]);
+
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return queue
+      .filter((r) => {
+        if (bucketFilter === "gaps") return r.gaps.length > 0;
+        if (bucketFilter !== "all" && r.bucket !== bucketFilter) return false;
+        return true;
+      })
+      .filter((r) => {
+        if (!q) return true;
+        return (
+          displaySubject(r).toLowerCase().includes(q) ||
+          (r.contact_email ?? "").toLowerCase().includes(q) ||
+          (r.contact_name ?? "").toLowerCase().includes(q) ||
+          r.intercom_conversation_id.includes(q) ||
+          accountLabel(r.customer_key).toLowerCase().includes(q)
+        );
+      })
+      .sort((a, b) => {
+        const ai = BUCKET_ORDER.indexOf(a.bucket);
+        const bi = BUCKET_ORDER.indexOf(b.bucket);
+        if (ai !== bi) return ai - bi;
+        return (a.waitingSinceMs ?? Infinity) - (b.waitingSinceMs ?? Infinity);
+      });
+  }, [queue, search, bucketFilter, accountLabel]);
+
+  const columns: IssueColumn<QueueRow>[] = [
+    {
+      key: "bucket",
+      header: "State",
+      width: "w-[150px]",
+      sortValue: (r) => BUCKET_ORDER.indexOf(r.bucket),
+      cell: (r) => (
+        <Badge variant="outline" className={`text-[10px] ${BUCKET_META[r.bucket].pill}`}>
+          {BUCKET_META[r.bucket].label}
+        </Badge>
+      ),
+    },
+    {
+      key: "waiting",
+      header: "Waiting",
+      width: "w-[110px]",
+      headerTitle: "Time since whichever side spoke last",
+      cellClassName: "text-xs tabular-nums",
+      sortValue: (r) => (r.waitingSinceMs == null ? null : Date.now() - r.waitingSinceMs),
+      cell: (r) =>
+        r.waitingSinceMs == null ? (
+          "—"
+        ) : (
+          <div>
+            <div>{formatDistanceToNowStrict(new Date(r.waitingSinceMs))}</div>
+            <div className="text-[10px] text-muted-foreground">
+              {format(new Date(r.waitingSinceMs), "d MMM HH:mm")}
+            </div>
+          </div>
+        ),
+    },
+    idColumn<QueueRow>((r) => r.intercom_conversation_id),
+    subjectColumn<QueueRow>(
+      (r) => displaySubject(r),
+      (r) => (r.gaps.length ? `Missing: ${r.gaps.join(", ")}` : null),
+      {
+        conversationId: (r) => r.intercom_conversation_id,
+        subjectRow: (r) => r,
+        onSaved: () => setReloadKey((k) => k + 1),
+      },
+    ),
+    contactColumn<QueueRow>(
+      (r) => r.contact_name,
+      (r) => r.contact_email,
+    ),
+    customerColumn<QueueRow>((r) => r.customer_key, accountLabel),
+    {
+      key: "severity",
+      header: "Severity",
+      width: "w-[100px]",
+      cellClassName: "text-xs",
+      sortValue: (r) => r.severity,
+      cell: (r) =>
+        r.severity ? (
+          <Badge variant="secondary" className="text-[10px]">
+            S{r.severity}
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    ageColumn<QueueRow>((r) =>
+      r.intercom_created_at ? new Date(r.intercom_created_at).getTime() : null,
+    ),
+  ];
+
+  return (
+    <AppLayout>
+      <div className="p-6 space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold">My queue</h1>
+            <p className="text-sm text-muted-foreground">
+              Every open v3 ticket owned by {activeOwner || "you"}, grouped by who holds the ball.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Select
+              value={activeOwner}
+              onValueChange={(v) => navigate(`/my-queue/${v.toLowerCase()}`)}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Choose a teammate" />
+              </SelectTrigger>
+              <SelectContent>
+                {(rosterNames.includes(activeOwner) || !activeOwner
+                  ? rosterNames
+                  : [activeOwner, ...rosterNames]
+                ).map((n) => (
+                  <SelectItem key={n} value={n}>
+                    {n}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" onClick={() => setReloadKey((k) => k + 1)}>
+              <RefreshCw className="h-4 w-4 mr-1" /> Refresh
+            </Button>
+          </div>
+        </div>
+
+        {error ? (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
+            Could not load the queue: {error}
+          </div>
+        ) : null}
+
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <StatCard
+            label="Open tickets"
+            value={counts.total}
+            active={bucketFilter === "all"}
+            onClick={() => setBucketFilter("all")}
+          />
+          {BUCKET_ORDER.map((b) => (
+            <StatCard
+              key={b}
+              label={BUCKET_META[b].label}
+              hint={BUCKET_META[b].blurb}
+              value={counts[b]}
+              active={bucketFilter === b}
+              onClick={() => setBucketFilter(b)}
+            />
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            placeholder="Search subject, contact, customer or Intercom ID…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="max-w-[380px]"
+          />
+          <Button
+            variant={bucketFilter === "gaps" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setBucketFilter(bucketFilter === "gaps" ? "all" : "gaps")}
+          >
+            Missing fields ({counts.gaps})
+          </Button>
+          {loading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
+          <span className="text-xs text-muted-foreground inline-flex items-center gap-1 ml-auto">
+            <Info className="h-3 w-3" /> Read-only view of v3 reporting data — nothing here changes a
+            reported number.
+          </span>
+        </div>
+
+        <IssueTable<QueueRow>
+          rows={visible}
+          columns={columns}
+          getRowKey={(r) => r.id}
+          loading={loading}
+          emptyMessage={
+            counts.total === 0
+              ? `No open tickets are owned by ${activeOwner || "this teammate"}.`
+              : "No tickets match this filter."
+          }
+          rowClassName={(r) => BUCKET_META[r.bucket].row}
+          onRowClick={(r) => setSelected(r)}
+        />
+
+        <IssueDetailSheet
+          open={!!selected}
+          onOpenChange={(o) => !o && setSelected(null)}
+          title={selected ? displaySubject(selected) : ""}
+          conversationId={selected?.intercom_conversation_id ?? null}
+        >
+          {selected ? (
+            <>
+              <IssueField
+                label="State"
+                value={
+                  <Badge variant="outline" className={`text-[10px] ${BUCKET_META[selected.bucket].pill}`}>
+                    {BUCKET_META[selected.bucket].label}
+                  </Badge>
+                }
+              />
+              <IssueField label="Why" value={BUCKET_META[selected.bucket].blurb} />
+              <IssueField
+                label="Customer last replied"
+                value={
+                  selected.lastContactMs
+                    ? format(new Date(selected.lastContactMs), "d MMM yyyy HH:mm")
+                    : "—"
+                }
+              />
+              <IssueField
+                label="We last replied"
+                value={
+                  selected.lastAdminMs ? format(new Date(selected.lastAdminMs), "d MMM yyyy HH:mm") : "—"
+                }
+              />
+              <IssueField label="Customer" value={accountLabel(selected.customer_key)} />
+              <IssueField label="Contact" value={selected.contact_email} />
+              <IssueField label="Plan" value={selected.plan_tier} />
+              <IssueField
+                label="Missing fields"
+                value={selected.gaps.length ? selected.gaps.join(", ") : "None"}
+              />
+              <div className="pt-4">
+                <TicketFieldsPanel
+                  conversationId={selected.intercom_conversation_id}
+                  currentSeverity={selected.severity}
+                  currentOwner={selected.owner}
+                  currentProductArea={selected.productArea}
+                  currentTicketType={selected.ticketType}
+                  showSubject
+                  onSubjectSaved={() => setReloadKey((k) => k + 1)}
+                  onWritten={() => setReloadKey((k) => k + 1)}
+                />
+              </div>
+              <div className="pt-4">
+                <PaxInvestigateControl conversationId={selected.intercom_conversation_id} />
+              </div>
+            </>
+          ) : null}
+        </IssueDetailSheet>
+      </div>
+    </AppLayout>
+  );
+}
