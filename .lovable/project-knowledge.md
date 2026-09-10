@@ -553,6 +553,7 @@ Empty/missing values are omitted so existing values are never overwritten with b
 - Structure:
   - **Reports** ▸ Analytics (`/`) · Analytics v3 · Insights · SLA Report
   - **Customer report** — standalone top-level link (kept there because CSMs were already told it's there; moves under Reports later)
+  - **My queue** (`/my-queue`) — standalone top-level link, added 10 Sep 2026 (see "My queue")
   - **Issues** ▸ Triage (`/triage`) · Dev escalations (`/escalations`) · Inbox (`/conversations`) · Inbox v3
   - **Dashboards** ▸ SLA Dashboard (`/sla`) + one entry **per teammate**, data-driven (see below)
   - **Tools** ▸ Import · SLA Workbench · Backlog · Prospects · SLA What-if
