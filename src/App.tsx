@@ -16,6 +16,7 @@ import ImportPage from "./pages/ImportPage";
 import NotFound from "./pages/NotFound";
 import OwnerDashboard from "./pages/OwnerDashboard";
 import OwnerDashboardV3 from "./pages/OwnerDashboardV3";
+import MyQueue from "./pages/MyQueue";
 import BulkImportReview from "./pages/BulkImportReview";
 import TestChannelReview from "./pages/TestChannelReview";
 import Insights from "./pages/Insights";
@@ -77,6 +78,8 @@ const App = () => (
           <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
           <Route path="/conversations/:id" element={<ProtectedRoute><ConversationDetail /></ProtectedRoute>} />
           <Route path="/insights" element={<ProtectedRoute><Insights /></ProtectedRoute>} />
+          <Route path="/my-queue" element={<ProtectedRoute><MyQueue /></ProtectedRoute>} />
+          <Route path="/my-queue/:owner" element={<ProtectedRoute><MyQueue /></ProtectedRoute>} />
           <Route path="/my/:owner" element={<ProtectedRoute><OwnerDashboard /></ProtectedRoute>} />
           <Route path="/my-v3/:owner" element={<ProtectedRoute><OwnerDashboardV3 /></ProtectedRoute>} />
           <Route path="/import" element={<EditorRoute><ImportPage /></EditorRoute>} />

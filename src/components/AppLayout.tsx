@@ -55,6 +55,7 @@ const navEntries: NavEntry[] = [
   { kind: "link", to: "/search", icon: SearchIcon, label: "Deep search" },
   { kind: "link", to: "/incidents", icon: Siren, label: "Incidents" },
   { kind: "link", to: "/customer-report", icon: Beaker, label: "Customer report" },
+  { kind: "link", to: "/my-queue", icon: Gauge, label: "My queue" },
   {
     kind: "group",
     label: "Issues",
