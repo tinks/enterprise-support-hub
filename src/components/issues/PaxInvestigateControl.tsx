@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Loader2, AlertTriangle, Check, ExternalLink, Bot } from "lucide-react";
 import { useCanEdit } from "@/hooks/useCanEdit";
+import { SlackConnectControl, useSlackConnection } from "./SlackConnectControl";
 
 /**
  * "Ask Pax to investigate" — the one place the Hub starts a bot investigation.
@@ -41,17 +42,9 @@ async function readError(error: unknown): Promise<{ message: string; blocked: bo
   return { message: error instanceof Error ? error.message : String(error), blocked: false };
 }
 
-/**
- * Temporarily disabled: Pax rejects requests posted by the Ask Lovable bot
- * identity (no verified lovable.dev user). Re-enable once a dedicated
- * automation Slack user exists, or Pax allowlists the app.
- */
-const PAX_DISABLED = true;
-const PAX_DISABLED_REASON =
-  "Paused — Pax only accepts requests from a verified lovable.dev user. Waiting on a dedicated automation account.";
-
 export function PaxInvestigateControl({ conversationId }: { conversationId: string }) {
   const { canEdit, isLoading: roleLoading } = useCanEdit();
+  const { status: slackStatus, loading: slackLoading, refresh: refreshSlack } = useSlackConnection();
   const [inv, setInv] = useState<Investigation | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -115,8 +108,17 @@ export function PaxInvestigateControl({ conversationId }: { conversationId: stri
 
   return (
     <div className="space-y-2">
+      {!slackLoading && slackStatus && !slackStatus.connected ? (
+        <SlackConnectControl status={slackStatus} onChanged={refreshSlack} />
+      ) : null}
+
       {!inv ? (
-        <Button size="sm" onClick={() => run("start")} disabled={busy || PAX_DISABLED} title={PAX_DISABLED ? PAX_DISABLED_REASON : undefined}>
+        <Button
+          size="sm"
+          onClick={() => run("start")}
+          disabled={busy || slackLoading || !slackStatus?.connected}
+          title={!slackStatus?.connected ? "Connect your Slack account first" : undefined}
+        >
           {busy ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Bot className="h-4 w-4 mr-1" />}
           Ask Pax to investigate
         </Button>
@@ -155,7 +157,7 @@ export function PaxInvestigateControl({ conversationId }: { conversationId: stri
                   {inv.note_error ? ` ${inv.note_error}` : ""}
                 </span>
               </p>
-              <Button size="sm" variant="outline" onClick={() => run("retry_note")} disabled={busy || PAX_DISABLED} title={PAX_DISABLED ? PAX_DISABLED_REASON : undefined}>
+              <Button size="sm" variant="outline" onClick={() => run("retry_note")} disabled={busy}>
                 {busy ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                 Retry link
               </Button>
@@ -171,15 +173,12 @@ export function PaxInvestigateControl({ conversationId }: { conversationId: stri
         </p>
       )}
 
-      {PAX_DISABLED && (
-        <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
-          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-          <span>{PAX_DISABLED_REASON}</span>
-        </p>
+      {slackStatus?.connected && (
+        <SlackConnectControl status={slackStatus} onChanged={refreshSlack} compact />
       )}
 
       <p className="text-[10px] text-muted-foreground">
-        Posts one request in #pax-ets-help and adds an internal note only — never a customer-facing reply.
+        Posts one request in #pax-ets-help as you and adds an internal note only — never a customer-facing reply.
       </p>
     </div>
   );
