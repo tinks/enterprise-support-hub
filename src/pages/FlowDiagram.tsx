@@ -302,6 +302,7 @@ function buildNodes(
         edgeFunction: "slack-events",
         details: [
           "Verifies Slack signature",
+          "Ack-first (2026-09-10): after signature verification the event is claimed in slack_event_claims (PK event_id) and Slack is answered 200 within milliseconds; ALL processing then runs in EdgeRuntime.waitUntil(). Duplicate/retried deliveries short-circuit on the claim. Post-ack errors are written to slack_event_failures with the full payload for replay. Fixes the recurring 504 + duplicate-processing alert.",
           "Auto-adds new channels on first @mention, so newly invited channels work without manual setup.",
           "DMs are detected via channel_type === 'im' — no channel setup needed",
           "Atomic INSERT dedup (ON CONFLICT DO NOTHING) — prevents race from Slack retries",
