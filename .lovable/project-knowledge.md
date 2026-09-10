@@ -272,6 +272,17 @@ awaiting_context → processing → active ⇄ active_pending → resolved
 - Does **not** convert the conversation to an Intercom Ticket (removed 2026-09-01) — the reassignment above is the escalation marker; the issue stays a Conversation and therefore closes with `state="closed"` and finalizes through the normal `sync-v3-closed` path
 - Posts escalation notice (key: `escalation_notice`)
 
+### Slack event handling shape (rewritten 2026-09-10)
+`slack-events` used to run the entire workload inline and only respond at the end, which produced 504s (Slack requires an ack within 3s) and retry-driven duplicate processing. The handler is now:
+1. Verify the Slack signature (synchronous; 401 on failure).
+2. Answer `url_verification` challenges synchronously.
+3. Claim the event in `slack_event_claims` — an already-claimed event returns 200 immediately and does nothing else.
+4. Return 200.
+5. Run all previous logic (mention, DM, thread reply, attachments, Intercom forwarding, cosmetics) inside `EdgeRuntime.waitUntil()`, unchanged.
+6. On success mark the claim `done`; on throw write a row to `slack_event_failures` (event id, type, channel, error, full payload) and mark the claim `failed`.
+
+Because Slack no longer retries work that fails after the ack, `slack_event_failures` is the replacement safety net — a payload stored there can be replayed. Also fixed in the same pass: the app-mention and DM `users.info` lookups referenced an undefined `slackBotToken` variable (ReferenceError) instead of `SLACK_BOT_TOKEN`.
+
 ### Step 6c: User replies in thread (active status)
 - **Function:** `slack-events`
 - Returns 200 immediately; processes in background via `EdgeRuntime.waitUntil()`
@@ -382,6 +393,7 @@ Stored in `bot_messages` table, editable from the Flow Diagram UI:
 |---|---|---|
 | Initial mention claim | `slack-events` | Atomic INSERT with `ON CONFLICT DO NOTHING` on `(slack_channel_id, slack_thread_ts)` |
 | Thread reply dedup | `slack-events` | `last_processed_event_ts` compared to `event.ts` |
+| Slack event claim (2026-09-10) | `slack-events` | Every valid `event_callback` is claimed in `slack_event_claims` (PK `event_id`, fallback `channel:ts`) with an `ON CONFLICT DO NOTHING` upsert BEFORE the 200 ack. A duplicate/retried delivery logs `[DEDUP]` and returns 200 without re-running any work |
 | Intercom part dedup (webhook) | `intercom-webhook` | Atomic UPDATE on `last_intercom_part_id` with conditional WHERE |
 | Intercom part dedup (polling) | `slack-interactions` | Same atomic UPDATE pattern, `last_intercom_part_id` guard |
 | Status transition guards | All functions | UPDATE with `eq("status", expectedStatus)` — second writer gets empty result |
