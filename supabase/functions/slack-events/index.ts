@@ -126,82 +126,26 @@ async function verifySlackSignature(
   return computed === signature;
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+type SupabaseClientT = ReturnType<typeof createClient>;
 
-  const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN");
-  if (!SLACK_BOT_TOKEN) {
-    return new Response(
-      JSON.stringify({ error: "SLACK_BOT_TOKEN not configured" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
-
-  const SLACK_SIGNING_SECRET = Deno.env.get("SLACK_SIGNING_SECRET");
-  if (!SLACK_SIGNING_SECRET) {
-    return new Response(
-      JSON.stringify({ error: "SLACK_SIGNING_SECRET not configured" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
-
-  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-  const rawBody = await req.text();
-
-  const slackSignature = req.headers.get("x-slack-signature");
-  const slackTimestamp = req.headers.get("x-slack-request-timestamp");
-
-  const isValid = await verifySlackSignature(
-    rawBody,
-    slackSignature,
-    slackTimestamp,
-    SLACK_SIGNING_SECRET
-  );
-
-  if (!isValid) {
-    console.error("Invalid Slack signature");
-    return new Response(JSON.stringify({ error: "Invalid signature" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  try {
-    const body = JSON.parse(rawBody);
-
-    // Handle Slack URL verification challenge
-    if (body.type === "url_verification") {
-      return new Response(JSON.stringify({ challenge: body.challenge }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    if (body.type !== "event_callback") {
-      return new Response(JSON.stringify({ ok: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
+/**
+ * All Slack event work. Runs AFTER the 200 ack, in background work, so a slow
+ * Slack/Intercom call can never produce a 504. Slack will not retry anything
+ * that fails in here, so the caller records failures in `slack_event_failures`.
+ */
+async function processEvent(
+  body: any,
+  supabase: SupabaseClientT,
+  SLACK_BOT_TOKEN: string,
+  isSlackRetry: boolean,
+  slackRetryNum: string | null,
+  slackRetryReason: string,
+): Promise<void> {
     const event = body.event;
-    if (!event) {
-      return new Response(JSON.stringify({ ok: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Slack retries a delivery when we don't ack within 3s. Retries are safe:
-    // every handler below claims its event atomically first, so an already
-    // claimed (or still-processing) event short-circuits to 200 OK.
-    const slackRetryNum = req.headers.get("x-slack-retry-num");
-    const isSlackRetry = slackRetryNum !== null;
+    if (!event) return;
     if (isSlackRetry) {
       console.log(
-        `[RETRY] Slack retry #${slackRetryNum} (reason=${req.headers.get("x-slack-retry-reason") || "unknown"}) for event ts=${event.ts}`,
+        `[RETRY] Slack retry #${slackRetryNum} (reason=${slackRetryReason}) for event ts=${event.ts}`,
       );
     }
 
@@ -231,18 +175,13 @@ Deno.serve(async (req) => {
       const authCheckData = await authCheck.json();
       if (!authCheckData.ok || authCheckData.user_id !== expectedBotId) {
         console.error(`IDENTITY GUARD: Token belongs to ${authCheckData.user_id || "unknown"}, expected ${expectedBotId}. Blocking.`);
-        return new Response(JSON.stringify({ error: "Bot identity mismatch — refusing to process" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return;
       }
     }
 
     if (!settings) {
       console.error("No settings configured");
-      return new Response(JSON.stringify({ ok: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return;
     }
 
     let monitoredChannels = (settings.monitored_channels as string)
@@ -255,17 +194,13 @@ Deno.serve(async (req) => {
       // Ignore mentions from other bots
       if (event.bot_id || event.subtype === "bot_message") {
         console.log(`Ignoring app_mention from bot (bot_id=${event.bot_id}, subtype=${event.subtype})`);
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return;
       }
 
       // Ignore mentions with no user ID (e.g. integrations without a real Slack user)
       if (!event.user) {
         console.log(`Ignoring app_mention with no user ID`);
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return;
       }
 
       const channelId = event.channel;
@@ -296,7 +231,7 @@ Deno.serve(async (req) => {
         try {
           const userRes = await fetch(
             `${SLACK_API_URL}/users.info?user=${slackUserId}`,
-            { headers: { Authorization: `Bearer ${slackBotToken}` } }
+            { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
           );
           const userData = await userRes.json();
           if (userData.ok && userData.user) {
@@ -328,9 +263,7 @@ Deno.serve(async (req) => {
 
       if (!claimed || claimed.length === 0) {
         console.log(`app_mention already_processed ${channelId}/${threadTs}`);
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return;
       }
 
       const claimedId = claimed[0].id;
@@ -470,7 +403,7 @@ Deno.serve(async (req) => {
         try {
           const userRes = await fetch(
             `${SLACK_API_URL}/users.info?user=${slackUserId}`,
-            { headers: { Authorization: `Bearer ${slackBotToken}` } }
+            { headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` } }
           );
           const userData = await userRes.json();
           if (userData.ok && userData.user) {
@@ -502,9 +435,7 @@ Deno.serve(async (req) => {
 
       if (!claimed || claimed.length === 0) {
         console.log(`dm already_processed ${channelId}/${threadTs}`);
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return;
       }
 
       const claimedId = claimed[0].id;
@@ -593,9 +524,7 @@ Deno.serve(async (req) => {
 
       // Ignore bot messages and messages from the bot itself
       if (event.bot_id || event.user === expectedBotId) {
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return;
       }
 
       // Idempotency: atomically claim this event.ts to prevent Slack retries from duplicating work
@@ -615,9 +544,7 @@ Deno.serve(async (req) => {
           console.log(
             `[DEDUP] Event ${eventTs} already claimed/processing for thread ${threadTs} in ${channelId}${isSlackRetry ? ` (slack retry #${slackRetryNum})` : ""} — acking 200`,
           );
-          return new Response(JSON.stringify({ ok: true }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+          return;
         }
         console.log(`[DEDUP] Successfully claimed event ${eventTs} for thread ${threadTs} in ${channelId} (mapping=${mapping.id}, status=${mapping.status})`);
 
@@ -998,16 +925,122 @@ Deno.serve(async (req) => {
         );
       }
     }
+}
 
-    return new Response(JSON.stringify({ ok: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (error: unknown) {
-    console.error("Error in slack-events:", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return new Response(JSON.stringify({ error: errorMessage }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
   }
+
+  const json = (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
+  const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN");
+  if (!SLACK_BOT_TOKEN) return json({ error: "SLACK_BOT_TOKEN not configured" }, 500);
+
+  const SLACK_SIGNING_SECRET = Deno.env.get("SLACK_SIGNING_SECRET");
+  if (!SLACK_SIGNING_SECRET) return json({ error: "SLACK_SIGNING_SECRET not configured" }, 500);
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+
+  const rawBody = await req.text();
+
+  const isValid = await verifySlackSignature(
+    rawBody,
+    req.headers.get("x-slack-signature"),
+    req.headers.get("x-slack-request-timestamp"),
+    SLACK_SIGNING_SECRET,
+  );
+  if (!isValid) {
+    console.error("Invalid Slack signature");
+    return json({ error: "Invalid signature" }, 401);
+  }
+
+  let body: any;
+  try {
+    body = JSON.parse(rawBody);
+  } catch {
+    return json({ error: "Invalid JSON" }, 400);
+  }
+
+  if (body.type === "url_verification") return json({ challenge: body.challenge });
+  if (body.type !== "event_callback" || !body.event) return json({ ok: true });
+
+  const slackRetryNum = req.headers.get("x-slack-retry-num");
+  const isSlackRetry = slackRetryNum !== null;
+  const slackRetryReason = req.headers.get("x-slack-retry-reason") || "unknown";
+
+  // Durable idempotency claim. Slack retries carry the same event_id, so a
+  // duplicate delivery short-circuits here instead of re-running the work.
+  const eventId: string | null =
+    body.event_id || (body.event?.ts ? `${body.event?.channel}:${body.event.ts}` : null);
+
+  if (eventId) {
+    const { data: claim, error: claimErr } = await supabase
+      .from("slack_event_claims")
+      .upsert(
+        {
+          event_id: eventId,
+          event_type: body.event.type,
+          channel_id: body.event.channel ?? null,
+        },
+        { onConflict: "event_id", ignoreDuplicates: true },
+      )
+      .select("event_id");
+
+    if (claimErr) {
+      console.error("slack_event_claims claim failed:", claimErr.message);
+    } else if (!claim || claim.length === 0) {
+      console.log(
+        `[DEDUP] event ${eventId} already claimed${isSlackRetry ? ` (slack retry #${slackRetryNum}, ${slackRetryReason})` : ""} — acking 200`,
+      );
+      return json({ ok: true, deduped: true });
+    }
+  }
+
+  // Ack Slack immediately; everything else happens after the response.
+  EdgeRuntime.waitUntil(
+    (async () => {
+      const started = Date.now();
+      try {
+        await processEvent(body, supabase, SLACK_BOT_TOKEN, isSlackRetry, slackRetryNum, slackRetryReason);
+        if (eventId) {
+          await supabase
+            .from("slack_event_claims")
+            .update({ status: "done", completed_at: new Date().toISOString() })
+            .eq("event_id", eventId);
+        }
+        console.log(`[TIMING] slack-events processed ${eventId} in ${Date.now() - started}ms`);
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? (error.stack || error.message) : String(error);
+        console.error("slack-events background failure:", msg);
+        try {
+          await supabase.from("slack_event_failures").insert({
+            event_id: eventId,
+            event_type: body.event?.type ?? null,
+            channel_id: body.event?.channel ?? null,
+            error: msg.slice(0, 4000),
+            payload: body,
+          });
+          if (eventId) {
+            await supabase
+              .from("slack_event_claims")
+              .update({ status: "failed", completed_at: new Date().toISOString() })
+              .eq("event_id", eventId);
+          }
+        } catch (e) {
+          console.error("Failed to record slack event failure:", e);
+        }
+      }
+    })(),
+  );
+
+  return json({ ok: true });
 });
