@@ -927,6 +927,24 @@ function buildNodes(
       },
     },
     {
+      id: "my-queue",
+      type: "flowNode",
+      position: { x: COL_W * 2.6, y: ROW_H * 4.3 },
+      data: {
+        label: "My queue (10 Sep 2026)",
+        desc: "Per-teammate operational view of every OPEN v3 ticket they own, bucketed by who holds the ball. Derived at render time — no queue state is stored, so no reported number can move.",
+        icon: ClipboardList,
+        details: [
+          "Routes /my-queue (defaults to the signed-in teammate) and /my-queue/:owner (teammate switcher, roster from useDashboardTeammates). Top-level rail item 'My queue'. The reporting dashboards /my/:owner and /my-v3/:owner are untouched.",
+          "Reads intercom_tickets_v3 only: state <> 'closed', is_test_ticket false/null, owner matched via normalizeOwner. No new table, no write to any reporting column.",
+          "Ball-holder comes from Intercom's OWN conversation statistics carried in raw_payload (last_contact_reply_at vs last_admin_reply_at) — the same authorial signal sla-core classifies from the timeline, read from the persisted summary so no extra Intercom fetch is needed. customer_replied is deliberately NOT used: it is sparse on open tickets. first_human_reply_at is also unusable here — responsiveness fields are computed at finalize.",
+          "Buckets: Action needed (customer spoke last) -> Waiting on engineering (eng_wait_start_at open) -> Ready for follow-up (we spoke last, idle 3+ days) -> Waiting on customer -> No activity data (row carries no statistics; shown honestly rather than guessed).",
+          "Data-hygiene filter counts rows missing Severity / Affected Product Area / Ticket type from custom_attributes. Writes stay where they already live: the detail sheet embeds TicketFieldsPanel (esh-write-action) and PaxInvestigateControl. The queue itself writes nothing.",
+        ],
+        accent: "blue",
+      },
+    },
+    {
       id: "intercom-field-options",
       type: "flowNode",
       position: { x: COL_W * 0.5, y: ROW_H * 4.7 },
