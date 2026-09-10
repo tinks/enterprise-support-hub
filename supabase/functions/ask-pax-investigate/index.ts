@@ -20,6 +20,9 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireEditor } from "../_shared/require-editor.ts";
+import { callAsAppUser, appUserReconnectRequired } from "../_shared/appUserConnector.ts";
+import { getConnectionKeyForUser } from "../_shared/appUserConnections.ts";
+import { GATEWAY_BASE_URL, SLACK_CONNECTOR_ID, SLACK_SCOPES } from "../_shared/appUserScopes.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,15 +51,28 @@ function intercomUrl(id: string) {
   return `https://app.intercom.com/a/inbox/teb21d17/inbox/conversation/${id}?view=List`;
 }
 
-async function slack(token: string, method: string, body: Json) {
-  const res = await fetch(`${SLACK_API}/${method}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json; charset=utf-8",
+/**
+ * Every Slack call runs as the teammate who clicked the button, through their
+ * own App User Connector connection. Pax responds differently to a human than
+ * to a bot, so there is deliberately NO shared-bot fallback: if the teammate
+ * has not connected Slack, the request is refused.
+ */
+async function slack(key: string, method: string, body: Json) {
+  const res = await callAsAppUser({
+    gatewayBaseUrl: GATEWAY_BASE_URL,
+    connectionAPIKey: key,
+    connectorId: SLACK_CONNECTOR_ID,
+    path: `/api/${method}`,
+    requiredScopes: SLACK_SCOPES,
+    init: {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify(body),
     },
-    body: JSON.stringify(body),
   });
+  if (await appUserReconnectRequired(res)) {
+    throw new Error("SLACK_RECONNECT_REQUIRED");
+  }
   const text = await res.text();
   let data: any;
   try {
@@ -68,11 +84,17 @@ async function slack(token: string, method: string, body: Json) {
   return data;
 }
 
-/** Some Slack methods (chat.getPermalink) only accept query params, not a JSON body. */
-async function slackGet(token: string, method: string, params: Record<string, string>) {
-  const res = await fetch(`${SLACK_API}/${method}?${new URLSearchParams(params)}`, {
-    headers: { Authorization: `Bearer ${token}` },
+/** Some Slack methods (chat.getPermalink) only accept query params. */
+async function slackGet(key: string, method: string, params: Record<string, string>) {
+  const res = await callAsAppUser({
+    gatewayBaseUrl: GATEWAY_BASE_URL,
+    connectionAPIKey: key,
+    connectorId: SLACK_CONNECTOR_ID,
+    path: `/api/${method}?${new URLSearchParams(params)}`,
+    requiredScopes: SLACK_SCOPES,
+    init: { method: "GET" },
   });
+  if (await appUserReconnectRequired(res)) throw new Error("SLACK_RECONNECT_REQUIRED");
   const text = await res.text();
   let data: any;
   try {
@@ -85,48 +107,38 @@ async function slackGet(token: string, method: string, params: Record<string, st
 }
 
 /** Channel id from settings/env, else resolved by name once. */
-async function resolveChannel(token: string, configured: string | null): Promise<string> {
+async function resolveChannel(key: string, configured: string | null): Promise<string> {
   const fromEnv = Deno.env.get("PAX_HELP_CHANNEL_ID");
   if (fromEnv) return fromEnv;
   if (configured) return configured;
   let cursor = "";
   do {
-    const params = new URLSearchParams({
+    const params: Record<string, string> = {
       types: "public_channel,private_channel",
       exclude_archived: "true",
       limit: "200",
-    });
-    if (cursor) params.set("cursor", cursor);
-    const res = await fetch(`${SLACK_API}/conversations.list?${params}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await res.json();
-    if (!data.ok) throw new Error(`Slack conversations.list failed: ${data.error}`);
+    };
+    if (cursor) params.cursor = cursor;
+    const data = await slackGet(key, "conversations.list", params);
     const hit = (data.channels ?? []).find((c: any) => c.name === PAX_CHANNEL_NAME);
     if (hit) return hit.id as string;
     cursor = data.response_metadata?.next_cursor ?? "";
   } while (cursor);
-  throw new Error(`Slack channel #${PAX_CHANNEL_NAME} not found (is the bot a member?)`);
+  throw new Error(`Slack channel #${PAX_CHANNEL_NAME} not found for your account`);
 }
 
 /**
- * Pax only runs when Slack actually delivers a mention — plain "@Pax" text is
- * inert. Resolve the bot's user id (settings/env first, then one users.list
- * scan) so the posted message carries a real <@Uxxxx> mention.
+ * Pax only runs on a real Slack mention — plain "@Pax" text is inert.
  */
-async function resolvePaxUserId(token: string, configured: string | null): Promise<string | null> {
+async function resolvePaxUserId(key: string, configured: string | null): Promise<string | null> {
   const fromEnv = Deno.env.get("PAX_SLACK_USER_ID");
   if (fromEnv) return fromEnv;
   if (configured) return configured;
   let cursor = "";
   do {
-    const params = new URLSearchParams({ limit: "200" });
-    if (cursor) params.set("cursor", cursor);
-    const res = await fetch(`${SLACK_API}/users.list?${params}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const data = await res.json();
-    if (!data.ok) throw new Error(`Slack users.list failed: ${data.error}`);
+    const params: Record<string, string> = { limit: "200" };
+    if (cursor) params.cursor = cursor;
+    const data = await slackGet(key, "users.list", params);
     const hit = (data.members ?? []).find((m: any) => {
       if (m.deleted) return false;
       const names = [m.name, m.real_name, m.profile?.display_name, m.profile?.real_name]
@@ -212,11 +224,11 @@ Deno.serve(async (req) => {
     }
     const { data: teammate } = await supabase
       .from("teammates")
-      .select("name, intercom_admin_id, active")
+      .select("name, intercom_admin_id, active, role")
       .ilike("email", actorEmail)
       .maybeSingle();
-    if (!teammate?.intercom_admin_id || !teammate.active) {
-      const msg = `No active teammate with an Intercom admin id for ${actorEmail}`;
+    if (!teammate?.intercom_admin_id || !teammate.active || teammate.role !== "support") {
+      const msg = `Ask Pax is limited to active Enterprise Support teammates (${actorEmail})`;
       await log("blocked", { error: msg });
       return json({ error: msg, blocked: true }, 403);
     }
@@ -227,11 +239,18 @@ Deno.serve(async (req) => {
     };
 
     const intercomToken = Deno.env.get("INTERCOM_API_TOKEN");
-    const slackToken = Deno.env.get("SLACK_BOT_TOKEN");
-    if (!intercomToken || !slackToken) {
-      const msg = "INTERCOM_API_TOKEN or SLACK_BOT_TOKEN not configured";
+    if (!intercomToken) {
+      const msg = "INTERCOM_API_TOKEN not configured";
       await log("failed", { error: msg });
       return json({ error: msg }, 500);
+    }
+
+    // Post as the human who clicked — never as the shared bot.
+    const slackKey = await getConnectionKeyForUser(actorUserId, SLACK_CONNECTOR_ID);
+    if (!slackKey && mode === "start") {
+      const msg = "Connect your Slack account first — Pax only answers people, not bots.";
+      await log("blocked", { error: msg });
+      return json({ error: msg, blocked: true, slackConnectRequired: true }, 409);
     }
     const icHeaders = {
       Authorization: `Bearer ${intercomToken}`,
@@ -267,7 +286,7 @@ Deno.serve(async (req) => {
 
     // ── 1. Slack: ask Pax ──
     if (!row) {
-      const channel = await resolveChannel(slackToken, settings.pax_help_channel_id ?? null);
+      const channel = await resolveChannel(slackKey!, settings.pax_help_channel_id ?? null);
 
       const { data: ticket } = await supabase
         .from("intercom_tickets_v3")
@@ -276,7 +295,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       // A real mention is what actually triggers Pax; "@Pax" as plain text does nothing.
-      const paxUserId = await resolvePaxUserId(slackToken, (settings as any).pax_slack_user_id ?? null);
+      const paxUserId = await resolvePaxUserId(slackKey!, (settings as any).pax_slack_user_id ?? null);
       if (!paxUserId) {
         const msg =
           "Could not find the Pax bot in Slack. Set settings.pax_slack_user_id to Pax's member ID.";
@@ -299,7 +318,7 @@ Deno.serve(async (req) => {
         .replaceAll("{id}", conversationId)
         .replaceAll("{subject}", ticket?.subject ?? "(no subject)");
 
-      const posted = await slack(slackToken, "chat.postMessage", {
+      const posted = await slack(slackKey!, "chat.postMessage", {
         channel,
         text,
         link_names: true,
@@ -310,7 +329,7 @@ Deno.serve(async (req) => {
 
       let permalink: string | null = null;
       try {
-        const pl = await slackGet(slackToken, "chat.getPermalink", { channel, message_ts: ts });
+        const pl = await slackGet(slackKey!, "chat.getPermalink", { channel, message_ts: ts });
         permalink = String(pl.permalink);
       } catch (e) {
         console.error("permalink lookup failed:", e);
@@ -397,6 +416,16 @@ Deno.serve(async (req) => {
     const msg = e instanceof Error ? e.message : "Internal server error";
     console.error("ask-pax-investigate error:", msg);
     await log("failed", { error: msg });
+    if (msg === "SLACK_RECONNECT_REQUIRED") {
+      return json(
+        {
+          error: "Your Slack authorisation needs to be renewed before asking Pax.",
+          blocked: true,
+          slackConnectRequired: true,
+        },
+        409,
+      );
+    }
     return json({ error: msg }, 500);
   }
 });
