@@ -126,8 +126,6 @@ async function verifySlackSignature(
   return computed === signature;
 }
 
-type SupabaseClientT = ReturnType<typeof createClient>;
-
 /**
  * All Slack event work. Runs AFTER the 200 ack, in background work, so a slow
  * Slack/Intercom call can never produce a 504. Slack will not retry anything
@@ -135,7 +133,8 @@ type SupabaseClientT = ReturnType<typeof createClient>;
  */
 async function processEvent(
   body: any,
-  supabase: SupabaseClientT,
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
   SLACK_BOT_TOKEN: string,
   isSlackRetry: boolean,
   slackRetryNum: string | null,
