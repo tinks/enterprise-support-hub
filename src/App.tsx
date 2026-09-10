@@ -46,6 +46,7 @@ import Users from "./pages/Users";
 import People from "./pages/People";
 import Incidents from "./pages/Incidents";
 import DeepSearch from "./pages/DeepSearch";
+import SlackReturn from "./pages/oauth/SlackReturn";
 import { ActionSignalsProvider } from "./hooks/useActionSignals";
 
 
@@ -60,6 +61,7 @@ const App = () => (
         <ActionSignalsProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/oauth/slack/return" element={<SlackReturn />} />
           <Route path="/" element={<ProtectedRoute><AnalyticsV3 /></ProtectedRoute>} />
           <Route path="/stats" element={<ProtectedRoute><Stats /></ProtectedRoute>} />
           <Route path="/action-center" element={<ProtectedRoute><ActionCenter /></ProtectedRoute>} />

@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_user_connections: {
+        Row: {
+          connected_email: string | null
+          connection_key_ciphertext: string
+          connector_id: string
+          created_at: string
+          id: string
+          slack_team_id: string | null
+          slack_user_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          connected_email?: string | null
+          connection_key_ciphertext: string
+          connector_id: string
+          created_at?: string
+          id?: string
+          slack_team_id?: string | null
+          slack_user_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          connected_email?: string | null
+          connection_key_ciphertext?: string
+          connector_id?: string
+          created_at?: string
+          id?: string
+          slack_team_id?: string | null
+          slack_user_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       bot_messages: {
         Row: {
           created_at: string
