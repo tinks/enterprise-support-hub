@@ -272,6 +272,7 @@ export default function MyQueue() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       const email = data.user?.email ?? "";
+      setMyEmail(email || null);
       const local = email.split("@")[0] ?? "";
       const first = local.split(/[._-]/)[0] ?? "";
       setMe(first ? first.charAt(0).toUpperCase() + first.slice(1) : null);
