@@ -2509,6 +2509,16 @@ A ticket where the customer spoke last stays in *Action needed*: replying to the
 
 **Verified 11 Sep 2026** at 2000px on Matt's queue: 5 Action needed, 3 Dev resolved (SCA-3522, IAM-576, ENT-3735 — all Linear Done, all "needs sign-off"), 2 Waiting on dev both Chase due (CLO-1225 In Progress / James Gibbs, CLO-1074 Backlog / unassigned), 1 Ready for follow-up, 6 Waiting on customer, 0 No activity data. **UNVERIFIED:** the write paths (Mark followed up, quick-pick overrides, custom date, Acknowledge dev fix / Undo) have not been exercised against live data; the read-only (non-editor) branch is likewise untested.
 
+#### Workaround provided override (11 Sep 2026)
+
+**Migration 0044** (`dev_escalation_workaround_override`) adds three nullable Hub-owned columns to `dev_escalations`: `dev_workaround_at`, `dev_workaround_by`, `dev_workaround_note`. Never synced from Linear, never written to Intercom.
+
+**Semantics** (`hasWorkaround` / `needsChase` in `src/lib/devEscalation.ts`, bucket rule in `MyQueue.tsx`): a recorded workaround silences the chase clock and takes the ticket **out of Waiting on dev**, back into the ordinary conversational buckets — the Linear escalation card stays visible with the live Linear state. `isDevDone` still wins: a completed / canceled issue resurfaces as **Dev resolved** with *Acknowledge dev fix* even while the workaround flag is set. Clearing the flag restores the normal cadence.
+
+**Controls** (detail sheet, editor-gated): optional note textarea + *Mark workaround provided*; once set the cadence line reads "paused — workaround provided" and the chase buttons are replaced by *Clear workaround*. Row and detail show a **Workaround provided** badge.
+
+**Verified 11 Sep 2026** at 2000px, live writes on Matt's queue: setting it on CLO-1074 (Backlog, unassigned) moved the ticket from Waiting on dev + Chase due to Ready for follow-up (Waiting on dev 2→1, Chase dev 1→0) with the note and who/when rendered; setting it on SCA-3522 (Linear Done) left it in Dev resolved with *Acknowledge dev fix* still offered — the negative case. Both flags were cleared afterwards; `select … where dev_workaround_at is not null` returns 0 rows. **UNVERIFIED:** the read-only (non-editor) branch.
+
 ### Detail sheet redesign (11 Sep 2026)
 
 `IssueDetailSheet` (shared by every issue view) now renders the **Intercom conversation ID** in the header as a monospace chip with a one-click copy button next to *Open in Intercom* — it was previously absent from the panel entirely. Two new optional props: `wide` (640 / 760 / 860px at sm / lg / xl instead of the fixed 480px) and `raw` (skip the `<dl>` body wrapper so a page can lay out its own sections). Existing callers are unchanged and keep the 480px `<dl>` behaviour. `IssueStat` is exported for compact label-over-value pairs.
