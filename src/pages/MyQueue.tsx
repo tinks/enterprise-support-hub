@@ -12,7 +12,7 @@ import { Loader2, RefreshCw, Info, ExternalLink, CalendarIcon, Check } from "luc
 import { format, formatDistanceToNowStrict } from "date-fns";
 import { toast } from "sonner";
 import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
-import { IssueDetailSheet, IssueField } from "@/components/issues/IssueDetailSheet";
+import { IssueDetailSheet, IssueStat } from "@/components/issues/IssueDetailSheet";
 import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
 import { PaxInvestigateControl } from "@/components/issues/PaxInvestigateControl";
 import {
@@ -688,41 +688,62 @@ export default function MyQueue() {
           onOpenChange={(o) => !o && setSelectedId(null)}
           title={selected ? displaySubject(selected) : ""}
           conversationId={selected?.intercom_conversation_id ?? null}
+          wide
+          raw
         >
           {selected ? (
-            <>
-              <IssueField
-                label="State"
-                value={
+            <div className="space-y-4">
+              {/* Status strip — why this ticket is where it is. */}
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className={`text-[10px] ${BUCKET_META[selected.bucket].pill}`}>
                     {BUCKET_META[selected.bucket].label}
                   </Badge>
-                }
-              />
-              <IssueField label="Why" value={BUCKET_META[selected.bucket].blurb} />
-              <IssueField
-                label="Customer last replied"
-                value={
-                  selected.lastContactMs
-                    ? format(new Date(selected.lastContactMs), "d MMM yyyy HH:mm")
-                    : "—"
-                }
-              />
-              <IssueField
-                label="We last replied"
-                value={
-                  selected.lastAdminMs ? format(new Date(selected.lastAdminMs), "d MMM yyyy HH:mm") : "—"
-                }
-              />
-              <IssueField label="Customer" value={accountLabel(selected.customer_key)} />
-              <IssueField label="Contact" value={selected.contact_email} />
-              <IssueField label="Plan" value={selected.plan_tier} />
-              <IssueField
-                label="Missing fields"
-                value={selected.gaps.length ? selected.gaps.join(", ") : "None"}
-              />
+                  {selected.chaseDue ? (
+                    <Badge variant="outline" className="text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/40">
+                      Chase due
+                    </Badge>
+                  ) : null}
+                  {selected.gaps.length ? (
+                    <Badge variant="outline" className="text-[10px] bg-destructive/10 text-destructive border-destructive/40">
+                      Missing: {selected.gaps.join(", ")}
+                    </Badge>
+                  ) : null}
+                </div>
+                <p className="text-xs text-muted-foreground">{BUCKET_META[selected.bucket].blurb}</p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-1">
+                  <IssueStat label="Customer" value={accountLabel(selected.customer_key)} />
+                  <IssueStat label="Contact" value={selected.contact_email} />
+                  <IssueStat label="Plan" value={selected.plan_tier} />
+                  <IssueStat
+                    label="Customer last replied"
+                    value={
+                      selected.lastContactMs
+                        ? format(new Date(selected.lastContactMs), "d MMM yyyy HH:mm")
+                        : "—"
+                    }
+                  />
+                  <IssueStat
+                    label="We last replied"
+                    value={
+                      selected.lastAdminMs
+                        ? format(new Date(selected.lastAdminMs), "d MMM yyyy HH:mm")
+                        : "—"
+                    }
+                  />
+                  <IssueStat
+                    label="Opened"
+                    value={
+                      selected.intercom_created_at
+                        ? format(new Date(selected.intercom_created_at), "d MMM yyyy")
+                        : "—"
+                    }
+                  />
+                </div>
+              </div>
+
               {selected.esc ? (
-                <div className="mt-4 rounded-md border p-3 space-y-3">
+                <div className="rounded-md border p-3 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-sm font-medium">Engineering escalation</div>
                     {selected.esc.linear_state ? (
@@ -846,7 +867,8 @@ export default function MyQueue() {
                 </div>
               ) : null}
 
-              <div className="pt-4">
+              <div className="rounded-md border p-3">
+                <div className="text-sm font-medium mb-2">Subject &amp; classification</div>
                 <TicketFieldsPanel
                   conversationId={selected.intercom_conversation_id}
                   currentSeverity={selected.severity}
@@ -858,10 +880,12 @@ export default function MyQueue() {
                   onWritten={() => setReloadKey((k) => k + 1)}
                 />
               </div>
-              <div className="pt-4">
+
+              <div className="rounded-md border p-3">
+                <div className="text-sm font-medium mb-2">Investigation</div>
                 <PaxInvestigateControl conversationId={selected.intercom_conversation_id} />
               </div>
-            </>
+            </div>
           ) : null}
         </IssueDetailSheet>
       </div>

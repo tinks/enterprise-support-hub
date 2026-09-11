@@ -396,16 +396,17 @@ export function TicketFieldsPanel({
     <div className="space-y-2">
       {showSubject && (
         <div className="space-y-1">
-          <div className="grid grid-cols-[110px_1fr] gap-2 items-center">
-            <span className="text-xs text-muted-foreground">Subject</span>
-            <div className="flex items-center gap-2">
+          <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2 items-start">
+            <span className="text-xs text-muted-foreground pt-2">Subject</span>
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
               <Input
                 value={subjectDraft}
                 onChange={(e) => setSubjectDraft(e.target.value)}
                 disabled={subjectSaving}
                 placeholder="Descriptive subject…"
-                className="h-9 text-xs max-w-[280px]"
+                className="h-9 text-xs w-full min-w-0 sm:w-[280px]"
               />
+
               <Button
                 size="sm"
                 variant="secondary"
@@ -435,14 +436,14 @@ export function TicketFieldsPanel({
               ) : null}
             </div>
           </div>
-          <p className="text-[10px] text-muted-foreground pl-[118px]">
+          <p className="text-[10px] text-muted-foreground sm:pl-[118px]">
             Hub label only — Intercom keeps {subjectRow?.subject ? `"${subjectRow.subject}"` : "its own subject"}.
             {subjectRow?.subject_ai && !subjectRow?.subject_override
               ? ` Currently showing an AI-written subject: "${subjectRow.subject_ai}".`
               : ""}
           </p>
           {subjectMsg && (
-            <p className={`text-xs pl-[118px] ${subjectMsg.ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+            <p className={`text-xs sm:pl-[118px] ${subjectMsg.ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
               {subjectMsg.text}
             </p>
           )}
