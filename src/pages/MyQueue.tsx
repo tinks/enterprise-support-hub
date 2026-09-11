@@ -280,10 +280,12 @@ export default function MyQueue() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [bucketFilter, setBucketFilter] = useState<Bucket | "all" | "gaps" | "chase">("all");
+  const [bucketFilter, setBucketFilter] = useState<Bucket | "all" | "gaps" | "chase" | "snoozed">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [savingDev, setSavingDev] = useState(false);
   const [workaroundNote, setWorkaroundNote] = useState("");
+  const [snoozeReason, setSnoozeReason] = useState("");
+  const [savingSnooze, setSavingSnooze] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
   // Default owner: the signed-in teammate, matched on the local part of the
