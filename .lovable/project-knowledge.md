@@ -2487,3 +2487,24 @@ Staging a documentation update used to be possible only from outside the UI — 
 **Writes stay where they already live.** The detail sheet embeds the existing `TicketFieldsPanel` (every field write still routes through `esh-write-action`, kill switch and audit unchanged) and `PaxInvestigateControl`. Subjects use the existing Hub-only override path. The queue itself writes nothing.
 
 **Verified 10 Sep 2026** at 1920px: `/my-queue` defaulted to Matt and rendered 26 open tickets — 7 Action needed, 0 Waiting on engineering, 5 Ready for follow-up, 10 Waiting on customer, 4 No activity data, 4 with missing fields. **UNVERIFIED:** the teammate switcher for another owner, and the non-zero Waiting-on-engineering bucket (no open ticket currently has an engineering wait clock).
+
+
+### Dev escalation buckets and follow-up cadence (11 Sep 2026)
+
+**Why.** Nothing in the Hub said "this ticket is blocked by engineering" or "dev shipped a fix — go tell the customer". `MyQueue` classified engineering waits from `eng_wait_start_at` / `eng_wait_end_at`, which are **finalize-time fields and null on most open tickets**, so CLO-1225 (Intercom `215475556254768`, Linear In Progress with James Gibbs) rendered as *Ready for follow-up*.
+
+**Live join.** `MyQueue.tsx` now reads `public.dev_escalations` by `intercom_conversation_id` for the owner's open tickets — the same Linear mirror `/escalations` uses (`linear_key`, `linear_state`, `linear_state_type`, `linear_assignee`, written only by `sync-linear-escalations`).
+
+**Two new buckets**, placed directly under *Action needed*:
+- **Waiting on dev** — `linear_state_type` in backlog / triage / unstarted / started.
+- **Dev resolved** — `linear_state_type` completed / canceled while the Intercom ticket is still open, and no human sign-off yet.
+
+A ticket where the customer spoke last stays in *Action needed*: replying to the customer outranks chasing dev. Once a fix is acknowledged the ticket returns to the ordinary conversational buckets.
+
+**Migration 0043** (`dev_escalation_followup_cadence`) adds four nullable, Hub-owned columns to `dev_escalations`, never synced from Linear: `dev_next_followup_at`, `dev_followup_source` (`auto` | `manual`), `dev_fix_ack_at`, `dev_fix_ack_by`, plus an index on the due date.
+
+**Cadence model** (`src/lib/devEscalation.ts`): pre-ack (backlog / triage / unstarted, or unassigned) defaults to **24h**; in flight defaults to **3 days**. Due date = `dev_next_followup_at` when set, otherwise `(dev_followed_up_at ?? created_at) + default`. Overdue rows show **Chase due**, drive the "X need a chase" sub-count on the Waiting-on-dev card and the **Chase dev** filter.
+
+**Controls** (detail sheet, editor-gated by `useCanEdit`): *Mark followed up* applies the lifecycle default; manual overrides are **+1d / +3d / +1w / custom date**; *Acknowledge dev fix* / *Undo* clears a resolved escalation out of the bucket. Every stamp records the signed-in email. **Nothing is written to Intercom, Linear or any reporting column**, and Dev-resolved exit is deliberately manual — no auto-clearing from Intercom activity, because the cross-team comms process is not yet defined.
+
+**Verified 11 Sep 2026** at 2000px on Matt's queue: 5 Action needed, 3 Dev resolved (SCA-3522, IAM-576, ENT-3735 — all Linear Done, all "needs sign-off"), 2 Waiting on dev both Chase due (CLO-1225 In Progress / James Gibbs, CLO-1074 Backlog / unassigned), 1 Ready for follow-up, 6 Waiting on customer, 0 No activity data. **UNVERIFIED:** the write paths (Mark followed up, quick-pick overrides, custom date, Acknowledge dev fix / Undo) have not been exercised against live data; the read-only (non-editor) branch is likewise untested.
