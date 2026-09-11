@@ -843,7 +843,7 @@ export default function MyQueue() {
                     </div>
                   </div>
 
-                  {canEdit ? (
+                  {canEdit && !hasWorkaround(selected.esc) ? (
                     <div className="flex flex-wrap items-center gap-2">
                       <Button
                         size="sm"
