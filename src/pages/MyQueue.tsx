@@ -867,7 +867,8 @@ export default function MyQueue() {
                 </div>
               ) : null}
 
-              <div className="pt-4">
+              <div className="rounded-md border p-3">
+                <div className="text-sm font-medium mb-2">Subject &amp; classification</div>
                 <TicketFieldsPanel
                   conversationId={selected.intercom_conversation_id}
                   currentSeverity={selected.severity}
@@ -879,10 +880,12 @@ export default function MyQueue() {
                   onWritten={() => setReloadKey((k) => k + 1)}
                 />
               </div>
-              <div className="pt-4">
+
+              <div className="rounded-md border p-3">
+                <div className="text-sm font-medium mb-2">Investigation</div>
                 <PaxInvestigateControl conversationId={selected.intercom_conversation_id} />
               </div>
-            </>
+            </div>
           ) : null}
         </IssueDetailSheet>
       </div>
