@@ -163,6 +163,9 @@ type QueueRow = Row & {
   esc: DevEscalation | null;
   /** True when the engineering chase for this escalation is overdue. */
   chaseDue: boolean;
+  /** Hub-only snooze: still in its natural bucket, just parked until this date. */
+  snoozed: boolean;
+  snoozedUntilMs: number | null;
 };
 
 function classify(row: Row, esc: DevEscalation | null): QueueRow {
