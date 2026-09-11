@@ -271,6 +271,7 @@ export default function MyQueue() {
   const [bucketFilter, setBucketFilter] = useState<Bucket | "all" | "gaps" | "chase">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [savingDev, setSavingDev] = useState(false);
+  const [workaroundNote, setWorkaroundNote] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
   // Default owner: the signed-in teammate, matched on the local part of the
@@ -501,6 +502,9 @@ export default function MyQueue() {
           ) : null}
           {r.bucket === "dev_resolved" ? (
             <div className="text-[10px] text-muted-foreground">Verify &amp; close out</div>
+          ) : null}
+          {r.esc && hasWorkaround(r.esc) && !isDevDone(r.esc) ? (
+            <div className="text-[10px] text-sky-600 dark:text-sky-400">Workaround provided</div>
           ) : null}
         </div>
       ),
