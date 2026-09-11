@@ -24,6 +24,10 @@ export type DevEscalation = {
   dev_followup_source: string | null;
   dev_fix_ack_at: string | null;
   dev_fix_ack_by: string | null;
+  /** Hub-only: dev handed over a manual workaround, so stop chasing. */
+  dev_workaround_at: string | null;
+  dev_workaround_by: string | null;
+  dev_workaround_note: string | null;
 };
 
 export const HOUR_MS = 3_600_000;
@@ -79,8 +83,18 @@ export function nextFollowupMs(esc: DevEscalation): number | null {
   return new Date(base).getTime() + defaultCadenceMs(esc);
 }
 
+/**
+ * A human recorded that dev handed over a workaround. Hub-only: it silences the
+ * chase clock and takes the ticket out of the dev buckets, but it never hides a
+ * shipped fix — `isDevDone` still wins.
+ */
+export function hasWorkaround(esc: DevEscalation): boolean {
+  return !!esc.dev_workaround_at;
+}
+
 export function needsChase(esc: DevEscalation): boolean {
   if (isDevDone(esc)) return false;
+  if (hasWorkaround(esc)) return false;
   const due = nextFollowupMs(esc);
   return due != null && due <= Date.now();
 }

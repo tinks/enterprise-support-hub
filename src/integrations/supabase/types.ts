@@ -398,6 +398,9 @@ export type Database = {
           dev_followed_up_by: string | null
           dev_followup_source: string | null
           dev_next_followup_at: string | null
+          dev_workaround_at: string | null
+          dev_workaround_by: string | null
+          dev_workaround_note: string | null
           hub_state: string
           id: string
           intercom_conversation_id: string
@@ -427,6 +430,9 @@ export type Database = {
           dev_followed_up_by?: string | null
           dev_followup_source?: string | null
           dev_next_followup_at?: string | null
+          dev_workaround_at?: string | null
+          dev_workaround_by?: string | null
+          dev_workaround_note?: string | null
           hub_state?: string
           id?: string
           intercom_conversation_id: string
@@ -456,6 +462,9 @@ export type Database = {
           dev_followed_up_by?: string | null
           dev_followup_source?: string | null
           dev_next_followup_at?: string | null
+          dev_workaround_at?: string | null
+          dev_workaround_by?: string | null
+          dev_workaround_note?: string | null
           hub_state?: string
           id?: string
           intercom_conversation_id?: string

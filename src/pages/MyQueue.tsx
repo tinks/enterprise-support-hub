@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Textarea } from "@/components/ui/textarea";
 import { Loader2, RefreshCw, Info, ExternalLink, CalendarIcon, Check } from "lucide-react";
 import { format, formatDistanceToNowStrict } from "date-fns";
 import { toast } from "sonner";
@@ -31,6 +32,7 @@ import {
   CADENCE_CHIPS,
   cadenceLabel,
   defaultCadenceMs,
+  hasWorkaround,
   isDevDone,
   linearUrl,
   needsChase,
@@ -169,8 +171,11 @@ function classify(row: Row, esc: DevEscalation | null): QueueRow {
     lastContactMs !== null && (lastAdminMs === null || lastContactMs > lastAdminMs);
 
   // A dev escalation only steers the bucket while it is actually live: an
-  // acknowledged fix hands the ticket straight back to the conversational rules.
-  const devLive = !!esc && (!isDevDone(esc) || needsFixAck(esc));
+  // acknowledged fix hands the ticket straight back to the conversational rules,
+  // and so does a recorded workaround — but only while engineering is still
+  // working, so a shipped fix always resurfaces as "Dev resolved".
+  const devLive =
+    !!esc && (isDevDone(esc) ? needsFixAck(esc) : !hasWorkaround(esc));
 
   let bucket: Bucket;
   let waitingSinceMs: number | null;
@@ -267,6 +272,7 @@ export default function MyQueue() {
   const [bucketFilter, setBucketFilter] = useState<Bucket | "all" | "gaps" | "chase">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [savingDev, setSavingDev] = useState(false);
+  const [workaroundNote, setWorkaroundNote] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
 
   // Default owner: the signed-in teammate, matched on the local part of the
@@ -304,7 +310,7 @@ export default function MyQueue() {
     const { data, error: err } = await supabase
       .from("dev_escalations")
       .select(
-        "id,intercom_conversation_id,hub_state,linear_key,linear_title,linear_state,linear_state_type,linear_assignee,linear_url_override,created_at,dev_followed_up_at,dev_followed_up_by,dev_next_followup_at,dev_followup_source,dev_fix_ack_at,dev_fix_ack_by",
+        "id,intercom_conversation_id,hub_state,linear_key,linear_title,linear_state,linear_state_type,linear_assignee,linear_url_override,created_at,dev_followed_up_at,dev_followed_up_by,dev_next_followup_at,dev_followup_source,dev_fix_ack_at,dev_fix_ack_by,dev_workaround_at,dev_workaround_by,dev_workaround_note",
       )
       .in("intercom_conversation_id", ids);
     if (err) {
@@ -429,6 +435,30 @@ export default function MyQueue() {
     await loadEscalations(rows.map((r) => r.intercom_conversation_id));
   }
 
+  /**
+   * Hub-only record that dev handed over a workaround. Stops the chase clock and
+   * takes the ticket out of the dev buckets; nothing is sent to Linear or Intercom.
+   */
+  async function setWorkaround(esc: DevEscalation, on: boolean, note?: string) {
+    setSavingDev(true);
+    const { error: err } = await supabase
+      .from("dev_escalations")
+      .update({
+        dev_workaround_at: on ? new Date().toISOString() : null,
+        dev_workaround_by: on ? myEmail : null,
+        dev_workaround_note: on ? (note?.trim() || null) : null,
+      })
+      .eq("id", esc.id);
+    setSavingDev(false);
+    if (err) {
+      toast.error(`Could not save the workaround: ${err.message}`);
+      return;
+    }
+    setWorkaroundNote("");
+    toast.success(on ? "Workaround recorded — chasing paused" : "Workaround cleared");
+    await loadEscalations(rows.map((r) => r.intercom_conversation_id));
+  }
+
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return queue
@@ -473,6 +503,9 @@ export default function MyQueue() {
           ) : null}
           {r.bucket === "dev_resolved" ? (
             <div className="text-[10px] text-muted-foreground">Verify &amp; close out</div>
+          ) : null}
+          {r.esc && hasWorkaround(r.esc) && !isDevDone(r.esc) ? (
+            <div className="text-[10px] text-sky-600 dark:text-sky-400">Workaround provided</div>
           ) : null}
         </div>
       ),
@@ -714,6 +747,11 @@ export default function MyQueue() {
                       Chase due
                     </Badge>
                   ) : null}
+                  {selected.esc && hasWorkaround(selected.esc) ? (
+                    <Badge variant="outline" className="text-[10px] bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/40">
+                      Workaround provided
+                    </Badge>
+                  ) : null}
                   {selected.gaps.length ? (
                     <Badge variant="outline" className="text-[10px] bg-destructive/10 text-destructive border-destructive/40">
                       Missing: {selected.gaps.join(", ")}
@@ -783,7 +821,12 @@ export default function MyQueue() {
                       )}
                       {selected.esc.linear_assignee ? ` · ${selected.esc.linear_assignee}` : " · Unassigned"}
                     </div>
-                    <div>Cadence: {cadenceLabel(selected.esc)}</div>
+                    <div>
+                      Cadence:{" "}
+                      {hasWorkaround(selected.esc)
+                        ? "paused — workaround provided"
+                        : cadenceLabel(selected.esc)}
+                    </div>
                     <div>
                       Last chase:{" "}
                       {selected.esc.dev_followed_up_at
@@ -801,7 +844,7 @@ export default function MyQueue() {
                     </div>
                   </div>
 
-                  {canEdit ? (
+                  {canEdit && !hasWorkaround(selected.esc) ? (
                     <div className="flex flex-wrap items-center gap-2">
                       <Button
                         size="sm"
@@ -838,11 +881,62 @@ export default function MyQueue() {
                         </PopoverContent>
                       </Popover>
                     </div>
-                  ) : (
+                  ) : !canEdit ? (
                     <div className="text-xs text-muted-foreground">
                       Follow-up tracking is read-only for your role.
                     </div>
-                  )}
+                  ) : null}
+
+                  {/* Hub-only workaround override — no Linear or Intercom write. */}
+                  <div className="border-t pt-3 space-y-2">
+                    {hasWorkaround(selected.esc) ? (
+                      <>
+                        <div className="text-xs text-muted-foreground">
+                          Workaround provided{" "}
+                          {format(new Date(selected.esc.dev_workaround_at as string), "d MMM yyyy HH:mm")}
+                          {selected.esc.dev_workaround_by ? ` · ${selected.esc.dev_workaround_by}` : ""}
+                          {" — chasing is paused and this ticket follows the normal queue rules."}
+                        </div>
+                        {selected.esc.dev_workaround_note ? (
+                          <div className="text-xs whitespace-pre-wrap">{selected.esc.dev_workaround_note}</div>
+                        ) : null}
+                        {canEdit ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={savingDev}
+                            onClick={() => setWorkaround(selected.esc as DevEscalation, false)}
+                          >
+                            Clear workaround
+                          </Button>
+                        ) : null}
+                      </>
+                    ) : canEdit ? (
+                      <>
+                        <div className="text-xs text-muted-foreground">
+                          Dev gave you a manual workaround? Record it to stop chasing while the Linear
+                          issue sits in the backlog. A shipped fix still resurfaces here.
+                        </div>
+                        <Textarea
+                          rows={2}
+                          placeholder="What the workaround is (optional)"
+                          value={workaroundNote}
+                          onChange={(e) => setWorkaroundNote(e.target.value)}
+                          className="text-xs"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={savingDev}
+                          onClick={() =>
+                            setWorkaround(selected.esc as DevEscalation, true, workaroundNote)
+                          }
+                        >
+                          Mark workaround provided
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
 
                   {isDevDone(selected.esc) ? (
                     <div className="flex flex-wrap items-center gap-2 border-t pt-3">
