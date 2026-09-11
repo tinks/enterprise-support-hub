@@ -128,11 +128,14 @@ export function TicketDetailContent({
 
       {escalation}
 
-      {initial || latest ? (
+      {initial || latest || note ? (
         <div className="space-y-3">
           {initial ? <TicketCommentCard comment={initial} label="Initial message" /> : null}
           {latest && latest.text !== initial?.text ? (
             <TicketCommentCard comment={latest} label="Latest reply" />
+          ) : null}
+          {note ? (
+            <TicketCommentCard comment={note} label="Latest internal note" tone="note" />
           ) : null}
         </div>
       ) : (
