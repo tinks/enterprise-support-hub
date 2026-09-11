@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { loadKnowledgeFile } from "@/lib/knowledgeSource";
 
 /**
  * Knowledge doc drift detection.
@@ -41,18 +42,9 @@ let cache: { at: number; value: Promise<KnowledgeDriftReading> } | null = null;
 const TTL_MS = 5_000;
 
 async function read(): Promise<KnowledgeDriftReading> {
-  // 1. Repo file, same origin (works in preview and published).
-  const res = await fetch(`${KNOWLEDGE_DOC_PATH}?t=${Date.now()}`, {
-    headers: { "cache-control": "no-cache" },
-  });
-  if (!res.ok) throw new Error(`Could not read ${KNOWLEDGE_DOC_PATH} (${res.status})`);
-  const raw = await res.text();
-  const ct = res.headers.get("content-type") || "";
-  // Guard against the SPA HTML shell being served for a missing file — that
-  // would otherwise read as "everything drifted".
-  if (/^\s*<!doctype html|<html[\s>]/i.test(raw.slice(0, 200)) && !ct.includes("markdown")) {
-    throw new Error("Knowledge file returned HTML, not markdown — cannot compare");
-  }
+  // 1. Repo file, bundled at build time (no network — works in dev, preview
+  //    and published alike).
+  const raw = await loadKnowledgeFile();
   const file = normalize(raw);
 
   // 2/3. Stored copies.
