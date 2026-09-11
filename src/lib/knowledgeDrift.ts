@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { loadKnowledgeFile } from "@/lib/knowledgeSource";
 
 /**
  * Knowledge doc drift detection.
