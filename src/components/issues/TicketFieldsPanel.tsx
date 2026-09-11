@@ -436,14 +436,14 @@ export function TicketFieldsPanel({
               ) : null}
             </div>
           </div>
-          <p className="text-[10px] text-muted-foreground pl-[118px]">
+          <p className="text-[10px] text-muted-foreground sm:pl-[118px]">
             Hub label only — Intercom keeps {subjectRow?.subject ? `"${subjectRow.subject}"` : "its own subject"}.
             {subjectRow?.subject_ai && !subjectRow?.subject_override
               ? ` Currently showing an AI-written subject: "${subjectRow.subject_ai}".`
               : ""}
           </p>
           {subjectMsg && (
-            <p className={`text-xs pl-[118px] ${subjectMsg.ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+            <p className={`text-xs sm:pl-[118px] ${subjectMsg.ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
               {subjectMsg.text}
             </p>
           )}
