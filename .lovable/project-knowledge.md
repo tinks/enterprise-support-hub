@@ -1764,8 +1764,14 @@ A read-only landing surface that answers one question: **is anything in the ESH 
 | Pipeline | Stale v3 sync | newest `done` row per kind in `intercom_sync_jobs_v3` |
 | Pipeline | Parahelp routing pending | `parahelp_routing_sync` state `pending`/`failed` |
 | Pipeline | Registry not published | `settings.notion_registry_changed_at > notion_registry_synced_at` |
+| Review | Knowledge doc drift | repo file `/.lovable/project-knowledge.md` matches NEITHER `knowledge_documents.content` NOR `pending_content` |
 | Review | Knowledge doc approvals | `knowledge_documents.pending_content IS NOT NULL` |
 | Review | Channel → account proposals | `v3_channel_proposals_pending()` |
+
+### Knowledge doc drift signal (11 Sep 2026)
+
+`doc_approvals` only ever watched the DATABASE side, so a build that edited `.lovable/project-knowledge.md` on disk without staging it left the Action Center reading "clear" — the safety net could not see an unstaged doc change. `doc_drift` closes that: `src/lib/knowledgeDrift.ts` fetches the repo file from the app origin (`/.lovable/project-knowledge.md`, cache-busted), reads `content` + `pending_content` + `pending_at` for row `project-knowledge`, normalises line endings and trims, and reports drift when the file equals neither stored copy. Read-only, no schema change, no writes. Both signals share one pair of reads via a 5 s in-module promise cache (failures are never cached). An HTML response (SPA shell for a missing file) throws rather than reporting drift, so a routing problem surfaces as an unreadable card instead of a false alarm. Card detail shows the signed character delta vs the approved copy and notes when a *different* edit is already pending. Fix path is unchanged: Knowledge → **Sync from app** → approve. **Verified live 11 Sep 2026:** 15 signals watched, drift card amber at +7,926 chars.
+
 
 ### Per-signal mute (28 Aug 2026)
 
