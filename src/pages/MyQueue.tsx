@@ -31,6 +31,7 @@ import {
   CADENCE_CHIPS,
   cadenceLabel,
   defaultCadenceMs,
+  hasWorkaround,
   isDevDone,
   linearUrl,
   needsChase,
@@ -169,8 +170,11 @@ function classify(row: Row, esc: DevEscalation | null): QueueRow {
     lastContactMs !== null && (lastAdminMs === null || lastContactMs > lastAdminMs);
 
   // A dev escalation only steers the bucket while it is actually live: an
-  // acknowledged fix hands the ticket straight back to the conversational rules.
-  const devLive = !!esc && (!isDevDone(esc) || needsFixAck(esc));
+  // acknowledged fix hands the ticket straight back to the conversational rules,
+  // and so does a recorded workaround — but only while engineering is still
+  // working, so a shipped fix always resurfaces as "Dev resolved".
+  const devLive =
+    !!esc && (isDevDone(esc) ? needsFixAck(esc) : !hasWorkaround(esc));
 
   let bucket: Bucket;
   let waitingSinceMs: number | null;
