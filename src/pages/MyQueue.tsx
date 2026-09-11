@@ -853,6 +853,85 @@ export default function MyQueue() {
                   />
                 </>
               }
+              extra={
+                /* Hub-only snooze. No Intercom write, no SLA effect. */
+                <div className="rounded-md border p-3 space-y-2">
+                  <div className="text-sm font-medium">Snooze</div>
+                  {selected.snoozed ? (
+                    <>
+                      <div className="text-xs text-muted-foreground">
+                        Snoozed until{" "}
+                        {format(new Date(selected.snoozedUntilMs as number), "d MMM yyyy HH:mm")}
+                        {selected.snoozed_by ? ` · ${selected.snoozed_by}` : ""}
+                        {selected.snoozed_at
+                          ? ` · set ${format(new Date(selected.snoozed_at), "d MMM yyyy")}`
+                          : ""}
+                        {" — it stays in its bucket, dimmed and sorted last, until it wakes."}
+                      </div>
+                      {selected.snooze_reason ? (
+                        <div className="text-xs whitespace-pre-wrap">{selected.snooze_reason}</div>
+                      ) : null}
+                      {canEdit ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={savingSnooze}
+                          onClick={() => setSnooze(selected, null)}
+                        >
+                          Wake now
+                        </Button>
+                      ) : null}
+                    </>
+                  ) : canEdit ? (
+                    <>
+                      <div className="text-xs text-muted-foreground">
+                        Nothing to do here until a date? Park it — it stays visible but drops out of
+                        the daily triage until then.
+                      </div>
+                      <Textarea
+                        rows={2}
+                        placeholder="Why it is parked (optional)"
+                        value={snoozeReason}
+                        onChange={(e) => setSnoozeReason(e.target.value)}
+                        className="text-xs"
+                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        {CADENCE_CHIPS.map((c) => (
+                          <Button
+                            key={c.label}
+                            size="sm"
+                            variant="outline"
+                            disabled={savingSnooze}
+                            onClick={() =>
+                              setSnooze(selected, new Date(Date.now() + c.ms), snoozeReason)
+                            }
+                          >
+                            {c.label}
+                          </Button>
+                        ))}
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button size="sm" variant="outline" disabled={savingSnooze}>
+                              <CalendarIcon className="h-3.5 w-3.5 mr-1" /> Custom date
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              onSelect={(d) => d && setSnooze(selected, d, snoozeReason)}
+                              className="p-3 pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">
+                      Snoozing is read-only for your role.
+                    </div>
+                  )}
+                </div>
+              }
               escalation={
                 selected.esc ? (
                 <div className="rounded-md border p-3 space-y-3">
