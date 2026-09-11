@@ -51,12 +51,23 @@ function authorName(a: any): string {
 }
 
 /**
+ * Automated Hub/Slack bookkeeping notes are noise on the panel — the Slack
+ * permalink note the Hub itself posts is never what a human needs to read.
+ */
+function isAutomatedNote(author: string, text: string): boolean {
+  if (/lovable support/i.test(author)) return true;
+  return /slack\.com\/archives\//i.test(text);
+}
+
+/**
  * The two cards worth showing at a glance: how the ticket opened, and the most
- * recent thing either side actually said. Returns only what exists.
+ * recent thing either side actually said, plus the newest human internal note.
+ * Returns only what exists.
  */
 export function ticketComments(raw: Record<string, any> | null | undefined): {
   initial: TicketComment | null;
   latest: TicketComment | null;
+  note: TicketComment | null;
 } {
   const source = raw?.source;
   const initialText = stripHtml(source?.body);
@@ -72,20 +83,34 @@ export function ticketComments(raw: Record<string, any> | null | undefined): {
 
   const parts: any[] = raw?.conversation_parts?.conversation_parts ?? [];
   let latest: TicketComment | null = null;
+  let note: TicketComment | null = null;
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
-    if (p?.part_type !== "comment") continue;
+    const type = p?.part_type;
+    if (type !== "comment" && type !== "note") continue;
     const text = stripHtml(p?.body);
     if (!text) continue;
-    latest = {
-      kind: "latest",
-      author: authorName(p?.author),
-      authorType: p?.author?.type ?? null,
-      text,
-      atMs: ms(p?.created_at),
-    };
-    break;
+    const author = authorName(p?.author);
+
+    if (type === "comment" && !latest) {
+      latest = {
+        kind: "latest",
+        author,
+        authorType: p?.author?.type ?? null,
+        text,
+        atMs: ms(p?.created_at),
+      };
+    } else if (type === "note" && !note && !isAutomatedNote(author, text)) {
+      note = {
+        kind: "note",
+        author,
+        authorType: p?.author?.type ?? null,
+        text,
+        atMs: ms(p?.created_at),
+      };
+    }
+    if (latest && note) break;
   }
 
-  return { initial, latest };
+  return { initial, latest, note };
 }
