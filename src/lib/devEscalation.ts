@@ -24,6 +24,10 @@ export type DevEscalation = {
   dev_followup_source: string | null;
   dev_fix_ack_at: string | null;
   dev_fix_ack_by: string | null;
+  /** Hub-only: dev handed over a manual workaround, so stop chasing. */
+  dev_workaround_at: string | null;
+  dev_workaround_by: string | null;
+  dev_workaround_note: string | null;
 };
 
 export const HOUR_MS = 3_600_000;
