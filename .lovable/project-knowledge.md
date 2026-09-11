@@ -379,7 +379,7 @@ Stored in `bot_messages` table, editable from the Flow Diagram UI:
 ## 9. File Handling
 
 - **Max file size:** 50 MB (files exceeding this are silently skipped)
-- **Storage path:** `public-assets/slack-attachments/{threadTs}/{safeName}`
+- **Storage path:** `customer-attachments/slack-attachments/{threadTs}/{safeName}` — a PRIVATE bucket. Links handed out point at the `attachment` edge function, which mints a 7-day signed URL with the service role (`supabase/functions/_shared/attachments.ts`). The old public `public-assets/slack-attachments/` path is retired.
 - File names are sanitized: only `a-zA-Z0-9._-` characters kept
 - Files are downloaded from Slack (using bot token auth) and re-hosted to Supabase Storage for permanence
 - Thread files are collected from ALL messages in a thread on ticket creation
@@ -2536,3 +2536,24 @@ My Queue opts into `wide raw` and groups the body into four bordered cards inste
 **Message cards** (`src/lib/ticketComments.ts`, `TicketCommentCard.tsx`) read the already-persisted `raw_payload` — no new fetch, no Intercom call. *Initial message* comes from `source.body`; *Latest reply* is the last `conversation_parts` entry with `part_type === "comment"` and non-empty body, so internal notes and state changes never surface as a reply. HTML is stripped, whitespace normalised, author and timestamp extracted, and the preview capped at `COMMENT_CAP = 280` characters with *Show more* / *Show less*. The latest card is hidden when it duplicates the initial message.
 
 **Verified 11 Sep 2026** at 2000px on live My Queue tickets: collapsed panel, pencil-expanded editor, a ticket with no escalation (card correctly absent), and both message cards rendering with expansion. No horizontal scroll.
+
+### Storage RLS lockdown — migration 0045 (11 Sep 2026)
+
+Closes the one genuine finding from the pre-publish security scan ("file storage rules don't tie files to their owner", 3 policies).
+
+**The hole.** The three policies on `storage.objects` were named *Deny public insert / update / delete public-assets* but were `PERMISSIVE` with an inverted condition (`bucket_id <> 'public-assets'`). A permissive policy GRANTS; the condition meant they granted `INSERT` / `UPDATE` / `DELETE` on **every bucket except** `public-assets` — to `public`, i.e. `anon` and `authenticated`. That included the private `customer-attachments` bucket holding 70 re-hosted customer files. Anyone with the publishable anon key could have written or deleted customer attachments.
+
+**The fix.** All three dropped, replaced by explicit allow-rules:
+
+| Policy | Cmd | Roles | Condition |
+|---|---|---|---|
+| `public_assets_read` | SELECT | anon, authenticated | `bucket_id = 'public-assets'` |
+| `public_assets_admin_insert` | INSERT | authenticated | `public-assets` AND `has_role(auth.uid(),'admin')` |
+| `public_assets_admin_update` | UPDATE | authenticated | same |
+| `public_assets_admin_delete` | DELETE | authenticated | same |
+
+`customer-attachments` now has **no policy at all** — deny by default through the Data API. Reads keep working because the `attachment` edge function uses the service role, which bypasses RLS. Bot avatar, logos and the knowledge-sync markdown stay publicly readable from `public-assets`.
+
+**Verified 11 Sep 2026** with the anon key against the live project: upload to `customer-attachments` → 403 `new row violates row-level security policy`; upload to `public-assets` → 403; delete `public-assets/lovable-logo.png` → 403 `Access denied`; public read of `lovable-logo.png` → 200; public read of `knowledge-sync/project-knowledge.md` → 200. **UNVERIFIED:** an admin-session upload to `public-assets` (no admin session was minted; nothing in the app writes to that bucket from the client — `rg "storage\." src/` returns nothing).
+
+**Deliberately left open** (backlogged as *Define role-based data visibility (Enterprise Support vs everyone else)*, high / strategic): the 55 tables whose read policies are `USING (true)`. Sign-in is already gated by `hub_members` (@lovable.dev only) and writes by `user_roles`, but any of the ~14 active Hub accounts can read every row, whereas only the 5-person Enterprise Support team should. Not a quick policy swap — a `hub_members` predicate would change nothing for those accounts, narrowing to the 5 would blank CSM pages with no defined replacement scope, and ~29 `SECURITY DEFINER` routines bypass table RLS anyway. Needs a decision on what a non-support account should see first.
