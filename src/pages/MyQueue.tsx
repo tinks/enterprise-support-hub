@@ -618,7 +618,7 @@ export default function MyQueue() {
           </div>
         ) : null}
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
           <StatCard
             label="Open tickets"
             value={counts.total}
@@ -631,6 +631,7 @@ export default function MyQueue() {
               label={BUCKET_META[b].label}
               hint={BUCKET_META[b].blurb}
               value={counts[b]}
+              sub={b === "dev_wait" && counts.chase ? `${counts.chase} need a chase` : undefined}
               active={bucketFilter === b}
               onClick={() => setBucketFilter(b)}
             />
@@ -639,7 +640,7 @@ export default function MyQueue() {
 
         <div className="flex flex-wrap items-center gap-2">
           <Input
-            placeholder="Search subject, contact, customer or Intercom ID…"
+            placeholder="Search subject, contact, customer, Linear key or Intercom ID…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="max-w-[380px]"
@@ -651,10 +652,17 @@ export default function MyQueue() {
           >
             Missing fields ({counts.gaps})
           </Button>
+          <Button
+            variant={bucketFilter === "chase" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setBucketFilter(bucketFilter === "chase" ? "all" : "chase")}
+          >
+            Chase dev ({counts.chase})
+          </Button>
           {loading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
           <span className="text-xs text-muted-foreground inline-flex items-center gap-1 ml-auto">
-            <Info className="h-3 w-3" /> Read-only view of v3 reporting data — nothing here changes a
-            reported number.
+            <Info className="h-3 w-3" /> Read-only over v3 reporting data — only Hub follow-up notes
+            are written, never Intercom or Linear.
           </span>
         </div>
 
@@ -669,12 +677,12 @@ export default function MyQueue() {
               : "No tickets match this filter."
           }
           rowClassName={(r) => BUCKET_META[r.bucket].row}
-          onRowClick={(r) => setSelected(r)}
+          onRowClick={(r) => setSelectedId(r.id)}
         />
 
         <IssueDetailSheet
           open={!!selected}
-          onOpenChange={(o) => !o && setSelected(null)}
+          onOpenChange={(o) => !o && setSelectedId(null)}
           title={selected ? displaySubject(selected) : ""}
           conversationId={selected?.intercom_conversation_id ?? null}
         >
