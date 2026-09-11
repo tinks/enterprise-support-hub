@@ -29,6 +29,8 @@ export type TicketDetailContentProps = {
   stats?: ReactNode;
   /** Engineering escalation card. Omitted entirely when the ticket has none. */
   escalation?: ReactNode;
+  /** Extra surface-owned card rendered under the escalation (e.g. snooze). */
+  extra?: ReactNode;
   /** Persisted Intercom payload; drives the message cards. */
   rawPayload?: Record<string, any> | null;
   currentSeverity?: string | null;
