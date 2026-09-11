@@ -396,13 +396,41 @@ export default function MyQueue() {
     };
     let gaps = 0;
     let chase = 0;
+    let snoozed = 0;
     for (const r of queue) {
       c[r.bucket] += 1;
       if (r.gaps.length) gaps += 1;
       if (r.bucket === "dev_wait" && r.chaseDue) chase += 1;
+      if (r.snoozed) snoozed += 1;
     }
-    return { ...c, gaps, chase, total: queue.length };
+    return { ...c, gaps, chase, snoozed, total: queue.length };
   }, [queue]);
+
+  /**
+   * Hub-only snooze. Parks a ticket until a date without changing its bucket,
+   * its SLA clocks, or anything in Intercom — the row simply sorts to the
+   * bottom and dims until it wakes.
+   */
+  async function setSnooze(row: QueueRow, until: Date | null, reason?: string) {
+    setSavingSnooze(true);
+    const { error: err } = await supabase
+      .from("intercom_tickets_v3")
+      .update({
+        snoozed_until: until ? until.toISOString() : null,
+        snoozed_at: until ? new Date().toISOString() : null,
+        snoozed_by: until ? myEmail : null,
+        snooze_reason: until ? (reason?.trim() || null) : null,
+      })
+      .eq("id", row.id);
+    setSavingSnooze(false);
+    if (err) {
+      toast.error(`Could not save the snooze: ${err.message}`);
+      return;
+    }
+    setSnoozeReason("");
+    toast.success(until ? `Snoozed until ${format(until, "d MMM yyyy")}` : "Snooze cleared");
+    setReloadKey((k) => k + 1);
+  }
 
   /** Hub-owned write: chase stamp + next due date. Never touches Linear or Intercom. */
   async function markFollowedUp(esc: DevEscalation, overrideMs?: number | null, dueDate?: Date) {
