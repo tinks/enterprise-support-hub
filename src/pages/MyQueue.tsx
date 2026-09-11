@@ -72,6 +72,10 @@ type Row = {
   intercom_updated_at: string | null;
   eng_wait_start_at: string | null;
   eng_wait_end_at: string | null;
+  snoozed_until: string | null;
+  snoozed_at: string | null;
+  snoozed_by: string | null;
+  snooze_reason: string | null;
   raw_payload: Record<string, any> | null;
 };
 
