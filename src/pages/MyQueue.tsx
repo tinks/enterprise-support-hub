@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { Textarea } from "@/components/ui/textarea";
 import { Loader2, RefreshCw, Info, ExternalLink, CalendarIcon, Check } from "lucide-react";
 import { format, formatDistanceToNowStrict } from "date-fns";
 import { toast } from "sonner";
@@ -880,11 +881,62 @@ export default function MyQueue() {
                         </PopoverContent>
                       </Popover>
                     </div>
-                  ) : (
+                  ) : !canEdit ? (
                     <div className="text-xs text-muted-foreground">
                       Follow-up tracking is read-only for your role.
                     </div>
-                  )}
+                  ) : null}
+
+                  {/* Hub-only workaround override — no Linear or Intercom write. */}
+                  <div className="border-t pt-3 space-y-2">
+                    {hasWorkaround(selected.esc) ? (
+                      <>
+                        <div className="text-xs text-muted-foreground">
+                          Workaround provided{" "}
+                          {format(new Date(selected.esc.dev_workaround_at as string), "d MMM yyyy HH:mm")}
+                          {selected.esc.dev_workaround_by ? ` · ${selected.esc.dev_workaround_by}` : ""}
+                          {" — chasing is paused and this ticket follows the normal queue rules."}
+                        </div>
+                        {selected.esc.dev_workaround_note ? (
+                          <div className="text-xs whitespace-pre-wrap">{selected.esc.dev_workaround_note}</div>
+                        ) : null}
+                        {canEdit ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={savingDev}
+                            onClick={() => setWorkaround(selected.esc as DevEscalation, false)}
+                          >
+                            Clear workaround
+                          </Button>
+                        ) : null}
+                      </>
+                    ) : canEdit ? (
+                      <>
+                        <div className="text-xs text-muted-foreground">
+                          Dev gave you a manual workaround? Record it to stop chasing while the Linear
+                          issue sits in the backlog. A shipped fix still resurfaces here.
+                        </div>
+                        <Textarea
+                          rows={2}
+                          placeholder="What the workaround is (optional)"
+                          value={workaroundNote}
+                          onChange={(e) => setWorkaroundNote(e.target.value)}
+                          className="text-xs"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={savingDev}
+                          onClick={() =>
+                            setWorkaround(selected.esc as DevEscalation, true, workaroundNote)
+                          }
+                        >
+                          Mark workaround provided
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
 
                   {isDevDone(selected.esc) ? (
                     <div className="flex flex-wrap items-center gap-2 border-t pt-3">
