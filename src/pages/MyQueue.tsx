@@ -459,13 +459,69 @@ export default function MyQueue() {
     {
       key: "bucket",
       header: "State",
-      width: "w-[150px]",
+      width: "w-[170px]",
       sortValue: (r) => BUCKET_ORDER.indexOf(r.bucket),
       cell: (r) => (
-        <Badge variant="outline" className={`text-[10px] ${BUCKET_META[r.bucket].pill}`}>
-          {BUCKET_META[r.bucket].label}
-        </Badge>
+        <div className="space-y-1">
+          <Badge variant="outline" className={`text-[10px] ${BUCKET_META[r.bucket].pill}`}>
+            {BUCKET_META[r.bucket].label}
+          </Badge>
+          {r.bucket === "dev_wait" && r.chaseDue ? (
+            <div className="text-[10px] text-amber-600 dark:text-amber-400">Chase due</div>
+          ) : null}
+          {r.bucket === "dev_resolved" ? (
+            <div className="text-[10px] text-muted-foreground">Verify &amp; close out</div>
+          ) : null}
+        </div>
       ),
+    },
+    {
+      key: "dev",
+      header: "Dev escalation",
+      width: "w-[180px]",
+      cellClassName: "text-xs",
+      sortValue: (r) => r.esc?.linear_key ?? null,
+      cell: (r) => {
+        const e = r.esc;
+        if (!e || !e.linear_key) return <span className="text-muted-foreground">—</span>;
+        const url = linearUrl(e);
+        const due = nextFollowupMs(e);
+        return (
+          <div className="min-w-0 space-y-0.5">
+            <div className="flex items-center gap-1 truncate">
+              {url ? (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(ev) => ev.stopPropagation()}
+                  className="text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  {e.linear_key}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              ) : (
+                <span>{e.linear_key}</span>
+              )}
+              {e.linear_state ? (
+                <Badge variant="secondary" className="text-[10px]">
+                  {e.linear_state}
+                </Badge>
+              ) : null}
+            </div>
+            <div className="text-[10px] text-muted-foreground truncate">
+              {e.linear_assignee ?? "Unassigned"}
+              {isDevDone(e)
+                ? e.dev_fix_ack_at
+                  ? " · acknowledged"
+                  : " · needs sign-off"
+                : due
+                  ? ` · next chase ${format(new Date(due), "d MMM")}`
+                  : ""}
+            </div>
+          </div>
+        );
+      },
     },
     {
       key: "waiting",
