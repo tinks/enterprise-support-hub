@@ -253,14 +253,18 @@ export default function MyQueue() {
   const navigate = useNavigate();
   const { items: teammates } = useDashboardTeammates();
   const { accountLabel } = useCustomerLabels();
+  const { canEdit } = useCanEdit();
 
   const [me, setMe] = useState<string | null>(null);
+  const [myEmail, setMyEmail] = useState<string | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
+  const [escalations, setEscalations] = useState<Map<string, DevEscalation>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [bucketFilter, setBucketFilter] = useState<Bucket | "all" | "gaps">("all");
-  const [selected, setSelected] = useState<QueueRow | null>(null);
+  const [bucketFilter, setBucketFilter] = useState<Bucket | "all" | "gaps" | "chase">("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [savingDev, setSavingDev] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
   // Default owner: the signed-in teammate, matched on the local part of the
