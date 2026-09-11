@@ -6,13 +6,26 @@ import { COMMENT_CAP, type TicketComment } from "@/lib/ticketComments";
  * One capped, expandable message card. Display only — read straight off the
  * persisted Intercom payload, never fetched and never written back.
  */
-export function TicketCommentCard({ comment, label }: { comment: TicketComment; label: string }) {
+export function TicketCommentCard({
+  comment,
+  label,
+  tone = "default",
+}: {
+  comment: TicketComment;
+  label: string;
+  /** "note" renders the amber internal-note treatment. */
+  tone?: "default" | "note";
+}) {
   const [open, setOpen] = useState(false);
   const long = comment.text.length > COMMENT_CAP;
   const shown = open || !long ? comment.text : `${comment.text.slice(0, COMMENT_CAP).trimEnd()}…`;
 
   return (
-    <div className="rounded-md border p-3 space-y-1.5 min-w-0">
+    <div
+      className={`rounded-md border p-3 space-y-1.5 min-w-0 ${
+        tone === "note" ? "border-amber-500/40 bg-amber-500/10" : ""
+      }`}
+    >
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</span>
         <span className="text-xs font-medium">{comment.author}</span>
