@@ -308,7 +308,7 @@ export default function MyQueue() {
     const { data, error: err } = await supabase
       .from("dev_escalations")
       .select(
-        "id,intercom_conversation_id,hub_state,linear_key,linear_title,linear_state,linear_state_type,linear_assignee,linear_url_override,created_at,dev_followed_up_at,dev_followed_up_by,dev_next_followup_at,dev_followup_source,dev_fix_ack_at,dev_fix_ack_by",
+        "id,intercom_conversation_id,hub_state,linear_key,linear_title,linear_state,linear_state_type,linear_assignee,linear_url_override,created_at,dev_followed_up_at,dev_followed_up_by,dev_next_followup_at,dev_followup_source,dev_fix_ack_at,dev_fix_ack_by,dev_workaround_at,dev_workaround_by,dev_workaround_note",
       )
       .in("intercom_conversation_id", ids);
     if (err) {
