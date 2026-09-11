@@ -2123,6 +2123,22 @@ Nav: top-level **Deep search**. Query box (deep-linkable via `?q=`), kind filter
 
 **Verified 31 Aug 2026:** 997 rows indexed (629 v3 tickets, 253 customers, 43 backlog, 42 escalations, 25 notes, 5 severity proposals). `SCA-3522` returns the escalation and Intercom ticket #215475673305527 (matched from the message body). **UNVERIFIED:** the hourly cron firing in production, and phrase-query result quality at scale.
 
+### Topic deep dive tab — `src/pages/search/TopicDeepDive.tsx` + `analyze-topic-trends`
+
+Second tab on `/search`. Answers "what are the recurring GitHub problems in the last 90 days?", which Deep search itself cannot: it retrieves, it does not cluster, aggregate, or bound by date.
+
+Why not group by Affected product area: over the last 90 days 69 tickets mentioned GitHub but only 26 carried the `GitHub Integration` product area — the dropdown misses >60% of the population and cannot represent tickets that straddle areas. Grouping is therefore derived from the ticket text, not from curation.
+
+**Edge function `analyze-topic-trends` (read-only, editor-gated):**
+1. Retrieval — full-text (`websearch`) over `esh_search_index` where `kind = 'v3_ticket'`, then filtered client-side in the function to `meta.created_at` within the window (7-365 days, default 90). Cap 600 rows retrieved, **120 sent to the model**, 420 chars of body each.
+2. Clustering — one streamed `/v1/responses` call to `openai/gpt-6-astra` (`reasoning.effort: medium`) with a strict `json_schema`: `summary` plus 4-8 themes, each with `name`, `description`, `category` (`bug` | `support_gap` | `feature_request`), `recommendation`, `ticket_ids`.
+3. Grounding — every returned ticket id is intersected with the ids actually sent; a hallucinated id is dropped and an empty theme is discarded. Themes are sorted by ticket count.
+4. Writes **nothing** — no Intercom call, no column update, no index write. AI-gateway spend is the only side effect, which is why it requires an editor session; 402/429 are surfaced verbatim as user-facing errors.
+
+**UI:** topic box + window select + Analyse topic; matched/themes/analysed counters; a volume-by-month bar strip computed client-side from the matched tickets (not from the model); the model summary; expandable theme cards showing the exact Intercom IDs, subjects, customers, dates and states; **Copy digest** emits Slack mrkdwn for standups.
+
+**Verified 11 Sep 2026:** topic `GitHub`, last 90 days → 64 tickets matched, 64 analysed, 8 themes (largest: "Synchronization failures and non-destructive recovery", 9 tickets, bug), monthly volume 3 / 16 / 27 / 18 for Jun-Sep 2026. **UNVERIFIED:** behaviour above the 120-ticket cap (truncation notice path), and the 402/429 gateway-error branches.
+
 ## Resolution anatomy — why long tickets are long (`/resolution-anatomy`)
 
 Built because the average resolution time was climbing ~1 day/month with no way to say why. The distribution showed the cause is a **tail**, not a shift: Jun→Aug 2026 median resolution stayed ~4d while P90 went 11.8d → 17.5d, and tickets over 7 days account for ~75% of all resolution time.
