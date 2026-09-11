@@ -290,6 +290,32 @@ export default function MyQueue() {
     return me ?? "";
   }, [ownerParam, me, rosterNames]);
 
+  /**
+   * Live dev-escalation state for a set of conversations. Read-only over the
+   * Linear mirror; only the Hub-owned follow-up fields are ever written back.
+   */
+  async function loadEscalations(ids: string[]) {
+    if (!ids.length) {
+      setEscalations(new Map());
+      return;
+    }
+    const { data, error: err } = await supabase
+      .from("dev_escalations")
+      .select(
+        "id,intercom_conversation_id,hub_state,linear_key,linear_title,linear_state,linear_state_type,linear_assignee,linear_url_override,created_at,dev_followed_up_at,dev_followed_up_by,dev_next_followup_at,dev_followup_source,dev_fix_ack_at,dev_fix_ack_by",
+      )
+      .in("intercom_conversation_id", ids);
+    if (err) {
+      setError(err.message);
+      return;
+    }
+    const map = new Map<string, DevEscalation>();
+    for (const e of (data ?? []) as unknown as DevEscalation[]) {
+      map.set(e.intercom_conversation_id, e);
+    }
+    setEscalations(map);
+  }
+
   useEffect(() => {
     if (!activeOwner) return;
     let cancelled = false;
@@ -310,13 +336,16 @@ export default function MyQueue() {
         if (err) {
           setError(err.message);
           setRows([]);
-        } else {
-          const mine = ((data ?? []) as unknown as Row[]).filter(
-            (r) => (normalizeOwner(r.owner) ?? "").toLowerCase() === activeOwner.toLowerCase(),
-          );
-          setRows(mine);
+          setLoading(false);
+          return;
         }
-        setLoading(false);
+        const mine = ((data ?? []) as unknown as Row[]).filter(
+          (r) => (normalizeOwner(r.owner) ?? "").toLowerCase() === activeOwner.toLowerCase(),
+        );
+        setRows(mine);
+        loadEscalations(mine.map((r) => r.intercom_conversation_id)).finally(() => {
+          if (!cancelled) setLoading(false);
+        });
       });
 
     return () => {
@@ -324,17 +353,79 @@ export default function MyQueue() {
     };
   }, [activeOwner, reloadKey]);
 
-  const queue = useMemo(() => rows.map(classify), [rows]);
+  const queue = useMemo(
+    () => rows.map((r) => classify(r, escalations.get(r.intercom_conversation_id) ?? null)),
+    [rows, escalations],
+  );
+
+  const selected = useMemo(
+    () => queue.find((r) => r.id === selectedId) ?? null,
+    [queue, selectedId],
+  );
 
   const counts = useMemo(() => {
-    const c: Record<Bucket, number> = { action: 0, eng: 0, stale: 0, customer: 0, unknown: 0 };
+    const c: Record<Bucket, number> = {
+      action: 0,
+      dev_resolved: 0,
+      dev_wait: 0,
+      eng: 0,
+      stale: 0,
+      customer: 0,
+      unknown: 0,
+    };
     let gaps = 0;
+    let chase = 0;
     for (const r of queue) {
       c[r.bucket] += 1;
       if (r.gaps.length) gaps += 1;
+      if (r.bucket === "dev_wait" && r.chaseDue) chase += 1;
     }
-    return { ...c, gaps, total: queue.length };
+    return { ...c, gaps, chase, total: queue.length };
   }, [queue]);
+
+  /** Hub-owned write: chase stamp + next due date. Never touches Linear or Intercom. */
+  async function markFollowedUp(esc: DevEscalation, overrideMs?: number | null, dueDate?: Date) {
+    setSavingDev(true);
+    const now = new Date();
+    const due =
+      dueDate ??
+      new Date(now.getTime() + (overrideMs ?? defaultCadenceMs(esc)));
+    const { error: err } = await supabase
+      .from("dev_escalations")
+      .update({
+        dev_followed_up_at: now.toISOString(),
+        dev_followed_up_by: myEmail,
+        dev_next_followup_at: due.toISOString(),
+        dev_followup_source: overrideMs || dueDate ? "manual" : "auto",
+      })
+      .eq("id", esc.id);
+    setSavingDev(false);
+    if (err) {
+      toast.error(`Could not save the follow-up: ${err.message}`);
+      return;
+    }
+    toast.success(`Follow-up logged — next chase ${format(due, "d MMM HH:mm")}`);
+    await loadEscalations(rows.map((r) => r.intercom_conversation_id));
+  }
+
+  /** Human sign-off that a shipped/canceled fix has been handled with the customer. */
+  async function setFixAck(esc: DevEscalation, ack: boolean) {
+    setSavingDev(true);
+    const { error: err } = await supabase
+      .from("dev_escalations")
+      .update({
+        dev_fix_ack_at: ack ? new Date().toISOString() : null,
+        dev_fix_ack_by: ack ? myEmail : null,
+      })
+      .eq("id", esc.id);
+    setSavingDev(false);
+    if (err) {
+      toast.error(`Could not save the acknowledgement: ${err.message}`);
+      return;
+    }
+    toast.success(ack ? "Dev fix acknowledged" : "Acknowledgement cleared");
+    await loadEscalations(rows.map((r) => r.intercom_conversation_id));
+  }
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
