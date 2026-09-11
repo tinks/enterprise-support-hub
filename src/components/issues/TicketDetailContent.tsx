@@ -130,6 +130,7 @@ export function TicketDetailContent({
       ) : null}
 
       {escalation}
+      {extra}
 
       {initial || latest || note ? (
         <div className="space-y-3">
