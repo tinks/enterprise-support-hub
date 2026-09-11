@@ -58,6 +58,7 @@ export function TicketDetailContent({
   blurb,
   stats,
   escalation,
+  extra,
   rawPayload,
   currentSeverity = null,
   currentOwner = null,
