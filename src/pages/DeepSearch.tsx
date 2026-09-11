@@ -167,6 +167,17 @@ export default function DeepSearch() {
           </div>
         </div>
 
+        <Tabs defaultValue="search" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="search">Search</TabsTrigger>
+            <TabsTrigger value="topic">Topic deep dive</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="topic">
+            <TopicDeepDive />
+          </TabsContent>
+
+          <TabsContent value="search" className="space-y-6">
         <form onSubmit={submit} className="flex gap-2">
           <div className="relative flex-1">
             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
