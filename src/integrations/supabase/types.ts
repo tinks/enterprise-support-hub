@@ -392,8 +392,12 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          dev_fix_ack_at: string | null
+          dev_fix_ack_by: string | null
           dev_followed_up_at: string | null
           dev_followed_up_by: string | null
+          dev_followup_source: string | null
+          dev_next_followup_at: string | null
           hub_state: string
           id: string
           intercom_conversation_id: string
@@ -417,8 +421,12 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          dev_fix_ack_at?: string | null
+          dev_fix_ack_by?: string | null
           dev_followed_up_at?: string | null
           dev_followed_up_by?: string | null
+          dev_followup_source?: string | null
+          dev_next_followup_at?: string | null
           hub_state?: string
           id?: string
           intercom_conversation_id: string
@@ -442,8 +450,12 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          dev_fix_ack_at?: string | null
+          dev_fix_ack_by?: string | null
           dev_followed_up_at?: string | null
           dev_followed_up_by?: string | null
+          dev_followup_source?: string | null
+          dev_next_followup_at?: string | null
           hub_state?: string
           id?: string
           intercom_conversation_id?: string
