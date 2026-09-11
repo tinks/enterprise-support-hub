@@ -551,6 +551,11 @@ export default function MyQueue() {
           {r.esc && hasWorkaround(r.esc) && !isDevDone(r.esc) ? (
             <div className="text-[10px] text-sky-600 dark:text-sky-400">Workaround provided</div>
           ) : null}
+          {r.snoozed ? (
+            <div className="text-[10px] text-muted-foreground">
+              Snoozed until {format(new Date(r.snoozedUntilMs as number), "d MMM")}
+            </div>
+          ) : null}
         </div>
       ),
     },
