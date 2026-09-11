@@ -6,8 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, RefreshCw, Info } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Loader2, RefreshCw, Info, ExternalLink, CalendarIcon, Check } from "lucide-react";
 import { format, formatDistanceToNowStrict } from "date-fns";
+import { toast } from "sonner";
 import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
 import { IssueDetailSheet, IssueField } from "@/components/issues/IssueDetailSheet";
 import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
@@ -21,8 +24,20 @@ import {
 } from "@/components/issues/issueColumns";
 import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 import { useDashboardTeammates } from "@/hooks/useDashboardTeammates";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import { displaySubject, SUBJECT_SELECT } from "@/lib/subjectDisplay";
 import { normalizeOwner } from "@/lib/normalizeOwner";
+import {
+  type DevEscalation,
+  CADENCE_CHIPS,
+  cadenceLabel,
+  defaultCadenceMs,
+  isDevDone,
+  linearUrl,
+  needsChase,
+  needsFixAck,
+  nextFollowupMs,
+} from "@/lib/devEscalation";
 
 /**
  * My Queue — the personal operational flight deck.
