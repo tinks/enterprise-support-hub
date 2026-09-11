@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, RefreshCw, Search as SearchIcon, ExternalLink } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import TopicDeepDive from "@/pages/search/TopicDeepDive";
 
 type Hit = {
   kind: string;
