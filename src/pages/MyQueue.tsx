@@ -346,7 +346,7 @@ export default function MyQueue() {
     supabase
       .from("intercom_tickets_v3")
       .select(
-        `id,intercom_conversation_id,${SUBJECT_SELECT},contact_name,contact_email,owner,customer_key,state,plan_tier,custom_attributes,intercom_created_at,intercom_updated_at,eng_wait_start_at,eng_wait_end_at,raw_payload`,
+        `id,intercom_conversation_id,${SUBJECT_SELECT},contact_name,contact_email,owner,customer_key,state,plan_tier,custom_attributes,intercom_created_at,intercom_updated_at,eng_wait_start_at,eng_wait_end_at,snoozed_until,snoozed_at,snoozed_by,snooze_reason,raw_payload`,
       )
       .in("lifecycle_status", ["open", "reopened_after_finalize"])
       .or("is_test_ticket.is.null,is_test_ticket.eq.false")
