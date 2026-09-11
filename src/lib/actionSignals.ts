@@ -13,6 +13,8 @@ import {
 import { isSlaExcluded } from "@/lib/slaExclusions";
 import { showTestDataNow } from "@/lib/testTickets";
 import { isUnassigned, assignmentGap, ASSIGNMENT_GAP_LABEL } from "@/lib/triageQueues";
+import { loadKnowledgeDrift } from "@/lib/knowledgeDrift";
+
 
 
 
