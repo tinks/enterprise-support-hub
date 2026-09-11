@@ -1037,6 +1037,8 @@ function buildNodes(
           "VERIFICATION STATE (14 Aug 2026): all 10 signals load and read 0, cross-checked against SQL (44 open tickets, 0 untriaged, 0 escalations, 0 Parahelp pending, 0 pending docs, 0 unhealthy integrations) — the zeros are real, not an over-filtered query. The non-zero path (amber card + rail badge) has NOT yet been observed against live data because every queue is currently empty.",
           "EVIDENCE ON THE CARD (18 Aug 2026): first-response risk carries the offending intercom_conversation_ids (up to 5, plus '+N more') rendered as direct links into the Intercom inbox. Reason: the card used to link only to the SLA workbench, where finding the one flagged ticket was hard enough that a single alert could not be investigated — and no behaviour was changed to 'fix' the alert on one data point.",
           "Eleventh signal (18 Aug 2026): intercom_field_drift — active options in intercom_field_options for 'Affected Product Area' vs the legacy settings.product_areas list, links to /settings. Ticket type is NOT compared: the cache is authoritative for it.",
+          "DOC DRIFT SIGNAL (11 Sep 2026): doc_drift compares the repo file /.lovable/project-knowledge.md against BOTH knowledge_documents.content and pending_content (src/lib/knowledgeDrift.ts, read-only, 5 s shared cache). doc_approvals alone could not see documentation edited on disk but never staged, so the safety net read 'clear' while docs drifted. HTML responses throw (unreadable card) instead of faking drift. Verified live: 15 signals, drift amber at +7,926 chars.",
+
         ],
         accent: "default",
       },
