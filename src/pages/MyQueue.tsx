@@ -226,12 +226,14 @@ function StatCard({
   hint,
   active,
   onClick,
+  sub,
 }: {
   label: string;
   value: number;
   hint?: string;
   active?: boolean;
   onClick?: () => void;
+  sub?: string;
 }) {
   return (
     <button
@@ -244,6 +246,7 @@ function StatCard({
     >
       <div className="text-2xl font-semibold tabular-nums">{value}</div>
       <div className="text-xs text-muted-foreground">{label}</div>
+      {sub ? <div className="text-[10px] text-amber-600 dark:text-amber-400">{sub}</div> : null}
     </button>
   );
 }
