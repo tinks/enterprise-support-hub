@@ -6,8 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, RefreshCw, Info } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Loader2, RefreshCw, Info, ExternalLink, CalendarIcon, Check } from "lucide-react";
 import { format, formatDistanceToNowStrict } from "date-fns";
+import { toast } from "sonner";
 import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
 import { IssueDetailSheet, IssueField } from "@/components/issues/IssueDetailSheet";
 import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
@@ -21,8 +24,20 @@ import {
 } from "@/components/issues/issueColumns";
 import { useCustomerLabels } from "@/hooks/useCustomerLabels";
 import { useDashboardTeammates } from "@/hooks/useDashboardTeammates";
+import { useCanEdit } from "@/hooks/useCanEdit";
 import { displaySubject, SUBJECT_SELECT } from "@/lib/subjectDisplay";
 import { normalizeOwner } from "@/lib/normalizeOwner";
+import {
+  type DevEscalation,
+  CADENCE_CHIPS,
+  cadenceLabel,
+  defaultCadenceMs,
+  isDevDone,
+  linearUrl,
+  needsChase,
+  needsFixAck,
+  nextFollowupMs,
+} from "@/lib/devEscalation";
 
 /**
  * My Queue — the personal operational flight deck.
@@ -59,7 +74,7 @@ type Row = {
   raw_payload: Record<string, any> | null;
 };
 
-type Bucket = "action" | "eng" | "customer" | "stale" | "unknown";
+type Bucket = "action" | "dev_resolved" | "dev_wait" | "eng" | "customer" | "stale" | "unknown";
 
 const BUCKET_META: Record<Bucket, { label: string; blurb: string; pill: string; row?: string }> = {
   action: {
@@ -67,6 +82,17 @@ const BUCKET_META: Record<Bucket, { label: string; blurb: string; pill: string; 
     blurb: "The customer spoke last — the ball is with us.",
     pill: "bg-destructive/15 text-destructive border-destructive/40",
     row: "bg-destructive/5 hover:bg-destructive/10",
+  },
+  dev_resolved: {
+    label: "Dev resolved",
+    blurb: "Engineering closed the Linear issue — verify the fix, tell the customer, then acknowledge.",
+    pill: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/40",
+    row: "bg-emerald-500/5 hover:bg-emerald-500/10",
+  },
+  dev_wait: {
+    label: "Waiting on dev",
+    blurb: "A Linear issue is in flight. Chase engineering when the follow-up is due.",
+    pill: "bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-500/40",
   },
   eng: {
     label: "Waiting on engineering",
@@ -91,7 +117,15 @@ const BUCKET_META: Record<Bucket, { label: string; blurb: string; pill: string; 
   },
 };
 
-const BUCKET_ORDER: Bucket[] = ["action", "eng", "stale", "customer", "unknown"];
+const BUCKET_ORDER: Bucket[] = [
+  "action",
+  "dev_resolved",
+  "dev_wait",
+  "eng",
+  "stale",
+  "customer",
+  "unknown",
+];
 
 const STALE_MS = 3 * 86_400_000;
 const ANY = "__any__";
@@ -120,9 +154,13 @@ type QueueRow = Row & {
   productArea: string | null;
   ticketType: string | null;
   gaps: string[];
+  /** Live dev escalation row, if this conversation has one. */
+  esc: DevEscalation | null;
+  /** True when the engineering chase for this escalation is overdue. */
+  chaseDue: boolean;
 };
 
-function classify(row: Row): QueueRow {
+function classify(row: Row, esc: DevEscalation | null): QueueRow {
   const lastContactMs = statMs(row, "last_contact_reply_at");
   const lastAdminMs = statMs(row, "last_admin_reply_at");
   const hasStats = !!row.raw_payload?.statistics;
@@ -131,15 +169,24 @@ function classify(row: Row): QueueRow {
   const ballWithUs =
     lastContactMs !== null && (lastAdminMs === null || lastContactMs > lastAdminMs);
 
+  // A dev escalation only steers the bucket while it is actually live: an
+  // acknowledged fix hands the ticket straight back to the conversational rules.
+  const devLive = !!esc && (!isDevDone(esc) || needsFixAck(esc));
+
   let bucket: Bucket;
   let waitingSinceMs: number | null;
 
-  if (!hasStats) {
-    bucket = "unknown";
-    waitingSinceMs = row.intercom_updated_at ? new Date(row.intercom_updated_at).getTime() : null;
-  } else if (ballWithUs) {
+  if (ballWithUs) {
     bucket = "action";
     waitingSinceMs = lastContactMs;
+  } else if (devLive && esc) {
+    bucket = isDevDone(esc) ? "dev_resolved" : "dev_wait";
+    waitingSinceMs = new Date(
+      esc.dev_followed_up_at ?? esc.created_at ?? row.intercom_updated_at ?? Date.now(),
+    ).getTime();
+  } else if (!hasStats) {
+    bucket = "unknown";
+    waitingSinceMs = row.intercom_updated_at ? new Date(row.intercom_updated_at).getTime() : null;
   } else if (engOpen) {
     bucket = "eng";
     waitingSinceMs = new Date(row.eng_wait_start_at as string).getTime();
@@ -168,6 +215,8 @@ function classify(row: Row): QueueRow {
     productArea,
     ticketType,
     gaps,
+    esc,
+    chaseDue: !!esc && needsChase(esc),
   };
 }
 
@@ -177,12 +226,14 @@ function StatCard({
   hint,
   active,
   onClick,
+  sub,
 }: {
   label: string;
   value: number;
   hint?: string;
   active?: boolean;
   onClick?: () => void;
+  sub?: string;
 }) {
   return (
     <button
@@ -195,6 +246,7 @@ function StatCard({
     >
       <div className="text-2xl font-semibold tabular-nums">{value}</div>
       <div className="text-xs text-muted-foreground">{label}</div>
+      {sub ? <div className="text-[10px] text-amber-600 dark:text-amber-400">{sub}</div> : null}
     </button>
   );
 }
@@ -204,14 +256,18 @@ export default function MyQueue() {
   const navigate = useNavigate();
   const { items: teammates } = useDashboardTeammates();
   const { accountLabel } = useCustomerLabels();
+  const { canEdit } = useCanEdit();
 
   const [me, setMe] = useState<string | null>(null);
+  const [myEmail, setMyEmail] = useState<string | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
+  const [escalations, setEscalations] = useState<Map<string, DevEscalation>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [bucketFilter, setBucketFilter] = useState<Bucket | "all" | "gaps">("all");
-  const [selected, setSelected] = useState<QueueRow | null>(null);
+  const [bucketFilter, setBucketFilter] = useState<Bucket | "all" | "gaps" | "chase">("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [savingDev, setSavingDev] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
   // Default owner: the signed-in teammate, matched on the local part of the
@@ -219,6 +275,7 @@ export default function MyQueue() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       const email = data.user?.email ?? "";
+      setMyEmail(email || null);
       const local = email.split("@")[0] ?? "";
       const first = local.split(/[._-]/)[0] ?? "";
       setMe(first ? first.charAt(0).toUpperCase() + first.slice(1) : null);
@@ -235,6 +292,32 @@ export default function MyQueue() {
     if (me && rosterNames.some((n) => n.toLowerCase() === me.toLowerCase())) return me;
     return me ?? "";
   }, [ownerParam, me, rosterNames]);
+
+  /**
+   * Live dev-escalation state for a set of conversations. Read-only over the
+   * Linear mirror; only the Hub-owned follow-up fields are ever written back.
+   */
+  async function loadEscalations(ids: string[]) {
+    if (!ids.length) {
+      setEscalations(new Map());
+      return;
+    }
+    const { data, error: err } = await supabase
+      .from("dev_escalations")
+      .select(
+        "id,intercom_conversation_id,hub_state,linear_key,linear_title,linear_state,linear_state_type,linear_assignee,linear_url_override,created_at,dev_followed_up_at,dev_followed_up_by,dev_next_followup_at,dev_followup_source,dev_fix_ack_at,dev_fix_ack_by",
+      )
+      .in("intercom_conversation_id", ids);
+    if (err) {
+      setError(err.message);
+      return;
+    }
+    const map = new Map<string, DevEscalation>();
+    for (const e of (data ?? []) as unknown as DevEscalation[]) {
+      map.set(e.intercom_conversation_id, e);
+    }
+    setEscalations(map);
+  }
 
   useEffect(() => {
     if (!activeOwner) return;
@@ -256,13 +339,16 @@ export default function MyQueue() {
         if (err) {
           setError(err.message);
           setRows([]);
-        } else {
-          const mine = ((data ?? []) as unknown as Row[]).filter(
-            (r) => (normalizeOwner(r.owner) ?? "").toLowerCase() === activeOwner.toLowerCase(),
-          );
-          setRows(mine);
+          setLoading(false);
+          return;
         }
-        setLoading(false);
+        const mine = ((data ?? []) as unknown as Row[]).filter(
+          (r) => (normalizeOwner(r.owner) ?? "").toLowerCase() === activeOwner.toLowerCase(),
+        );
+        setRows(mine);
+        loadEscalations(mine.map((r) => r.intercom_conversation_id)).finally(() => {
+          if (!cancelled) setLoading(false);
+        });
       });
 
     return () => {
@@ -270,23 +356,86 @@ export default function MyQueue() {
     };
   }, [activeOwner, reloadKey]);
 
-  const queue = useMemo(() => rows.map(classify), [rows]);
+  const queue = useMemo(
+    () => rows.map((r) => classify(r, escalations.get(r.intercom_conversation_id) ?? null)),
+    [rows, escalations],
+  );
+
+  const selected = useMemo(
+    () => queue.find((r) => r.id === selectedId) ?? null,
+    [queue, selectedId],
+  );
 
   const counts = useMemo(() => {
-    const c: Record<Bucket, number> = { action: 0, eng: 0, stale: 0, customer: 0, unknown: 0 };
+    const c: Record<Bucket, number> = {
+      action: 0,
+      dev_resolved: 0,
+      dev_wait: 0,
+      eng: 0,
+      stale: 0,
+      customer: 0,
+      unknown: 0,
+    };
     let gaps = 0;
+    let chase = 0;
     for (const r of queue) {
       c[r.bucket] += 1;
       if (r.gaps.length) gaps += 1;
+      if (r.bucket === "dev_wait" && r.chaseDue) chase += 1;
     }
-    return { ...c, gaps, total: queue.length };
+    return { ...c, gaps, chase, total: queue.length };
   }, [queue]);
+
+  /** Hub-owned write: chase stamp + next due date. Never touches Linear or Intercom. */
+  async function markFollowedUp(esc: DevEscalation, overrideMs?: number | null, dueDate?: Date) {
+    setSavingDev(true);
+    const now = new Date();
+    const due =
+      dueDate ??
+      new Date(now.getTime() + (overrideMs ?? defaultCadenceMs(esc)));
+    const { error: err } = await supabase
+      .from("dev_escalations")
+      .update({
+        dev_followed_up_at: now.toISOString(),
+        dev_followed_up_by: myEmail,
+        dev_next_followup_at: due.toISOString(),
+        dev_followup_source: overrideMs || dueDate ? "manual" : "auto",
+      })
+      .eq("id", esc.id);
+    setSavingDev(false);
+    if (err) {
+      toast.error(`Could not save the follow-up: ${err.message}`);
+      return;
+    }
+    toast.success(`Follow-up logged — next chase ${format(due, "d MMM HH:mm")}`);
+    await loadEscalations(rows.map((r) => r.intercom_conversation_id));
+  }
+
+  /** Human sign-off that a shipped/canceled fix has been handled with the customer. */
+  async function setFixAck(esc: DevEscalation, ack: boolean) {
+    setSavingDev(true);
+    const { error: err } = await supabase
+      .from("dev_escalations")
+      .update({
+        dev_fix_ack_at: ack ? new Date().toISOString() : null,
+        dev_fix_ack_by: ack ? myEmail : null,
+      })
+      .eq("id", esc.id);
+    setSavingDev(false);
+    if (err) {
+      toast.error(`Could not save the acknowledgement: ${err.message}`);
+      return;
+    }
+    toast.success(ack ? "Dev fix acknowledged" : "Acknowledgement cleared");
+    await loadEscalations(rows.map((r) => r.intercom_conversation_id));
+  }
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return queue
       .filter((r) => {
         if (bucketFilter === "gaps") return r.gaps.length > 0;
+        if (bucketFilter === "chase") return r.bucket === "dev_wait" && r.chaseDue;
         if (bucketFilter !== "all" && r.bucket !== bucketFilter) return false;
         return true;
       })
@@ -297,6 +446,7 @@ export default function MyQueue() {
           (r.contact_email ?? "").toLowerCase().includes(q) ||
           (r.contact_name ?? "").toLowerCase().includes(q) ||
           r.intercom_conversation_id.includes(q) ||
+          (r.esc?.linear_key ?? "").toLowerCase().includes(q) ||
           accountLabel(r.customer_key).toLowerCase().includes(q)
         );
       })
@@ -312,13 +462,69 @@ export default function MyQueue() {
     {
       key: "bucket",
       header: "State",
-      width: "w-[150px]",
+      width: "w-[170px]",
       sortValue: (r) => BUCKET_ORDER.indexOf(r.bucket),
       cell: (r) => (
-        <Badge variant="outline" className={`text-[10px] ${BUCKET_META[r.bucket].pill}`}>
-          {BUCKET_META[r.bucket].label}
-        </Badge>
+        <div className="space-y-1">
+          <Badge variant="outline" className={`text-[10px] ${BUCKET_META[r.bucket].pill}`}>
+            {BUCKET_META[r.bucket].label}
+          </Badge>
+          {r.bucket === "dev_wait" && r.chaseDue ? (
+            <div className="text-[10px] text-amber-600 dark:text-amber-400">Chase due</div>
+          ) : null}
+          {r.bucket === "dev_resolved" ? (
+            <div className="text-[10px] text-muted-foreground">Verify &amp; close out</div>
+          ) : null}
+        </div>
       ),
+    },
+    {
+      key: "dev",
+      header: "Dev escalation",
+      width: "w-[180px]",
+      cellClassName: "text-xs",
+      sortValue: (r) => r.esc?.linear_key ?? null,
+      cell: (r) => {
+        const e = r.esc;
+        if (!e || !e.linear_key) return <span className="text-muted-foreground">—</span>;
+        const url = linearUrl(e);
+        const due = nextFollowupMs(e);
+        return (
+          <div className="min-w-0 space-y-0.5">
+            <div className="flex items-center gap-1 truncate">
+              {url ? (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(ev) => ev.stopPropagation()}
+                  className="text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  {e.linear_key}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              ) : (
+                <span>{e.linear_key}</span>
+              )}
+              {e.linear_state ? (
+                <Badge variant="secondary" className="text-[10px]">
+                  {e.linear_state}
+                </Badge>
+              ) : null}
+            </div>
+            <div className="text-[10px] text-muted-foreground truncate">
+              {e.linear_assignee ?? "Unassigned"}
+              {isDevDone(e)
+                ? e.dev_fix_ack_at
+                  ? " · acknowledged"
+                  : " · needs sign-off"
+                : due
+                  ? ` · next chase ${format(new Date(due), "d MMM")}`
+                  : ""}
+            </div>
+          </div>
+        );
+      },
     },
     {
       key: "waiting",
@@ -415,7 +621,7 @@ export default function MyQueue() {
           </div>
         ) : null}
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
           <StatCard
             label="Open tickets"
             value={counts.total}
@@ -428,6 +634,7 @@ export default function MyQueue() {
               label={BUCKET_META[b].label}
               hint={BUCKET_META[b].blurb}
               value={counts[b]}
+              sub={b === "dev_wait" && counts.chase ? `${counts.chase} need a chase` : undefined}
               active={bucketFilter === b}
               onClick={() => setBucketFilter(b)}
             />
@@ -436,7 +643,7 @@ export default function MyQueue() {
 
         <div className="flex flex-wrap items-center gap-2">
           <Input
-            placeholder="Search subject, contact, customer or Intercom ID…"
+            placeholder="Search subject, contact, customer, Linear key or Intercom ID…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="max-w-[380px]"
@@ -448,10 +655,17 @@ export default function MyQueue() {
           >
             Missing fields ({counts.gaps})
           </Button>
+          <Button
+            variant={bucketFilter === "chase" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setBucketFilter(bucketFilter === "chase" ? "all" : "chase")}
+          >
+            Chase dev ({counts.chase})
+          </Button>
           {loading ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
           <span className="text-xs text-muted-foreground inline-flex items-center gap-1 ml-auto">
-            <Info className="h-3 w-3" /> Read-only view of v3 reporting data — nothing here changes a
-            reported number.
+            <Info className="h-3 w-3" /> Read-only over v3 reporting data — only Hub follow-up notes
+            are written, never Intercom or Linear.
           </span>
         </div>
 
@@ -466,12 +680,12 @@ export default function MyQueue() {
               : "No tickets match this filter."
           }
           rowClassName={(r) => BUCKET_META[r.bucket].row}
-          onRowClick={(r) => setSelected(r)}
+          onRowClick={(r) => setSelectedId(r.id)}
         />
 
         <IssueDetailSheet
           open={!!selected}
-          onOpenChange={(o) => !o && setSelected(null)}
+          onOpenChange={(o) => !o && setSelectedId(null)}
           title={selected ? displaySubject(selected) : ""}
           conversationId={selected?.intercom_conversation_id ?? null}
         >
@@ -507,6 +721,131 @@ export default function MyQueue() {
                 label="Missing fields"
                 value={selected.gaps.length ? selected.gaps.join(", ") : "None"}
               />
+              {selected.esc ? (
+                <div className="mt-4 rounded-md border p-3 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-medium">Engineering escalation</div>
+                    {selected.esc.linear_state ? (
+                      <Badge variant="secondary" className="text-[10px]">
+                        {selected.esc.linear_state}
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <div>
+                      {selected.esc.linear_key ? (
+                        linearUrl(selected.esc) ? (
+                          <a
+                            href={linearUrl(selected.esc) as string}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary hover:underline inline-flex items-center gap-1"
+                          >
+                            {selected.esc.linear_key} <ExternalLink className="h-3 w-3" />
+                          </a>
+                        ) : (
+                          selected.esc.linear_key
+                        )
+                      ) : (
+                        "No Linear issue linked"
+                      )}
+                      {selected.esc.linear_assignee ? ` · ${selected.esc.linear_assignee}` : " · Unassigned"}
+                    </div>
+                    <div>Cadence: {cadenceLabel(selected.esc)}</div>
+                    <div>
+                      Last chase:{" "}
+                      {selected.esc.dev_followed_up_at
+                        ? `${format(new Date(selected.esc.dev_followed_up_at), "d MMM yyyy HH:mm")}${
+                            selected.esc.dev_followed_up_by ? ` · ${selected.esc.dev_followed_up_by}` : ""
+                          }`
+                        : "Never"}
+                    </div>
+                    <div>
+                      Next chase due:{" "}
+                      {nextFollowupMs(selected.esc)
+                        ? format(new Date(nextFollowupMs(selected.esc) as number), "d MMM yyyy HH:mm")
+                        : "—"}
+                      {selected.chaseDue ? " · overdue" : ""}
+                    </div>
+                  </div>
+
+                  {canEdit ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        disabled={savingDev}
+                        onClick={() => markFollowedUp(selected.esc as DevEscalation)}
+                      >
+                        Mark followed up
+                      </Button>
+                      {CADENCE_CHIPS.map((c) => (
+                        <Button
+                          key={c.label}
+                          size="sm"
+                          variant="outline"
+                          disabled={savingDev}
+                          onClick={() => markFollowedUp(selected.esc as DevEscalation, c.ms)}
+                        >
+                          {c.label}
+                        </Button>
+                      ))}
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button size="sm" variant="outline" disabled={savingDev}>
+                            <CalendarIcon className="h-3.5 w-3.5 mr-1" /> Custom date
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            onSelect={(d) =>
+                              d && markFollowedUp(selected.esc as DevEscalation, null, d)
+                            }
+                            className="p-3 pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">
+                      Follow-up tracking is read-only for your role.
+                    </div>
+                  )}
+
+                  {isDevDone(selected.esc) ? (
+                    <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+                      <div className="text-xs text-muted-foreground">
+                        {selected.esc.dev_fix_ack_at
+                          ? `Fix acknowledged ${format(new Date(selected.esc.dev_fix_ack_at), "d MMM yyyy HH:mm")}${
+                              selected.esc.dev_fix_ack_by ? ` · ${selected.esc.dev_fix_ack_by}` : ""
+                            }`
+                          : "Engineering closed this issue — verify the fix and tell the customer."}
+                      </div>
+                      {canEdit ? (
+                        selected.esc.dev_fix_ack_at ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={savingDev}
+                            onClick={() => setFixAck(selected.esc as DevEscalation, false)}
+                          >
+                            Undo
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            disabled={savingDev}
+                            onClick={() => setFixAck(selected.esc as DevEscalation, true)}
+                          >
+                            <Check className="h-3.5 w-3.5 mr-1" /> Acknowledge dev fix
+                          </Button>
+                        )
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               <div className="pt-4">
                 <TicketFieldsPanel
                   conversationId={selected.intercom_conversation_id}
