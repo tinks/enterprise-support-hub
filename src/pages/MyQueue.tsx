@@ -13,8 +13,7 @@ import { format, formatDistanceToNowStrict } from "date-fns";
 import { toast } from "sonner";
 import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
 import { IssueDetailSheet, IssueStat } from "@/components/issues/IssueDetailSheet";
-import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
-import { PaxInvestigateControl } from "@/components/issues/PaxInvestigateControl";
+import { TicketDetailContent } from "@/components/issues/TicketDetailContent";
 import {
   idColumn,
   subjectColumn,
@@ -692,10 +691,21 @@ export default function MyQueue() {
           raw
         >
           {selected ? (
-            <div className="space-y-4">
-              {/* Status strip — why this ticket is where it is. */}
-              <div className="rounded-md border p-3 space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
+            <TicketDetailContent
+              conversationId={selected.intercom_conversation_id}
+              subjectRow={selected}
+              rawPayload={selected.raw_payload}
+              currentSeverity={selected.severity}
+              currentOwner={selected.owner}
+              currentProductArea={selected.productArea}
+              currentTicketType={selected.ticketType}
+              escalatedToEngineering={
+                (selected.custom_attributes?.["Escalated to Engineering"] as string | undefined) ?? null
+              }
+              blurb={BUCKET_META[selected.bucket].blurb}
+              onChanged={() => setReloadKey((k) => k + 1)}
+              badges={
+                <>
                   <Badge variant="outline" className={`text-[10px] ${BUCKET_META[selected.bucket].pill}`}>
                     {BUCKET_META[selected.bucket].label}
                   </Badge>
@@ -709,9 +719,10 @@ export default function MyQueue() {
                       Missing: {selected.gaps.join(", ")}
                     </Badge>
                   ) : null}
-                </div>
-                <p className="text-xs text-muted-foreground">{BUCKET_META[selected.bucket].blurb}</p>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-1">
+                </>
+              }
+              stats={
+                <>
                   <IssueStat label="Customer" value={accountLabel(selected.customer_key)} />
                   <IssueStat label="Contact" value={selected.contact_email} />
                   <IssueStat label="Plan" value={selected.plan_tier} />
@@ -739,10 +750,10 @@ export default function MyQueue() {
                         : "—"
                     }
                   />
-                </div>
-              </div>
-
-              {selected.esc ? (
+                </>
+              }
+              escalation={
+                selected.esc ? (
                 <div className="rounded-md border p-3 space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-sm font-medium">Engineering escalation</div>
@@ -865,27 +876,9 @@ export default function MyQueue() {
                     </div>
                   ) : null}
                 </div>
-              ) : null}
-
-              <div className="rounded-md border p-3">
-                <div className="text-sm font-medium mb-2">Subject &amp; classification</div>
-                <TicketFieldsPanel
-                  conversationId={selected.intercom_conversation_id}
-                  currentSeverity={selected.severity}
-                  currentOwner={selected.owner}
-                  currentProductArea={selected.productArea}
-                  currentTicketType={selected.ticketType}
-                  showSubject
-                  onSubjectSaved={() => setReloadKey((k) => k + 1)}
-                  onWritten={() => setReloadKey((k) => k + 1)}
-                />
-              </div>
-
-              <div className="rounded-md border p-3">
-                <div className="text-sm font-medium mb-2">Investigation</div>
-                <PaxInvestigateControl conversationId={selected.intercom_conversation_id} />
-              </div>
-            </div>
+                ) : null
+              }
+            />
           ) : null}
         </IssueDetailSheet>
       </div>
