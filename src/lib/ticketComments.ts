@@ -13,7 +13,7 @@
  */
 
 export type TicketComment = {
-  kind: "initial" | "latest";
+  kind: "initial" | "latest" | "note";
   author: string;
   authorType: string | null;
   /** Plain text, already HTML-stripped and whitespace-collapsed. */
