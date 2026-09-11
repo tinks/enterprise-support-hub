@@ -52,9 +52,8 @@ const ProjectKnowledge = () => {
     } else {
       // First load — seed from the static file
       try {
-        const res = await fetch("/.lovable/project-knowledge.md");
-        if (res.ok) {
-          const text = await res.text();
+        const text = await loadKnowledgeFile();
+        {
           await supabase
             .from("knowledge_documents")
             .update({ content: text } as any)
