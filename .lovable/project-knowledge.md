@@ -379,7 +379,7 @@ Stored in `bot_messages` table, editable from the Flow Diagram UI:
 ## 9. File Handling
 
 - **Max file size:** 50 MB (files exceeding this are silently skipped)
-- **Storage path:** `public-assets/slack-attachments/{threadTs}/{safeName}`
+- **Storage path:** `customer-attachments/slack-attachments/{threadTs}/{safeName}` — a PRIVATE bucket. Links handed out point at the `attachment` edge function, which mints a 7-day signed URL with the service role (`supabase/functions/_shared/attachments.ts`). The old public `public-assets/slack-attachments/` path is retired.
 - File names are sanitized: only `a-zA-Z0-9._-` characters kept
 - Files are downloaded from Slack (using bot token auth) and re-hosted to Supabase Storage for permanence
 - Thread files are collected from ALL messages in a thread on ticket creation
