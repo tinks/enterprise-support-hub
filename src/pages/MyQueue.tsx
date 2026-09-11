@@ -433,6 +433,30 @@ export default function MyQueue() {
     await loadEscalations(rows.map((r) => r.intercom_conversation_id));
   }
 
+  /**
+   * Hub-only record that dev handed over a workaround. Stops the chase clock and
+   * takes the ticket out of the dev buckets; nothing is sent to Linear or Intercom.
+   */
+  async function setWorkaround(esc: DevEscalation, on: boolean, note?: string) {
+    setSavingDev(true);
+    const { error: err } = await supabase
+      .from("dev_escalations")
+      .update({
+        dev_workaround_at: on ? new Date().toISOString() : null,
+        dev_workaround_by: on ? myEmail : null,
+        dev_workaround_note: on ? (note?.trim() || null) : null,
+      })
+      .eq("id", esc.id);
+    setSavingDev(false);
+    if (err) {
+      toast.error(`Could not save the workaround: ${err.message}`);
+      return;
+    }
+    setWorkaroundNote("");
+    toast.success(on ? "Workaround recorded — chasing paused" : "Workaround cleared");
+    await loadEscalations(rows.map((r) => r.intercom_conversation_id));
+  }
+
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return queue
