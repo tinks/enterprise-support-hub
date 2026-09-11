@@ -74,7 +74,7 @@ type Row = {
   raw_payload: Record<string, any> | null;
 };
 
-type Bucket = "action" | "eng" | "customer" | "stale" | "unknown";
+type Bucket = "action" | "dev_resolved" | "dev_wait" | "eng" | "customer" | "stale" | "unknown";
 
 const BUCKET_META: Record<Bucket, { label: string; blurb: string; pill: string; row?: string }> = {
   action: {
@@ -82,6 +82,17 @@ const BUCKET_META: Record<Bucket, { label: string; blurb: string; pill: string; 
     blurb: "The customer spoke last — the ball is with us.",
     pill: "bg-destructive/15 text-destructive border-destructive/40",
     row: "bg-destructive/5 hover:bg-destructive/10",
+  },
+  dev_resolved: {
+    label: "Dev resolved",
+    blurb: "Engineering closed the Linear issue — verify the fix, tell the customer, then acknowledge.",
+    pill: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/40",
+    row: "bg-emerald-500/5 hover:bg-emerald-500/10",
+  },
+  dev_wait: {
+    label: "Waiting on dev",
+    blurb: "A Linear issue is in flight. Chase engineering when the follow-up is due.",
+    pill: "bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-500/40",
   },
   eng: {
     label: "Waiting on engineering",
@@ -106,7 +117,15 @@ const BUCKET_META: Record<Bucket, { label: string; blurb: string; pill: string; 
   },
 };
 
-const BUCKET_ORDER: Bucket[] = ["action", "eng", "stale", "customer", "unknown"];
+const BUCKET_ORDER: Bucket[] = [
+  "action",
+  "dev_resolved",
+  "dev_wait",
+  "eng",
+  "stale",
+  "customer",
+  "unknown",
+];
 
 const STALE_MS = 3 * 86_400_000;
 const ANY = "__any__";
@@ -135,9 +154,13 @@ type QueueRow = Row & {
   productArea: string | null;
   ticketType: string | null;
   gaps: string[];
+  /** Live dev escalation row, if this conversation has one. */
+  esc: DevEscalation | null;
+  /** True when the engineering chase for this escalation is overdue. */
+  chaseDue: boolean;
 };
 
-function classify(row: Row): QueueRow {
+function classify(row: Row, esc: DevEscalation | null): QueueRow {
   const lastContactMs = statMs(row, "last_contact_reply_at");
   const lastAdminMs = statMs(row, "last_admin_reply_at");
   const hasStats = !!row.raw_payload?.statistics;
@@ -146,15 +169,24 @@ function classify(row: Row): QueueRow {
   const ballWithUs =
     lastContactMs !== null && (lastAdminMs === null || lastContactMs > lastAdminMs);
 
+  // A dev escalation only steers the bucket while it is actually live: an
+  // acknowledged fix hands the ticket straight back to the conversational rules.
+  const devLive = !!esc && (!isDevDone(esc) || needsFixAck(esc));
+
   let bucket: Bucket;
   let waitingSinceMs: number | null;
 
-  if (!hasStats) {
-    bucket = "unknown";
-    waitingSinceMs = row.intercom_updated_at ? new Date(row.intercom_updated_at).getTime() : null;
-  } else if (ballWithUs) {
+  if (ballWithUs) {
     bucket = "action";
     waitingSinceMs = lastContactMs;
+  } else if (devLive && esc) {
+    bucket = isDevDone(esc) ? "dev_resolved" : "dev_wait";
+    waitingSinceMs = new Date(
+      esc.dev_followed_up_at ?? esc.created_at ?? row.intercom_updated_at ?? Date.now(),
+    ).getTime();
+  } else if (!hasStats) {
+    bucket = "unknown";
+    waitingSinceMs = row.intercom_updated_at ? new Date(row.intercom_updated_at).getTime() : null;
   } else if (engOpen) {
     bucket = "eng";
     waitingSinceMs = new Date(row.eng_wait_start_at as string).getTime();
@@ -183,6 +215,8 @@ function classify(row: Row): QueueRow {
     productArea,
     ticketType,
     gaps,
+    esc,
+    chaseDue: !!esc && needsChase(esc),
   };
 }
 
