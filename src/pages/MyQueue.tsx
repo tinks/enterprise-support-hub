@@ -12,7 +12,7 @@ import { Loader2, RefreshCw, Info, ExternalLink, CalendarIcon, Check } from "luc
 import { format, formatDistanceToNowStrict } from "date-fns";
 import { toast } from "sonner";
 import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
-import { IssueDetailSheet, IssueField } from "@/components/issues/IssueDetailSheet";
+import { IssueDetailSheet, IssueStat } from "@/components/issues/IssueDetailSheet";
 import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
 import { PaxInvestigateControl } from "@/components/issues/PaxInvestigateControl";
 import {
