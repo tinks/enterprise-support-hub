@@ -65,7 +65,7 @@ export function TicketDetailContent({
   onChanged,
 }: TicketDetailContentProps) {
   const [editing, setEditing] = useState(false);
-  const { initial, latest } = useMemo(() => ticketComments(rawPayload), [rawPayload]);
+  const { initial, latest, note } = useMemo(() => ticketComments(rawPayload), [rawPayload]);
   const source = subjectSource(subjectRow);
   const original = originalSubject(subjectRow);
 
