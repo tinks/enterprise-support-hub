@@ -498,6 +498,25 @@ export const ACTION_SIGNALS: ActionSignal[] = [
 
   // ---- Review items -----------------------------------------------------
   {
+    id: "doc_drift",
+    label: "Knowledge doc drift",
+    family: "review",
+    route: "/knowledge",
+    routeLabel: "Knowledge",
+    meaning:
+      "The project knowledge file in the app has changes that were never staged for review — neither the approved copy nor a pending edit matches it. Use Sync from app on the Knowledge page to stage the diff.",
+    load: async () => {
+      const d = await loadKnowledgeDrift();
+      if (!d.drifted) return { count: 0 };
+      const sign = d.delta >= 0 ? "+" : "";
+      return {
+        count: 1,
+        oldestAt: null,
+        detail: `${sign}${d.delta.toLocaleString()} chars vs the approved copy${d.hasPending ? " (a different edit is already pending)" : ""}`,
+      };
+    },
+  },
+  {
     id: "doc_approvals",
     label: "Knowledge doc approvals",
     family: "review",
@@ -514,6 +533,7 @@ export const ACTION_SIGNALS: ActionSignal[] = [
       return { count: rows.length, oldestAt: minIso(rows.map((r) => r.pending_at)) };
     },
   },
+
   {
     id: "relay_identity_gaps",
     label: "Slack relay identity gaps",
