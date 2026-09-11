@@ -820,7 +820,12 @@ export default function MyQueue() {
                       )}
                       {selected.esc.linear_assignee ? ` · ${selected.esc.linear_assignee}` : " · Unassigned"}
                     </div>
-                    <div>Cadence: {cadenceLabel(selected.esc)}</div>
+                    <div>
+                      Cadence:{" "}
+                      {hasWorkaround(selected.esc)
+                        ? "paused — workaround provided"
+                        : cadenceLabel(selected.esc)}
+                    </div>
                     <div>
                       Last chase:{" "}
                       {selected.esc.dev_followed_up_at
