@@ -767,7 +767,9 @@ export default function MyQueue() {
               ? `No open tickets are owned by ${activeOwner || "this teammate"}.`
               : "No tickets match this filter."
           }
-          rowClassName={(r) => BUCKET_META[r.bucket].row}
+          rowClassName={(r) =>
+            `${BUCKET_META[r.bucket].row ?? ""} ${r.snoozed ? "opacity-50" : ""}`.trim() || undefined
+          }
           onRowClick={(r) => setSelectedId(r.id)}
         />
 
