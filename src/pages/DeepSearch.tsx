@@ -285,6 +285,8 @@ export default function DeepSearch() {
             );
           })}
         </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );
