@@ -506,6 +506,7 @@ export default function MyQueue() {
       .filter((r) => {
         if (bucketFilter === "gaps") return r.gaps.length > 0;
         if (bucketFilter === "chase") return r.bucket === "dev_wait" && r.chaseDue;
+        if (bucketFilter === "snoozed") return r.snoozed;
         if (bucketFilter !== "all" && r.bucket !== bucketFilter) return false;
         return true;
       })
@@ -521,6 +522,8 @@ export default function MyQueue() {
         );
       })
       .sort((a, b) => {
+        // Snoozed work stays in its bucket but always sinks below live work.
+        if (a.snoozed !== b.snoozed) return a.snoozed ? 1 : -1;
         const ai = BUCKET_ORDER.indexOf(a.bucket);
         const bi = BUCKET_ORDER.indexOf(b.bucket);
         if (ai !== bi) return ai - bi;
