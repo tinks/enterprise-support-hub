@@ -432,6 +432,7 @@ export default function MyQueue() {
     return queue
       .filter((r) => {
         if (bucketFilter === "gaps") return r.gaps.length > 0;
+        if (bucketFilter === "chase") return r.bucket === "dev_wait" && r.chaseDue;
         if (bucketFilter !== "all" && r.bucket !== bucketFilter) return false;
         return true;
       })
@@ -442,6 +443,7 @@ export default function MyQueue() {
           (r.contact_email ?? "").toLowerCase().includes(q) ||
           (r.contact_name ?? "").toLowerCase().includes(q) ||
           r.intercom_conversation_id.includes(q) ||
+          (r.esc?.linear_key ?? "").toLowerCase().includes(q) ||
           accountLabel(r.customer_key).toLowerCase().includes(q)
         );
       })
