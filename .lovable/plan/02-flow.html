@@ -1,0 +1,44 @@
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" style="font-family: var(--font-sans)">
+  <style>
+    .lbl { fill: var(--fg-primary); font-size: 14px; font-weight: 480; }
+    .sm  { fill: var(--fg-secondary); font-size: 12px; }
+    .bx  { fill: none; stroke: var(--fg-secondary); stroke-width: 1; rx: 8; }
+    .zn  { fill: none; stroke: var(--border-translucent); stroke-width: 1; stroke-dasharray: 4 3; rx: 8; }
+    .wire { stroke: var(--fg-secondary); stroke-width: 1; fill: none; }
+    .halo { paint-order: stroke; stroke: var(--bg-primary); stroke-width: 4px; }
+  </style>
+  <defs>
+    <marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L8 4 L0 8" fill="none" stroke="var(--fg-secondary)" stroke-width="1"/>
+    </marker>
+  </defs>
+
+  <rect class="bx" x="8" y="24" width="150" height="56"/>
+  <text class="lbl" x="83" y="48" text-anchor="middle">Live escalation</text>
+  <text class="sm"  x="83" y="66" text-anchor="middle">CLO-1074 · Backlog</text>
+
+  <path class="wire" d="M158 52 H236" marker-end="url(#ar)"/>
+  <text class="sm halo" x="197" y="44" text-anchor="middle">not done</text>
+
+  <rect class="bx" x="240" y="24" width="170" height="56"/>
+  <text class="lbl" x="325" y="48" text-anchor="middle">Waiting on dev</text>
+  <text class="sm"  x="325" y="66" text-anchor="middle">chase every 24h (pre-ack)</text>
+
+  <path class="wire" d="M325 80 V132" marker-end="url(#ar)"/>
+  <text class="sm halo" x="404" y="110" text-anchor="middle">mark workaround provided</text>
+
+  <rect x="240" y="136" width="170" height="56" rx="8" fill="var(--bg-accent-translucent)" stroke="var(--fg-accent)" stroke-width="1"/>
+  <text class="lbl" x="325" y="160" text-anchor="middle" style="fill: var(--fg-accent)">Workaround provided</text>
+  <text class="sm"  x="325" y="178" text-anchor="middle" style="fill: var(--fg-accent)">chase clock off</text>
+
+  <path class="wire" d="M410 164 H492" marker-end="url(#ar)"/>
+
+  <rect class="bx" x="496" y="136" width="136" height="56"/>
+  <text class="lbl" x="564" y="160" text-anchor="middle">Normal rules</text>
+  <text class="sm"  x="564" y="178" text-anchor="middle">follow-up / customer</text>
+
+  <rect class="zn" x="8" y="216" width="624" height="72"/>
+  <text class="sm" x="20" y="236">card stays the same</text>
+  <text class="sm" x="20" y="258">Linear key, title, state and assignee keep rendering from the escalation row —</text>
+  <text class="sm" x="20" y="276">the bucket only decides where the ticket is counted, plus a workaround note and who set it.</text>
+</svg>
