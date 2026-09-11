@@ -721,6 +721,131 @@ export default function MyQueue() {
                 label="Missing fields"
                 value={selected.gaps.length ? selected.gaps.join(", ") : "None"}
               />
+              {selected.esc ? (
+                <div className="mt-4 rounded-md border p-3 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-medium">Engineering escalation</div>
+                    {selected.esc.linear_state ? (
+                      <Badge variant="secondary" className="text-[10px]">
+                        {selected.esc.linear_state}
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <div>
+                      {selected.esc.linear_key ? (
+                        linearUrl(selected.esc) ? (
+                          <a
+                            href={linearUrl(selected.esc) as string}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary hover:underline inline-flex items-center gap-1"
+                          >
+                            {selected.esc.linear_key} <ExternalLink className="h-3 w-3" />
+                          </a>
+                        ) : (
+                          selected.esc.linear_key
+                        )
+                      ) : (
+                        "No Linear issue linked"
+                      )}
+                      {selected.esc.linear_assignee ? ` · ${selected.esc.linear_assignee}` : " · Unassigned"}
+                    </div>
+                    <div>Cadence: {cadenceLabel(selected.esc)}</div>
+                    <div>
+                      Last chase:{" "}
+                      {selected.esc.dev_followed_up_at
+                        ? `${format(new Date(selected.esc.dev_followed_up_at), "d MMM yyyy HH:mm")}${
+                            selected.esc.dev_followed_up_by ? ` · ${selected.esc.dev_followed_up_by}` : ""
+                          }`
+                        : "Never"}
+                    </div>
+                    <div>
+                      Next chase due:{" "}
+                      {nextFollowupMs(selected.esc)
+                        ? format(new Date(nextFollowupMs(selected.esc) as number), "d MMM yyyy HH:mm")
+                        : "—"}
+                      {selected.chaseDue ? " · overdue" : ""}
+                    </div>
+                  </div>
+
+                  {canEdit ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        size="sm"
+                        disabled={savingDev}
+                        onClick={() => markFollowedUp(selected.esc as DevEscalation)}
+                      >
+                        Mark followed up
+                      </Button>
+                      {CADENCE_CHIPS.map((c) => (
+                        <Button
+                          key={c.label}
+                          size="sm"
+                          variant="outline"
+                          disabled={savingDev}
+                          onClick={() => markFollowedUp(selected.esc as DevEscalation, c.ms)}
+                        >
+                          {c.label}
+                        </Button>
+                      ))}
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button size="sm" variant="outline" disabled={savingDev}>
+                            <CalendarIcon className="h-3.5 w-3.5 mr-1" /> Custom date
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            onSelect={(d) =>
+                              d && markFollowedUp(selected.esc as DevEscalation, null, d)
+                            }
+                            className="p-3 pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">
+                      Follow-up tracking is read-only for your role.
+                    </div>
+                  )}
+
+                  {isDevDone(selected.esc) ? (
+                    <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+                      <div className="text-xs text-muted-foreground">
+                        {selected.esc.dev_fix_ack_at
+                          ? `Fix acknowledged ${format(new Date(selected.esc.dev_fix_ack_at), "d MMM yyyy HH:mm")}${
+                              selected.esc.dev_fix_ack_by ? ` · ${selected.esc.dev_fix_ack_by}` : ""
+                            }`
+                          : "Engineering closed this issue — verify the fix and tell the customer."}
+                      </div>
+                      {canEdit ? (
+                        selected.esc.dev_fix_ack_at ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={savingDev}
+                            onClick={() => setFixAck(selected.esc as DevEscalation, false)}
+                          >
+                            Undo
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            disabled={savingDev}
+                            onClick={() => setFixAck(selected.esc as DevEscalation, true)}
+                          >
+                            <Check className="h-3.5 w-3.5 mr-1" /> Acknowledge dev fix
+                          </Button>
+                        )
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               <div className="pt-4">
                 <TicketFieldsPanel
                   conversationId={selected.intercom_conversation_id}
