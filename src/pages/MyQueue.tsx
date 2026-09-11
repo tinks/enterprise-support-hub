@@ -746,6 +746,11 @@ export default function MyQueue() {
                       Chase due
                     </Badge>
                   ) : null}
+                  {selected.esc && hasWorkaround(selected.esc) ? (
+                    <Badge variant="outline" className="text-[10px] bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/40">
+                      Workaround provided
+                    </Badge>
+                  ) : null}
                   {selected.gaps.length ? (
                     <Badge variant="outline" className="text-[10px] bg-destructive/10 text-destructive border-destructive/40">
                       Missing: {selected.gaps.join(", ")}
