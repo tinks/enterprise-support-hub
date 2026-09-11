@@ -72,6 +72,10 @@ type Row = {
   intercom_updated_at: string | null;
   eng_wait_start_at: string | null;
   eng_wait_end_at: string | null;
+  snoozed_until: string | null;
+  snoozed_at: string | null;
+  snoozed_by: string | null;
+  snooze_reason: string | null;
   raw_payload: Record<string, any> | null;
 };
 
@@ -159,6 +163,9 @@ type QueueRow = Row & {
   esc: DevEscalation | null;
   /** True when the engineering chase for this escalation is overdue. */
   chaseDue: boolean;
+  /** Hub-only snooze: still in its natural bucket, just parked until this date. */
+  snoozed: boolean;
+  snoozedUntilMs: number | null;
 };
 
 function classify(row: Row, esc: DevEscalation | null): QueueRow {
@@ -209,6 +216,8 @@ function classify(row: Row, esc: DevEscalation | null): QueueRow {
   if (!productArea) gaps.push("Affected product area");
   if (!ticketType) gaps.push("Ticket type");
 
+  const snoozedUntilMs = row.snoozed_until ? new Date(row.snoozed_until).getTime() : null;
+
   return {
     ...row,
     bucket,
@@ -221,6 +230,8 @@ function classify(row: Row, esc: DevEscalation | null): QueueRow {
     gaps,
     esc,
     chaseDue: !!esc && needsChase(esc),
+    snoozed: snoozedUntilMs != null && snoozedUntilMs > Date.now(),
+    snoozedUntilMs,
   };
 }
 
@@ -269,10 +280,12 @@ export default function MyQueue() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [bucketFilter, setBucketFilter] = useState<Bucket | "all" | "gaps" | "chase">("all");
+  const [bucketFilter, setBucketFilter] = useState<Bucket | "all" | "gaps" | "chase" | "snoozed">("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [savingDev, setSavingDev] = useState(false);
   const [workaroundNote, setWorkaroundNote] = useState("");
+  const [snoozeReason, setSnoozeReason] = useState("");
+  const [savingSnooze, setSavingSnooze] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
   // Default owner: the signed-in teammate, matched on the local part of the
@@ -333,7 +346,7 @@ export default function MyQueue() {
     supabase
       .from("intercom_tickets_v3")
       .select(
-        `id,intercom_conversation_id,${SUBJECT_SELECT},contact_name,contact_email,owner,customer_key,state,plan_tier,custom_attributes,intercom_created_at,intercom_updated_at,eng_wait_start_at,eng_wait_end_at,raw_payload`,
+        `id,intercom_conversation_id,${SUBJECT_SELECT},contact_name,contact_email,owner,customer_key,state,plan_tier,custom_attributes,intercom_created_at,intercom_updated_at,eng_wait_start_at,eng_wait_end_at,snoozed_until,snoozed_at,snoozed_by,snooze_reason,raw_payload`,
       )
       .in("lifecycle_status", ["open", "reopened_after_finalize"])
       .or("is_test_ticket.is.null,is_test_ticket.eq.false")
@@ -383,13 +396,41 @@ export default function MyQueue() {
     };
     let gaps = 0;
     let chase = 0;
+    let snoozed = 0;
     for (const r of queue) {
       c[r.bucket] += 1;
       if (r.gaps.length) gaps += 1;
       if (r.bucket === "dev_wait" && r.chaseDue) chase += 1;
+      if (r.snoozed) snoozed += 1;
     }
-    return { ...c, gaps, chase, total: queue.length };
+    return { ...c, gaps, chase, snoozed, total: queue.length };
   }, [queue]);
+
+  /**
+   * Hub-only snooze. Parks a ticket until a date without changing its bucket,
+   * its SLA clocks, or anything in Intercom — the row simply sorts to the
+   * bottom and dims until it wakes.
+   */
+  async function setSnooze(row: QueueRow, until: Date | null, reason?: string) {
+    setSavingSnooze(true);
+    const { error: err } = await supabase
+      .from("intercom_tickets_v3")
+      .update({
+        snoozed_until: until ? until.toISOString() : null,
+        snoozed_at: until ? new Date().toISOString() : null,
+        snoozed_by: until ? myEmail : null,
+        snooze_reason: until ? (reason?.trim() || null) : null,
+      })
+      .eq("id", row.id);
+    setSavingSnooze(false);
+    if (err) {
+      toast.error(`Could not save the snooze: ${err.message}`);
+      return;
+    }
+    setSnoozeReason("");
+    toast.success(until ? `Snoozed until ${format(until, "d MMM yyyy")}` : "Snooze cleared");
+    setReloadKey((k) => k + 1);
+  }
 
   /** Hub-owned write: chase stamp + next due date. Never touches Linear or Intercom. */
   async function markFollowedUp(esc: DevEscalation, overrideMs?: number | null, dueDate?: Date) {
@@ -465,6 +506,7 @@ export default function MyQueue() {
       .filter((r) => {
         if (bucketFilter === "gaps") return r.gaps.length > 0;
         if (bucketFilter === "chase") return r.bucket === "dev_wait" && r.chaseDue;
+        if (bucketFilter === "snoozed") return r.snoozed;
         if (bucketFilter !== "all" && r.bucket !== bucketFilter) return false;
         return true;
       })
@@ -480,6 +522,8 @@ export default function MyQueue() {
         );
       })
       .sort((a, b) => {
+        // Snoozed work stays in its bucket but always sinks below live work.
+        if (a.snoozed !== b.snoozed) return a.snoozed ? 1 : -1;
         const ai = BUCKET_ORDER.indexOf(a.bucket);
         const bi = BUCKET_ORDER.indexOf(b.bucket);
         if (ai !== bi) return ai - bi;
@@ -506,6 +550,11 @@ export default function MyQueue() {
           ) : null}
           {r.esc && hasWorkaround(r.esc) && !isDevDone(r.esc) ? (
             <div className="text-[10px] text-sky-600 dark:text-sky-400">Workaround provided</div>
+          ) : null}
+          {r.snoozed ? (
+            <div className="text-[10px] text-muted-foreground">
+              Snoozed until {format(new Date(r.snoozedUntilMs as number), "d MMM")}
+            </div>
           ) : null}
         </div>
       ),
@@ -653,7 +702,7 @@ export default function MyQueue() {
           </div>
         ) : null}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-3">
           <StatCard
             label="Open tickets"
             value={counts.total}
@@ -671,6 +720,13 @@ export default function MyQueue() {
               onClick={() => setBucketFilter(b)}
             />
           ))}
+          <StatCard
+            label="Snoozed"
+            hint="Parked until a date — still in their normal bucket, dimmed and sorted last."
+            value={counts.snoozed}
+            active={bucketFilter === "snoozed"}
+            onClick={() => setBucketFilter(bucketFilter === "snoozed" ? "all" : "snoozed")}
+          />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -711,7 +767,9 @@ export default function MyQueue() {
               ? `No open tickets are owned by ${activeOwner || "this teammate"}.`
               : "No tickets match this filter."
           }
-          rowClassName={(r) => BUCKET_META[r.bucket].row}
+          rowClassName={(r) =>
+            `${BUCKET_META[r.bucket].row ?? ""} ${r.snoozed ? "opacity-50" : ""}`.trim() || undefined
+          }
           onRowClick={(r) => setSelectedId(r.id)}
         />
 
@@ -752,6 +810,11 @@ export default function MyQueue() {
                       Workaround provided
                     </Badge>
                   ) : null}
+                  {selected.snoozed ? (
+                    <Badge variant="outline" className="text-[10px] bg-muted text-muted-foreground border-border">
+                      Snoozed until {format(new Date(selected.snoozedUntilMs as number), "d MMM yyyy")}
+                    </Badge>
+                  ) : null}
                   {selected.gaps.length ? (
                     <Badge variant="outline" className="text-[10px] bg-destructive/10 text-destructive border-destructive/40">
                       Missing: {selected.gaps.join(", ")}
@@ -789,6 +852,85 @@ export default function MyQueue() {
                     }
                   />
                 </>
+              }
+              extra={
+                /* Hub-only snooze. No Intercom write, no SLA effect. */
+                <div className="rounded-md border p-3 space-y-2">
+                  <div className="text-sm font-medium">Snooze</div>
+                  {selected.snoozed ? (
+                    <>
+                      <div className="text-xs text-muted-foreground">
+                        Snoozed until{" "}
+                        {format(new Date(selected.snoozedUntilMs as number), "d MMM yyyy HH:mm")}
+                        {selected.snoozed_by ? ` · ${selected.snoozed_by}` : ""}
+                        {selected.snoozed_at
+                          ? ` · set ${format(new Date(selected.snoozed_at), "d MMM yyyy")}`
+                          : ""}
+                        {" — it stays in its bucket, dimmed and sorted last, until it wakes."}
+                      </div>
+                      {selected.snooze_reason ? (
+                        <div className="text-xs whitespace-pre-wrap">{selected.snooze_reason}</div>
+                      ) : null}
+                      {canEdit ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={savingSnooze}
+                          onClick={() => setSnooze(selected, null)}
+                        >
+                          Wake now
+                        </Button>
+                      ) : null}
+                    </>
+                  ) : canEdit ? (
+                    <>
+                      <div className="text-xs text-muted-foreground">
+                        Nothing to do here until a date? Park it — it stays visible but drops out of
+                        the daily triage until then.
+                      </div>
+                      <Textarea
+                        rows={2}
+                        placeholder="Why it is parked (optional)"
+                        value={snoozeReason}
+                        onChange={(e) => setSnoozeReason(e.target.value)}
+                        className="text-xs"
+                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        {CADENCE_CHIPS.map((c) => (
+                          <Button
+                            key={c.label}
+                            size="sm"
+                            variant="outline"
+                            disabled={savingSnooze}
+                            onClick={() =>
+                              setSnooze(selected, new Date(Date.now() + c.ms), snoozeReason)
+                            }
+                          >
+                            {c.label}
+                          </Button>
+                        ))}
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button size="sm" variant="outline" disabled={savingSnooze}>
+                              <CalendarIcon className="h-3.5 w-3.5 mr-1" /> Custom date
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <Calendar
+                              mode="single"
+                              onSelect={(d) => d && setSnooze(selected, d, snoozeReason)}
+                              className="p-3 pointer-events-auto"
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">
+                      Snoozing is read-only for your role.
+                    </div>
+                  )}
+                </div>
               }
               escalation={
                 selected.esc ? (

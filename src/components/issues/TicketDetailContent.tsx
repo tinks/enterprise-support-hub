@@ -29,6 +29,8 @@ export type TicketDetailContentProps = {
   stats?: ReactNode;
   /** Engineering escalation card. Omitted entirely when the ticket has none. */
   escalation?: ReactNode;
+  /** Extra surface-owned card rendered under the escalation (e.g. snooze). */
+  extra?: ReactNode;
   /** Persisted Intercom payload; drives the message cards. */
   rawPayload?: Record<string, any> | null;
   currentSeverity?: string | null;
@@ -56,6 +58,7 @@ export function TicketDetailContent({
   blurb,
   stats,
   escalation,
+  extra,
   rawPayload,
   currentSeverity = null,
   currentOwner = null,
@@ -65,7 +68,7 @@ export function TicketDetailContent({
   onChanged,
 }: TicketDetailContentProps) {
   const [editing, setEditing] = useState(false);
-  const { initial, latest } = useMemo(() => ticketComments(rawPayload), [rawPayload]);
+  const { initial, latest, note } = useMemo(() => ticketComments(rawPayload), [rawPayload]);
   const source = subjectSource(subjectRow);
   const original = originalSubject(subjectRow);
 
@@ -127,12 +130,16 @@ export function TicketDetailContent({
       ) : null}
 
       {escalation}
+      {extra}
 
-      {initial || latest ? (
+      {initial || latest || note ? (
         <div className="space-y-3">
           {initial ? <TicketCommentCard comment={initial} label="Initial message" /> : null}
           {latest && latest.text !== initial?.text ? (
             <TicketCommentCard comment={latest} label="Latest reply" />
+          ) : null}
+          {note ? (
+            <TicketCommentCard comment={note} label="Latest internal note" tone="note" />
           ) : null}
         </div>
       ) : (

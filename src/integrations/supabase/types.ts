@@ -1284,6 +1284,10 @@ export type Database = {
           silent_update_count: number
           sla_clock_start_at: string | null
           slack_channel_id_detected: string | null
+          snooze_reason: string | null
+          snoozed_at: string | null
+          snoozed_by: string | null
+          snoozed_until: string | null
           state: string | null
           subject: string | null
           subject_ai: string | null
@@ -1376,6 +1380,10 @@ export type Database = {
           silent_update_count?: number
           sla_clock_start_at?: string | null
           slack_channel_id_detected?: string | null
+          snooze_reason?: string | null
+          snoozed_at?: string | null
+          snoozed_by?: string | null
+          snoozed_until?: string | null
           state?: string | null
           subject?: string | null
           subject_ai?: string | null
@@ -1468,6 +1476,10 @@ export type Database = {
           silent_update_count?: number
           sla_clock_start_at?: string | null
           slack_channel_id_detected?: string | null
+          snooze_reason?: string | null
+          snoozed_at?: string | null
+          snoozed_by?: string | null
+          snoozed_until?: string | null
           state?: string | null
           subject?: string | null
           subject_ai?: string | null
