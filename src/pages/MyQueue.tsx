@@ -216,6 +216,8 @@ function classify(row: Row, esc: DevEscalation | null): QueueRow {
   if (!productArea) gaps.push("Affected product area");
   if (!ticketType) gaps.push("Ticket type");
 
+  const snoozedUntilMs = row.snoozed_until ? new Date(row.snoozed_until).getTime() : null;
+
   return {
     ...row,
     bucket,
@@ -228,6 +230,8 @@ function classify(row: Row, esc: DevEscalation | null): QueueRow {
     gaps,
     esc,
     chaseDue: !!esc && needsChase(esc),
+    snoozed: snoozedUntilMs != null && snoozedUntilMs > Date.now(),
+    snoozedUntilMs,
   };
 }
 
