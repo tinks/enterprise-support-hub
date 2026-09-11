@@ -146,21 +146,13 @@ const ProjectKnowledge = () => {
   const handleSync = useCallback(async () => {
     setSyncing(true);
 
-    // Read the doc shipped with the running app in the browser (same origin,
-    // same session) and hand the text to the function, so it never has to
-    // fetch a possibly auth-walled URL itself.
+    // Read the doc bundled with the running app (no network, so it works in
+    // dev, preview and published) and hand the text to the function.
     let markdown = "";
     try {
-      const res = await fetch("/.lovable/project-knowledge.md", {
-        cache: "no-cache",
-      });
-      const text = res.ok ? await res.text() : "";
-      const looksLikeHtml = /^\s*<!doctype html|<html[\s>]/i.test(
-        text.slice(0, 200)
-      );
-      if (!looksLikeHtml && text.length >= 100) markdown = text;
+      markdown = await loadKnowledgeFile();
     } catch {
-      /* fall through to the function's own fetch */
+      /* handled below */
     }
 
     if (!markdown) {
