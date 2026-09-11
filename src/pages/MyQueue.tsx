@@ -702,7 +702,7 @@ export default function MyQueue() {
           </div>
         ) : null}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-3">
           <StatCard
             label="Open tickets"
             value={counts.total}
@@ -720,6 +720,13 @@ export default function MyQueue() {
               onClick={() => setBucketFilter(b)}
             />
           ))}
+          <StatCard
+            label="Snoozed"
+            hint="Parked until a date — still in their normal bucket, dimmed and sorted last."
+            value={counts.snoozed}
+            active={bucketFilter === "snoozed"}
+            onClick={() => setBucketFilter(bucketFilter === "snoozed" ? "all" : "snoozed")}
+          />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
