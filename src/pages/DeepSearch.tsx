@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, RefreshCw, Search as SearchIcon, ExternalLink } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import TopicDeepDive from "@/pages/search/TopicDeepDive";
 
 type Hit = {
   kind: string;
@@ -165,6 +167,17 @@ export default function DeepSearch() {
           </div>
         </div>
 
+        <Tabs defaultValue="search" className="space-y-6">
+          <TabsList>
+            <TabsTrigger value="search">Search</TabsTrigger>
+            <TabsTrigger value="topic">Topic deep dive</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="topic">
+            <TopicDeepDive />
+          </TabsContent>
+
+          <TabsContent value="search" className="space-y-6">
         <form onSubmit={submit} className="flex gap-2">
           <div className="relative flex-1">
             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -272,6 +285,8 @@ export default function DeepSearch() {
             );
           })}
         </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );
