@@ -13,8 +13,7 @@ import { format, formatDistanceToNowStrict } from "date-fns";
 import { toast } from "sonner";
 import { IssueTable, type IssueColumn } from "@/components/issues/IssueTable";
 import { IssueDetailSheet, IssueStat } from "@/components/issues/IssueDetailSheet";
-import { TicketFieldsPanel } from "@/components/issues/TicketFieldsPanel";
-import { PaxInvestigateControl } from "@/components/issues/PaxInvestigateControl";
+import { TicketDetailContent } from "@/components/issues/TicketDetailContent";
 import {
   idColumn,
   subjectColumn,
