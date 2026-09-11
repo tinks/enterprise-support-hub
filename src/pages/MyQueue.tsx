@@ -810,6 +810,11 @@ export default function MyQueue() {
                       Workaround provided
                     </Badge>
                   ) : null}
+                  {selected.snoozed ? (
+                    <Badge variant="outline" className="text-[10px] bg-muted text-muted-foreground border-border">
+                      Snoozed until {format(new Date(selected.snoozedUntilMs as number), "d MMM yyyy")}
+                    </Badge>
+                  ) : null}
                   {selected.gaps.length ? (
                     <Badge variant="outline" className="text-[10px] bg-destructive/10 text-destructive border-destructive/40">
                       Missing: {selected.gaps.join(", ")}
