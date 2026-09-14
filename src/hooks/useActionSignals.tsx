@@ -74,11 +74,11 @@ export function ActionSignalsProvider({ children }: { children: ReactNode }) {
     );
     setStates(results);
     setLastLoadedAt(Date.now());
-  }, []);
+  }, [signedIn]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (signedIn) load();
+  }, [load, signedIn]);
 
   // Same lightweight refetch pattern as /triage: focus/visibility, debounced
   // 300ms, at most one fetch per 10s.
