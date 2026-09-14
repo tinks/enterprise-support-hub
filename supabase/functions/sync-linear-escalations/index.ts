@@ -160,6 +160,7 @@ Deno.serve(async (req) => {
 
   // 2. Fetch each distinct key from Linear once.
   const found = new Map<string, {
+    identifier: string;
     title: string;
     state: string;
     stateType: string | null;
