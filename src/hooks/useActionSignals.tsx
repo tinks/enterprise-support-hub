@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ACTION_SIGNALS } from "@/lib/actionSignals";
+import { supabase } from "@/integrations/supabase/client";
 import {
   ActionSignalsContext,
   type ActionSignalsCtx,
@@ -31,6 +32,19 @@ export function ActionSignalsProvider({ children }: { children: ReactNode }) {
   const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null);
   const lastFetchRef = useRef(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Signals query SECURITY DEFINER RPCs that are granted to `authenticated`
+  // only. Loading them while signed out (e.g. on /login) produced
+  // "permission denied for function ..." errors in the Postgres logs, so the
+  // provider stays idle until a session exists.
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setSignedIn(!!session);
+    });
+    supabase.auth.getSession().then(({ data: { session } }) => setSignedIn(!!session));
+    return () => subscription.unsubscribe();
+  }, []);
 
   const toggleMuted = useCallback((id: string) => {
     setMutedIds((prev) => {
@@ -45,6 +59,7 @@ export function ActionSignalsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const load = useCallback(async () => {
+    if (!signedIn) return;
     lastFetchRef.current = Date.now();
     const results = await Promise.all(
       ACTION_SIGNALS.map(async (signal): Promise<SignalState> => {
@@ -59,11 +74,11 @@ export function ActionSignalsProvider({ children }: { children: ReactNode }) {
     );
     setStates(results);
     setLastLoadedAt(Date.now());
-  }, []);
+  }, [signedIn]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (signedIn) load();
+  }, [load, signedIn]);
 
   // Same lightweight refetch pattern as /triage: focus/visibility, debounced
   // 300ms, at most one fetch per 10s.
