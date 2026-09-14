@@ -339,6 +339,7 @@ Deno.serve(async (req) => {
     distinct_keys: uniqueKeys.length,
     resolved: found.size,
     not_found: notFound,
+    moved: moved,
     rows_written: written,
     links_written: linksWritten,
     capped: pairs.length > MAX_KEYS,
