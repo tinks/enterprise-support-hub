@@ -73,6 +73,17 @@ function uniq(list: string[]): string[] {
   return Array.from(new Set(list));
 }
 
+// Primary lookup: resolve by issue identifier directly. Linear follows an
+// issue that moved to another team (old identifier -> current issue), which the
+// team+number filter cannot do.
+const ISSUE_BY_ID_QUERY = `query($id:String!){
+  issue(id:$id){
+    identifier title url state{name type} assignee{name}
+    createdAt startedAt completedAt canceledAt
+  }
+}`;
+
+// Fallback for references the identifier lookup cannot resolve.
 const ISSUE_QUERY = `query($team:String!,$num:Float!){
   issues(filter:{team:{key:{eq:$team}}, number:{eq:$num}}, first:1){
     nodes{
