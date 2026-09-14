@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ACTION_SIGNALS } from "@/lib/actionSignals";
+import { supabase } from "@/integrations/supabase/client";
 import {
   ActionSignalsContext,
   type ActionSignalsCtx,
