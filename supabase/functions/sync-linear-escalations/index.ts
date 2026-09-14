@@ -173,10 +173,15 @@ Deno.serve(async (req) => {
   const notFound: string[] = [];
   let gatewayError: string | null = null;
 
-  for (const key of uniqueKeys) {
-    const m = key.match(/^([A-Z][A-Z0-9]*)-(\d+)$/);
-    if (!m) { notFound.push(key); continue; }
+  /** Issues whose current identifier differs from the stored reference. */
+  const moved: Array<{ from: string; to: string }> = [];
 
+  type GqlResult =
+    | { kind: "ok"; node: any | null }
+    | { kind: "http"; status: number; text: string }
+    | { kind: "error"; message: string };
+
+  const runQuery = async (query: string, variables: Record<string, unknown>): Promise<GqlResult> => {
     let res: Response;
     let text = "";
     try {
@@ -187,28 +192,49 @@ Deno.serve(async (req) => {
           "X-Connection-Api-Key": linearKey,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ query: ISSUE_QUERY, variables: { team: m[1], num: Number(m[2]) } }),
+        body: JSON.stringify({ query, variables }),
       });
       text = await res.text();
     } catch (e) {
-      gatewayError = e instanceof Error ? e.message : String(e);
-      break;
+      return { kind: "error", message: e instanceof Error ? e.message : String(e) };
     }
-
-    if (!res.ok) {
-      // Surface the gateway/provider status and body verbatim, and stop: a bad
-      // token or rate limit would otherwise look like "issues not found".
-      gatewayError = `HTTP ${res.status}: ${text.slice(0, 300)}`;
-      await recordIntegrationHealth(supabase, INTEGRATION, classifyHttpStatus(res.status), gatewayError);
-      return json({ error: "Linear request failed", status: res.status, details: text.slice(0, 500) }, res.status);
-    }
+    // Surface the gateway/provider status verbatim: a bad token or rate limit
+    // would otherwise look like "issues not found".
+    if (!res.ok) return { kind: "http", status: res.status, text };
 
     let payload: any = {};
-    try { payload = JSON.parse(text); } catch { gatewayError = "unparseable response"; break; }
-    if (payload.errors?.length) { gatewayError = JSON.stringify(payload.errors).slice(0, 300); break; }
+    try { payload = JSON.parse(text); } catch { return { kind: "error", message: "unparseable response" }; }
+    if (payload.errors?.length) {
+      // A null/unknown identifier comes back as a GraphQL error on issue(id:) —
+      // that is a miss for this lookup, not a transport failure.
+      return { kind: "ok", node: null, };
+    }
+    const node = payload?.data?.issue ?? payload?.data?.issues?.nodes?.[0] ?? null;
+    return { kind: "ok", node };
+  };
 
-    const node = payload?.data?.issues?.nodes?.[0];
+  for (const key of uniqueKeys) {
+    const m = key.match(/^([A-Z][A-Z0-9]*)-(\d+)$/);
+    if (!m) { notFound.push(key); continue; }
+
+    // Primary: identifier lookup, which follows issues moved between teams.
+    let result = await runQuery(ISSUE_BY_ID_QUERY, { id: key });
+    if (result.kind === "ok" && !result.node) {
+      // Fallback: original team + number filter.
+      result = await runQuery(ISSUE_QUERY, { team: m[1], num: Number(m[2]) });
+    }
+
+    if (result.kind === "error") { gatewayError = result.message; break; }
+    if (result.kind === "http") {
+      gatewayError = `HTTP ${result.status}: ${result.text.slice(0, 300)}`;
+      await recordIntegrationHealth(supabase, INTEGRATION, classifyHttpStatus(result.status), gatewayError);
+      return json({ error: "Linear request failed", status: result.status, details: result.text.slice(0, 500) }, result.status);
+    }
+
+    const node = result.node;
     if (!node) { notFound.push(key); continue; }
+    const identifier = (node.identifier ?? "").toUpperCase();
+    if (identifier && identifier !== key) moved.push({ from: key, to: identifier });
     found.set(key, {
       title: node.title ?? "",
       state: node.state?.name ?? "",
