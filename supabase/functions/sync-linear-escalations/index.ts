@@ -265,7 +265,7 @@ Deno.serve(async (req) => {
     const issue = found.get(p.key)!;
     return {
       intercom_conversation_id: p.conversationId,
-      linear_key: p.key,
+      linear_key: issue.identifier,
       linear_title: issue.title,
       linear_state: issue.state,
       linear_state_type: issue.stateType,
