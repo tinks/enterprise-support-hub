@@ -59,6 +59,7 @@ export function ActionSignalsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const load = useCallback(async () => {
+    if (!signedIn) return;
     lastFetchRef.current = Date.now();
     const results = await Promise.all(
       ACTION_SIGNALS.map(async (signal): Promise<SignalState> => {
