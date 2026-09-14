@@ -32,6 +32,19 @@ export function ActionSignalsProvider({ children }: { children: ReactNode }) {
   const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null);
   const lastFetchRef = useRef(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Signals query SECURITY DEFINER RPCs that are granted to `authenticated`
+  // only. Loading them while signed out (e.g. on /login) produced
+  // "permission denied for function ..." errors in the Postgres logs, so the
+  // provider stays idle until a session exists.
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setSignedIn(!!session);
+    });
+    supabase.auth.getSession().then(({ data: { session } }) => setSignedIn(!!session));
+    return () => subscription.unsubscribe();
+  }, []);
 
   const toggleMuted = useCallback((id: string) => {
     setMutedIds((prev) => {
