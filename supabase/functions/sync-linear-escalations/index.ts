@@ -237,6 +237,8 @@ Deno.serve(async (req) => {
     const identifier = (node.identifier ?? "").toUpperCase();
     if (identifier && identifier !== key) moved.push({ from: key, to: identifier });
     found.set(key, {
+      // Current identifier wins: a moved issue is mirrored under its new key.
+      identifier: identifier || key,
       title: node.title ?? "",
       state: node.state?.name ?? "",
       stateType: node.state?.type ?? null,
