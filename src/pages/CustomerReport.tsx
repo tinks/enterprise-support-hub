@@ -61,8 +61,56 @@ type OpenTicket = {
   intercom_created_at: string | null;
   intercom_updated_at: string | null;
   lifecycle_status: string | null;
+  product_area?: string | null;
+  classification?: string | null;
   raw_payload: any;
 };
+
+// Intercom custom attributes are the source of truth for Ticket type,
+// Severity and Affected Product Area. The mirrored columns (`product_area`,
+// `classification`) are only a fallback for the minutes between a Hub write
+// and the next sync refreshing the attribute blob.
+function normAttr(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  return s === "" ? null : s;
+}
+
+function productAreaOf(row: { raw_payload?: any; product_area?: string | null }): string | null {
+  const ca = row?.raw_payload?.custom_attributes;
+  return (
+    normAttr(ca?.["Affected Product Area"]) ??
+    normAttr(ca?.["Product Area"]) ??
+    normAttr(row?.product_area)
+  );
+}
+
+function ticketTypeOf(row: { raw_payload?: any; classification?: string | null }): string | null {
+  const ca = row?.raw_payload?.custom_attributes;
+  return (
+    normAttr(ca?.["Ticket type"]) ??
+    normAttr(ca?.["Type"]) ??
+    normAttr(row?.classification)
+  );
+}
+
+/** Deterministic count + percentage distribution, descending, unclassified last. */
+function distribution(values: Array<string | null>): Array<{ label: string; count: number; pct: number }> {
+  const total = values.length;
+  if (total === 0) return [];
+  const counts = new Map<string, number>();
+  for (const v of values) {
+    const key = v ?? "Unclassified";
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => {
+      if (a[0] === "Unclassified") return 1;
+      if (b[0] === "Unclassified") return -1;
+      return b[1] - a[1] || a[0].localeCompare(b[0]);
+    })
+    .map(([label, count]) => ({ label, count, pct: (count / total) * 100 }));
+}
 
 function fmt(sec: number | null, clock: "business" | "calendar") {
   return (clock === "business" ? formatBusinessDuration : formatDuration)(sec);
