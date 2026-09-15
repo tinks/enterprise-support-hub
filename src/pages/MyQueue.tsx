@@ -68,6 +68,8 @@ type Row = {
   state: string | null;
   plan_tier: string | null;
   custom_attributes: Record<string, unknown> | null;
+  product_area: string | null;
+  classification: string | null;
   intercom_created_at: string | null;
   intercom_updated_at: string | null;
   eng_wait_start_at: string | null;
@@ -143,10 +145,14 @@ function statMs(row: Row, key: string): number | null {
   return Number.isFinite(n) && n > 0 ? n * 1000 : null;
 }
 
-function attr(row: Row, key: string): string | null {
-  const v = row.custom_attributes?.[key as keyof typeof row.custom_attributes];
+function norm(v: unknown): string | null {
   if (v === null || v === undefined || v === "") return null;
-  return String(v);
+  const s = String(v).trim();
+  return s === "" ? null : s;
+}
+
+function attr(row: Row, key: string): string | null {
+  return norm(row.custom_attributes?.[key as keyof typeof row.custom_attributes]);
 }
 
 type QueueRow = Row & {
@@ -207,9 +213,15 @@ function classify(row: Row, esc: DevEscalation | null): QueueRow {
     bucket = idle ? "stale" : "customer";
   }
 
+  // Intercom's custom attributes are the source of truth. The mirrored columns
+  // (`product_area`, `classification`) are only a fallback for the minutes
+  // between a Hub write and the next sync refreshing the attribute blob, so the
+  // queue never reports a field as missing when Intercom already holds it.
   const severity = attr(row, "Severity");
-  const productArea = attr(row, "Affected Product Area") ?? attr(row, "Product Area");
-  const ticketType = attr(row, "Ticket type") ?? attr(row, "Type");
+  const productArea =
+    attr(row, "Affected Product Area") ?? attr(row, "Product Area") ?? norm(row.product_area);
+  const ticketType =
+    attr(row, "Ticket type") ?? attr(row, "Type") ?? norm(row.classification);
 
   const gaps: string[] = [];
   if (!severity) gaps.push("Severity");
@@ -346,7 +358,7 @@ export default function MyQueue() {
     supabase
       .from("intercom_tickets_v3")
       .select(
-        `id,intercom_conversation_id,${SUBJECT_SELECT},contact_name,contact_email,owner,customer_key,state,plan_tier,custom_attributes,intercom_created_at,intercom_updated_at,eng_wait_start_at,eng_wait_end_at,snoozed_until,snoozed_at,snoozed_by,snooze_reason,raw_payload`,
+        `id,intercom_conversation_id,${SUBJECT_SELECT},contact_name,contact_email,owner,customer_key,state,plan_tier,custom_attributes,product_area,classification,intercom_created_at,intercom_updated_at,eng_wait_start_at,eng_wait_end_at,snoozed_until,snoozed_at,snoozed_by,snooze_reason,raw_payload`,
       )
       .in("lifecycle_status", ["open", "reopened_after_finalize"])
       .or("is_test_ticket.is.null,is_test_ticket.eq.false")

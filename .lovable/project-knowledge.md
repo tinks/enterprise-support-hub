@@ -501,6 +501,14 @@ On every import path, the Intercom REST response's `custom_attributes` are mappe
 
 Empty/missing values are omitted so existing values are never overwritten with blank. Wired in `import-intercom-ticket`, `poll-intercom-inbox`, `intercom-webhook` (Gmail link payloads + `pending_intercom_links.source_payload`), and `promote-pending-intercom-links` (read back out of `source_payload`). The webhook's duplicate-detection early return does NOT re-fetch from Intercom and so does not refresh these fields on already-tracked rows — a backfill is required to populate historical imports.
 
+**Read precedence in the UI (single rule, all surfaces).** Intercom's custom attribute is the source of truth; the mirrored column is a fallback only:
+
+- Ticket type: `custom_attributes["Ticket type"]` → `custom_attributes["Type"]` → `classification`
+- Product area: `custom_attributes["Affected Product Area"]` → `custom_attributes["Product Area"]` → `product_area`
+- Severity: `custom_attributes["Severity"]` only (there is no mirrored column)
+
+WHY the fallback exists: `esh-write-action` re-reads the conversation from Intercom and writes both the attribute blob and the mirrored columns in the same update, so the two agree at rest. But a client already holding an older row (loaded before the write) would report the field as missing until it refetched. `MyQueue.classify()` previously read `custom_attributes` only, while `TicketFieldsPanel` read the column too — so the same ticket showed `Missing: Ticket type` in the badges and `Question` in the editor (observed on `215475949159138`, 2026-09-15). Both now use the precedence above. `MyQueue`'s select carries `product_area` and `classification` for this reason. UNVERIFIED in production: zero open rows currently sit in the divergent state (attribute null, column set), so the fallback branch has not been exercised against live data.
+
 ---
 
 
