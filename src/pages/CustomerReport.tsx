@@ -585,6 +585,8 @@ export default function CustomerReport() {
                         <TableHead className="text-left">Subject</TableHead>
                         <TableHead className="text-left w-[140px]">Intercom ID</TableHead>
                         <TableHead className="text-left w-[100px]">Severity</TableHead>
+                        <TableHead className="text-left w-[140px]">Type</TableHead>
+                        <TableHead className="text-left w-[160px]">Product area</TableHead>
                         <TableHead className="text-left w-[110px]">Created</TableHead>
                         <TableHead className="text-left w-[110px]">Resolved</TableHead>
                         <TableHead className="text-left w-[160px]">First response</TableHead>
@@ -594,7 +596,7 @@ export default function CustomerReport() {
                     <TableBody>
                       {scored.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-sm text-muted-foreground py-8 text-center">
+                          <TableCell colSpan={9} className="text-sm text-muted-foreground py-8 text-center">
                             No closed issues in range.
                           </TableCell>
                         </TableRow>
@@ -604,6 +606,8 @@ export default function CustomerReport() {
                           <TableCell className="text-left max-w-[360px] truncate">{displaySubject(row, "(no subject)")}</TableCell>
                           <TableCell className="text-left tabular-nums text-xs select-all">{row.intercom_conversation_id}</TableCell>
                           <TableCell className="text-left">{sev == null ? "—" : `Sev ${sev}`}</TableCell>
+                          <TableCell className="text-left">{ticketTypeOf(row as any) ?? "—"}</TableCell>
+                          <TableCell className="text-left">{productAreaOf(row as any) ?? "—"}</TableCell>
                           <TableCell className="text-left tabular-nums">{fmtDate(row.intercom_created_at)}</TableCell>
                           <TableCell className="text-left tabular-nums">{fmtDate(rowClosedAtMs(row))}</TableCell>
                           <TableCell className="text-left">
