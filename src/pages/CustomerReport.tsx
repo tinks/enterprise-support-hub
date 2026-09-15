@@ -641,6 +641,48 @@ export default function CustomerReport() {
   );
 }
 
+function BreakdownCard({ title, desc, rows }: {
+  title: string;
+  desc: string;
+  rows: Array<{ label: string; count: number; pct: number }>;
+}) {
+  const max = rows.length ? Math.max(...rows.map((r) => r.count)) : 0;
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <CardDescription className="text-xs">{desc}</CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {rows.length === 0 ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">No tickets in this range.</div>
+        ) : (
+          <div className="space-y-2">
+            {rows.map((r) => (
+              <div key={r.label} className="space-y-1">
+                <div className="flex items-baseline justify-between gap-3 text-xs">
+                  <span className={cn("truncate", r.label === "Unclassified" && "text-muted-foreground italic")}>
+                    {r.label}
+                  </span>
+                  <span className="tabular-nums shrink-0 text-muted-foreground">
+                    <span className="font-semibold text-foreground">{r.count}</span> · {r.pct.toFixed(0)}%
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={cn("h-full rounded-full", r.label === "Unclassified" ? "bg-muted-foreground/40" : "bg-primary")}
+                    style={{ width: `${max ? (r.count / max) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function StatCard({ title, desc, value, emphasize, sev, unclassifiedIsAnomaly }: {
   title: string; desc: string; value: string; emphasize?: boolean;
   sev?: Record<Severity | "unclassified", number>;
