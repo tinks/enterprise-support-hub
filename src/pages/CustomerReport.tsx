@@ -440,6 +440,19 @@ export default function CustomerReport() {
               />
             </div>
 
+            {/* Themes — deterministic, no AI */}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <BreakdownCard
+                title="Product areas"
+                desc={`Open + closed in ${RANGE_LABELS[range].toLowerCase()} · ${themePopulation.length} ticket(s)`}
+                rows={productAreaDist}
+              />
+              <BreakdownCard
+                title="Ticket types"
+                desc={`Open + closed in ${RANGE_LABELS[range].toLowerCase()} · ${themePopulation.length} ticket(s)`}
+                rows={ticketTypeDist}
+              />
+            </div>
 
             {/* Escalated to Dev */}
             <Card>
