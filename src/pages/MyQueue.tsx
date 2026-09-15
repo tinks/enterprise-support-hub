@@ -143,10 +143,14 @@ function statMs(row: Row, key: string): number | null {
   return Number.isFinite(n) && n > 0 ? n * 1000 : null;
 }
 
-function attr(row: Row, key: string): string | null {
-  const v = row.custom_attributes?.[key as keyof typeof row.custom_attributes];
+function norm(v: unknown): string | null {
   if (v === null || v === undefined || v === "") return null;
-  return String(v);
+  const s = String(v).trim();
+  return s === "" ? null : s;
+}
+
+function attr(row: Row, key: string): string | null {
+  return norm(row.custom_attributes?.[key as keyof typeof row.custom_attributes]);
 }
 
 type QueueRow = Row & {
