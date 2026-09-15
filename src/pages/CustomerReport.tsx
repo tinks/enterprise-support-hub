@@ -532,6 +532,8 @@ export default function CustomerReport() {
                       <TableHead className="text-left">Subject</TableHead>
                       <TableHead className="text-left w-[140px]">Intercom ID</TableHead>
                       <TableHead className="text-left w-[100px]">Severity</TableHead>
+                      <TableHead className="text-left w-[140px]">Type</TableHead>
+                      <TableHead className="text-left w-[160px]">Product area</TableHead>
                       <TableHead className="text-left w-[110px]">Created</TableHead>
                       <TableHead className="text-left w-[110px]">Last activity</TableHead>
                       <TableHead className="text-left w-[100px]">State</TableHead>
@@ -540,7 +542,7 @@ export default function CustomerReport() {
                   <TableBody>
                     {openTickets.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-sm text-muted-foreground py-8 text-center">
+                        <TableCell colSpan={8} className="text-sm text-muted-foreground py-8 text-center">
                           No open issues.
                         </TableCell>
                       </TableRow>
@@ -552,6 +554,8 @@ export default function CustomerReport() {
                           <TableCell className="text-left max-w-[360px] truncate">{displaySubject(t, "(no subject)")}</TableCell>
                           <TableCell className="text-left tabular-nums text-xs select-all">{t.intercom_conversation_id}</TableCell>
                           <TableCell className="text-left">{sev == null ? "—" : `Sev ${sev}`}</TableCell>
+                          <TableCell className="text-left">{ticketTypeOf(t) ?? "—"}</TableCell>
+                          <TableCell className="text-left">{productAreaOf(t) ?? "—"}</TableCell>
                           <TableCell className="text-left tabular-nums">{fmtDate(t.intercom_created_at)}</TableCell>
                           <TableCell className="text-left tabular-nums">{fmtDate(t.intercom_updated_at)}</TableCell>
                           <TableCell className="text-left">
