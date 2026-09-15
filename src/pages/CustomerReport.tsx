@@ -320,6 +320,22 @@ export default function CustomerReport() {
     return b;
   }, [openTickets]);
 
+  // Thematic distribution over the same population the cards count:
+  // currently-open tickets plus the closed tickets inside the selected range.
+  // Purely deterministic — no AI, no extra queries.
+  const themePopulation = useMemo(
+    () => [...openTickets, ...closedRows.map((r) => r as unknown as OpenTicket)],
+    [openTickets, closedRows],
+  );
+  const productAreaDist = useMemo(
+    () => distribution(themePopulation.map(productAreaOf)),
+    [themePopulation],
+  );
+  const ticketTypeDist = useMemo(
+    () => distribution(themePopulation.map(ticketTypeOf)),
+    [themePopulation],
+  );
+
   const customerName = customer ? (customerLabels.get(customer) ?? accounts.find((a) => a.account_key === customer)?.label ?? customer) : null;
 
 
