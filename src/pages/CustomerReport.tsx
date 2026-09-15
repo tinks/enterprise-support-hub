@@ -61,8 +61,56 @@ type OpenTicket = {
   intercom_created_at: string | null;
   intercom_updated_at: string | null;
   lifecycle_status: string | null;
+  product_area?: string | null;
+  classification?: string | null;
   raw_payload: any;
 };
+
+// Intercom custom attributes are the source of truth for Ticket type,
+// Severity and Affected Product Area. The mirrored columns (`product_area`,
+// `classification`) are only a fallback for the minutes between a Hub write
+// and the next sync refreshing the attribute blob.
+function normAttr(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  return s === "" ? null : s;
+}
+
+function productAreaOf(row: { raw_payload?: any; product_area?: string | null }): string | null {
+  const ca = row?.raw_payload?.custom_attributes;
+  return (
+    normAttr(ca?.["Affected Product Area"]) ??
+    normAttr(ca?.["Product Area"]) ??
+    normAttr(row?.product_area)
+  );
+}
+
+function ticketTypeOf(row: { raw_payload?: any; classification?: string | null }): string | null {
+  const ca = row?.raw_payload?.custom_attributes;
+  return (
+    normAttr(ca?.["Ticket type"]) ??
+    normAttr(ca?.["Type"]) ??
+    normAttr(row?.classification)
+  );
+}
+
+/** Deterministic count + percentage distribution, descending, unclassified last. */
+function distribution(values: Array<string | null>): Array<{ label: string; count: number; pct: number }> {
+  const total = values.length;
+  if (total === 0) return [];
+  const counts = new Map<string, number>();
+  for (const v of values) {
+    const key = v ?? "Unclassified";
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => {
+      if (a[0] === "Unclassified") return 1;
+      if (b[0] === "Unclassified") return -1;
+      return b[1] - a[1] || a[0].localeCompare(b[0]);
+    })
+    .map(([label, count]) => ({ label, count, pct: (count / total) * 100 }));
+}
 
 function fmt(sec: number | null, clock: "business" | "calendar") {
   return (clock === "business" ? formatBusinessDuration : formatDuration)(sec);
@@ -138,7 +186,7 @@ export default function CustomerReport() {
       setOpenLoading(true);
       const { data } = await supabase
         .from("intercom_tickets_v3")
-        .select("id,intercom_conversation_id,subject,subject_override,subject_ai,intercom_created_at,intercom_updated_at,lifecycle_status,csat_rating,csat_rater_is_internal,raw_payload")
+        .select("id,intercom_conversation_id,subject,subject_override,subject_ai,intercom_created_at,intercom_updated_at,lifecycle_status,product_area,classification,csat_rating,csat_rater_is_internal,raw_payload")
         .eq("customer_key", customer)
         .in("lifecycle_status", ["open", "reopened_after_finalize"])
         .order("intercom_created_at", { ascending: false });
@@ -272,6 +320,22 @@ export default function CustomerReport() {
     return b;
   }, [openTickets]);
 
+  // Thematic distribution over the same population the cards count:
+  // currently-open tickets plus the closed tickets inside the selected range.
+  // Purely deterministic — no AI, no extra queries.
+  const themePopulation = useMemo(
+    () => [...openTickets, ...closedRows.map((r) => r as unknown as OpenTicket)],
+    [openTickets, closedRows],
+  );
+  const productAreaDist = useMemo(
+    () => distribution(themePopulation.map(productAreaOf)),
+    [themePopulation],
+  );
+  const ticketTypeDist = useMemo(
+    () => distribution(themePopulation.map(ticketTypeOf)),
+    [themePopulation],
+  );
+
   const customerName = customer ? (customerLabels.get(customer) ?? accounts.find((a) => a.account_key === customer)?.label ?? customer) : null;
 
 
@@ -376,6 +440,19 @@ export default function CustomerReport() {
               />
             </div>
 
+            {/* Themes — deterministic, no AI */}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <BreakdownCard
+                title="Product areas"
+                desc={`Open + closed in ${RANGE_LABELS[range].toLowerCase()} · ${themePopulation.length} ticket(s)`}
+                rows={productAreaDist}
+              />
+              <BreakdownCard
+                title="Ticket types"
+                desc={`Open + closed in ${RANGE_LABELS[range].toLowerCase()} · ${themePopulation.length} ticket(s)`}
+                rows={ticketTypeDist}
+              />
+            </div>
 
             {/* Escalated to Dev */}
             <Card>
@@ -455,6 +532,8 @@ export default function CustomerReport() {
                       <TableHead className="text-left">Subject</TableHead>
                       <TableHead className="text-left w-[140px]">Intercom ID</TableHead>
                       <TableHead className="text-left w-[100px]">Severity</TableHead>
+                      <TableHead className="text-left w-[140px]">Type</TableHead>
+                      <TableHead className="text-left w-[160px]">Product area</TableHead>
                       <TableHead className="text-left w-[110px]">Created</TableHead>
                       <TableHead className="text-left w-[110px]">Last activity</TableHead>
                       <TableHead className="text-left w-[100px]">State</TableHead>
@@ -463,7 +542,7 @@ export default function CustomerReport() {
                   <TableBody>
                     {openTickets.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-sm text-muted-foreground py-8 text-center">
+                        <TableCell colSpan={8} className="text-sm text-muted-foreground py-8 text-center">
                           No open issues.
                         </TableCell>
                       </TableRow>
@@ -475,6 +554,8 @@ export default function CustomerReport() {
                           <TableCell className="text-left max-w-[360px] truncate">{displaySubject(t, "(no subject)")}</TableCell>
                           <TableCell className="text-left tabular-nums text-xs select-all">{t.intercom_conversation_id}</TableCell>
                           <TableCell className="text-left">{sev == null ? "—" : `Sev ${sev}`}</TableCell>
+                          <TableCell className="text-left">{ticketTypeOf(t) ?? "—"}</TableCell>
+                          <TableCell className="text-left">{productAreaOf(t) ?? "—"}</TableCell>
                           <TableCell className="text-left tabular-nums">{fmtDate(t.intercom_created_at)}</TableCell>
                           <TableCell className="text-left tabular-nums">{fmtDate(t.intercom_updated_at)}</TableCell>
                           <TableCell className="text-left">
@@ -504,6 +585,8 @@ export default function CustomerReport() {
                         <TableHead className="text-left">Subject</TableHead>
                         <TableHead className="text-left w-[140px]">Intercom ID</TableHead>
                         <TableHead className="text-left w-[100px]">Severity</TableHead>
+                        <TableHead className="text-left w-[140px]">Type</TableHead>
+                        <TableHead className="text-left w-[160px]">Product area</TableHead>
                         <TableHead className="text-left w-[110px]">Created</TableHead>
                         <TableHead className="text-left w-[110px]">Resolved</TableHead>
                         <TableHead className="text-left w-[160px]">First response</TableHead>
@@ -513,7 +596,7 @@ export default function CustomerReport() {
                     <TableBody>
                       {scored.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-sm text-muted-foreground py-8 text-center">
+                          <TableCell colSpan={9} className="text-sm text-muted-foreground py-8 text-center">
                             No closed issues in range.
                           </TableCell>
                         </TableRow>
@@ -523,6 +606,8 @@ export default function CustomerReport() {
                           <TableCell className="text-left max-w-[360px] truncate">{displaySubject(row, "(no subject)")}</TableCell>
                           <TableCell className="text-left tabular-nums text-xs select-all">{row.intercom_conversation_id}</TableCell>
                           <TableCell className="text-left">{sev == null ? "—" : `Sev ${sev}`}</TableCell>
+                          <TableCell className="text-left">{ticketTypeOf(row as any) ?? "—"}</TableCell>
+                          <TableCell className="text-left">{productAreaOf(row as any) ?? "—"}</TableCell>
                           <TableCell className="text-left tabular-nums">{fmtDate(row.intercom_created_at)}</TableCell>
                           <TableCell className="text-left tabular-nums">{fmtDate(rowClosedAtMs(row))}</TableCell>
                           <TableCell className="text-left">
@@ -553,6 +638,48 @@ export default function CustomerReport() {
         )}
       </div>
     </AppLayout>
+  );
+}
+
+function BreakdownCard({ title, desc, rows }: {
+  title: string;
+  desc: string;
+  rows: Array<{ label: string; count: number; pct: number }>;
+}) {
+  const max = rows.length ? Math.max(...rows.map((r) => r.count)) : 0;
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <CardDescription className="text-xs">{desc}</CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {rows.length === 0 ? (
+          <div className="py-6 text-center text-sm text-muted-foreground">No tickets in this range.</div>
+        ) : (
+          <div className="space-y-2">
+            {rows.map((r) => (
+              <div key={r.label} className="space-y-1">
+                <div className="flex items-baseline justify-between gap-3 text-xs">
+                  <span className={cn("truncate", r.label === "Unclassified" && "text-muted-foreground italic")}>
+                    {r.label}
+                  </span>
+                  <span className="tabular-nums shrink-0 text-muted-foreground">
+                    <span className="font-semibold text-foreground">{r.count}</span> · {r.pct.toFixed(0)}%
+                  </span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={cn("h-full rounded-full", r.label === "Unclassified" ? "bg-muted-foreground/40" : "bg-primary")}
+                    style={{ width: `${max ? (r.count / max) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

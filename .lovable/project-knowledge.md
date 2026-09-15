@@ -1606,9 +1606,13 @@ A per-customer SLA + volume view for CSM-style consumption. Route in `App.tsx`, 
 
 **Escalated to Dev table** — independent of the Show-closed toggle; **always** shows open **and** closed escalations. Criteria: `Escalated to Engineering = Yes` **OR** `Ticket type ∈ {Bug, Incident}`. Columns: Subject · Intercom ID · Severity · Type · Esc→Eng · Linked issue · State · Created. **Linked issue** reads the **`Escalated Issue`** custom attribute (legacy `Linear Issue` fallback) and renders a clickable Linear link showing the issue id (e.g. `ENT-2804`). _Deliberate:_ it does **not** scrape notes for Linear URLs — a URL in a note may be a related investigation, not the filed issue.
 
-**Open issues table** (always): Subject · Intercom ID · Severity · Created · Last activity (`intercom_updated_at`) · State — no outcome columns, because open tickets have no resolution yet.
+**Themes — Product areas / Ticket types panels** (always, below the summary cards). Two side-by-side distribution cards over the **same population the Total tickets card counts**: currently-open tickets **plus** closed tickets inside the selected range. Each row is `label · count · %` with a proportional bar, sorted descending, **`Unclassified` always last** and muted/italic so a labelling gap reads as a gap rather than a theme. **Deliberately deterministic — no AI call, no credits, no extra query**: it aggregates fields already loaded for the tables. This is the answer to "what are this customer's main themes?" without per-customer model spend.
 
-**Closed issues table** (only when Show-closed is on): Subject · Intercom ID · Severity · Created · Resolved · First Response (value + met/breach) · Resolution (value + met/breach).
+**Attribute source of truth (both panels and both tables):** Intercom custom attributes win. Product area = `Affected Product Area` → `Product Area` → mirrored `product_area` column. Ticket type = `Ticket type` → `Type` → mirrored `classification` column. The mirror columns are a **fallback only** — they cover the minutes between a Hub write and the next sync refreshing the attribute blob, and must never be preferred over the attribute. Same chain as My Queue (`MyQueue.tsx`); keep them in step.
+
+**Open issues table** (always): Subject · Intercom ID · Severity · **Type** · **Product area** · Created · Last activity (`intercom_updated_at`) · State — no outcome columns, because open tickets have no resolution yet.
+
+**Closed issues table** (only when Show-closed is on): Subject · Intercom ID · Severity · **Type** · **Product area** · Created · Resolved · First Response (value + met/breach) · Resolution (value + met/breach). Closed rows read their attributes out of `raw_payload` already fetched by `useSlaBatch` — no additional query.
 
 **Status:** experimental prototype, out to CSMs for feedback.
 
