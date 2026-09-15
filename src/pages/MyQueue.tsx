@@ -207,9 +207,15 @@ function classify(row: Row, esc: DevEscalation | null): QueueRow {
     bucket = idle ? "stale" : "customer";
   }
 
+  // Intercom's custom attributes are the source of truth. The mirrored columns
+  // (`product_area`, `classification`) are only a fallback for the minutes
+  // between a Hub write and the next sync refreshing the attribute blob, so the
+  // queue never reports a field as missing when Intercom already holds it.
   const severity = attr(row, "Severity");
-  const productArea = attr(row, "Affected Product Area") ?? attr(row, "Product Area");
-  const ticketType = attr(row, "Ticket type") ?? attr(row, "Type");
+  const productArea =
+    attr(row, "Affected Product Area") ?? attr(row, "Product Area") ?? norm(row.product_area);
+  const ticketType =
+    attr(row, "Ticket type") ?? attr(row, "Type") ?? norm(row.classification);
 
   const gaps: string[] = [];
   if (!severity) gaps.push("Severity");
