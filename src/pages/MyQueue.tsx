@@ -68,6 +68,8 @@ type Row = {
   state: string | null;
   plan_tier: string | null;
   custom_attributes: Record<string, unknown> | null;
+  product_area: string | null;
+  classification: string | null;
   intercom_created_at: string | null;
   intercom_updated_at: string | null;
   eng_wait_start_at: string | null;
