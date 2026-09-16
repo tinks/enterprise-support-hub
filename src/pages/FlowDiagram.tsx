@@ -1372,6 +1372,24 @@ function buildNodes(
         accent: "default",
       },
     },
+    {
+      id: "sam-review",
+      type: "flowNode",
+      position: { x: COL_W * 2.6, y: ROW_H * 3.6 },
+      data: {
+        label: "Sam review (/sam-review)",
+        desc: "Review loop for deflection-bot failures. Lists intercom_tickets_v3 tagged enterprise-sam-wrong (optionally Sam - Avoid) and lets editors record a Hub-only failure category + review note. Nothing is written back to Intercom.",
+        icon: MessageSquare,
+        details: [
+          "Source of truth for INCLUSION is the Intercom tag (enterprise-sam-wrong); tags populate on full fetch as tickets close, so a freshly tagged OPEN ticket can lag — stated inline on the page, never hidden.",
+          "Hub-only annotation: public.sam_ticket_reviews (migration 0048), one row per conversation_id (UNIQUE) with failure_category, review_note, reviewed_by (auth email), timestamps. RLS: authenticated read; write gated on public.can_edit(auth.uid()). Non-editors see the card read-only.",
+          "Categories: Hallucination / Factually inaccurate · Misunderstood request · Outdated docs / Stale guidance · Premature / Missed handoff · Incomplete answer · Tone / Formatting issue · Other.",
+          "Surface: Tools ▸ Sam review, shared IssueTable / IssueDetailSheet template, KPI cards (tagged / open / closed / categorised), category mix strip, search + lifecycle + category filters, CSV export.",
+          "SCOPE FENCE: read-only against ticket data — no Intercom write, no SLA or attribution impact. Verified 16 Sep 2026 on 2 live tagged tickets incl. a real save; non-editor branch UNVERIFIED.",
+        ],
+        accent: "default",
+      },
+    },
   ];
 }
 
