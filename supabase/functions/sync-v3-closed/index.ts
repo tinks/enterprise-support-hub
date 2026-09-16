@@ -376,6 +376,8 @@ Deno.serve(async (req) => {
         reopen_count_at_finalize: Number(icData?.statistics?.count_reopens ?? 0),
         // Active resolution clock (dormant/closed time excluded) — shared rule.
         ...activeClockFields(icData, roster, await loadClockEscalation(supabase, convId, icData)),
+        // In-app support form detection — written only when TRUE (sticky).
+        ...(detectInAppForm(icData).is_in_app_form ? detectInAppForm(icData) : {}),
       };
 
       const { data: upserted, error } = await supabase

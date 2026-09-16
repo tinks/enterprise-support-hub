@@ -28,6 +28,7 @@ import { finalizeConversation } from "../_shared/v3-finalize.ts";
 import { loadSupportRoster, registerConfiguredAnchors } from "../_shared/sla-roster.ts";
 import { syncTicketAttributes } from "../_shared/v3-attributes.ts";
 import { writeV3Signals } from "../_shared/v3-signals.ts";
+import { detectInAppForm } from "../_shared/v3-in-app-form.ts";
 import { notifyNewTicket } from "../_shared/new-ticket-alert.ts";
 import { resolveInboxes, inboxSearchClause } from "../_shared/v3-inboxes.ts";
 import { requireEditorOrSecret } from "../_shared/require-editor-or-secret.ts";
@@ -341,7 +342,7 @@ Deno.serve(async (req) => {
       // those stay close-only (sync-v3-closed owns them).
       const { error, data: upserted } = await supabase
         .from("intercom_tickets_v3")
-        .upsert({ ...row, raw_payload: icData, tags: extractTags(icData), last_full_fetch_at: new Date().toISOString() }, { onConflict: "intercom_conversation_id" })
+        .upsert({ ...row, raw_payload: icData, tags: extractTags(icData), last_full_fetch_at: new Date().toISOString(), ...(detectInAppForm(icData).is_in_app_form ? detectInAppForm(icData) : {}) }, { onConflict: "intercom_conversation_id" })
         .select("id, created_at");
       if (error) { failed++; continue; }
       if (upserted && upserted[0]) {
