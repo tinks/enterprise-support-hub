@@ -38,6 +38,7 @@ import {
 } from "../_shared/v3.ts";
 import { syncTicketAttributes } from "../_shared/v3-attributes.ts";
 import { writeV3Signals } from "../_shared/v3-signals.ts";
+import { detectInAppForm } from "../_shared/v3-in-app-form.ts";
 import { activeClockFields, loadClockEscalation } from "../_shared/v3-finalize.ts";
 import { loadSupportRoster, registerConfiguredAnchors } from "../_shared/sla-roster.ts";
 import { resolveInboxes, inboxSearchClause } from "../_shared/v3-inboxes.ts";
