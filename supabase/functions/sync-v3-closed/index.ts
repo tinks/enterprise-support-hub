@@ -38,6 +38,7 @@ import {
 } from "../_shared/v3.ts";
 import { syncTicketAttributes } from "../_shared/v3-attributes.ts";
 import { writeV3Signals } from "../_shared/v3-signals.ts";
+import { detectInAppForm } from "../_shared/v3-in-app-form.ts";
 import { activeClockFields, loadClockEscalation } from "../_shared/v3-finalize.ts";
 import { loadSupportRoster, registerConfiguredAnchors } from "../_shared/sla-roster.ts";
 import { resolveInboxes, inboxSearchClause } from "../_shared/v3-inboxes.ts";
@@ -376,6 +377,8 @@ Deno.serve(async (req) => {
         reopen_count_at_finalize: Number(icData?.statistics?.count_reopens ?? 0),
         // Active resolution clock (dormant/closed time excluded) — shared rule.
         ...activeClockFields(icData, roster, await loadClockEscalation(supabase, convId, icData)),
+        // In-app support form detection — written only when TRUE (sticky).
+        ...(detectInAppForm(icData).is_in_app_form ? detectInAppForm(icData) : {}),
       };
 
       const { data: upserted, error } = await supabase

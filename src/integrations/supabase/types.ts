@@ -1251,10 +1251,12 @@ export type Database = {
           finalized_at: string | null
           first_human_reply_at: string | null
           id: string
+          in_app_form_source: string | null
           intercom_closed_at: string | null
           intercom_conversation_id: string
           intercom_created_at: string | null
           intercom_updated_at: string | null
+          is_in_app_form: boolean
           is_test_ticket: boolean
           last_full_fetch_at: string | null
           last_reopened_at: string | null
@@ -1347,10 +1349,12 @@ export type Database = {
           finalized_at?: string | null
           first_human_reply_at?: string | null
           id?: string
+          in_app_form_source?: string | null
           intercom_closed_at?: string | null
           intercom_conversation_id: string
           intercom_created_at?: string | null
           intercom_updated_at?: string | null
+          is_in_app_form?: boolean
           is_test_ticket?: boolean
           last_full_fetch_at?: string | null
           last_reopened_at?: string | null
@@ -1443,10 +1447,12 @@ export type Database = {
           finalized_at?: string | null
           first_human_reply_at?: string | null
           id?: string
+          in_app_form_source?: string | null
           intercom_closed_at?: string | null
           intercom_conversation_id?: string
           intercom_created_at?: string | null
           intercom_updated_at?: string | null
+          is_in_app_form?: boolean
           is_test_ticket?: boolean
           last_full_fetch_at?: string | null
           last_reopened_at?: string | null

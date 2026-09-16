@@ -17,6 +17,7 @@ import { TicketTypesTab } from "./insights/TicketTypesTab";
 import { TrendsTab } from "./insights/TrendsTab";
 import { ChannelsTab } from "./insights/ChannelsTab";
 import { ReportTab } from "./insights/ReportTab";
+import InAppFormUsageCard from "@/components/InAppFormUsageCard";
 
 interface BucketTicket {
   id: string;
@@ -324,8 +325,9 @@ const Insights = () => {
             <TabsContent value="trends" className="mt-4">
               <TrendsTab data={monthData} month={month} />
             </TabsContent>
-            <TabsContent value="channels" className="mt-4">
+            <TabsContent value="channels" className="mt-4 space-y-6">
               <ChannelsTab data={monthData} />
+              <InAppFormUsageCard />
             </TabsContent>
           </Tabs>
         </div>

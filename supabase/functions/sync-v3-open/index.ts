@@ -28,6 +28,7 @@ import { finalizeConversation } from "../_shared/v3-finalize.ts";
 import { loadSupportRoster, registerConfiguredAnchors } from "../_shared/sla-roster.ts";
 import { syncTicketAttributes } from "../_shared/v3-attributes.ts";
 import { writeV3Signals } from "../_shared/v3-signals.ts";
+import { detectInAppForm } from "../_shared/v3-in-app-form.ts";
 import { notifyNewTicket } from "../_shared/new-ticket-alert.ts";
 import { resolveInboxes, inboxSearchClause } from "../_shared/v3-inboxes.ts";
 import { requireEditorOrSecret } from "../_shared/require-editor-or-secret.ts";
@@ -234,6 +235,9 @@ Deno.serve(async (req) => {
       const adminId = String(conv.admin_assignee_id ?? "");
       const owner = adminOwnerMap[adminId] || null;
       const subject = stripHtml(conv.source?.subject || conv.title || `Intercom #${convId}`);
+      // In-app support form detection. Sticky: only ever written when TRUE, so a
+      // later payload lacking the signal can never un-flag a ticket.
+      const inAppSearch = detectInAppForm(conv);
 
       // NOTE: customer_key / customer_kind / customer_source are populated by
       // the BEFORE INSERT/UPDATE trigger `intercom_tickets_v3_apply_customer`.
@@ -253,6 +257,7 @@ Deno.serve(async (req) => {
         intercom_created_at: createdIso,
         intercom_updated_at: tsToIso(conv.updated_at),
         last_synced_at: new Date().toISOString(),
+        ...(inAppSearch.is_in_app_form ? inAppSearch : {}),
       };
 
       // Alert on tickets that are new to our store AND genuinely recent, so a
@@ -337,7 +342,7 @@ Deno.serve(async (req) => {
       // those stay close-only (sync-v3-closed owns them).
       const { error, data: upserted } = await supabase
         .from("intercom_tickets_v3")
-        .upsert({ ...row, raw_payload: icData, tags: extractTags(icData), last_full_fetch_at: new Date().toISOString() }, { onConflict: "intercom_conversation_id" })
+        .upsert({ ...row, raw_payload: icData, tags: extractTags(icData), last_full_fetch_at: new Date().toISOString(), ...(detectInAppForm(icData).is_in_app_form ? detectInAppForm(icData) : {}) }, { onConflict: "intercom_conversation_id" })
         .select("id, created_at");
       if (error) { failed++; continue; }
       if (upserted && upserted[0]) {
