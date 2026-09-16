@@ -564,7 +564,7 @@ WHY the fallback exists: `esh-write-action` re-reads the conversation from Inter
   - **My queue** (`/my-queue`) — standalone top-level link, added 10 Sep 2026 (see "My queue")
   - **Issues** ▸ Triage (`/triage`) · Dev escalations (`/escalations`) · Inbox (`/conversations`) · Inbox v3
   - **Dashboards** ▸ SLA Dashboard (`/sla`) + one entry **per teammate**, data-driven (see below)
-  - **Tools** ▸ Import · SLA Workbench · Backlog · Prospects · SLA What-if
+  - **Tools** ▸ Import · SLA Workbench · Backlog · Prospects · SLA What-if · Sam review
   - **Admin** ▸ Customers · Settings · Knowledge · Flow · Changelog · SLA Policy (admin-only)
 - **Why by use, not by name:** you navigate by intent ("report", "work the queue", "configure"), and the flat list overflowed a 13" screen.
 - **Deliberate tradeoff:** a feature family is **split across use-groups** — SLA Report → Reports, SLA Dashboard → Dashboards, SLA Workbench → Tools. Mitigated by keeping the family name in the **child label** ("SLA Report" / "SLA Dashboard" / "SLA Workbench") so it stays findable by reading.
@@ -2610,3 +2610,19 @@ Semantics in `MyQueue.tsx`: a row is snoozed when `snoozed_until > now()`. It **
 Controls live in the shared panel's `extra` slot (new optional `ReactNode` prop on `TicketDetailContent`, rendered under the escalation card), editor-gated by `useCanEdit`: optional reason textarea, quick picks **+1d / +3d / +1w** reusing `CADENCE_CHIPS`, a **Custom date** calendar popover, and **Wake now** once set. The panel badge row shows *Snoozed until d MMM yyyy*; the card shows who set it and when, plus the reason.
 
 **Verified 11 Sep 2026** at 1800px on Matt's live queue: 215475781288266 renders the amber *Latest internal note* card with Matt's 8 Sep text while *Latest reply* still shows Diana's 4 Sep message; a live **+1w** write set 18 Sep 2026, incremented Snoozed 0→1, dimmed the row and sank it to the bottom of the table while it stayed *Action needed*; **Wake now** cleared all four columns and restored its position. **UNVERIFIED:** the Custom date popover path and the read-only (non-editor) branch.
+
+## Sam review (`/sam-review`) — bot-failure review loop
+
+**Why:** Sam (the deflection bot) isn't always right. Support already tags those conversations in Intercom with `enterprise-sam-wrong`, but there was nowhere to review them or record *why* Sam failed.
+
+**Page:** Tools ▸ **Sam review** (`src/pages/SamReview.tsx`, route `/sam-review`, `ProtectedRoute`). Reads `intercom_tickets_v3` by tag overlap — scope selector: `enterprise-sam-wrong` (default), `Sam - Avoid`, or both. KPI cards (tagged / open / closed / categorised), a failure-category mix strip, search + lifecycle + category filters, CSV export, and the shared `IssueTable` / `IssueDetailSheet` template (canonical column order, plus **Failure category** before Lifecycle).
+
+**Hub-only review record:** migration `0048_sam_ticket_reviews.sql` creates `public.sam_ticket_reviews` (one row per `conversation_id`, unique): `failure_category`, `review_note`, `reviewed_by` (auth email), timestamps + `update_updated_at_column` trigger. RLS: authenticated read; insert/update/delete gated on `public.can_edit(auth.uid())`. Grants to `authenticated` and `service_role`.
+
+**Categories** (`SAM_FAILURE_CATEGORIES` in `src/components/sam/SamReviewCard.tsx`): Hallucination / Factually inaccurate · Misunderstood request · Outdated docs / Stale guidance · Premature / Missed handoff · Incomplete answer · Tone / Formatting issue · Other.
+
+**Scope fence:** nothing here writes to Intercom — the tag stays the Intercom-side truth, the category and note are Hub-only annotation. Non-editors see the card read-only.
+
+**Caveat:** Intercom tags populate on full fetch (as tickets close), so a freshly tagged open ticket may lag — the page states this inline.
+
+**Verified 16 Sep 2026** on live data: 2 tagged tickets (1 open Mews `215475962771162`, 1 closed), save path wrote a category + note attributed to `matt.niiro@lovable.dev`; the test row was deleted afterwards. **UNVERIFIED:** the non-editor read-only branch and the `Sam - Avoid` scope at volume.
