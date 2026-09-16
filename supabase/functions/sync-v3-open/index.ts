@@ -136,11 +136,11 @@ Deno.serve(async (req) => {
   const existingFinalized = new Map<string, any>();
   // Non-finalized rows, used for the delta check that decides whether an open
   // ticket needs a full GET (to refresh custom_attributes / raw_payload / signals).
-  const existingOpen = new Map<string, { id: string; intercom_updated_at: string | null; last_full_fetch_at: string | null }>();
+  const existingOpen = new Map<string, { id: string; intercom_updated_at: string | null; last_full_fetch_at: string | null; snoozed_until: string | null; snoozed_at: string | null }>();
   if (ids.length) {
     const { data: existing } = await supabase
       .from("intercom_tickets_v3")
-      .select("id, intercom_conversation_id, lifecycle_status, intercom_updated_at, last_full_fetch_at, reopen_count, reopen_count_at_finalize, silent_update_count, raw_payload")
+      .select("id, intercom_conversation_id, lifecycle_status, intercom_updated_at, last_full_fetch_at, reopen_count, reopen_count_at_finalize, silent_update_count, raw_payload, snoozed_until, snoozed_at")
       .in("intercom_conversation_id", ids);
     for (const r of existing || []) {
       if (r.lifecycle_status === "finalized") {
@@ -150,9 +150,36 @@ Deno.serve(async (req) => {
           id: r.id,
           intercom_updated_at: r.intercom_updated_at,
           last_full_fetch_at: r.last_full_fetch_at,
+          snoozed_until: r.snoozed_until ?? null,
+          snoozed_at: r.snoozed_at ?? null,
         });
       }
     }
+  }
+
+  // Hub-only snooze auto-wake: a snooze is a promise to ignore a ticket until a
+  // date UNLESS the customer speaks. When the Intercom payload proves a contact
+  // reply landed after the snooze was taken, clear all four snooze columns for
+  // good (same shape as the "Wake now" button). Never re-snoozes anything.
+  const CLEARED_SNOOZE = {
+    snoozed_until: null,
+    snoozed_at: null,
+    snoozed_by: null,
+    snooze_reason: null,
+  };
+  let snoozesWoken = 0;
+  function snoozeWakePatch(
+    existingRow: { snoozed_until: string | null; snoozed_at: string | null } | undefined,
+    payload: any,
+  ): Record<string, null> | null {
+    if (!existingRow?.snoozed_until || !existingRow.snoozed_at) return null;
+    if (new Date(existingRow.snoozed_until).getTime() <= Date.now()) return null;
+    const raw = payload?.statistics?.last_contact_reply_at;
+    const lastContactMs = Number(raw) > 0 ? Number(raw) * 1000 : null;
+    if (lastContactMs === null) return null;
+    if (lastContactMs <= new Date(existingRow.snoozed_at).getTime() + 1000) return null;
+    snoozesWoken++;
+    return CLEARED_SNOOZE;
   }
 
   let inserted = 0, updated = 0, skipped = 0, failed = 0, reopened = 0, silentNudges = 0, ticketsFinalized = 0, attrRefreshed = 0, alerted = 0;
@@ -280,7 +307,9 @@ Deno.serve(async (req) => {
       const minimalUpsert = async (): Promise<string | null> => {
         const { error, data: upserted } = await supabase
           .from("intercom_tickets_v3")
-          .upsert(row, { onConflict: "intercom_conversation_id" })
+          // Snooze auto-wake also runs on the cheap path: the search payload
+          // carries `statistics`, which is all the wake decision needs.
+          .upsert({ ...row, ...(snoozeWakePatch(existingOpen.get(convId), conv) ?? {}) }, { onConflict: "intercom_conversation_id" })
           .select("id, created_at");
         if (error) { failed++; return null; }
         if (upserted && upserted[0]) {
@@ -342,7 +371,7 @@ Deno.serve(async (req) => {
       // those stay close-only (sync-v3-closed owns them).
       const { error, data: upserted } = await supabase
         .from("intercom_tickets_v3")
-        .upsert({ ...row, raw_payload: icData, tags: extractTags(icData), last_full_fetch_at: new Date().toISOString(), ...(detectInAppForm(icData).is_in_app_form ? detectInAppForm(icData) : {}) }, { onConflict: "intercom_conversation_id" })
+        .upsert({ ...row, raw_payload: icData, tags: extractTags(icData), last_full_fetch_at: new Date().toISOString(), ...(detectInAppForm(icData).is_in_app_form ? detectInAppForm(icData) : {}), ...(snoozeWakePatch(existingRow, icData) ?? {}) }, { onConflict: "intercom_conversation_id" })
         .select("id, created_at");
       if (error) { failed++; continue; }
       if (upserted && upserted[0]) {
@@ -433,7 +462,7 @@ Deno.serve(async (req) => {
   return json({
     ok: true, windowHours, fetched: conversations.length,
     inserted, updated, skipped, failed, reopened, silent_nudges: silentNudges, tickets_finalized: ticketsFinalized,
-    attr_refreshed: attrRefreshed, alerted,
+    attr_refreshed: attrRefreshed, alerted, snoozes_woken: snoozesWoken,
     subject_ai: subjectAi,
     stateCounts,
     elapsed_ms: Date.now() - startedAt,

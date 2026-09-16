@@ -38,6 +38,7 @@ import {
   needsChase,
   needsFixAck,
   nextFollowupMs,
+  devResolvedAtMs,
 } from "@/lib/devEscalation";
 
 /**
@@ -172,6 +173,12 @@ type QueueRow = Row & {
   /** Hub-only snooze: still in its natural bucket, just parked until this date. */
   snoozed: boolean;
   snoozedUntilMs: number | null;
+  /**
+   * A snooze that is still dated in the future but has been invalidated by real
+   * activity: a customer reply, or engineering resolving the Linear issue.
+   * Display-side only — the sync jobs clear the columns for good.
+   */
+  autoWoke: null | "customer_reply" | "dev_resolved";
 };
 
 function classify(row: Row, esc: DevEscalation | null): QueueRow {
@@ -229,6 +236,23 @@ function classify(row: Row, esc: DevEscalation | null): QueueRow {
   if (!ticketType) gaps.push("Ticket type");
 
   const snoozedUntilMs = row.snoozed_until ? new Date(row.snoozed_until).getTime() : null;
+  const snoozeDated = snoozedUntilMs != null && snoozedUntilMs > Date.now();
+
+  // Auto-wake. A snooze is a promise to ignore the ticket until a date UNLESS
+  // reality moves: the customer speaks, or engineering closes the Linear issue.
+  // Both are compared against `snoozed_at` (with a 1s clock-skew buffer) so a
+  // deliberate re-snooze taken AFTER the event is still honoured.
+  const snoozedAtMs = row.snoozed_at ? new Date(row.snoozed_at).getTime() : null;
+  const SKEW_MS = 1000;
+  const devDoneMs = esc ? devResolvedAtMs(esc) : null;
+  let autoWoke: QueueRow["autoWoke"] = null;
+  if (snoozeDated && snoozedAtMs != null) {
+    if (lastContactMs != null && lastContactMs > snoozedAtMs + SKEW_MS) {
+      autoWoke = "customer_reply";
+    } else if (devDoneMs != null && devDoneMs > snoozedAtMs + SKEW_MS && needsFixAck(esc as DevEscalation)) {
+      autoWoke = "dev_resolved";
+    }
+  }
 
   return {
     ...row,
@@ -242,8 +266,9 @@ function classify(row: Row, esc: DevEscalation | null): QueueRow {
     gaps,
     esc,
     chaseDue: !!esc && needsChase(esc),
-    snoozed: snoozedUntilMs != null && snoozedUntilMs > Date.now(),
+    snoozed: snoozeDated && !autoWoke,
     snoozedUntilMs,
+    autoWoke,
   };
 }
 
@@ -335,7 +360,7 @@ export default function MyQueue() {
     const { data, error: err } = await supabase
       .from("dev_escalations")
       .select(
-        "id,intercom_conversation_id,hub_state,linear_key,linear_title,linear_state,linear_state_type,linear_assignee,linear_url_override,created_at,dev_followed_up_at,dev_followed_up_by,dev_next_followup_at,dev_followup_source,dev_fix_ack_at,dev_fix_ack_by,dev_workaround_at,dev_workaround_by,dev_workaround_note",
+        "id,intercom_conversation_id,hub_state,linear_key,linear_title,linear_state,linear_state_type,linear_assignee,linear_url_override,linear_completed_at,linear_canceled_at,created_at,dev_followed_up_at,dev_followed_up_by,dev_next_followup_at,dev_followup_source,dev_fix_ack_at,dev_fix_ack_by,dev_workaround_at,dev_workaround_by,dev_workaround_note",
       )
       .in("intercom_conversation_id", ids);
     if (err) {
@@ -869,7 +894,31 @@ export default function MyQueue() {
                 /* Hub-only snooze. No Intercom write, no SLA effect. */
                 <div className="rounded-md border p-3 space-y-2">
                   <div className="text-sm font-medium">Snooze</div>
-                  {selected.snoozed ? (
+                  {selected.autoWoke ? (
+                    <>
+                      <div className="text-xs text-amber-700 dark:text-amber-400">
+                        Woken automatically —{" "}
+                        {selected.autoWoke === "customer_reply"
+                          ? "the customer replied after this was snoozed."
+                          : "engineering resolved the Linear issue after this was snoozed."}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        The snooze was set for{" "}
+                        {format(new Date(selected.snoozedUntilMs as number), "d MMM yyyy HH:mm")} and is
+                        ignored. The next sync clears it for good.
+                      </div>
+                      {canEdit ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={savingSnooze}
+                          onClick={() => setSnooze(selected, null)}
+                        >
+                          Clear snooze
+                        </Button>
+                      ) : null}
+                    </>
+                  ) : selected.snoozed ? (
                     <>
                       <div className="text-xs text-muted-foreground">
                         Snoozed until{" "}

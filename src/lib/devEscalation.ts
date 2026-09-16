@@ -17,6 +17,9 @@ export type DevEscalation = {
   linear_state_type: string | null;
   linear_assignee: string | null;
   linear_url_override: string | null;
+  /** Linear-owned resolution stamps, mirrored by sync-linear-escalations. */
+  linear_completed_at?: string | null;
+  linear_canceled_at?: string | null;
   created_at: string | null;
   dev_followed_up_at: string | null;
   dev_followed_up_by: string | null;
@@ -102,6 +105,19 @@ export function needsChase(esc: DevEscalation): boolean {
 /** A resolved escalation still waiting for a human to sign it off. */
 export function needsFixAck(esc: DevEscalation): boolean {
   return isDevDone(esc) && !esc.dev_fix_ack_at;
+}
+
+/**
+ * When engineering finished the work, in ms. Read-only over the Linear mirror;
+ * used to decide whether a resolution happened AFTER a ticket was snoozed.
+ * Returns null when the issue is not done or carries no resolution stamp.
+ */
+export function devResolvedAtMs(esc: DevEscalation): number | null {
+  if (!isDevDone(esc)) return null;
+  const raw = esc.linear_completed_at ?? esc.linear_canceled_at ?? null;
+  if (!raw) return null;
+  const ms = new Date(raw).getTime();
+  return Number.isFinite(ms) ? ms : null;
 }
 
 export function linearUrl(esc: DevEscalation): string | null {
