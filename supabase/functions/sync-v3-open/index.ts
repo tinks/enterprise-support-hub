@@ -234,6 +234,9 @@ Deno.serve(async (req) => {
       const adminId = String(conv.admin_assignee_id ?? "");
       const owner = adminOwnerMap[adminId] || null;
       const subject = stripHtml(conv.source?.subject || conv.title || `Intercom #${convId}`);
+      // In-app support form detection. Sticky: only ever written when TRUE, so a
+      // later payload lacking the signal can never un-flag a ticket.
+      const inAppSearch = detectInAppForm(conv);
 
       // NOTE: customer_key / customer_kind / customer_source are populated by
       // the BEFORE INSERT/UPDATE trigger `intercom_tickets_v3_apply_customer`.
@@ -253,6 +256,7 @@ Deno.serve(async (req) => {
         intercom_created_at: createdIso,
         intercom_updated_at: tsToIso(conv.updated_at),
         last_synced_at: new Date().toISOString(),
+        ...(inAppSearch.is_in_app_form ? inAppSearch : {}),
       };
 
       // Alert on tickets that are new to our store AND genuinely recent, so a
