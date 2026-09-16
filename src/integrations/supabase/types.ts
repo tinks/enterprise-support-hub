@@ -1911,6 +1911,36 @@ export type Database = {
         }
         Relationships: []
       }
+      sam_ticket_reviews: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          failure_category: string | null
+          id: string
+          review_note: string | null
+          reviewed_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          failure_category?: string | null
+          id?: string
+          review_note?: string | null
+          reviewed_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          failure_category?: string | null
+          id?: string
+          review_note?: string | null
+          reviewed_by?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       settings: {
         Row: {
           admin_owner_map: string

@@ -38,6 +38,7 @@ import Prospects from "./pages/Prospects";
 import SlaWhatIf from "./pages/SlaWhatIf";
 import SlaPolicyAdmin from "./pages/SlaPolicyAdmin";
 import SeverityAi from "./pages/SeverityAi";
+import SamReview from "./pages/SamReview";
 
 import FloatCoverage from "./pages/FloatCoverage";
 import Triage from "./pages/Triage";
@@ -92,6 +93,7 @@ const App = () => (
           <Route path="/search" element={<ProtectedRoute><DeepSearch /></ProtectedRoute>} />
           <Route path="/backlog" element={<EditorRoute><Backlog /></EditorRoute>} />
           <Route path="/prospects" element={<ProtectedRoute><Prospects /></ProtectedRoute>} />
+          <Route path="/sam-review" element={<ProtectedRoute><SamReview /></ProtectedRoute>} />
           <Route path="/sla-what-if" element={<ProtectedRoute><SlaWhatIf /></ProtectedRoute>} />
           <Route path="/sla-policy" element={<ProtectedRoute><SlaPolicyAdmin /></ProtectedRoute>} />
           <Route path="/severity-ai" element={<ProtectedRoute><SeverityAi /></ProtectedRoute>} />
