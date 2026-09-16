@@ -2611,6 +2611,19 @@ Controls live in the shared panel's `extra` slot (new optional `ReactNode` prop 
 
 **Verified 11 Sep 2026** at 1800px on Matt's live queue: 215475781288266 renders the amber *Latest internal note* card with Matt's 8 Sep text while *Latest reply* still shows Diana's 4 Sep message; a live **+1w** write set 18 Sep 2026, incremented Snoozed 0→1, dimmed the row and sank it to the bottom of the table while it stayed *Action needed*; **Wake now** cleared all four columns and restored its position. **UNVERIFIED:** the Custom date popover path and the read-only (non-editor) branch.
 
+### Snooze auto-wake (16 Sep 2026)
+
+A snooze is a promise to ignore a ticket **until a date, unless reality moves**. Two events invalidate it: a **customer reply** landing after the snooze was taken, and **engineering resolving** (`completed` or `canceled`) the linked Linear issue after the snooze was taken. Both compare against `snoozed_at` with a **1s clock-skew buffer**, so a deliberate re-snooze taken *after* the event is honoured. Nothing else wakes a ticket, and nothing is written to Intercom or Linear; no SLA clock or reported number is affected.
+
+Two tiers:
+
+1. **Display-side** (`MyQueue.classify`): `QueueRow.autoWoke` is `"customer_reply" | "dev_resolved" | null`. `snoozed` becomes `snoozeDated && !autoWoke`, so the row un-dims, leaves the Snoozed card/filter and resumes normal sorting the moment the Hub loads — no waiting for a sync. `dev_resolved` requires `needsFixAck(esc)` and uses `devResolvedAtMs()` (new helper in `devEscalation.ts` reading the `linear_completed_at` / `linear_canceled_at` mirror, both now selected by My Queue). The snooze card shows an amber *Woken automatically — …* explanation plus **Clear snooze** instead of the normal snoozed copy.
+2. **Durable** — the sync jobs clear all four columns for good (same shape as **Wake now**): `sync-v3-open` on a newer `statistics.last_contact_reply_at`, applied on **both** the full-fetch and the cheap minimal search-payload path (the search payload carries `statistics`), reported as `snoozes_woken`; `sync-linear-escalations` after the escalation upsert, re-reading the linked tickets' snooze columns and clearing those whose resolution timestamp beats `snoozed_at`, also reported as `snoozes_woken`.
+
+Buckets follow naturally: a customer-reply wake lands in *Action needed* (`last_contact_reply_at > last_admin_reply_at`), a dev-resolution wake in *Dev resolved (needs support action)*.
+
+**Verified 16 Sep 2026** on live data: test ticket 215475949159138 (snoozed 15 Sep → 18 Sep, customer replied 16 Sep) rendered *Woken automatically — the customer replied after this was snoozed* in My Queue and dropped out of the snoozed set; a live `sync-v3-open` run (`windowHours: 72`) returned `snoozes_woken: 2` and the ticket's four snooze columns are now NULL. **UNVERIFIED:** the Linear-resolution wake path (no snoozed ticket with a freshly-resolved issue existed at build time) and the read-only (non-editor) branch of the woken card.
+
 ## Sam review (`/sam-review`) — bot-failure review loop
 
 **Why:** Sam (the deflection bot) isn't always right. Support already tags those conversations in Intercom with `enterprise-sam-wrong`, but there was nowhere to review them or record *why* Sam failed.

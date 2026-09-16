@@ -324,6 +324,44 @@ Deno.serve(async (req) => {
     written = count ?? rows.length;
   }
 
+  // Hub-only snooze auto-wake on a resolved escalation. When engineering closes
+  // (or cancels) a linked Linear issue AFTER a ticket was snoozed, the reason for
+  // the snooze is gone: the ball is back with support. Clear all four snooze
+  // columns for good — same shape as the "Wake now" button. A snooze taken after
+  // the resolution is deliberate and is left alone. Nothing is written to Linear
+  // or Intercom, and no reported number moves.
+  let snoozesWoken = 0;
+  const resolvedConvs = resolved
+    .map((p) => ({ conv: p.conversationId, issue: found.get(p.key)! }))
+    .map((x) => ({
+      conv: x.conv,
+      at: x.issue.completedAt ?? x.issue.canceledAt ?? null,
+    }))
+    .filter((x) => !!x.at);
+  if (resolvedConvs.length) {
+    const { data: snoozedRows } = await supabase
+      .from("intercom_tickets_v3")
+      .select("id, intercom_conversation_id, snoozed_at, snoozed_until")
+      .in("intercom_conversation_id", Array.from(new Set(resolvedConvs.map((x) => x.conv))))
+      .not("snoozed_until", "is", null);
+    for (const r of snoozedRows ?? []) {
+      if (!r.snoozed_at) continue;
+      if (new Date(r.snoozed_until as string).getTime() <= Date.now()) continue;
+      const snoozedAtMs = new Date(r.snoozed_at as string).getTime();
+      const wokeBy = resolvedConvs.find(
+        (x) =>
+          x.conv === String(r.intercom_conversation_id) &&
+          new Date(x.at as string).getTime() > snoozedAtMs + 1000,
+      );
+      if (!wokeBy) continue;
+      const { error: wakeErr } = await supabase
+        .from("intercom_tickets_v3")
+        .update({ snoozed_until: null, snoozed_at: null, snoozed_by: null, snooze_reason: null })
+        .eq("id", r.id);
+      if (!wakeErr) snoozesWoken++;
+    }
+  }
+
   await recordIntegrationHealth(
     supabase,
     INTEGRATION,
@@ -342,6 +380,7 @@ Deno.serve(async (req) => {
     moved: moved,
     rows_written: written,
     links_written: linksWritten,
+    snoozes_woken: snoozesWoken,
     capped: pairs.length > MAX_KEYS,
   });
 });
