@@ -470,6 +470,30 @@ export default function MyQueue() {
     setReloadKey((k) => k + 1);
   }
 
+  /**
+   * On-demand Linear refresh. Read-only against Linear; it only refreshes the
+   * linear_* mirror columns the queue reads, then reloads the queue so a state
+   * that moved since the last hourly cron shows immediately.
+   */
+  async function syncLinear() {
+    setSyncingLinear(true);
+    const { data, error: err } = await supabase.functions.invoke("sync-linear-escalations");
+    setSyncingLinear(false);
+    if (err) {
+      toast.error("Linear sync failed", { description: err.message });
+      return;
+    }
+    const d = data as { resolved?: number; not_found?: string[] } | null;
+    toast.success(`Linear sync: ${d?.resolved ?? 0} issue(s) refreshed`, {
+      description:
+        d?.not_found && d.not_found.length > 0
+          ? `Not found in Linear: ${d.not_found.slice(0, 5).join(", ")}`
+          : undefined,
+    });
+    setReloadKey((k) => k + 1);
+  }
+
+
   /** Hub-owned write: chase stamp + next due date. Never touches Linear or Intercom. */
   async function markFollowedUp(esc: DevEscalation, overrideMs?: number | null, dueDate?: Date) {
     setSavingDev(true);
