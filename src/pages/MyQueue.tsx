@@ -324,6 +324,7 @@ export default function MyQueue() {
   const [snoozeReason, setSnoozeReason] = useState("");
   const [savingSnooze, setSavingSnooze] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [syncingLinear, setSyncingLinear] = useState(false);
 
   // Default owner: the signed-in teammate, matched on the local part of the
   // work email against the roster. Falls back to the URL param.
@@ -468,6 +469,30 @@ export default function MyQueue() {
     toast.success(until ? `Snoozed until ${format(until, "d MMM yyyy")}` : "Snooze cleared");
     setReloadKey((k) => k + 1);
   }
+
+  /**
+   * On-demand Linear refresh. Read-only against Linear; it only refreshes the
+   * linear_* mirror columns the queue reads, then reloads the queue so a state
+   * that moved since the last hourly cron shows immediately.
+   */
+  async function syncLinear() {
+    setSyncingLinear(true);
+    const { data, error: err } = await supabase.functions.invoke("sync-linear-escalations");
+    setSyncingLinear(false);
+    if (err) {
+      toast.error("Linear sync failed", { description: err.message });
+      return;
+    }
+    const d = data as { resolved?: number; not_found?: string[] } | null;
+    toast.success(`Linear sync: ${d?.resolved ?? 0} issue(s) refreshed`, {
+      description:
+        d?.not_found && d.not_found.length > 0
+          ? `Not found in Linear: ${d.not_found.slice(0, 5).join(", ")}`
+          : undefined,
+    });
+    setReloadKey((k) => k + 1);
+  }
+
 
   /** Hub-owned write: chase stamp + next due date. Never touches Linear or Intercom. */
   async function markFollowedUp(esc: DevEscalation, overrideMs?: number | null, dueDate?: Date) {
@@ -730,6 +755,22 @@ export default function MyQueue() {
             <Button variant="outline" size="sm" onClick={() => setReloadKey((k) => k + 1)}>
               <RefreshCw className="h-4 w-4 mr-1" /> Refresh
             </Button>
+            {canEdit ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={syncLinear}
+                disabled={syncingLinear}
+                title="Pull the current Linear state for every escalation in this queue. Read-only in Linear."
+              >
+                {syncingLinear ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                )}
+                Sync Linear
+              </Button>
+            ) : null}
           </div>
         </div>
 
