@@ -540,8 +540,8 @@ export const ACTION_SIGNALS: ActionSignal[] = [
     id: "relay_identity_gaps",
     label: "Slack relay identity gaps",
     family: "review",
-    route: "/settings",
-    routeLabel: "Settings (teammates)",
+    route: "/people",
+    routeLabel: "Admin → People",
     meaning:
       "A Slack↔Intercom relayed reply could not be posted under the teammate's own Intercom admin id — either the teammate has no intercom_admin_id in the roster, or Intercom rejected it. The reply was still delivered, but it lands under the relay admin (Sam), which makes the ticket look unanswered to the SLA engine. Fix the teammate's Intercom admin id, then mark the gap resolved.",
     load: async () => {
