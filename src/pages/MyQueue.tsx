@@ -324,6 +324,7 @@ export default function MyQueue() {
   const [snoozeReason, setSnoozeReason] = useState("");
   const [savingSnooze, setSavingSnooze] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [syncingLinear, setSyncingLinear] = useState(false);
 
   // Default owner: the signed-in teammate, matched on the local part of the
   // work email against the roster. Falls back to the URL param.
@@ -730,6 +731,22 @@ export default function MyQueue() {
             <Button variant="outline" size="sm" onClick={() => setReloadKey((k) => k + 1)}>
               <RefreshCw className="h-4 w-4 mr-1" /> Refresh
             </Button>
+            {canEdit ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={syncLinear}
+                disabled={syncingLinear}
+                title="Pull the current Linear state for every escalation in this queue. Read-only in Linear."
+              >
+                {syncingLinear ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                )}
+                Sync Linear
+              </Button>
+            ) : null}
           </div>
         </div>
 
