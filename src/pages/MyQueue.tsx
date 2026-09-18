@@ -534,7 +534,7 @@ export default function MyQueue() {
       toast.error(`Could not save the acknowledgement: ${err.message}`);
       return;
     }
-    toast.success(ack ? "Dev fix acknowledged" : "Acknowledgement cleared");
+    toast.success(ack ? "Resolution acknowledged" : "Acknowledgement cleared");
     await loadEscalations(rows.map((r) => r.intercom_conversation_id));
   }
 
