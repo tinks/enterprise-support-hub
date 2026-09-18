@@ -93,7 +93,7 @@ const BUCKET_META: Record<Bucket, { label: string; blurb: string; pill: string; 
   },
   dev_resolved: {
     label: "Dev resolved",
-    blurb: "Engineering closed the Linear issue — verify the fix, tell the customer, then acknowledge.",
+    blurb: "Engineering closed the Linear issue (fixed or won't fix) — tell the customer, then acknowledge.",
     pill: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/40",
     row: "bg-emerald-500/5 hover:bg-emerald-500/10",
   },
