@@ -93,7 +93,7 @@ const BUCKET_META: Record<Bucket, { label: string; blurb: string; pill: string; 
   },
   dev_resolved: {
     label: "Dev resolved",
-    blurb: "Engineering closed the Linear issue — verify the fix, tell the customer, then acknowledge.",
+    blurb: "Engineering closed the Linear issue (fixed or won't fix) — tell the customer, then acknowledge.",
     pill: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/40",
     row: "bg-emerald-500/5 hover:bg-emerald-500/10",
   },
@@ -534,7 +534,7 @@ export default function MyQueue() {
       toast.error(`Could not save the acknowledgement: ${err.message}`);
       return;
     }
-    toast.success(ack ? "Dev fix acknowledged" : "Acknowledgement cleared");
+    toast.success(ack ? "Resolution acknowledged" : "Acknowledgement cleared");
     await loadEscalations(rows.map((r) => r.intercom_conversation_id));
   }
 
@@ -1186,10 +1186,14 @@ export default function MyQueue() {
                     <div className="flex flex-wrap items-center gap-2 border-t pt-3">
                       <div className="text-xs text-muted-foreground">
                         {selected.esc.dev_fix_ack_at
-                          ? `Fix acknowledged ${format(new Date(selected.esc.dev_fix_ack_at), "d MMM yyyy HH:mm")}${
+                          ? `Resolution acknowledged ${format(new Date(selected.esc.dev_fix_ack_at), "d MMM yyyy HH:mm")}${
                               selected.esc.dev_fix_ack_by ? ` · ${selected.esc.dev_fix_ack_by}` : ""
                             }`
-                          : "Engineering closed this issue — verify the fix and tell the customer."}
+                          : ["canceled", "cancelled"].includes(
+                                (selected.esc.linear_state_type ?? selected.esc.linear_state ?? "").toLowerCase(),
+                              )
+                            ? "Engineering canceled this issue (won't fix) — tell the customer, then acknowledge."
+                            : "Engineering closed this issue — verify the fix and tell the customer."}
                       </div>
                       {canEdit ? (
                         selected.esc.dev_fix_ack_at ? (
@@ -1207,7 +1211,7 @@ export default function MyQueue() {
                             disabled={savingDev}
                             onClick={() => setFixAck(selected.esc as DevEscalation, true)}
                           >
-                            <Check className="h-3.5 w-3.5 mr-1" /> Acknowledge dev fix
+                            <Check className="h-3.5 w-3.5 mr-1" /> Acknowledge resolution
                           </Button>
                         )
                       ) : null}
