@@ -1211,7 +1211,7 @@ export default function MyQueue() {
                             disabled={savingDev}
                             onClick={() => setFixAck(selected.esc as DevEscalation, true)}
                           >
-                            <Check className="h-3.5 w-3.5 mr-1" /> Acknowledge dev fix
+                            <Check className="h-3.5 w-3.5 mr-1" /> Acknowledge resolution
                           </Button>
                         )
                       ) : null}
