@@ -1186,10 +1186,14 @@ export default function MyQueue() {
                     <div className="flex flex-wrap items-center gap-2 border-t pt-3">
                       <div className="text-xs text-muted-foreground">
                         {selected.esc.dev_fix_ack_at
-                          ? `Fix acknowledged ${format(new Date(selected.esc.dev_fix_ack_at), "d MMM yyyy HH:mm")}${
+                          ? `Resolution acknowledged ${format(new Date(selected.esc.dev_fix_ack_at), "d MMM yyyy HH:mm")}${
                               selected.esc.dev_fix_ack_by ? ` · ${selected.esc.dev_fix_ack_by}` : ""
                             }`
-                          : "Engineering closed this issue — verify the fix and tell the customer."}
+                          : ["canceled", "cancelled"].includes(
+                                (selected.esc.linear_state_type ?? selected.esc.linear_state ?? "").toLowerCase(),
+                              )
+                            ? "Engineering canceled this issue (won't fix) — tell the customer, then acknowledge."
+                            : "Engineering closed this issue — verify the fix and tell the customer."}
                       </div>
                       {canEdit ? (
                         selected.esc.dev_fix_ack_at ? (
