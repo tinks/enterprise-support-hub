@@ -726,7 +726,7 @@ const People = () => {
                                       disabled={savingKey === r.key}
                                       onCheckedChange={(v) => toggleAccessExpected(r, !v)}
                                     />
-                                    attribution only
+                                    Internal, no Hub login
                                   </label>
                                 )}
                                 {r.email && r.accessStatus === "pending" && (
