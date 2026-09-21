@@ -420,6 +420,7 @@ function buildNodes(
           "Searches Intercom contact by email first; falls back to external_id only when no email provided",
           "Creates contact by email only (no external_id) to prevent race conditions merging different emails into one contact",
           "On conflict: reuses existing contact WITHOUT overwriting its email — each email stays separate",
+          "No-email (Slack Connect) contacts are named with the real Slack profile name instead of 'Slack User U…'; existing placeholder names are backfilled once. Slack lookup failure falls back to the old placeholder (21 Sep 2026)",
           "Downloads & re-hosts file attachments to storage",
           "Prepends anti-escalation context (enterprise Slack origin) to conversation body",
           "Creates conversation with text + attachment URLs",
