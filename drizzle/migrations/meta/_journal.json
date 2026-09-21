@@ -351,6 +351,13 @@
       "when": 1789998502126,
       "tag": "0049_teammates_hub_access_expected",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1790008778500,
+      "tag": "0050_sam_ticket_reviews_read_scope",
+      "breakpoints": true
     }
   ]
 }
