@@ -1,4 +1,4 @@
-import { requireUser } from "../_shared/require-user.ts";
+import { requireEditor } from "../_shared/require-editor.ts";
 // Read-only Intercom proxy: fetches full conversation payloads by id so the
 // frontend SLA engine (src/lib/slaMetrics.ts → computeSla) can analyze them.
 // STRICT: HTTP GET to Intercom only. No POST/PUT/DELETE, no DB writes.
