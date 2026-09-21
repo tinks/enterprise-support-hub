@@ -951,8 +951,8 @@ const People = () => {
               </label>
               {!fLogin && (
                 <p className="ml-6 text-xs text-muted-foreground">
-                  Left off, this person is attribution only — no "No Hub login" warning. You can
-                  grant access later from their row.
+                  Left off, this person is marked internal, no Hub login — no "No Hub login"
+                  warning. You can grant access later from their row.
                 </p>
               )}
               {fLogin && (
