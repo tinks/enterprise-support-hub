@@ -1878,6 +1878,26 @@ Negative: 401 with no `Authorization` header and with the anon key alone; explic
 
 Merge check (17 Aug 2026): `/users` at 1900px renders exactly one table with 11 rows, matching SQL (11 `hub_members` + 0 untracked accounts). A temporary `pending` row (`zz-verify-pending@lovable.dev`, mine, deleted afterwards) rendered Provision + Remove access with role buttons replaced by "no account yet". Still unproven: the `untracked` row branch (no such account exists) and the last-admin disabled tooltip (two admins exist; no real admin was revoked to force it). Also still unproven: a real first-time workspace member completing the sign-in path against a provisioned account.
 
+### Consolidation into Admin → People (21 Sep 2026)
+
+People management had drifted across three surfaces: `/people` (view + team assignment only), the hidden `/users` table (add member, admin/editor roles, provision/block), and the retired `AdminMappingCard` on Settings (Intercom ID, Slack ID, dashboard toggle, `admin_owner_map` dual-write). Anything else meant raw SQL. **Admin → People (`/people`, `src/pages/People.tsx`) is now the single pane**; `App.tsx` redirects `/users` → `/people`, and `UsersCard.tsx` / `Users.tsx` stay on disk unreferenced as the rollback path.
+
+People keeps its joined access+attribution row model (one row per person, keyed on lowercased email, drift shown not hidden) and gains every write:
+
+- **Add person** dialog — name, `@lovable.dev` email, team, Slack ID, Intercom Admin ID, optional dashboard entry, and an optional Hub login. The login path inserts the `hub_members` row as `pending`, invokes `hub-access-manage` `provision`, then grants `editor` / `admin` on the returned `user_id`. Support requires an Intercom Admin ID; `csm` / `other` are relay-only and do not.
+- **Access cell** — Provision (pending rows), Remove access (AlertDialog confirm), Unblock.
+- **Roles cell** — `editor` and `admin` checkboxes per row; the `admin` box is disabled with a tooltip when the person is the last remaining admin. Rows with no backend account still render read-only role badges.
+- **Identity cells** — inline pencil editing of `intercom_admin_id` and `slack_user_id`, Enter to save / Escape to cancel.
+- **Dashboard** — a `show_dashboard` switch driving `useDashboardTeammates`.
+
+Two side effects are wired so nothing needs a follow-up SQL pass:
+
+1. Any write touching `intercom_admin_id` (add, inline edit, team change) re-mirrors the **full** `teammates` roster — active *and* inactive, because historical attribution must keep resolving — into `settings.admin_owner_map`, still read by `intercom-webhook`, `poll-intercom-inbox`, `sync-v3-open`, `sync-v3-closed`, `reconcile-v3-open`, `backfill-enterprise-inbox`, `esh-write-action` and `AnalyticsV3`.
+2. Saving a Slack ID, or adding a person with one, stamps `resolved_at` on matching open `relay_attribution_gaps` rows (by Slack ID and by email), so the Action Center **Slack relay identity gaps** card clears as soon as the person exists.
+
+Verification (21 Sep 2026): typecheck and build clean. Alex K (`alexandra.kosovic@lovable.dev`, Slack `U0AQWBY6TU3`, role `csm`) was added to `teammates` and her gap row resolved — `relay_attribution_gaps` now has 0 open rows. **UNVERIFIED:** the Add-person dialog end to end, the provision branch, the role checkboxes, inline ID save and the dashboard switch were not exercised in a browser this pass (no authenticated session available).
+
+
 
 ## Editor vs read-only roles
 
