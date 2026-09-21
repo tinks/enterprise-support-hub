@@ -444,7 +444,11 @@ const People = () => {
 
     for (const r of byKey.values()) {
       const t = r.teammate;
-      if (!r.hasAccess && t) r.drift.push("No Hub login");
+      // A missing Hub login is only drift when this person is *expected* to sign
+      // in. AI identities (Sam) never can, and humans can be marked attribution
+      // only (hub_access_expected = false) when a login is deliberate-never.
+      if (!r.hasAccess && t && t.role !== "ai" && t.hub_access_expected)
+        r.drift.push("No Hub login");
       if (r.hasAccess && !t) r.drift.push("Not on attribution roster");
       if (r.accessStatus === "untracked") r.drift.push("Account not on access roster");
       if (t?.active && t.role === "support" && !t.slack_user_id) r.drift.push("Support, no Slack ID");
