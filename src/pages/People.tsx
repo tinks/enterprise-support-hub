@@ -77,6 +77,8 @@ interface TeammateRow {
   show_dashboard: boolean;
   intercom_admin_id: string | null;
   slack_user_id: string | null;
+  /** false = intentionally attribution-only; suppresses the "No Hub login" drift flag. */
+  hub_access_expected: boolean;
 }
 
 interface PersonRow {
