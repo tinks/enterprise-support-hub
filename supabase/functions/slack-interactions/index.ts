@@ -184,19 +184,22 @@ async function createIntercomTicket(opts: {
 
   // Auto-lookup Slack user email if not provided
   let resolvedEmail = email;
-  if (!resolvedEmail) {
-    try {
-      const userRes = await fetch(`${SLACK_API_URL}/users.info?user=${slackUserId}`, {
-        headers: { Authorization: `Bearer ${slackBotToken}` },
-      });
-      const userData = await userRes.json();
-      if (userData.ok && userData.user?.profile?.email) {
-        resolvedEmail = userData.user.profile.email;
+  let resolvedSlackName: string | null = null;
+  try {
+    const userRes = await fetch(`${SLACK_API_URL}/users.info?user=${slackUserId}`, {
+      headers: { Authorization: `Bearer ${slackBotToken}` },
+    });
+    const userData = await userRes.json();
+    if (userData.ok && userData.user) {
+      const p = userData.user.profile || {};
+      if (!resolvedEmail && p.email) {
+        resolvedEmail = p.email;
         console.log(`Auto-resolved email for ${slackUserId}: ${resolvedEmail}`);
       }
-    } catch (e) {
-      console.error("Failed to lookup Slack user email:", e);
+      resolvedSlackName = p.real_name || p.display_name || userData.user.real_name || null;
     }
+  } catch (e) {
+    console.error("Failed to lookup Slack user profile:", e);
   }
 
   const intercomHeaders = {
