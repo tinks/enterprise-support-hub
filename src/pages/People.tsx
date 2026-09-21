@@ -310,7 +310,9 @@ const People = () => {
     if (error) toast.error("Save failed: " + error.message);
     else {
       toast.success(
-        expected ? `${t.name} expected to have ESH access` : `${t.name} marked attribution only`,
+        expected
+          ? `${t.name} expected to have ESH access`
+          : `${t.name} marked internal, no Hub login`,
       );
       await load();
     }
