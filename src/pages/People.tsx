@@ -695,7 +695,34 @@ const People = () => {
                                     {r.accessStatus}
                                   </Badge>
                                 ) : (
-                                  <span className="text-xs text-muted-foreground">no login</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {t?.role === "ai"
+                                      ? "no login (AI)"
+                                      : t && !t.hub_access_expected
+                                        ? "attribution only"
+                                        : "no login"}
+                                  </span>
+                                )}
+                                {!r.hasAccess && r.email?.endsWith("@lovable.dev") && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 px-2 text-xs"
+                                    disabled={savingKey === r.key}
+                                    onClick={() => grantAccess(r)}
+                                  >
+                                    Grant access
+                                  </Button>
+                                )}
+                                {!r.hasAccess && t && t.role !== "ai" && (
+                                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <Checkbox
+                                      checked={!t.hub_access_expected}
+                                      disabled={savingKey === r.key}
+                                      onCheckedChange={(v) => toggleAccessExpected(r, !v)}
+                                    />
+                                    attribution only
+                                  </label>
                                 )}
                                 {r.email && r.accessStatus === "pending" && (
                                   <Button
