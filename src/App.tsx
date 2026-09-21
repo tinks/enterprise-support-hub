@@ -44,7 +44,6 @@ import FloatCoverage from "./pages/FloatCoverage";
 import Triage from "./pages/Triage";
 import Escalations from "./pages/Escalations";
 import ActionCenter from "./pages/ActionCenter";
-import Users from "./pages/Users";
 import People from "./pages/People";
 import Incidents from "./pages/Incidents";
 import DeepSearch from "./pages/DeepSearch";
