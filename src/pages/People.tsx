@@ -393,6 +393,9 @@ const People = () => {
         intercom_admin_id: intercom,
         active: true,
         show_dashboard: fDashboard,
+        // No login requested and not an AI identity? Then they are attribution
+        // only and should not be flagged for a missing Hub account.
+        hub_access_expected: fLogin,
       });
       if (tErr) throw new Error("Roster insert failed: " + tErr.message);
 
