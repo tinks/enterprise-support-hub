@@ -2490,6 +2490,7 @@ export type Database = {
           active: boolean
           created_at: string
           email: string | null
+          hub_access_expected: boolean
           id: string
           intercom_admin_id: string | null
           name: string
@@ -2502,6 +2503,7 @@ export type Database = {
           active?: boolean
           created_at?: string
           email?: string | null
+          hub_access_expected?: boolean
           id?: string
           intercom_admin_id?: string | null
           name: string
@@ -2514,6 +2516,7 @@ export type Database = {
           active?: boolean
           created_at?: string
           email?: string | null
+          hub_access_expected?: boolean
           id?: string
           intercom_admin_id?: string | null
           name?: string
