@@ -87,7 +87,8 @@ const App = () => (
           <Route path="/import/bulk" element={<EditorRoute><BulkImportReview /></EditorRoute>} />
           <Route path="/test-review" element={<EditorRoute><TestChannelReview /></EditorRoute>} />
           <Route path="/settings" element={<EditorRoute><Index /></EditorRoute>} />
-          <Route path="/users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
+          {/* /users retired 21 Sep 2026 — People is the single people-management pane. */}
+          <Route path="/users" element={<Navigate to="/people" replace />} />
           <Route path="/people" element={<ProtectedRoute><People /></ProtectedRoute>} />
           <Route path="/incidents" element={<ProtectedRoute><Incidents /></ProtectedRoute>} />
           <Route path="/search" element={<ProtectedRoute><DeepSearch /></ProtectedRoute>} />
