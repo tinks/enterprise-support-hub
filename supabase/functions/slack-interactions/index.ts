@@ -292,6 +292,20 @@ async function createIntercomTicket(opts: {
           body: JSON.stringify({ email: resolvedEmail, name: resolvedEmail }),
         });
       }
+    } else if (resolvedSlackName) {
+      // Backfill real Slack name onto an existing placeholder contact
+      const existingName = contactData.data[0].name || "";
+      if (!existingName || existingName === `Slack User ${slackUserId}`) {
+        try {
+          await fetch(`https://api.intercom.io/contacts/${contactId}`, {
+            method: "PUT",
+            headers: intercomHeaders,
+            body: JSON.stringify({ name: resolvedSlackName }),
+          });
+        } catch (e) {
+          console.error("Failed to update Slack contact name:", e);
+        }
+      }
     }
   } else {
     // When email is provided, create contact by email only (no external_id)
@@ -303,7 +317,7 @@ async function createIntercomTicket(opts: {
       createBody.name = resolvedEmail;
     } else {
       createBody.external_id = slackUserId;
-      createBody.name = `Slack User ${slackUserId}`;
+      createBody.name = resolvedSlackName || `Slack User ${slackUserId}`;
     }
 
     const createRes = await fetch("https://api.intercom.io/contacts", {
