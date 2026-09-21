@@ -947,6 +947,12 @@ const People = () => {
                 <Checkbox checked={fLogin} onCheckedChange={(v) => setFLogin(!!v)} />
                 Create a Hub login (provisions the account)
               </label>
+              {!fLogin && (
+                <p className="ml-6 text-xs text-muted-foreground">
+                  Left off, this person is attribution only — no "No Hub login" warning. You can
+                  grant access later from their row.
+                </p>
+              )}
               {fLogin && (
                 <div className="ml-6 flex gap-4">
                   <label className="flex items-center gap-2 text-sm">
