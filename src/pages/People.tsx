@@ -77,6 +77,8 @@ interface TeammateRow {
   show_dashboard: boolean;
   intercom_admin_id: string | null;
   slack_user_id: string | null;
+  /** false = intentionally attribution-only; suppresses the "No Hub login" drift flag. */
+  hub_access_expected: boolean;
 }
 
 interface PersonRow {
@@ -145,7 +147,9 @@ const People = () => {
       supabase.rpc("list_users_with_roles"),
       supabase
         .from("teammates")
-        .select("id,name,email,role,active,show_dashboard,intercom_admin_id,slack_user_id")
+        .select(
+          "id,name,email,role,active,show_dashboard,intercom_admin_id,slack_user_id,hub_access_expected",
+        )
         .order("name"),
       supabase.from("settings").select("id").limit(1).maybeSingle(),
     ]);
@@ -290,6 +294,58 @@ const People = () => {
     setSavingKey(null);
   };
 
+  /**
+   * Mark a teammate as intentionally attribution-only (no Hub login ever) or
+   * back to expected-to-log-in. Purely a drift-expectation flag — it grants and
+   * revokes nothing.
+   */
+  const toggleAccessExpected = async (r: PersonRow, expected: boolean) => {
+    const t = r.teammate;
+    if (!t) return;
+    setSavingKey(r.key);
+    const { error } = await supabase
+      .from("teammates")
+      .update({ hub_access_expected: expected })
+      .eq("id", t.id);
+    if (error) toast.error("Save failed: " + error.message);
+    else {
+      toast.success(
+        expected ? `${t.name} expected to have ESH access` : `${t.name} marked attribution only`,
+      );
+      await load();
+    }
+    setSavingKey(null);
+  };
+
+  /** Create the access roster row (if missing) and provision the ESH account. */
+  const grantAccess = async (r: PersonRow) => {
+    const email = r.email?.trim().toLowerCase();
+    if (!email) return toast.error("This person has no email on the roster");
+    if (email.split("@")[1] !== "lovable.dev")
+      return toast.error("Only @lovable.dev addresses can be granted ESH access");
+    setSavingKey(r.key);
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const { error: mErr } = await supabase
+        .from("hub_members")
+        .insert({ email, status: "pending", added_by: session.session?.user?.id ?? null });
+      if (mErr && !mErr.message.toLowerCase().includes("duplicate"))
+        throw new Error("Access roster insert failed: " + mErr.message);
+
+      const { data, error } = await supabase.functions.invoke("hub-access-manage", {
+        body: { action: "provision", email },
+      });
+      const msg = error?.message ?? (data as any)?.error;
+      if (msg) throw new Error(msg);
+      toast.success(`ESH access granted to ${email}`);
+      await load();
+    } catch (e) {
+      toast.error("Grant access failed: " + (e as Error).message);
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
   const setRole = async (r: PersonRow, role: "admin" | "editor", grant: boolean) => {
     if (!r.userId) return;
     setSavingKey(r.key);
@@ -337,6 +393,9 @@ const People = () => {
         intercom_admin_id: intercom,
         active: true,
         show_dashboard: fDashboard,
+        // No login requested and not an AI identity? Then they are attribution
+        // only and should not be flagged for a missing Hub account.
+        hub_access_expected: fLogin,
       });
       if (tErr) throw new Error("Roster insert failed: " + tErr.message);
 
@@ -440,7 +499,11 @@ const People = () => {
 
     for (const r of byKey.values()) {
       const t = r.teammate;
-      if (!r.hasAccess && t) r.drift.push("No Hub login");
+      // A missing Hub login is only drift when this person is *expected* to sign
+      // in. AI identities (Sam) never can, and humans can be marked attribution
+      // only (hub_access_expected = false) when a login is deliberate-never.
+      if (!r.hasAccess && t && t.role !== "ai" && t.hub_access_expected)
+        r.drift.push("No Hub login");
       if (r.hasAccess && !t) r.drift.push("Not on attribution roster");
       if (r.accessStatus === "untracked") r.drift.push("Account not on access roster");
       if (t?.active && t.role === "support" && !t.slack_user_id) r.drift.push("Support, no Slack ID");
@@ -635,7 +698,34 @@ const People = () => {
                                     {r.accessStatus}
                                   </Badge>
                                 ) : (
-                                  <span className="text-xs text-muted-foreground">no login</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {t?.role === "ai"
+                                      ? "no login (AI)"
+                                      : t && !t.hub_access_expected
+                                        ? "attribution only"
+                                        : "no login"}
+                                  </span>
+                                )}
+                                {!r.hasAccess && r.email?.endsWith("@lovable.dev") && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 px-2 text-xs"
+                                    disabled={savingKey === r.key}
+                                    onClick={() => grantAccess(r)}
+                                  >
+                                    Grant access
+                                  </Button>
+                                )}
+                                {!r.hasAccess && t && t.role !== "ai" && (
+                                  <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <Checkbox
+                                      checked={!t.hub_access_expected}
+                                      disabled={savingKey === r.key}
+                                      onCheckedChange={(v) => toggleAccessExpected(r, !v)}
+                                    />
+                                    attribution only
+                                  </label>
                                 )}
                                 {r.email && r.accessStatus === "pending" && (
                                   <Button
@@ -857,6 +947,12 @@ const People = () => {
                 <Checkbox checked={fLogin} onCheckedChange={(v) => setFLogin(!!v)} />
                 Create a Hub login (provisions the account)
               </label>
+              {!fLogin && (
+                <p className="ml-6 text-xs text-muted-foreground">
+                  Left off, this person is attribution only — no "No Hub login" warning. You can
+                  grant access later from their row.
+                </p>
+              )}
               {fLogin && (
                 <div className="ml-6 flex gap-4">
                   <label className="flex items-center gap-2 text-sm">
