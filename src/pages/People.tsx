@@ -704,7 +704,7 @@ const People = () => {
                                     {t?.role === "ai"
                                       ? "no login (AI)"
                                       : t && !t.hub_access_expected
-                                        ? "attribution only"
+                                        ? "Internal, no login"
                                         : "no login"}
                                   </span>
                                 )}
