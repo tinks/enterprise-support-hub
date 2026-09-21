@@ -147,7 +147,9 @@ const People = () => {
       supabase.rpc("list_users_with_roles"),
       supabase
         .from("teammates")
-        .select("id,name,email,role,active,show_dashboard,intercom_admin_id,slack_user_id")
+        .select(
+          "id,name,email,role,active,show_dashboard,intercom_admin_id,slack_user_id,hub_access_expected",
+        )
         .order("name"),
       supabase.from("settings").select("id").limit(1).maybeSingle(),
     ]);
