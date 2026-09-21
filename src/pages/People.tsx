@@ -294,6 +294,58 @@ const People = () => {
     setSavingKey(null);
   };
 
+  /**
+   * Mark a teammate as intentionally attribution-only (no Hub login ever) or
+   * back to expected-to-log-in. Purely a drift-expectation flag — it grants and
+   * revokes nothing.
+   */
+  const toggleAccessExpected = async (r: PersonRow, expected: boolean) => {
+    const t = r.teammate;
+    if (!t) return;
+    setSavingKey(r.key);
+    const { error } = await supabase
+      .from("teammates")
+      .update({ hub_access_expected: expected })
+      .eq("id", t.id);
+    if (error) toast.error("Save failed: " + error.message);
+    else {
+      toast.success(
+        expected ? `${t.name} expected to have ESH access` : `${t.name} marked attribution only`,
+      );
+      await load();
+    }
+    setSavingKey(null);
+  };
+
+  /** Create the access roster row (if missing) and provision the ESH account. */
+  const grantAccess = async (r: PersonRow) => {
+    const email = r.email?.trim().toLowerCase();
+    if (!email) return toast.error("This person has no email on the roster");
+    if (email.split("@")[1] !== "lovable.dev")
+      return toast.error("Only @lovable.dev addresses can be granted ESH access");
+    setSavingKey(r.key);
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const { error: mErr } = await supabase
+        .from("hub_members")
+        .insert({ email, status: "pending", added_by: session.session?.user?.id ?? null });
+      if (mErr && !mErr.message.toLowerCase().includes("duplicate"))
+        throw new Error("Access roster insert failed: " + mErr.message);
+
+      const { data, error } = await supabase.functions.invoke("hub-access-manage", {
+        body: { action: "provision", email },
+      });
+      const msg = error?.message ?? (data as any)?.error;
+      if (msg) throw new Error(msg);
+      toast.success(`ESH access granted to ${email}`);
+      await load();
+    } catch (e) {
+      toast.error("Grant access failed: " + (e as Error).message);
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
   const setRole = async (r: PersonRow, role: "admin" | "editor", grant: boolean) => {
     if (!r.userId) return;
     setSavingKey(r.key);
