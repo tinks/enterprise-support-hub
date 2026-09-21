@@ -456,7 +456,7 @@ export default function InboxV3() {
               Active ({activeRows.length})
               {activeAttention > 0 && (
                 <span
-                  title={`${activeAttention} row(s) not synced in the last 30 min`}
+                  title={`${activeAttention} active row(s) with a real anomaly: closed in Intercom while still active here, or not synced in over 24h`}
                   className="inline-flex items-center gap-0.5 rounded-full bg-destructive/15 text-destructive px-1.5 py-0.5 text-[10px] font-medium"
                 >
                   <AlertTriangle className="h-3 w-3" />
