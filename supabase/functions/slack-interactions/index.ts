@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crypto } from "https://deno.land/std@0.208.0/crypto/mod.ts";
 import { encode as hexEncode } from "https://deno.land/std@0.208.0/encoding/hex.ts";
-import { ATTACHMENT_BUCKET, attachmentUrl } from "../_shared/attachments.ts";
+import { ATTACHMENT_BUCKET, ATTACHMENT_MAX_BYTES, attachmentUrl, rejectAttachment } from "../_shared/attachments.ts";
 
 // deno-lint-ignore no-explicit-any
 declare const EdgeRuntime: any;
@@ -33,6 +33,11 @@ async function downloadAndUploadFiles(
   const publicUrls: string[] = [];
   for (const file of files) {
     try {
+      const rejection = rejectAttachment(file.name, file.mimetype);
+      if (rejection) {
+        console.log(`Skipping file ${file.name} — ${rejection}`);
+        continue;
+      }
       if (file.size && file.size > MAX_FILE_SIZE) {
         console.log(`Skipping file ${file.name} (${file.size} bytes) — exceeds 50 MB limit`);
         continue;
@@ -45,6 +50,10 @@ async function downloadAndUploadFiles(
         continue;
       }
       const blob = await res.blob();
+      if (blob.size > ATTACHMENT_MAX_BYTES) {
+        console.log(`Skipping file ${file.name} (${blob.size} bytes downloaded) — exceeds 50 MB limit`);
+        continue;
+      }
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const path = `slack-attachments/${threadTs.replace(".", "_")}/${safeName}`;
       const { error: uploadErr } = await supabase.storage
