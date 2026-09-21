@@ -1,3 +1,4 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireEditor } from "../_shared/require-editor.ts";
 // Read-only Intercom proxy: fetches full conversation payloads by id so the
 // frontend SLA engine (src/lib/slaMetrics.ts → computeSla) can analyze them.
@@ -101,7 +102,42 @@ Deno.serve(async (req) => {
   const truncated = normalized.length > MAX_IDS;
   const ids = normalized.slice(0, MAX_IDS);
 
-  const results = await Promise.all(ids.map((id) => fetchOne(id, token)));
+  // Scope guard: only conversations already synced into the Hub may be fetched
+  // from Intercom. Blocks arbitrary customer-ticket reads via this proxy.
+  const db = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    { auth: { persistSession: false } },
+  );
+  const known = new Set<string>();
+  if (ids.length) {
+    const [v3, mapped] = await Promise.all([
+      db.from("intercom_tickets_v3").select("intercom_conversation_id").in("intercom_conversation_id", ids),
+      db.from("conversation_mappings").select("intercom_conversation_id").in("intercom_conversation_id", ids),
+    ]);
+    if (v3.error || mapped.error) {
+      return new Response(
+        JSON.stringify({ error: `scope_check_failed: ${(v3.error ?? mapped.error)!.message}` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    for (const r of [...(v3.data ?? []), ...(mapped.data ?? [])]) {
+      if (r.intercom_conversation_id) known.add(String(r.intercom_conversation_id));
+    }
+  }
+
+  const allowed = ids.filter((id) => known.has(id));
+  const rejected: Result[] = ids
+    .filter((id) => !known.has(id))
+    .map((id) => ({
+      id,
+      ok: false as const,
+      status: 404,
+      error: "Ticket not found in synced ESH records — it may not have synced yet (open sync runs every 5 minutes).",
+    }));
+
+  const fetched = await Promise.all(allowed.map((id) => fetchOne(id, token)));
+  const results = [...fetched, ...rejected];
 
   return new Response(JSON.stringify({ results, truncated }), {
     status: 200,
