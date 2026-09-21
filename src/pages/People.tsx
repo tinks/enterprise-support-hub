@@ -310,7 +310,9 @@ const People = () => {
     if (error) toast.error("Save failed: " + error.message);
     else {
       toast.success(
-        expected ? `${t.name} expected to have ESH access` : `${t.name} marked attribution only`,
+        expected
+          ? `${t.name} expected to have ESH access`
+          : `${t.name} marked internal, no Hub login`,
       );
       await load();
     }
@@ -702,7 +704,7 @@ const People = () => {
                                     {t?.role === "ai"
                                       ? "no login (AI)"
                                       : t && !t.hub_access_expected
-                                        ? "attribution only"
+                                        ? "Internal, no login"
                                         : "no login"}
                                   </span>
                                 )}
@@ -724,7 +726,7 @@ const People = () => {
                                       disabled={savingKey === r.key}
                                       onCheckedChange={(v) => toggleAccessExpected(r, !v)}
                                     />
-                                    attribution only
+                                    Internal, no Hub login
                                   </label>
                                 )}
                                 {r.email && r.accessStatus === "pending" && (
@@ -949,8 +951,8 @@ const People = () => {
               </label>
               {!fLogin && (
                 <p className="ml-6 text-xs text-muted-foreground">
-                  Left off, this person is attribution only — no "No Hub login" warning. You can
-                  grant access later from their row.
+                  Left off, this person is marked internal, no Hub login — no "No Hub login"
+                  warning. You can grant access later from their row.
                 </p>
               )}
               {fLogin && (
