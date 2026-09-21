@@ -117,7 +117,7 @@ A Slack-to-Intercom support bridge for enterprise customers. When a user @mentio
 - `BEFORE DELETE` trigger `user_roles_prevent_last_admin_delete` blocks removing the final admin row
 - Admin-only RPC `public.list_users_with_roles()` returns every `auth.users` row + their roles; raises if caller isn't admin (keeps `auth.users` off the client)
 - Client hook `useIsAdmin()` (`src/hooks/useIsAdmin.ts`) gates UI only — server enforcement is always RLS + `has_role()`
-- Managed from the single **Admin → Users** table (`src/components/UsersCard.tsx`); non-admins don't see it. `AccessCard` + `RolesCard` were merged into it on 17 Aug 2026 and both files deleted
+- Managed from the single **Admin → People** table (`src/pages/People.tsx`); non-admins don't see it. `AccessCard` + `RolesCard` merged into `UsersCard` 17 Aug 2026; `UsersCard` itself was superseded by People on 21 Sep 2026 and `/users` now redirects to `/people`
 - First admin: `matt.niiro@lovable.dev`
 - All future admin-gated tables MUST use `public.has_role(auth.uid(), 'admin')` in policies rather than reimplementing the check
 
