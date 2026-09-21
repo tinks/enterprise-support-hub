@@ -1902,9 +1902,9 @@ Verification (21 Sep 2026): typecheck and build clean. Alex K (`alexandra.kosovi
 "No Hub login" was fired for every teammate without a `hub_members` row, which is wrong for people who will never sign in: Sam (the AI bot) and relay-only CSMs such as Alex K. Migration `0049_teammates_hub_access_expected` adds `public.teammates.hub_access_expected BOOLEAN NOT NULL DEFAULT true` — an expectation flag only; it grants and revokes nothing.
 
 - **Drift rule** is now `!hasAccess && teammate && role !== 'ai' && hub_access_expected`. AI identities are skipped automatically and permanently — no per-row action needed for Sam.
-- **Attribution only** checkbox appears in the ESH access cell for any human teammate with no account; ticking it writes `hub_access_expected = false` and the row stops flagging. The access cell reads `no login (AI)` / `attribution only` / `no login`.
-- **Grant access** button appears on any row with an `@lovable.dev` address and no account: inserts the `hub_members` row as `pending` (duplicate-tolerant) and invokes `hub-access-manage` `provision`. This is how Alex K, or any future CSM, gets ESH access without SQL — the button stays available whether or not the row is marked attribution only.
-- **Add person** now records `hub_access_expected = fLogin`, so leaving "Create a Hub login" unticked registers the person as attribution only instead of instant drift.
+- **Internal, no Hub login** checkbox (renamed from "Attribution only", 21 Sep 2026) appears in the ESH access cell for any human teammate with no account; ticking it writes `hub_access_expected = false` and the row stops flagging. The access cell reads `no login (AI)` / `Internal, no login` / `no login`.
+- **Grant access** button appears on any row with an `@lovable.dev` address and no account: inserts the `hub_members` row as `pending` (duplicate-tolerant) and invokes `hub-access-manage` `provision`. This is how Alex K, or any future CSM, gets ESH access without SQL — the button stays available whether or not the row is marked internal, no Hub login.
+- **Add person** now records `hub_access_expected = fLogin`, so leaving "Create a Hub login" unticked registers the person as internal, no Hub login instead of instant drift.
 
 Verification: migration applied, generated types refreshed, typecheck clean. **UNVERIFIED:** the attribution-only checkbox, Grant access button and add-person default were not exercised in an authenticated browser this pass.
 
