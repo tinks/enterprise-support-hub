@@ -402,13 +402,19 @@ export default function InboxV3() {
   }, [currentRows]);
 
   // "Needs attention" counts surfaced as red badges on each tab.
-  //  - Active: rows whose last_synced_at is older than 30 min — sync hasn't touched them recently.
+  //  - Active: genuine anomalies only — Intercom state drifted to 'closed' while the row is still
+  //    active locally, or the row has dropped out of sync entirely (>24h, i.e. missed both
+  //    twice-daily 30-day wide sweeps). Routine cadence gaps (the 5-min incremental sync only
+  //    revisits tickets with recent Intercom activity) are NOT anomalies and stay silent.
   //  - Finalized: rows where Intercom state drifted away from 'closed' (pending reopen detection).
-  const STALE_MS = 30 * 60 * 1000;
+  const DROPOUT_MS = 24 * 60 * 60 * 1000;
   const activeAttention = useMemo(() => {
-    const cutoff = Date.now() - STALE_MS;
+    const cutoff = Date.now() - DROPOUT_MS;
     return activeRows.filter(
-      (r) => !r.last_synced_at || new Date(r.last_synced_at).getTime() < cutoff,
+      (r) =>
+        r.state === "closed" ||
+        !r.last_synced_at ||
+        new Date(r.last_synced_at).getTime() < cutoff,
     ).length;
   }, [activeRows]);
   const finalizedAttention = useMemo(
