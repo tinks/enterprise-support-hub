@@ -6,9 +6,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,21 +31,28 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import { AlertTriangle, RefreshCw, UserPlus, Check, X, Pencil } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 /**
- * People — a READ-ONLY join of the two people registries. Nothing here writes.
+ * People — the SINGLE pane for both people registries.
  *
  *  - Access:      hub_members + user_roles (via list_users_with_roles)   -> can they sign in, what may they change
  *  - Attribution: teammates                                             -> whose work is it, does their reply stop the FRT clock
  *
  * Joined on lowercased email. Rows that exist on only one side are kept and
  * labelled as drift rather than hidden — that drift is the whole point of the page.
- * Edits still happen on their owning surfaces (Users / Settings > Teammates).
+ *
+ * Everything is editable here: add a person, grant/revoke admin+editor, provision
+ * or remove Hub access, set team, edit Intercom / Slack IDs, toggle dashboard.
+ *
+ * Any write that touches `intercom_admin_id` or a teammate name re-mirrors the
+ * FULL roster (active AND inactive — historical attribution must keep resolving)
+ * into `settings.admin_owner_map`, which is still read by intercom-webhook,
+ * poll-intercom-inbox, sync-v3-open/closed, reconcile-v3-open,
+ * backfill-enterprise-inbox, esh-write-action and AnalyticsV3.
  */
 
 interface MemberRow {
@@ -68,6 +86,7 @@ interface PersonRow {
   // access side
   hasAccess: boolean;
   accessStatus: string | null;
+  userId: string | null;
   roles: string[];
   // attribution side
   teammate: TeammateRow | null;
@@ -78,6 +97,8 @@ const roleBadge = (r: string) =>
   r === "admin" ? "default" : r === "editor" ? "secondary" : "outline";
 
 const TEAM_ROLES = ["support", "csm", "other", "ai"] as const;
+/** Roles that never need an Intercom admin id (relay-only, never counted for FRT). */
+const RELAY_ONLY_ROLES = new Set<string>(["csm", "other"]);
 
 const People = () => {
   const { isAdmin, isLoading: adminLoading } = useIsAdmin();
@@ -85,11 +106,102 @@ const People = () => {
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [authUsers, setAuthUsers] = useState<AuthUserRow[]>([]);
   const [teammates, setTeammates] = useState<TeammateRow[]>([]);
+  const [settingsId, setSettingsId] = useState<string | null>(null);
+  const [selfId, setSelfId] = useState<string | null>(null);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [confirmBlock, setConfirmBlock] = useState<PersonRow | null>(null);
 
-  const callAccess = async (action: "block" | "unblock", r: PersonRow) => {
+  // inline id editing
+  const [editing, setEditing] = useState<{ key: string; field: "intercom" | "slack" } | null>(null);
+  const [editValue, setEditValue] = useState("");
+
+  // add person dialog
+  const [addOpen, setAddOpen] = useState(false);
+  const [addBusy, setAddBusy] = useState(false);
+  const [fName, setFName] = useState("");
+  const [fEmail, setFEmail] = useState("");
+  const [fTeam, setFTeam] = useState<string>("support");
+  const [fSlack, setFSlack] = useState("");
+  const [fIntercom, setFIntercom] = useState("");
+  const [fLogin, setFLogin] = useState(false);
+  const [fEditor, setFEditor] = useState(false);
+  const [fAdmin, setFAdmin] = useState(false);
+  const [fDashboard, setFDashboard] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSelfId(data.session?.user?.id ?? null));
+  }, []);
+
+  const load = async () => {
+    setLoading(true);
+    const [
+      { data: m, error: mErr },
+      { data: u, error: uErr },
+      { data: t, error: tErr },
+      { data: s },
+    ] = await Promise.all([
+      supabase.from("hub_members").select("email,user_id,status,note").order("email"),
+      supabase.rpc("list_users_with_roles"),
+      supabase
+        .from("teammates")
+        .select("id,name,email,role,active,show_dashboard,intercom_admin_id,slack_user_id")
+        .order("name"),
+      supabase.from("settings").select("id").limit(1).maybeSingle(),
+    ]);
+    if (mErr) toast.error("Failed to load access roster: " + mErr.message);
+    if (uErr) toast.error("Failed to load accounts: " + uErr.message);
+    if (tErr) toast.error("Failed to load teammates: " + tErr.message);
+    setMembers((m ?? []) as MemberRow[]);
+    setAuthUsers((u ?? []) as AuthUserRow[]);
+    setTeammates((t ?? []) as TeammateRow[]);
+    setSettingsId(s?.id ?? null);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (isAdmin) load();
+    else if (!adminLoading) setLoading(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, adminLoading]);
+
+  /** Re-mirror the full roster into settings.admin_owner_map (legacy source of truth). */
+  const syncOwnerMap = async () => {
+    if (!settingsId) return;
+    const { data } = await supabase.from("teammates").select("name,intercom_admin_id");
+    const map: Record<string, string> = {};
+    for (const r of (data ?? []) as { name: string; intercom_admin_id: string | null }[]) {
+      if (r.intercom_admin_id && r.name) map[r.intercom_admin_id] = r.name;
+    }
+    const { error } = await supabase
+      .from("settings")
+      .update({ admin_owner_map: JSON.stringify(map) } as any)
+      .eq("id", settingsId);
+    if (error) toast.error("Owner map sync failed: " + error.message);
+  };
+
+  /** Close any open Slack relay identity gaps this person now answers for. */
+  const resolveRelayGaps = async (email: string | null, slackId: string | null) => {
+    const stamp = new Date().toISOString();
+    try {
+      if (slackId) {
+        await (supabase.from("relay_attribution_gaps" as any) as any)
+          .update({ resolved_at: stamp })
+          .is("resolved_at", null)
+          .eq("slack_user_id", slackId);
+      }
+      if (email) {
+        await (supabase.from("relay_attribution_gaps" as any) as any)
+          .update({ resolved_at: stamp })
+          .is("resolved_at", null)
+          .eq("slack_email", email);
+      }
+    } catch {
+      /* non-fatal: the gap card simply stays until the next relay event */
+    }
+  };
+
+  const callAccess = async (action: "block" | "unblock" | "provision", r: PersonRow) => {
     if (!r.email) return;
     setSavingKey(r.key);
     const { data, error } = await supabase.functions.invoke("hub-access-manage", {
@@ -103,8 +215,6 @@ const People = () => {
     }
     setSavingKey(null);
   };
-
-
 
   const setTeam = async (r: PersonRow, value: string) => {
     const t = r.teammate;
@@ -132,6 +242,7 @@ const People = () => {
         if (error) throw error;
         toast.success(`${name} added to the roster as ${value}`);
       }
+      await syncOwnerMap();
       await load();
     } catch (e) {
       toast.error("Could not update roster: " + (e as Error).message);
@@ -140,32 +251,133 @@ const People = () => {
     }
   };
 
-
-  const load = async () => {
-    setLoading(true);
-    const [{ data: m, error: mErr }, { data: u, error: uErr }, { data: t, error: tErr }] =
-      await Promise.all([
-        supabase.from("hub_members").select("email,user_id,status,note").order("email"),
-        supabase.rpc("list_users_with_roles"),
-        supabase
-          .from("teammates")
-          .select("id,name,email,role,active,show_dashboard,intercom_admin_id,slack_user_id")
-          .order("name"),
-      ]);
-    if (mErr) toast.error("Failed to load access roster: " + mErr.message);
-    if (uErr) toast.error("Failed to load accounts: " + uErr.message);
-    if (tErr) toast.error("Failed to load teammates: " + tErr.message);
-    setMembers((m ?? []) as MemberRow[]);
-    setAuthUsers((u ?? []) as AuthUserRow[]);
-    setTeammates((t ?? []) as TeammateRow[]);
-    setLoading(false);
+  const saveIdentity = async (r: PersonRow, field: "intercom" | "slack", raw: string) => {
+    const t = r.teammate;
+    if (!t) {
+      toast.error("Assign a team first — identities live on the attribution roster");
+      return;
+    }
+    const value = raw.trim() || null;
+    setSavingKey(r.key);
+    const patch =
+      field === "intercom" ? { intercom_admin_id: value } : { slack_user_id: value };
+    const { error } = await supabase.from("teammates").update(patch).eq("id", t.id);
+    if (error) {
+      toast.error("Save failed: " + error.message);
+    } else {
+      toast.success(`${field === "intercom" ? "Intercom ID" : "Slack ID"} saved for ${t.name}`);
+      if (field === "intercom") await syncOwnerMap();
+      if (field === "slack") await resolveRelayGaps(t.email, value);
+      await load();
+    }
+    setEditing(null);
+    setSavingKey(null);
   };
 
-  useEffect(() => {
-    if (isAdmin) load();
-    else if (!adminLoading) setLoading(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin, adminLoading]);
+  const toggleDashboard = async (r: PersonRow, next: boolean) => {
+    const t = r.teammate;
+    if (!t) return;
+    setSavingKey(r.key);
+    const { error } = await supabase
+      .from("teammates")
+      .update({ show_dashboard: next })
+      .eq("id", t.id);
+    if (error) toast.error("Save failed: " + error.message);
+    else {
+      toast.success(`${t.name} dashboard ${next ? "shown" : "hidden"}`);
+      await load();
+    }
+    setSavingKey(null);
+  };
+
+  const setRole = async (r: PersonRow, role: "admin" | "editor", grant: boolean) => {
+    if (!r.userId) return;
+    setSavingKey(r.key);
+    const { error } = grant
+      ? await supabase.from("user_roles").insert({ user_id: r.userId, role })
+      : await supabase.from("user_roles").delete().eq("user_id", r.userId).eq("role", role);
+    if (error) toast.error(`${grant ? "Grant" : "Revoke"} failed: ` + error.message);
+    else {
+      toast.success(`${role === "admin" ? "Admin" : "Editor"} ${grant ? "granted" : "revoked"}`);
+      await load();
+    }
+    setSavingKey(null);
+  };
+
+  const resetAddForm = () => {
+    setFName("");
+    setFEmail("");
+    setFTeam("support");
+    setFSlack("");
+    setFIntercom("");
+    setFLogin(false);
+    setFEditor(false);
+    setFAdmin(false);
+    setFDashboard(false);
+  };
+
+  const addPerson = async () => {
+    const name = fName.trim();
+    const email = fEmail.trim().toLowerCase();
+    const slack = fSlack.trim() || null;
+    const intercom = fIntercom.trim() || null;
+    if (!name) return toast.error("Name is required");
+    if (!email) return toast.error("Email is required");
+    if (email.split("@")[1] !== "lovable.dev") return toast.error("Only @lovable.dev addresses");
+    if (!intercom && !RELAY_ONLY_ROLES.has(fTeam) && fTeam !== "ai")
+      return toast.error("Support teammates need an Intercom Admin ID");
+
+    setAddBusy(true);
+    try {
+      const { error: tErr } = await supabase.from("teammates").insert({
+        name,
+        email,
+        role: fTeam,
+        slack_user_id: slack,
+        intercom_admin_id: intercom,
+        active: true,
+        show_dashboard: fDashboard,
+      });
+      if (tErr) throw new Error("Roster insert failed: " + tErr.message);
+
+      if (fLogin) {
+        const { data: session } = await supabase.auth.getSession();
+        const { error: mErr } = await supabase
+          .from("hub_members")
+          .insert({ email, status: "pending", added_by: session.session?.user?.id ?? null });
+        if (mErr && !mErr.message.includes("duplicate"))
+          throw new Error("Access roster insert failed: " + mErr.message);
+
+        const { data: pData, error: pErr } = await supabase.functions.invoke("hub-access-manage", {
+          body: { action: "provision", email },
+        });
+        const pMsg = pErr?.message ?? (pData as any)?.error;
+        if (pMsg) throw new Error("Provision failed: " + pMsg);
+
+        const userId = (pData as any)?.user_id as string | undefined;
+        if (userId) {
+          const wanted: ("admin" | "editor")[] = [];
+          if (fAdmin) wanted.push("admin");
+          if (fEditor) wanted.push("editor");
+          for (const role of wanted) {
+            const { error } = await supabase.from("user_roles").insert({ user_id: userId, role });
+            if (error) toast.error(`Could not grant ${role}: ${error.message}`);
+          }
+        }
+      }
+
+      await syncOwnerMap();
+      await resolveRelayGaps(email, slack);
+      toast.success(`${name} added`);
+      setAddOpen(false);
+      resetAddForm();
+      await load();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setAddBusy(false);
+    }
+  };
 
   const rows = useMemo<PersonRow[]>(() => {
     const byKey = new Map<string, PersonRow>();
@@ -180,6 +392,7 @@ const People = () => {
           name: null,
           hasAccess: false,
           accessStatus: null,
+          userId: null,
           roles: [],
           teammate: null,
           drift: [],
@@ -190,9 +403,13 @@ const People = () => {
     };
 
     const rolesByEmail = new Map<string, string[]>();
+    const idByEmail = new Map<string, string>();
     for (const a of authUsers) {
       const k = norm(a.email);
-      if (k) rolesByEmail.set(k, a.roles ?? []);
+      if (k) {
+        rolesByEmail.set(k, a.roles ?? []);
+        idByEmail.set(k, a.id);
+      }
     }
 
     for (const m of members) {
@@ -201,6 +418,7 @@ const People = () => {
       r.hasAccess = true;
       r.accessStatus = m.status;
       r.roles = rolesByEmail.get(k) ?? [];
+      r.userId = m.user_id ?? idByEmail.get(k) ?? null;
     }
     // auth accounts with no roster row
     for (const a of authUsers) {
@@ -210,6 +428,7 @@ const People = () => {
       r.hasAccess = true;
       r.accessStatus = "untracked";
       r.roles = a.roles ?? [];
+      r.userId = a.id;
     }
 
     for (const t of teammates) {
@@ -247,6 +466,54 @@ const People = () => {
   }, [members, authUsers, teammates, q]);
 
   const driftCount = rows.filter((r) => r.drift.length > 0).length;
+  const adminCount = authUsers.filter((u) => u.roles.includes("admin")).length;
+
+  const IdCell = ({ r, field }: { r: PersonRow; field: "intercom" | "slack" }) => {
+    const t = r.teammate;
+    const current = field === "intercom" ? t?.intercom_admin_id : t?.slack_user_id;
+    const isEditing = editing?.key === r.key && editing.field === field;
+    if (isEditing) {
+      return (
+        <div className="flex items-center gap-1">
+          <Input
+            autoFocus
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") saveIdentity(r, field, editValue);
+              if (e.key === "Escape") setEditing(null);
+            }}
+            className="h-7 w-[120px] font-mono text-xs"
+          />
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-6 w-6"
+            onClick={() => saveIdentity(r, field, editValue)}
+          >
+            <Check className="h-3.5 w-3.5" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditing(null)}>
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      );
+    }
+    return (
+      <button
+        type="button"
+        disabled={!t || savingKey === r.key}
+        onClick={() => {
+          setEditValue(current ?? "");
+          setEditing({ key: r.key, field });
+        }}
+        className="group inline-flex items-center gap-1 font-mono text-xs disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <span>{current ?? "—"}</span>
+        {t && <Pencil className="h-3 w-3 opacity-0 transition-opacity group-hover:opacity-60" />}
+      </button>
+    );
+  };
 
   return (
     <AppLayout>
@@ -256,10 +523,9 @@ const People = () => {
             <div>
               <h1 className="text-2xl font-bold text-foreground">People</h1>
               <p className="text-sm text-muted-foreground">
-                One row per person: Hub access on the left, ticket attribution on the right.
-                Intercom and Slack IDs are read-only here.
+                One row per person, and the only place people are managed: Hub access and roles on
+                the left, ticket attribution and identities on the right.
               </p>
-
             </div>
             {isAdmin && (
               <div className="flex items-center gap-2">
@@ -269,6 +535,10 @@ const People = () => {
                   placeholder="Search name, email, role"
                   className="h-9 w-64"
                 />
+                <Button size="sm" onClick={() => setAddOpen(true)}>
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Add person
+                </Button>
                 <Button variant="outline" size="sm" onClick={load} disabled={loading}>
                   <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                   Refresh
@@ -310,12 +580,12 @@ const People = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[260px] text-left">Person</TableHead>
-                        <TableHead className="w-[120px] text-left">ESH access</TableHead>
-                        <TableHead className="w-[160px] text-left">ESH roles</TableHead>
-                        <TableHead className="w-[140px] text-left">Team</TableHead>
-                        <TableHead className="w-[140px] text-left">Intercom ID</TableHead>
-                        <TableHead className="w-[140px] text-left">Slack ID</TableHead>
+                        <TableHead className="w-[240px] text-left">Person</TableHead>
+                        <TableHead className="w-[130px] text-left">ESH access</TableHead>
+                        <TableHead className="w-[190px] text-left">ESH roles</TableHead>
+                        <TableHead className="w-[130px] text-left">Team</TableHead>
+                        <TableHead className="w-[150px] text-left">Intercom ID</TableHead>
+                        <TableHead className="w-[150px] text-left">Slack ID</TableHead>
                         <TableHead className="w-[110px] text-left">Dashboard</TableHead>
                         <TableHead className="text-left">Drift</TableHead>
                       </TableRow>
@@ -330,10 +600,19 @@ const People = () => {
                       )}
                       {rows.map((r) => {
                         const t = r.teammate;
+                        const hasAdmin = r.roles.includes("admin");
+                        const hasEditor = r.roles.includes("editor");
+                        const isLastAdmin = hasAdmin && adminCount === 1;
+                        const canRole = !!r.userId && r.accessStatus !== "blocked";
                         return (
                           <TableRow key={r.key}>
                             <TableCell className="text-left">
-                              <div className="font-medium">{r.name ?? r.email ?? "—"}</div>
+                              <div className="font-medium">
+                                {r.name ?? r.email ?? "—"}
+                                {r.userId && r.userId === selfId && (
+                                  <span className="ml-2 text-xs text-muted-foreground">(you)</span>
+                                )}
+                              </div>
                               {r.name && r.email && (
                                 <div className="text-xs text-muted-foreground">{r.email}</div>
                               )}
@@ -357,6 +636,17 @@ const People = () => {
                                   </Badge>
                                 ) : (
                                   <span className="text-xs text-muted-foreground">no login</span>
+                                )}
+                                {r.email && r.accessStatus === "pending" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 px-2 text-xs"
+                                    disabled={savingKey === r.key}
+                                    onClick={() => callAccess("provision", r)}
+                                  >
+                                    Provision
+                                  </Button>
                                 )}
                                 {r.email && r.hasAccess && r.accessStatus !== "blocked" && (
                                   <Button
@@ -384,7 +674,35 @@ const People = () => {
                             </TableCell>
 
                             <TableCell className="text-left">
-                              {r.roles.length ? (
+                              {canRole ? (
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <label className="flex items-center gap-1 text-xs">
+                                    <Checkbox
+                                      checked={hasEditor}
+                                      disabled={savingKey === r.key}
+                                      onCheckedChange={(v) => setRole(r, "editor", !!v)}
+                                    />
+                                    editor
+                                  </label>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <label className="flex items-center gap-1 text-xs">
+                                        <Checkbox
+                                          checked={hasAdmin}
+                                          disabled={savingKey === r.key || isLastAdmin}
+                                          onCheckedChange={(v) => setRole(r, "admin", !!v)}
+                                        />
+                                        admin
+                                      </label>
+                                    </TooltipTrigger>
+                                    {isLastAdmin && (
+                                      <TooltipContent>
+                                        Last admin — grant admin to someone else first.
+                                      </TooltipContent>
+                                    )}
+                                  </Tooltip>
+                                </div>
+                              ) : r.roles.length ? (
                                 <div className="flex flex-wrap gap-1">
                                   {r.roles.map((role) => (
                                     <Badge key={role} variant={roleBadge(role)}>
@@ -421,14 +739,22 @@ const People = () => {
                               </div>
                             </TableCell>
 
-                            <TableCell className="text-left font-mono text-xs">
-                              {t?.intercom_admin_id ?? "—"}
+                            <TableCell className="text-left">
+                              <IdCell r={r} field="intercom" />
                             </TableCell>
-                            <TableCell className="text-left font-mono text-xs">
-                              {t?.slack_user_id ?? "—"}
+                            <TableCell className="text-left">
+                              <IdCell r={r} field="slack" />
                             </TableCell>
-                            <TableCell className="text-left text-xs">
-                              {t ? (t.show_dashboard ? "shown" : "hidden") : "—"}
+                            <TableCell className="text-left">
+                              {t ? (
+                                <Switch
+                                  checked={t.show_dashboard}
+                                  disabled={savingKey === r.key}
+                                  onCheckedChange={(v) => toggleDashboard(r, v)}
+                                />
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
                             </TableCell>
                             <TableCell className="text-left">
                               {r.drift.length === 0 ? (
@@ -466,6 +792,96 @@ const People = () => {
         </div>
       </div>
 
+      <Dialog open={addOpen} onOpenChange={(o) => (o ? setAddOpen(true) : (setAddOpen(false), resetAddForm()))}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Add person</DialogTitle>
+            <DialogDescription>
+              Creates the attribution roster entry. Tick Hub login to also create their ESH account.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Name</Label>
+                <Input value={fName} onChange={(e) => setFName(e.target.value)} placeholder="Alex K" />
+              </div>
+              <div className="space-y-1">
+                <Label>Email</Label>
+                <Input
+                  value={fEmail}
+                  onChange={(e) => setFEmail(e.target.value)}
+                  placeholder="person@lovable.dev"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label>Team</Label>
+                <Select value={fTeam} onValueChange={setFTeam}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TEAM_ROLES.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {r}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Slack ID</Label>
+                <Input value={fSlack} onChange={(e) => setFSlack(e.target.value)} placeholder="U0…" />
+              </div>
+              <div className="space-y-1">
+                <Label>Intercom ID</Label>
+                <Input
+                  value={fIntercom}
+                  onChange={(e) => setFIntercom(e.target.value)}
+                  placeholder="10765619"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Support teammates need an Intercom Admin ID — only their replies stop the first-response
+              clock. CSM / other are relay-only.
+            </p>
+            <div className="space-y-2 rounded-md border p-3">
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox checked={fDashboard} onCheckedChange={(v) => setFDashboard(!!v)} />
+                Show a dashboard entry for them
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox checked={fLogin} onCheckedChange={(v) => setFLogin(!!v)} />
+                Create a Hub login (provisions the account)
+              </label>
+              {fLogin && (
+                <div className="ml-6 flex gap-4">
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox checked={fEditor} onCheckedChange={(v) => setFEditor(!!v)} />
+                    editor
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox checked={fAdmin} onCheckedChange={(v) => setFAdmin(!!v)} />
+                    admin
+                  </label>
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAddOpen(false); resetAddForm(); }}>
+              Cancel
+            </Button>
+            <Button onClick={addPerson} disabled={addBusy}>
+              {addBusy ? "Adding…" : "Add person"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={!!confirmBlock} onOpenChange={(o) => !o && setConfirmBlock(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -491,7 +907,6 @@ const People = () => {
         </AlertDialogContent>
       </AlertDialog>
     </AppLayout>
-
   );
 };
 
