@@ -150,6 +150,7 @@ Before this, every scheduled job sent the publishable anon JWT — indistinguish
 ---
 
 
+
 ## 5. Conversation Lifecycle & Statuses
 
 ### Status Flow
@@ -511,6 +512,7 @@ WHY the fallback exists: `esh-write-action` re-reads the conversation from Inter
 ---
 
 
+
 ## 17. Flow Diagram (UI)
 
 - Interactive React Flow diagram showing the complete support workflow
@@ -578,6 +580,7 @@ The per-owner `/my/*` children are **no longer hardcoded**. `src/hooks/useDashbo
 - **Both gates apply.** An inactive teammate drops out of the flyout even with `show_dashboard = true`. This is a live behavior change: **Joel** is `active = false` on the roster, so he no longer appears in the flyout even though his flag is on. Flip `active` back on (or accept the removal) — the data was not changed to paper over it.
 - **Fallback:** if the query errors the hook returns the previous hardcoded five, so the nav never renders empty.
 - **Scope fence — this is nav curation, not access control.** `/my/:owner` remains reachable by URL for any owner name. `OWNER_OPTIONS` (`Conversations.tsx`, `ConversationDetail.tsx`, `TestChannelReview.tsx`) and `OWNER_MAP` (`BulkImportReview.tsx`) stay hardcoded — they include non-teammate owners (`CSM`, `Sam`) and drive filtering of historical data, so repointing them at the roster is a separate pass.
+
 
 
 ---
@@ -708,6 +711,8 @@ Canonical owner options across the UI: **Joel, Kristina, Sam (AI agent), CSM, Er
 **DEAD LETTER — the replacement for Intercom's retry.** Because we answer 200 before doing the work, Intercom no longer retries a failure. Instead `recordWebhookFailure()` writes `public.intercom_webhook_failures` (`topic`, `intercom_conversation_id`, `error`, full `payload` jsonb, `created_at`, plus `replayed_at`/`replay_ok` for later replay) and posts a `:shield:` alert to `#enterprise-support-hub-alerts` under the existing "Support Hub Guard" identity. Both are wrapped in try/catch: a dead-letter write can never mask the original error. RLS: authenticated SELECT, service_role full.
 
 
+
+
 To add a new owner:
 1. Append to `OWNER_OPTIONS` in `src/pages/Conversations.tsx` (also extend the `OwnerFilter` type), `src/pages/ConversationDetail.tsx`, and the `SelectItem` list in `src/pages/TestChannelReview.tsx`.
 2. Add to `OWNER_MAP` in `src/pages/BulkImportReview.tsx` (lowercase name → display name).
@@ -725,6 +730,7 @@ To add a new owner:
 - Managed from Settings → Teammates card (`src/components/AdminMappingCard.tsx`): inline add / edit / remove with admin-gated writes, saving immediately (no Save-settings round-trip).
 
 **Dual-write, deliberately.** `settings.admin_owner_map` is still the reader for owner auto-attribution in `intercom-webhook`, `poll-intercom-inbox`, `sync-v3-open`, `sync-v3-closed`, `backfill-enterprise-inbox`, and `src/pages/AnalyticsV3.tsx`. Rather than risk breaking attribution, every teammates mutation regenerates the blob from the **full** roster (active *and* inactive — historical attribution must keep resolving) and writes it back to `settings`. Retiring the blob and repointing those seven readers at `teammates` is a later tech-debt pass.
+
 
 
 ---
@@ -904,6 +910,7 @@ When the inverse-uniqueness guard (Option 2) refuses to stamp a second Gmail thr
 The v2 parallel mirror (`inbox_v2_tickets`) was the validation sandbox that preceded Inbox v3. Once v3 became the reporting system of record (finalized closed tickets + the active-clock engine), v2 carried no reporting value, so it was removed end-to-end rather than left de-nav'd. Prior behaviour is preserved in git history and in the Inbox v3 sections below.
 
 - **Code removed:** edge functions `sync-inbox-v2` and `classify-inbox-v2-engagement` (deleted from the repo and undeployed); pages `src/pages/InboxV2.tsx` and `src/pages/AnalyticsV2.tsx`; helper `src/pages/inbox-v2/engagement.ts` (`effectiveEngagement()` / `hasNoEngagementTag()` / `NO_ENGAGEMENT_TAGS`). Routes `/inbox-v2` and `/analytics-v2` no longer exist — previously de-nav'd but still reachable by URL, now 404. `src/pages/inbox-v3/rsa.ts` keeps its own engagement-chain shape and never imported the v2 helper.
+
 
 
 ### Changelog page — `/changelog`
@@ -1107,6 +1114,7 @@ Parahelp confirmed they have **no routing API**. Their enterprise domain list li
 - **BLOCKED (13 Aug 2026):** the Notion connection is not yet linked to this project — Matt needs workspace permission to add the connector. Until then `NOTION_API_KEY` is absent and the function fails fast with that message. The daily `pg_cron` schedule (05:00 UTC, after the 04:00 poller and 04:30 routing worker) is **deliberately not created yet** so a missing credential does not alarm daily; it goes in with the first successful write.
 
 
+
 ---
 
 ## Track B — SLA measurement & validation tool (v3)
@@ -1219,6 +1227,7 @@ A second commercial tier ships alongside standard Enterprise: **self-serve enter
 **Surfaces.** Triage (`/triage`) grades each row against **its own** target — 30 min Enterprise, 60 min SSE — and carries a `Plan` column (`SSE` pill / `Enterprise`) plus a Plan field in the detail sheet. The SLA Dashboard adds a **Plan selector defaulting to `Enterprise`**, because averaging a commitment-free tier into a compliance scorecard would inflate it; the count of SSE tickets in-window is always shown, labelled *"not scored here (no SLA commitments)"*.
 
 
+
 #### SSE as a first-class cut across find / report / watch (1 Sep 2026)
 
 The SSE inbox is now configured (`11433093`) and carrying tickets, so plan tier stops being an ingest detail and becomes a visible dimension everywhere.
@@ -1293,6 +1302,7 @@ Currently one account is flagged: `let_it_fly_test_account` (Let it Fly).
 - For Let-it-Fly specifically, `is_test` **replaces** `enterprise-fyi` as the exclusion mechanism. Per-ticket `fyi` would keep sandbox rows hidden even with `showTestData=true`, defeating the purpose. This is why the migration also implicitly retires tag-based exclusion for that account in favor of the account flag.
 - **Real compliance can never silently drift.** Toggle default OFF + banner whenever ON + zero contribution to real aggregates in OFF-mode = surface-loudly + no-silent-contamination, matching the wider knowledge doc's design principles.
 - **No new engine surface.** `slaMetrics/computeSla` semantics are untouched — sandbox tickets get the exact same timing computed as production tickets. The change is purely one additional population filter next to the existing tag/rsa/disposition exclusions.
+
 
 
 #### SLA Dashboard — `/sla` (`src/pages/SlaDashboard.tsx`) — DEFAULT LANDING
@@ -1464,6 +1474,15 @@ Surfaced as the Report §2b **"Triage discipline (provisional 30-min target)"** 
 - **SCOPE FENCE:** presentation only — no query, population, engine, policy or write-path change on any page. Row sets and numbers are unchanged.
 
 
+
+
+
+
+
+
+
+
+
 #### SLA policy config — admin-editable, effective-dated targets (schema + engine + `/sla-policy`)
 
 **WHY (design intent, not mechanics).** Leadership's verdict that **Sev 1 wall-clock 24/7 was too aggressive** exposed the real problem: SLA targets lived in `slaMetrics.ts`, so changing a number meant a code change, and every historical figure silently re-scored against the new value with no record of what the commitment *was* at the time. Targets and business hours therefore moved **out of hardcoded engine constants and into ADMIN-EDITABLE, EFFECTIVE-DATED DATA**.
@@ -1562,6 +1581,7 @@ Options: `7d` · `30d` · `90d` · `month` ("This month") · **`last_month` ("La
 **WHY:** a monthly review needs the previous **completed** calendar month; "This month" is partial and the rolling windows straddle month boundaries. `/sla-report` already offered last month through its own `monthOptions` dropdown — this closes the same gap on the Dashboard and Workbench breach cards. UI/filter-only: no engine, hook, target or schema change.
 
 
+
 #### Customer Report — `/customer-report` (`src/pages/CustomerReport.tsx`) — experimental prototype
 
 A per-customer SLA + volume view for CSM-style consumption. Route in `App.tsx`, nav entry in `AppLayout` flagged experimental (Beaker icon).
@@ -1585,6 +1605,7 @@ A per-customer SLA + volume view for CSM-style consumption. Route in `App.tsx`, 
 **Closed issues table** (only when Show-closed is on): Subject · Intercom ID · Severity · **Type** · **Product area** · Created · Resolved · First Response (value + met/breach) · Resolution (value + met/breach). Closed rows read their attributes out of `raw_payload` already fetched by `useSlaBatch` — no additional query.
 
 **Status:** experimental prototype, out to CSMs for feedback.
+
 
 
 **Excused-breach note surfacing (`daebf72`, Workbench-only):** override `note` values used to live only in a native `title=` hover on the "Excused" chip — invisible on touch, no affordance, so a human who wrote a note had no reliable way to read it back ("captured but invisible" gap). `ExcuseCell` now renders the note inline (muted italic, quoted, truncated) directly beneath the "Excused · {reason}" chip on both the First-Response and Resolution breach tables, with the full note kept in a tooltip for long text. UI-only change — no schema, hook, query or engine touched. The Dashboard (`/sla`) is intentionally NOT changed: it stays aggregate and shows only an "excused" count.
@@ -1713,6 +1734,13 @@ On success the function has already written Intercom, re-read the conversation, 
 The queue's own definition is unchanged: a ticket is untriaged when Intercom reports no `Severity`. The header badge changed from "Read-only" to "Severity writes enabled".
 
 
+
+
+
+
+
+
+
 ## Action center (`/action-center`, 14 Aug 2026)
 
 A read-only landing surface that answers one question: **is anything in the ESH waiting on a human right now?** It replaces the habit of opening five pages to find out that four of them are empty. Top-level nav entry (bell icon), with an aggregate badge on the collapsed rail.
@@ -1793,6 +1821,7 @@ Guarded (all UI-only call sites): `search-intercom-by-email`, `list-slack-users`
 ### What is deliberately still open
 
 
+
 ## Hub access roster (admin-managed sign-in)
 
 Adding a teammate used to mean a code/console step. It is now a Settings panel, with self-signup still closed.
@@ -1846,6 +1875,8 @@ Two side effects are wired so nothing needs a follow-up SQL pass:
 - **Internal, no Hub login** checkbox (renamed from "Attribution only", 21 Sep 2026) appears in the ESH access cell for any human teammate with no account; ticking it writes `hub_access_expected = false` and the row stops flagging. The access cell reads `no login (AI)` / `Internal, no login` / `no login`.
 - **Grant access** button appears on any row with an `@lovable.dev` address and no account: inserts the `hub_members` row as `pending` (duplicate-tolerant) and invokes `hub-access-manage` `provision`. This is how Alex K, or any future CSM, gets ESH access without SQL — the button stays available whether or not the row is marked internal, no Hub login.
 - **Add person** now records `hub_access_expected = fLogin`, so leaving "Create a Hub login" unticked registers the person as internal, no Hub login instead of instant drift.
+
+
 
 
 ## Editor vs read-only roles
@@ -1989,6 +2020,7 @@ Calls run in sequence and a failure on one field does **not** cancel the rest. E
 `TicketFieldWriteControls.tsx` and `SeverityWriteControl.tsx` are intentionally left in the repo, unused, as the single-field fallback.
 
 
+
 ## Subject override — Hub-only descriptive labels (24 Aug 2026)
 
 Intercom frequently produces useless titles (`Intercom #215474865211089`). The Hub can now carry its own descriptive label for a ticket. This is a **Hub-only display field**: nothing is written to Intercom, and no measurement changes.
@@ -2035,6 +2067,8 @@ Cost discipline: kill switch, daily cap counted off `subject_ai_at`, max 25 ids 
 ### Trigger (9 Sep 2026)
 
 There is no HTTP cron for this — authoring one is blocked on this project. Instead `sync-v3-open` (already on a 5-minute schedule) ends with a **tail hop**: if that pass inserted or reopened at least one ticket **and** a placeholder query shows an open ticket with neither an AI nor a human label, it invokes `generate-ticket-subject` with `{mode:"auto", limit:10}` using the service-role key. The hop is best-effort — any failure is logged and never fails the sync — and both branches log (`subject-ai hop pending=N [status]` / `skipped — no open placeholders pending`). The placeholder regex in `sync-v3-open` mirrors `PLACEHOLDER_RE` in the writer and `isPlaceholderSubject` in `src/lib/subjectDisplay.ts`; the three must stay in step. Practical effect: new placeholder tickets get a title within minutes of arriving, and titling pauses if the sync pauses.
+
+
 
 
 ## PostgREST filter injection guard on contact emails (28 Aug 2026)
@@ -2117,6 +2151,7 @@ Actor mapping: `customer` and `shared_inbox` (B6 relay rule) are customer-side; 
 Nav under Reports. Two-pass load: scalars for the whole finalized window (paged, no `raw_payload`), then `raw_payload` only for tickets over the long-runner threshold, in chunks of 40. Controls: months (1/2/3/6/12), threshold days (default 7), product area, type, owner, customer, reopened. Surfaces: four share cards (us / customer / **closed** / drift) + cohort counts, median split by month (four-series stacked bars — which bucket is growing answers staffing vs customer responsiveness vs hygiene vs reopen re-clocking), **time to first close vs time to last close** (the headline metric is Intercom's time to *last* close, so a reopen re-clocks the whole ticket), top-10 rollups by product area / owner / customer, and a sortable long-runner table where each row opens a gap-by-gap timeline sheet. The sheet lists every segment attached to a message, so a close shows as its own "Closed — nobody owed a reply" gap rather than being folded into someone's debt.
 
 
+
 ### Active clock — closed time removed (31 Aug 2026)
 
 Once closed time was bucketed separately, the next question was whether a ticket should still *count* as a long runner because of time nobody owed. The page now exposes an **active clock** = wall clock − `closedS`, purely on read (no schema change, no engine change, Intercom's own `time_to_resolve_s` is untouched and still the headline number everywhere else).
@@ -2126,6 +2161,7 @@ Once closed time was bucketed separately, the next question was whether a ticket
 - Summary card **"Active clock — closed time removed"**: median recorded vs median active, total closed time in the cohort, and the count of tickets that are long runners *solely* because of closed time — the size of the distortion, stated rather than assumed.
 
 The toggle is off by default: the wall clock stays the reported truth unless someone deliberately asks the narrower question. **UNVERIFIED:** the live population numbers under the toggle (build + typecheck clean, but the cohort delta has not been read off production).
+
 
 
 ## Intercom team names on the Transferred tab (31 Aug 2026)
@@ -2180,6 +2216,7 @@ A global **All / Enterprise / SSE** selector scopes every derivation on the page
 ### Active clock is the default (1 Sep 2026)
 
 The "Load active clock" button is gone. Quality reads the persisted `intercom_tickets_v3.resolution_active_s` scalar, so **Median resolution (active)** is the headline on every page load, `Elapsed (raw)` sits beside it for reconciliation, and both the Slack summary and the narrative export emit the active figure. The page stays scalar-only — no `raw_payload` fetch.
+
 
 
 ## Persisted active resolution clock (1 Sep 2026)
@@ -2315,6 +2352,10 @@ Closes the display gap left open by the three-way (30 Aug) and engineering-wait 
 **Detector.** The board extracts Linear-shaped keys (`[A-Z][A-Z0-9]{1,5}-\d{1,6}`, narrow on purpose so `COVID-19`-style noise does not match) from the `intercom_v3` conversation notes it already loads, and subtracts the clock-bearing set: every `dev_escalation_links` key plus whatever the `Escalated Issue` / `Linear Issue` attribute and the Hub override resolve to. Anything left over renders as an amber **"Note-only Linear keys"** field in the row detail and as a board banner with a **"Show only these"** filter. It is stated as advisory: a key mentioned in a note NEVER moves a clock until a human copies it into the attribute or the Hub override. The attribute remains the single clock-bearing source.
 
 
+
+
+
+
 ## Incident feed from Slack #incidents (3 Sep 2026)
 
 Surfaces Lovable's incident.io incidents inside the Hub: a live "what's broken now" banner and a searchable historical log. **Slack-only by design** — the incident.io API is explicitly NOT used. A workspace incident.io connector exists but belongs to two other owners, and Matt will not use it without their explicit permission, so it stays backlog.
@@ -2338,6 +2379,7 @@ Surfaces Lovable's incident.io incidents inside the Hub: a live "what's broken n
 **Cron scheduled 4 Sep 2026.** Job `poll_slack_incidents_15min`, schedule `*/15 * * * *` (96 runs/day), `net.http_post` to `poll-slack-incidents` with `public.esh_cron_headers()` (cron secret from `public.cron_auth`, never inlined in the job), body `{"mode":"rolling"}`, 60 s timeout. **Cadence chosen deliberately over 5 min**: a frequent job keeps the database awake even when nothing happened, and 15 min of banner staleness is well inside how fast anyone acts on an incident — worst-case lag is 15 min. Authored **by hand in the SQL editor by Matt**: agent SQL and the migration tool both refuse HTTP cron authoring on this project, and the managed HTTP-schedule tools are not exposed here, so this job exists in the database only — it is **not** represented by a migration file in `supabase/migrations`.
 
 
+
 ### Stuck-live fix — targeted re-check (9 Sep 2026)
 
 **The bug.** Slack's `oldest` filter matches a message's **original post time**, not its last edit. Because incident.io edits one announcement in place for the whole lifecycle, any incident declared before the rolling window (default 2 days) and resolved inside it was never re-read — its row sat `live` forever. Observed: INC-1899/1901/1904/1913 marked live with `last_synced_at` 3–5 days stale, and the banner claiming 15 live incidents.
@@ -2347,6 +2389,8 @@ Surfaces Lovable's incident.io incidents inside the Hub: a live "what's broken n
 - **Terminal cards carry the incident link only as an inline mrkdwn `<url|label>`** inside the section text — there is no button block with a `url` field. The parser previously harvested only `node.url`, so every merged/declined card was silently dropped as "not an announcement", which is exactly what kept INC-1913 (merged) live. Inline URLs are now harvested too.
 
 Run summaries report `recheck_fetched`, `recheck_changed`, `recheck_missing`; an unfetchable or unparseable re-check logs a warning and is named in the summary rather than being swallowed.
+
+
 
 
 ### Outbound-initiated conversations and the timeline close fallback (9 Sep 2026)
@@ -2362,6 +2406,7 @@ Run summaries report `recheck_fetched`, `recheck_changed`, `recheck_missing`; an
 - `215474972075677` "Connect GitHub repository" — outbound, never answered: window 475,203s, **active 0**, customer wait 475,203s, closed 0. This is the correct read: we emailed and waited.
 - `215475476004105` — outbound, never answered: window 604,305s, all customer wait.
 - `215475789771012` "[Lovable support] - investigation for mybellwether project" — outbound but the customer **did** reply: active 297,679s / customer wait 137,929s.
+
 
 
 ## Ask Pax to investigate — Slack request + Intercom internal note (9 Sep 2026)
@@ -2420,6 +2465,7 @@ Staging a documentation update used to be possible only from outside the UI — 
 **Data hygiene.** A "Missing fields" filter counts rows lacking `Severity`, `Affected Product Area` (falling back to `Product Area`) or `Ticket type` (falling back to `Type`) in `custom_attributes`; the gaps also render as the muted second line under the subject.
 
 **Writes stay where they already live.** The detail sheet embeds the existing `TicketFieldsPanel` (every field write still routes through `esh-write-action`, kill switch and audit unchanged) and `PaxInvestigateControl`. Subjects use the existing Hub-only override path. The queue itself writes nothing.
+
 
 
 ### Dev escalation buckets and follow-up cadence (11 Sep 2026)
