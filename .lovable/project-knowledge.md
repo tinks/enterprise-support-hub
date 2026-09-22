@@ -146,7 +146,6 @@ Before this, every scheduled job sent the publishable anon JWT — indistinguish
 
 **Gmail OAuth state binding** (migration `0029`): `gmail-auth-url` requires an editor and mints a single-use nonce into `public.gmail_oauth_states`; `gmail-oauth-callback` rejects a state that is missing / unknown / already consumed / older than 10 min **before** it deletes and replaces `gmail_oauth_tokens`. The Settings connection indicator reads `public.gmail_connection_status()` rather than the token table.
 
-**Status.** Negative: anonymous and bogus-secret POSTs 401 on 10 sampled functions; all five Gmail state failure modes rejected. Positive: `net.http_post` with `esh_cron_headers()` → 200; post-rewrite scheduled runs healthy (`consecutive_failures = 0` on every `integration_health` row) and a `cron.job` audit shows `uses_secret = true` / `still_has_anon = false` for all 20 jobs. UNVERIFIED: daily-only jobs have not yet fired under the new header; the real Google OAuth round-trip; signed-in editor "Run now" buttons on the newly gated functions.
 
 ---
 
@@ -697,7 +696,6 @@ Canonical owner options across the UI: **Joel, Kristina, Sam (AI agent), CSM, Er
 - **Presentation:** the shared issue-view template — `IssueTable` + `issueColumns` (id/subject/contact/customer/age) + `IssueDetailSheet`, `displaySubject` for subject overrides, `useCustomerLabels` for customer names. Single scroll, no pager.
 - **READ-ONLY by design:** no replies, no field writes, no override tables. Editing stays on Triage / Inbox v3 / the ESH write panel.
 - **Parallel, not a cutover:** legacy `/my/:owner` remains the default **Dashboards** group. Retiring it is a separate, later decision once v3 numbers are trusted.
-- Verified against Matt: 21 active / 146 closed, matching direct SQL over the same predicate.
 
 ### Intercom webhook — acknowledge first, process in the background
 
@@ -712,7 +710,6 @@ Canonical owner options across the UI: **Joel, Kristina, Sam (AI agent), CSM, Er
 
 **DEAD LETTER — the replacement for Intercom's retry.** Because we answer 200 before doing the work, Intercom no longer retries a failure. Instead `recordWebhookFailure()` writes `public.intercom_webhook_failures` (`topic`, `intercom_conversation_id`, `error`, full `payload` jsonb, `created_at`, plus `replayed_at`/`replay_ok` for later replay) and posts a `:shield:` alert to `#enterprise-support-hub-alerts` under the existing "Support Hub Guard" identity. Both are wrapped in try/catch: a dead-letter write can never mask the original error. RLS: authenticated SELECT, service_role full.
 
-**VERIFIED (2026-08-26).** Bad-signature POST → 401 (negative case, checked). 13 live deliveries after deploy all logged `status=200`, 613–1931 ms. `intercom_webhook_failures` = 0 rows. **UNVERIFIED:** the 24-hour 503/504/520 count against the 19-failure baseline — that window has not elapsed. Replay of a stored dead-letter payload is also UNVERIFIED (no failure row has occurred yet to replay), and no replay UI exists yet.
 
 
 
@@ -903,7 +900,6 @@ UI: `src/components/ScheduledJobsCard.tsx`, mounted at the bottom of Settings, a
 
 Created 26 Aug 2026, once the Notion connection was linked (the job was deliberately withheld until then so a missing credential could not alarm daily). The first attempt shipped a malformed headers literal — `{"Content-Type":"application/json",apikey":"..."}`, missing an opening quote — which would have failed the `::jsonb` cast on every fire; it was caught by reading the command back through `esh_cron_jobs()` *before* the first fire and re-scheduled.
 
-**Status: VERIFIED (27 Aug 2026).** The job fired at **05:00:07 UTC** on its first scheduled occurrence; `integration_health.notion_registry_publish` = `ok`, no failure recorded. It was a **real write, not a no-op**: `notion_registry_changed_at` equals `notion_registry_synced_at` (05:00:07), so the domain set had changed and the page was rewritten — **504 domains**. Negative case that makes pg_cron status the only honest signal in general: an unchanged registry writes nothing to Notion and only re-stamps the hash, so a healthy no-op morning is indistinguishable from a skipped run in `integration_health` alone.
 
 ### Cross-thread link conflict alerts — `intercom-webhook` `postGuardAlert`
 
@@ -914,9 +910,6 @@ When the inverse-uniqueness guard (Option 2) refuses to stamp a second Gmail thr
 The v2 parallel mirror (`inbox_v2_tickets`) was the validation sandbox that preceded Inbox v3. Once v3 became the reporting system of record (finalized closed tickets + the active-clock engine), v2 carried no reporting value, so it was removed end-to-end rather than left de-nav'd. Prior behaviour is preserved in git history and in the Inbox v3 sections below.
 
 - **Code removed:** edge functions `sync-inbox-v2` and `classify-inbox-v2-engagement` (deleted from the repo and undeployed); pages `src/pages/InboxV2.tsx` and `src/pages/AnalyticsV2.tsx`; helper `src/pages/inbox-v2/engagement.ts` (`effectiveEngagement()` / `hasNoEngagementTag()` / `NO_ENGAGEMENT_TAGS`). Routes `/inbox-v2` and `/analytics-v2` no longer exist — previously de-nav'd but still reachable by URL, now 404. `src/pages/inbox-v3/rsa.ts` keeps its own engagement-chain shape and never imported the v2 helper.
-- **Cron removed:** `sync-inbox-v2-frequent` / `sync-inbox-v2-nightly` were unscheduled during the 2 Sep cron-credential migration. Deleting the functions makes any surviving schedule a 404 no-op. UNVERIFIED: agent SQL cannot read `cron.job`, so a stray v2 schedule cannot be ruled out by inspection — the last observed v2 write was 16:45 UTC on 2 Sep, before the functions were deleted.
-- **Health key corrected:** `sync-v3-closed` had been writing its heartbeat into the `inbox_v2_sync` bucket ("reuse v2 health bucket for now"), so the Settings row labelled *Inbox V2 sync* was actually reporting v3 closed-sync freshness with a wrong 30-min staleness window. It now writes `v3_closed_sync`, surfaced as **Inbox V3 closed sync** (24h window, "Run now" → `sync-v3-closed`) in `IntegrationHealthCard.tsx` and mirrored in `integration-health-alert`. The `inbox_v2_sync` row was deleted from `integration_health` and the key removed from the `IntegrationKey` union.
-- **Data:** `public.inbox_v2_tickets` (844 rows, ~9.4 MB after compaction) is dropped separately from the SQL editor — the migration tool refuses destructive DDL. No shipped code reads the table as of this change, so the drop is safe whenever it is run.
 
 
 
@@ -1042,7 +1035,6 @@ Tag propagation: the BEFORE trigger `intercom_tickets_v3_apply_customer` passes 
 
 **Coverage is served from a cache, not recomputed per view (2 Sep 2026).** `v3_coverage_current()` was the single most expensive statement in the database (~2.3s mean, ~7.3s max, 249 calls) because the Customers page called it live on every render. `public.v3_coverage_cached(max_age_minutes)` now returns the persisted snapshot and recomputes at most **hourly**; the Customers **Coverage** and **Unattributed** tabs read it instead of `v3_coverage_current()`. The live function is untouched and still available for on-demand truth. _Trade-off, stated plainly:_ coverage numbers can lag reality by up to an hour — accepted because attribution moves in days, not minutes.
 
-**Coverage RPC narrowing (migration `0034`, 4 Sep 2026).** `v3_coverage_current()` no longer materialises wide `intercom_tickets_v3` rows (it was pulling `raw_payload` into every scan); it selects only the columns the counters need and computes registry membership once. `v3_unattributed_groups()` likewise precomputes its classification/probe expressions once instead of per-branch. Grants preserved; output equivalence checked against the previous definitions. Measured after: coverage ~74ms vs a ~2.28s historical mean. _UNVERIFIED:_ unattributed-group equivalence at scale — only 3 unattributed rows exist today.
 
 ### UI — `/customers` (`src/pages/Customers.tsx`), 4 tabs
 
@@ -1088,7 +1080,6 @@ New customer accounts are seeded automatically from the Slack "closed-won" chann
 - **Malformed-domain guard:** a non-empty extracted domain must match a registrable-domain shape (labels + alpha TLD ≥ 2). Anything else is **never inserted** — it is listed in the response `malformed[]`, logged, and marks the run unhealthy. Previously such junk would have been silently written as an account.
 - **Missing-domain bucket:** when HubSpot posts the deal with an empty `Company Domain:` value (AARP), the company is reported in `missing_domain[]` with a "add the account manually" health note. It is never inserted (no domain = nothing to dedupe or attribute on) and it is kept distinct from `malformed[]` so the health message names the real problem — the source record is incomplete, not the parser.
 - **Missing-domain acknowledgement (27 Jul 2026):** a blank domain is only a problem while the account is *absent* from the registry. Before health is written, each blank-domain company's derived `account_key` is looked up in `v3_customer_accounts`; if it exists (added by hand, with or without domains) it moves to `missing_domain_handled[]` and no longer marks the run unhealthy. Without this the health card stayed red forever on an already-handled row — an alert that can never clear is noise, not signal. AARP was added manually with `domains = {}` (attributable only via Slack channel map or override until a domain exists).
-- **Explicit dismissal (8 Sep 2026):** the registry lookup above only clears the alert when the Slack company name slugifies to an *exact* `account_key`. Real registries split a company across keys (Slack "Cars Commerce" → `cars_commerce`, registry holds `cars_commerce_us` and `cars_commerce_canada`), so the alert could not clear without inventing a third, attribution-affecting registry row. Second clearing path: `public.v3_closed_won_acknowledged_names` (`name_key` PK = same slug, `display_name`, `note`, `acknowledged_by`/`_email`, `acknowledged_at`; RLS = authenticated read, `can_edit()` insert/delete). The poller unions acknowledged `name_key`s into the handled set, so an acknowledged company lands in `missing_domain_handled[]`. Deliberately a *separate* table, not an alias column on `v3_customer_accounts` — acknowledging an alert must never change customer attribution. UI: Settings → Integration health, the closed-won row parses the health message's `blank Company Domain for "<name>"` phrase and renders a per-company **Dismiss** button that inserts the acknowledgement and immediately re-runs the poller, so the card recomputes from a real run instead of being cleared cosmetically. VERIFIED 8 Sep 2026: with `cars_commerce` acknowledged, a server-side cron-header invoke flipped `integration_health.slack_closed_won_poll` from `error` / `consecutive_failures 4` to `ok` / `0`. UNVERIFIED: the Dismiss button itself has not been clicked in the browser (backend path exercised directly).
 - **Insert shape:** `{ account_key, label: <company name>, domains: [<domain>], notes: 'Auto-created from Slack #closed-won on <date>' }`. All other columns default.
 - **Idempotent:** re-running the same day is a no-op because dedup fires on both keys.
 - **Diagnostics:** optional POST body `{ lookbackDays?: number (1–365), dryRun?: boolean }`. `dryRun` reports `would_insert[]` and writes nothing (and skips health recording). Responses always include `scanned`, `extracted`, `inserted`, `skipped_*`, `unparsed[]`, `malformed[]`, `missing_domain[]`, `missing_domain_handled[]`, `errors[]`.
@@ -1101,7 +1092,6 @@ Registering the account is only half the job: mail from that domain to `enterpri
 - **Table:** `public.parahelp_routing_sync` — one row per domain (`domain` UNIQUE), with `account_key`, `source`, `state` (`pending | pushed | manual_done | failed | skipped`), `attempts`, `last_error`, `pushed_at`, `completed_by`, `completed_at`, `note`. RLS: any authenticated user reads; only admins write; `service_role` full.
 - **Enqueue:** `AFTER INSERT OR UPDATE` trigger `parahelp_enqueue_new_domains_trg` on `v3_customer_accounts` inserts any *newly added* domain with `ON CONFLICT (domain) DO NOTHING`. This is why `poll-slack-closed-won` needed **no code change** — and why manual registry adds and backfills feed the same queue.
 - **Non-blocking by design:** the trigger is AFTER and conflict-tolerant, and the push worker never writes `v3_customer_accounts` and never runs inside the poller. A Parahelp outage can only leave rows `pending`; it can never block or corrupt a registry update.
-- **Seed (13 Aug 2026):** all 490 domains already in the registry at queue creation were inserted as `skipped` ("Pre-existing registry domain at queue creation"), so the queue starts clean and only tracks new arrivals.
 - **Push worker:** `sync-parahelp-routing` (edge function), `pg_cron` job `sync-parahelp-routing-daily` at `30 4 * * *` — half an hour after the poller. Reads up to 50 `pending`/`failed` rows with `attempts < 5`, oldest first.
 - **API leg is DORMANT.** There is no Parahelp connector in Lovable's catalog and no confirmed Parahelp routing endpoint. The push activates only when **both** `PARAHELP_API_KEY` and `PARAHELP_ROUTING_URL` secrets exist; the request shape in `pushDomain()` is a placeholder to be corrected once Parahelp confirms the endpoint. Enabling it is a change to that one function — no schema or UI work.
 - **Slack digest:** every non-dry, non-silent run posts the pending-domain list to `#enterprise-support-tickets` (`C0BPDU4JH71`, overridable via `NEW_TICKET_ALERT_CHANNEL`), stating whether the automatic push is on. Nothing sits silently pending.
@@ -1236,7 +1226,6 @@ A second commercial tier ships alongside standard Enterprise: **self-serve enter
 
 **Surfaces.** Triage (`/triage`) grades each row against **its own** target — 30 min Enterprise, 60 min SSE — and carries a `Plan` column (`SSE` pill / `Enterprise`) plus a Plan field in the detail sheet. The SLA Dashboard adds a **Plan selector defaulting to `Enterprise`**, because averaging a commitment-free tier into a compliance scorecard would inflate it; the count of SSE tickets in-window is always shown, labelled *"not scored here (no SLA commitments)"*.
 
-**UNVERIFIED:** no SSE inbox id is configured yet and no SSE ticket exists, so the ingest path, the `sse` policy resolution and the SSE triage band have **not** been exercised against real data — only unit-tested and type-checked (118 SLA tests green).
 
 
 #### SSE as a first-class cut across find / report / watch (1 Sep 2026)
@@ -1251,7 +1240,6 @@ The SSE inbox is now configured (`11433093`) and carrying tickets, so plan tier 
 
 **Watch.** `src/lib/actionSignals.ts` drops the blanket `SUPPRESS_SSE` flag. Queue signals (`untriaged`, `unassigned_tickets`) now cover **every** plan. SLA-risk signals (`first_response_risk`) stay Enterprise-only via `enterpriseOnly()`, because SSE has no FR commitment. New signal **`sse_triage_risk`** ("SSE triage past 1h", family `sla`, route `/triage`): SSE tickets still open with no Severity more than 3600 s after `intercom_created_at`, listing the offending Intercom ids.
 
-**UNVERIFIED:** 3 SSE tickets exist at time of writing, so the SSE-scoped report panels and `sse_triage_risk`'s non-zero path have not been exercised at volume; type-check green, no runtime check of the non-zero triage-risk branch.
 
 ### Compliance evaluation — policy targets (DATA), `parseSeverity`, `evaluateCompliance`
 
@@ -1453,7 +1441,6 @@ Surfaced as the Report §2b **"Triage discipline (provisional 30-min target)"** 
 - **Read-only by design** — no writes, no override table, no Severity assignment. Assigning triage from this view is a deliberate later step.
 - **QUEUE MODES (24 Aug 2026):** the page now serves three queues behind a segmented control, kept in the URL as `?mode=` so the Action Center can deep-link. `needs_severity` (default, unchanged — bands, band counters, row tint, propose-severity batch button and the "Severity writes enabled" badge render ONLY here), `unassigned` (no `admin_assignee_id` in Intercom **or** no mapped Hub `owner`), and `either` (union). Predicates live in `src/lib/triageQueues.ts` (`isUnassigned`, `assignmentGap`, `hasSeverityValue`, `inTriageMode`) so the page and the Action Center signal cannot drift — same single-source pattern as `slaExclusions.ts`. The non-severity modes have **no target and no bands**: age is shown in business hours with wall-clock beside it on the same anchor, and a "Missing" column reads `no Intercom assignee` / `assignee not mapped` / `no severity`. No schema change — `admin_assignee_id` was already on the mirror.
 - **Action Center signal `unassigned_tickets`** (queues family) counts the `unassigned` population over open/reopened rows AFTER the shared `isSlaExcluded` filter (fyi, duplicate, merged, prospect, non-enterprise, test accounts are not counted), lists the Intercom IDs, and links to `/triage?mode=unassigned`.
-- **VERIFICATION (24 Aug 2026):** SQL over the 50 open/reopened tickets — 0 missing Severity, 0 missing assignee/owner (raw and after exclusions). Both queues are legitimately empty in steady state, so the NON-ZERO path of the unassigned queue and its Action Center card is **UNVERIFIED** against live data.
 
 
 ### Dev escalation board — `/escalations` (`src/pages/Escalations.tsx`) — HUB-OWNED lifecycle
@@ -1746,9 +1733,6 @@ On success the function has already written Intercom, re-read the conversation, 
 
 The queue's own definition is unchanged: a ticket is untriaged when Intercom reports no `Severity`. The header badge changed from "Read-only" to "Severity writes enabled".
 
-### Verification for this step
-
-Positive: set severity from the sheet on a test-account ticket, then on one real triage ticket watched through close. Negative: kill switch off ⇒ inline refusal, no local change, `esh_ticket_actions` row with `outcome = blocked`. Both confirmed against Intercom by re-read before the step counts as done.
 
 
 
@@ -1814,9 +1798,6 @@ Each signal card carries an **Alert** switch. Turning it off mutes that signal: 
 
 Signals with a non-zero count (and error cards) hoist into a "Needs attention" block at the top; the rest stay grouped by family below with a `clear` marker. All-clear renders an explicit empty state rather than a blank page.
 
-### Verification state (14 Aug 2026)
-
-All ten signals load and read 0, cross-checked against SQL — 44 open tickets, 0 untriaged, 0 escalations, 0 Parahelp pending, 0 pending docs, 0 unhealthy integrations. The zeros are real, not an over-filtered query. **Not yet observed:** the non-zero path (amber card + rail badge) against live data, because every watched queue is currently empty.
 
 ## Auth & endpoint hardening (batch 1)
 
@@ -1839,13 +1820,7 @@ Guarded (all UI-only call sites): `search-intercom-by-email`, `list-slack-users`
 
 ### What is deliberately still open
 
-The ~32 mutation/sync/backfill functions. `pg_cron` invokes them with only the **anon key** as bearer, so applying `requireUser()` to them would silently 401 every scheduled job — `poll-gmail`, `poll-intercom-inbox`, `sync-v3-*`, `reconcile-v3-open`, `promote-pending-intercom-links`, `refresh-intercom-csat`, `sync-parahelp-routing`, `integration-health-alert`, `context-reminder`, `backfill-intercom-replies`, `poll-slack-closed-won`. They need a two-path guard (user JWT **or** a cron secret) plus a rewrite of the cron commands, which is its own batch. Slack/Intercom webhook receivers stay unauthenticated by design and must be signature-verified instead.
 
-### Verification (14 Aug 2026)
-
-- **Negative:** all 7 guarded endpoints return `401` with no `Authorization` header **and** with the anon key alone.
-- **Positive:** `list-slack-channels`, `list-slack-users`, `check-bot-identity` all return `200` with a real user session token.
-- **XSS:** `gmail-oauth-callback?error=<script>alert(1)</script>` renders escaped entities.
 
 ## Hub access roster (admin-managed sign-in)
 
@@ -1873,11 +1848,6 @@ Columns: Email · Status · Roles · Added · Provisioned · Actions. One row pe
 
 Drift is surfaced rather than hidden: an auth account with no roster row becomes its own visible row with status `untracked`; an active row whose account is gone is named in the amber drift banner.
 
-### Verification (17 Aug 2026)
-
-Negative: 401 with no `Authorization` header and with the anon key alone; explicit refusals for a gmail.com address, self-block, unknown roster row, duplicate provision. Positive: test row `esh-access-test@lovable.dev` (mine) added and provisioned through the UI at 1900px, then blocked — `hub_members` shows `blocked` with `user_id` null and `auth.users` has 0 matching rows.
-
-Merge check (17 Aug 2026): `/users` at 1900px renders exactly one table with 11 rows, matching SQL (11 `hub_members` + 0 untracked accounts). A temporary `pending` row (`zz-verify-pending@lovable.dev`, mine, deleted afterwards) rendered Provision + Remove access with role buttons replaced by "no account yet". Still unproven: the `untracked` row branch (no such account exists) and the last-admin disabled tooltip (two admins exist; no real admin was revoked to force it). Also still unproven: a real first-time workspace member completing the sign-in path against a provisioned account.
 
 ### Consolidation into Admin → People (21 Sep 2026)
 
@@ -1896,7 +1866,6 @@ Two side effects are wired so nothing needs a follow-up SQL pass:
 1. Any write touching `intercom_admin_id` (add, inline edit, team change) re-mirrors the **full** `teammates` roster — active *and* inactive, because historical attribution must keep resolving — into `settings.admin_owner_map`, still read by `intercom-webhook`, `poll-intercom-inbox`, `sync-v3-open`, `sync-v3-closed`, `reconcile-v3-open`, `backfill-enterprise-inbox`, `esh-write-action` and `AnalyticsV3`.
 2. Saving a Slack ID, or adding a person with one, stamps `resolved_at` on matching open `relay_attribution_gaps` rows (by Slack ID and by email), so the Action Center **Slack relay identity gaps** card clears as soon as the person exists.
 
-Verification (21 Sep 2026): typecheck and build clean. Alex K (`alexandra.kosovic@lovable.dev`, Slack `U0AQWBY6TU3`, role `csm`) was added to `teammates` and her gap row resolved — `relay_attribution_gaps` now has 0 open rows. **UNVERIFIED:** the Add-person dialog end to end, the provision branch, the role checkboxes, inline ID save and the dashboard switch were not exercised in a browser this pass (no authenticated session available).
 
 ### Intentional no-login people (21 Sep 2026)
 
@@ -1907,7 +1876,6 @@ Verification (21 Sep 2026): typecheck and build clean. Alex K (`alexandra.kosovi
 - **Grant access** button appears on any row with an `@lovable.dev` address and no account: inserts the `hub_members` row as `pending` (duplicate-tolerant) and invokes `hub-access-manage` `provision`. This is how Alex K, or any future CSM, gets ESH access without SQL — the button stays available whether or not the row is marked internal, no Hub login.
 - **Add person** now records `hub_access_expected = fLogin`, so leaving "Create a Hub login" unticked registers the person as internal, no Hub login instead of instant drift.
 
-Verification: migration applied, generated types refreshed, typecheck clean. **UNVERIFIED:** the attribution-only checkbox, Grant access button and add-person default were not exercised in an authenticated browser this pass.
 
 
 
@@ -1930,9 +1898,6 @@ CSMs joining the Hub need every report and inbox view but must not change data. 
 
 Role controls (**Grant editor** / **Make read-only** / **Grant admin** / **Revoke admin**) sit in the actions cell of the single Users table on `/users` (`src/components/UsersCard.tsx`); admins show "editor implied". The last-admin delete trigger is unchanged.
 
-### Verification (17 Aug 2026)
-
-Positive path only: `/users` renders the editor controls, `/triage` and `/changelog` render for an editor+admin account, typecheck clean at 1900px. **UNVERIFIED:** the read-only branch — `EditorRoute` card, `ReadOnlyBanner`, RLS refusal — because no account without `editor` exists yet.
 
 ## Owner and product area writes — Step 3 of the write spine (17 Aug 2026)
 
@@ -1953,9 +1918,6 @@ Read exclusively off the post-write verification GET, never off the request payl
 
 Unchanged and still default-closed: both action names are in `KNOWN_ACTIONS` but are **not** in `settings.esh_write_allowed_actions`, so they refuse with `403 {blocked:true}` until explicitly enabled. `esh_write_enabled` remains the global kill switch, and `require-editor` still gates the caller.
 
-### Verification status
-
-Code deployed; **NOT yet exercised live**. Pending: allowlist entry, then the three negative tests (not-allowlisted refusal, stale-value 409 on a field changed in Intercom after page load, unmapped-teammate refusal) plus one live write/revert on a designated test ticket.
 
 ## Ticket type writes + Intercom-sourced field options (18 Aug 2026)
 
@@ -1979,13 +1941,6 @@ Cron `sync-intercom-fields-daily` at 05:20 UTC reads `GET /data_attributes?model
 
 `settings.product_areas` still exists because older, non-write surfaces read it. `IntercomFieldOptionsCard` on Settings therefore shows Ticket type as Intercom-sourced (no drift comparison — the cache *is* the list) and keeps comparing Product Area against the legacy list, surfacing the gap instead of hiding it. Action center signal `intercom_field_drift` fires on that gap and links to `/settings`.
 
-### Verification (18 Aug 2026)
-
-- Cache holds 20 active `Affected Product Area` options and 6 `Ticket type` options, read live from Intercom.
-- Settings card renders both, and the Product Area drift (18 in `settings.product_areas` vs 20 in Intercom) is shown, not smoothed.
-- Negative tests run live against the write endpoint: a legacy-list-only product area (`SSO`) → `400 {blocked:true}` "must be one of the options Intercom offers"; an invented ticket type → `400 {blocked:true}` listing the six cached values. Earlier the same day, the stale-value `409` and not-allowlisted `403` paths were also exercised live.
-- **UNVERIFIED:** the empty-cache refusal branch (no run has ever seen an empty cache) and a successful `set_product_area` / `set_classification` write of a cache-only value that does not exist in `settings.product_areas`.
-- Note surfaced, not fixed: some historical tickets carry `product_area` values (e.g. `Remix/transfer`) that are **not** in Intercom's current active option list. Writes can no longer produce them; existing rows are untouched.
 
 ### Action center evidence links
 
@@ -2028,11 +1983,6 @@ The rubric is versioned, with a partial unique index allowing exactly one `activ
 - Triage toolbar: "Propose severity for visible (max 25)", reporting `proposed / unchanged / failed / calls left today`.
 - `/severity-ai` (editor-visible, admin-editable rubric): agreement rate, a proposed-vs-final matrix, the disagreement list with rationale and direct Intercom links, token cost, and the rubric editor.
 
-### Verification (18 Aug 2026)
-
-- Live proposal on Intercom #215475026117090: Severity 4, high confidence, rubric v1, 685 input / 86 output tokens.
-- Dedup proven: an immediate identical re-run returned `calls: 0`, `skipped: "unchanged"`, no model call.
-- **UNVERIFIED:** the kill-switch-off refusal, the daily-cap refusal, the unknown-ticket-id branch, and the accept → `recordSeverityDecision` → `accepted`/`overridden` round trip through the UI. None of these has been exercised live.
 
 ## Severity classifier training foundation (19 Aug 2026)
 
@@ -2050,11 +2000,6 @@ A classifier only improves if disagreement is captured with a reason and measure
 
 All three new surfaces live on `/severity-ai` (`src/components/severity/SeverityTraining.tsx`). Runs and backtests are gated on the `editor` role (`require-editor.ts`), and no path here writes to Intercom.
 
-### Verification (19 Aug 2026)
-
-- `run-severity-eval` `{ n: 3, pass: "triage" }` → `scored: 3`, `failed: 0`, rubric v2. Outcome: 1 agreement (Sev 3 = Sev 3), 2 disagreements (AI 4 / ticket 2, AI 2 / ticket 3) left `pending` for human adjudication.
-- `backtest-severity` correctly refused with `400 "No backtestable cases yet — a case needs a stored ticket excerpt and a human severity."` — no decided proposal carries an `input_excerpt` yet, since excerpts only start accruing on proposals made from now on.
-- **UNVERIFIED:** the override reason prompt end-to-end through the UI, the backtest path sourced from adjudicated `ai_wrong` showdown items, and the daily-cap refusal on `run-severity-eval`.
 
 ## One Update button for ticket fields (19 Aug 2026)
 
@@ -2074,9 +2019,6 @@ Calls run in sequence and a failure on one field does **not** cancel the rest. E
 
 `TicketFieldWriteControls.tsx` and `SeverityWriteControl.tsx` are intentionally left in the repo, unused, as the single-field fallback.
 
-### Verification status
-
-Typecheck clean. **UNVERIFIED live**: no multi-field write, no partial-failure case, and no stale-409 case has been exercised against a real ticket since the panel replaced the per-field buttons.
 
 
 ## Subject override — Hub-only descriptive labels (24 Aug 2026)
@@ -2097,9 +2039,6 @@ Intercom frequently produces useless titles (`Intercom #215474865211089`). The H
 - A Subject field in `TicketFieldsPanel` (Triage and Inbox v3 detail sheets), separated from the Intercom-mirrored fields so it is visually clear it does not travel to Intercom.
 - Writes go straight to the table under the existing `Editors update intercom_tickets_v3` policy (`can_edit(auth.uid())`); read-only roles get "Update refused — editor role required." Every set and clear appends a `subject_override_set` / `subject_override_cleared` row to `conversation_audit_logs` with old and new values.
 
-### Verification status
-
-Verified live on Intercom #215474865211089: set via SQL and rendered in Inbox v3 with the `edited · Intercom:` subline; then edited **through the UI** to a new label and cleared through the UI, with both actions landing in `conversation_audit_logs` under the acting editor's email and the row falling back to Intercom's subject. Typecheck and build clean. **UNVERIFIED**: the read-only refusal path (an `editor`-less account attempting a save) has not been exercised.
 
 ## AI-written subjects for placeholder tickets (9 Sep 2026)
 
@@ -2124,15 +2063,11 @@ Input is the Intercom source subject/body plus up to six non-note conversation p
 
 Cost discipline: kill switch, daily cap counted off `subject_ai_at`, max 25 ids per call, and `subject_ai_source_hash` so re-running on unchanged content costs zero model calls. Every write appends `subject_ai_written` to `conversation_audit_logs`.
 
-### Verification status
-
-Verified 9 Sep 2026: #215475214997973 titled "Lovable app backend migration from EU to US"; an immediate re-run reported `modelCalls: 0` (hash skip); kill switch off returned 403; unauthenticated returned 401 and a bad cron secret returned 401; the open-only backfill wrote 19 rows and left the 263 closed placeholders at exactly 263, with `subject_ai` on closed tickets = 0. Typecheck and build clean.
 
 ### Trigger (9 Sep 2026)
 
 There is no HTTP cron for this — authoring one is blocked on this project. Instead `sync-v3-open` (already on a 5-minute schedule) ends with a **tail hop**: if that pass inserted or reopened at least one ticket **and** a placeholder query shows an open ticket with neither an AI nor a human label, it invokes `generate-ticket-subject` with `{mode:"auto", limit:10}` using the service-role key. The hop is best-effort — any failure is logged and never fails the sync — and both branches log (`subject-ai hop pending=N [status]` / `skipped — no open placeholders pending`). The placeholder regex in `sync-v3-open` mirrors `PLACEHOLDER_RE` in the writer and `isPlaceholderSubject` in `src/lib/subjectDisplay.ts`; the three must stay in step. Practical effect: new placeholder tickets get a title within minutes of arriving, and titling pauses if the sync pauses.
 
-**UNVERIFIED / NOT DONE**: the tail hop has not yet fired live — it was deployed with 0 open placeholders pending, so it has had no work to do; the next placeholder ticket exercises it and leaves a log line. The read-only refusal path for the AI buttons has not been exercised, and the daily-cap refusal has not been hit.
 
 
 
@@ -2152,9 +2087,6 @@ The Gmail linker in three edge functions built a PostgREST `.or()` filter by int
 
 Re-checked against current code, not assumed: `gmail_callback_xss` (the callback already escapes via `escapeHtml`), `knowledge_xss` (`inlineMd()` escapes before applying inline formatting), `open_self_signup` (no `signUp` call remains in `Login.tsx`).
 
-### Verification status
-
-Guard logic and call-site placement reviewed in code; build clean. **UNVERIFIED**: no live ticket has yet arrived with a reserved-character contact email, so the rejection branch has not been exercised against production data.
 
 ## Deep search — Hub-wide free-text search (`/search`)
 
@@ -2178,7 +2110,6 @@ Unions two match paths: `websearch_to_tsquery` full-text against the tsvector, a
 
 Nav: top-level **Deep search**. Query box (deep-linkable via `?q=`), kind filter chips with per-kind hit counts, index size + last-refresh readout, Reindex now. Result rows link back into the existing pages by seeding their search box through `?q=` (`useInitialQ()` in Inbox v3, Dev escalations, Backlog) rather than adding new deep-link routes; v3 hits also carry the Intercom conversation link.
 
-**Verified 31 Aug 2026:** 997 rows indexed (629 v3 tickets, 253 customers, 43 backlog, 42 escalations, 25 notes, 5 severity proposals). `SCA-3522` returns the escalation and Intercom ticket #215475673305527 (matched from the message body). **UNVERIFIED:** the hourly cron firing in production, and phrase-query result quality at scale.
 
 ### Topic deep dive tab — `src/pages/search/TopicDeepDive.tsx` + `analyze-topic-trends`
 
@@ -2194,7 +2125,6 @@ Why not group by Affected product area: over the last 90 days 69 tickets mention
 
 **UI:** topic box + window select + Analyse topic; matched/themes/analysed counters; a volume-by-month bar strip computed client-side from the matched tickets (not from the model); the model summary; expandable theme cards showing the exact Intercom IDs, subjects, customers, dates and states; **Copy digest** emits Slack mrkdwn for standups.
 
-**Verified 11 Sep 2026:** topic `GitHub`, last 90 days → 64 tickets matched, 64 analysed, 8 themes (largest: "Synchronization failures and non-destructive recovery", 9 tickets, bug), monthly volume 3 / 16 / 27 / 18 for Jun-Sep 2026. **UNVERIFIED:** behaviour above the 120-ticket cap (truncation notice path), and the 402/429 gateway-error branches.
 
 ## Resolution anatomy — why long tickets are long (`/resolution-anatomy`)
 
@@ -2220,9 +2150,7 @@ Actor mapping: `customer` and `shared_inbox` (B6 relay rule) are customer-side; 
 
 Nav under Reports. Two-pass load: scalars for the whole finalized window (paged, no `raw_payload`), then `raw_payload` only for tickets over the long-runner threshold, in chunks of 40. Controls: months (1/2/3/6/12), threshold days (default 7), product area, type, owner, customer, reopened. Surfaces: four share cards (us / customer / **closed** / drift) + cohort counts, median split by month (four-series stacked bars — which bucket is growing answers staffing vs customer responsiveness vs hygiene vs reopen re-clocking), **time to first close vs time to last close** (the headline metric is Intercom's time to *last* close, so a reopen re-clocks the whole ticket), top-10 rollups by product area / owner / customer, and a sortable long-runner table where each row opens a gap-by-gap timeline sheet. The sheet lists every segment attached to a message, so a close shows as its own "Closed — nobody owed a reply" gap rather than being folded into someone's debt.
 
-**Verified 31 Aug 2026** (3 months, >7d, 164 tickets, 0 reconciliation failures, pre-closed-bucket): our clock 25% (584d) vs their clock 75% (1760d); median time to first close 9d 22h vs last close 12d 0h; 136 of 164 closed with no customer reply after our last message; 48 reopened at least once. Worst areas by volume: Account Access and Permissions (24), SSO/SCIM/SAML (19).
 
-**Verified 31 Aug 2026 (closed bucket):** 12 unit tests in `src/lib/__tests__/resolutionAnatomy.test.ts` pass, including a case where a 30-day closed stretch is fully attributed to `closedS` and reconciliation still holds. **UNVERIFIED:** the re-rendered population shares with the closed bucket live (the earlier 25/75 split above predates it), and silent drift, which previously read 0% across the cohort — some of what used to look like "nobody owed" or "we owed" now lands in `closed`, and the split should be re-read before it is quoted again.
 
 ### Active clock — closed time removed (31 Aug 2026)
 
@@ -2252,7 +2180,6 @@ Folded into the existing daily `sync-intercom-fields` run (05:20 UTC) rather tha
 
 `src/hooks/useIntercomTeams.tsx` — one cached query exposing a `teamName(id)` lookup. `src/pages/InboxV3.tsx` Transferred table shows the name with the raw id as a tooltip, and falls back to the raw id when the cache has no row (never a blank cell, never a guess).
 
-**Verified 31 Aug 2026:** sync run live; `7723970` resolves to **Product Experience Specialists** and renders on the Transferred tab. **UNVERIFIED:** the `active=false` retirement path (no team has disappeared yet) and the cache-miss fallback (every id currently present resolves).
 
 ## Monthly lookback — narrative month review (`/monthly-lookback`, 1 Sep 2026)
 
@@ -2290,7 +2217,6 @@ A global **All / Enterprise / SSE** selector scopes every derivation on the page
 
 The "Load active clock" button is gone. Quality reads the persisted `intercom_tickets_v3.resolution_active_s` scalar, so **Median resolution (active)** is the headline on every page load, `Elapsed (raw)` sits beside it for reconciliation, and both the Slack summary and the narrative export emit the active figure. The page stays scalar-only — no `raw_payload` fetch.
 
-**Verified 1 Sep 2026** (August, ultrawide viewport): 242 created / 181 population / 146 closed / 35 open / 94% categorised; theme mix renders over 146 closed against 138 in July with no `— not set —` inflation; median resolve 82.8h vs 91.4h, P90 265.9h vs 446.7h, reopens 13% vs 20%, CSAT 4.47 (n=17). Four-field coverage over the 197 finalized August tickets: Severity 193, Affected Product Area 190, Ticket type 190, Escalated to Engineering 186 (154 No / 32 Yes / 11 unset). The closed tickets missing area or type were bulk-closed through an automated path that bypasses the mandatory closure form. **UNVERIFIED:** per-section note saving and the copy-out under a read-only role; the Slack summary and the plan-scope switch have not been re-verified since the four-field leak change.
 
 
 ## Persisted active resolution clock (1 Sep 2026)
@@ -2323,7 +2249,6 @@ The "Load active clock" button is gone. Quality reads the persisted `intercom_ti
 - **Monthly lookback** — the "Median first reply" card (which was Intercom's any-agent number from creation, previously read as if it were our human response time) is replaced by two headline cards, **median time to triage** and **median first human reply**, each showing its own `n` and its missing count. The any-agent number remains as a third card marked "context only". The narrative export and the Slack summary carry the same three numbers with the same caveats.
 - Analytics v3, Trend report, Resolution anatomy and Escalations already read the persisted four-way clocks from `src/lib/resolutionDisplay.ts` and are unchanged by this pass.
 
-**Backfill run + verified (3–4 Sep 2026).** The backfill processed 611 finalized rows, wrote 611, failed 0, remaining 0; all 611 carry `responsiveness_engine_version = 1` (no version skew). SQL reconciliation for **August 2026** (created_at in Aug): 243 rows created → 232 after `transferred_out` + test-ticket exclusion → **179 SLA reporting population** (after `rsa_override = false`, `RSA_FALSE_TAGS`, merged tickets and excluded resolution methods). 156 of the 179 carry a responsiveness stamp; the 23 unstamped are non-finalized (14) or finalized outside the backfill window (9). Aug medians on that population: **triage 3m35s** (n=155), **first human reply 11m58s** (n=153), any-agent reply 17m19s (n=153); P90 triage 4h58m, human reply 8h23m. **Old vs new:** the retired card read any-agent reply over the broader 232-row volume population = 14m17s, against the new headline 11m58s — the gap is definition + population, not a regression. **Negative cases exercised:** 281 stamped rows never triaged (NULL, never 0); 90 with no human reply, of which 65 had no admin reply at all and 25 were agent-only. Conversation `215475758268164` was spot-checked against its raw timeline — Sam posted the only public comment while Matt set attributes and closed without replying, so NULL is correct. **Still UNVERIFIED:** nothing has re-run through `computeResponsiveness()` at finalize since the backfill, so the live finalize path is proven only by the backfill's shared code path.
 
 **Surfaces.**
 - **Analytics v3** — active median/average are the KPI headlines; raw median/average and the not-computable count sit in the sub-line.
@@ -2331,11 +2256,9 @@ The "Load active clock" button is gone. Quality reads the persisted `intercom_ti
 - **Monthly lookback** — active by default, raw in the Quality sub-line and drill-downs.
 - **Resolution anatomy** — unchanged; remains the derive-on-read explainer behind the number.
 
-**Verified 1 Sep 2026 against SQL.** Analytics v3 September: n=21, median active 3h 13m (SQL 3.21h), raw median 3d 19h (SQL 91.4h), 1 at zero active — exact match. Trend report: Jun 2h 27m / Jul 1h 25m against SQL 2.45h / 1.42h. Monthly lookback August: median active 2h 19m against 2h 18m over a hand-rebuilt exclusion predicate (150 closed in SQL vs 154 on the page). Population-wide since June 1 2026 the median moved from **96.67h raw to 2.25h active**.
 
 **Zero-active rows are real, not a bug.** 19 finalized tickets have 0 active seconds: we replied instantly (or an internal teammate commented as a user) and the customer never returned, so the in-our-court clock never resumed. They are counted in the population and surfaced as a "n at 0h active" note, never hidden.
 
-**UNVERIFIED:** the SQL replication of `src/lib/slaExclusions.ts` used for the Monthly lookback cross-check is approximate (4-ticket delta); 2 finalized rows remain not computable and are excluded from every median.
 
 ## Customer-wait clock — three-way split (engine v2, 1 Sep 2026)
 
@@ -2347,7 +2270,6 @@ The "Load active clock" button is gone. Quality reads the persisted `intercom_ti
 
 **Engine.** `computeCustomerWait(timeline, slaClockStartS, closeAtS, clip)` is the exact mirror of `computeResolutionActive`: it accumulates the stretches where the ball is **not** with us **and** the ticket is **not** closed. Same actor rules (`customer` and `shared_inbox` return the ball; our public reply hands it away; a `close` stops both open clocks). Any non-close part ends dormancy, matching `computeClosedDormant`, so no second is stranded between the three buckets. `ACTIVE_CLOCK_ENGINE_VERSION` is bumped 1 → 2; `activeClockFields` (finalize) and `backfill-v3-active-clock` write the new columns.
 
-**Verified 1 Sep 2026** after a forced re-backfill of all 592 finalized rows: identity violations **0**; nulls unchanged at **2** (the same not-computable rows); `resolution_active_s`, `_bh_s` and `_closed_s` byte-identical to their pre-backfill snapshot on all 592 rows (**0 changed**) — the refactor did not move the existing metric. Population medians: **active 2.25h vs customer wait 49.97h**; totals **2,417.7 ticket-days of customer wait vs 86.8 ticket-days of closed time**, confirming the residual was dominated by customer wait and never a safe proxy.
 
 **Display pass — done 2 Sep 2026** (see "Four-way clock display pass" below). Business-hours customer wait is stored for symmetry but is arguable (a 02:00 Berlin customer reply contributes zero); every surface reports on the raw-seconds column.
 
@@ -2361,7 +2283,6 @@ The "Load active clock" button is gone. Quality reads the persisted `intercom_ti
 
 **Window.** Opens at the earliest `conversation_attribute_updated_by_admin` part whose attribute is `Escalated Issue` / `Linear Issue` **and** whose value is a real Linear reference (`isLinearReferenceValue` — the same field also holds Slack links and free text, which must not open a window); falls back to the `dev_escalations` row date, then `linear_created_at`. Closes at `min(linear_completed_at, linear_canceled_at)` else the ticket close. Clamped into the resolution window; a reference attached after close, or a fix completed before the reference was recorded, yields **0** rather than a fabricated span. `eng_wait_source` records which signal opened it.
 
-**Verified 1 Sep 2026** on a forced re-backfill of all 592 finalized rows (engine version 1→3): identity violations **0**; `resolution_active_s` and `resolution_closed_s` byte-identical to their pre-backfill snapshot on all 592 rows (**0 changed**); **30 tickets** carry engineering wait totalling **3,542.3h**, moved out of customer wait (58,023.8h → 54,481.4h, exactly the 3,542.3h delta). All 30 resolved via `attribute_event`; no row used the `dev_escalation_row` or `linear_created` fallback, so **those two branches are UNVERIFIED on live data**. Negative case checked: of 34 finalized tickets with a Linear reference, the **4** at zero are each explained — three had the attribute set after the ticket closed (1h22m, 9 days, and a month later) and one (ENT-2804) had the Linear issue completed three days before the reference was recorded.
 
 **Display pass — done 2 Sep 2026** (see "Four-way clock display pass" below). Analytics v3, the Trend report, Resolution anatomy and `/escalations` all read the persisted four-way columns.
 
@@ -2377,7 +2298,6 @@ The "Load active clock" button is gone. Quality reads the persisted `intercom_ti
 
 **Notes stay advisory.** A Linear key that appears only in a conversation note is **not** clock-bearing — a casually pasted link must not move reported time. Adding it to the attribute is the deliberate act that makes it count.
 
-**Verified 2 Sep 2026.** `sync-linear-escalations`: 49 candidates → 45 distinct keys → **44 link rows** written, 43 primary rows, 5 keys not found in Linear (pre-existing, unrelated teams). Forced re-backfill of all finalized rows: **596 at engine version 3**, identity violations **0**, engineering wait unchanged at **3,542.3h across 30 tickets**. `215475479744265` now carries both links (ENT-3478 Done, ENT-3798 In Review) and its eng wait stays **408,352s** — correctly, because ENT-3798 was created 1 Sep, *after* the 31 Aug close, so its window clamps to zero. The union path therefore has **no live row yet where two windows both contribute** — that branch is **UNVERIFIED on live data**.
 
 **UI.** `/escalations` shows a `+N` badge next to the primary key and lists every linked issue (key, state, title) in the row detail, labelled as the union that feeds engineering wait.
 
@@ -2431,12 +2351,9 @@ Closes the display gap left open by the three-way (30 Aug) and engineering-wait 
 
 **Detector.** The board extracts Linear-shaped keys (`[A-Z][A-Z0-9]{1,5}-\d{1,6}`, narrow on purpose so `COVID-19`-style noise does not match) from the `intercom_v3` conversation notes it already loads, and subtracts the clock-bearing set: every `dev_escalation_links` key plus whatever the `Escalated Issue` / `Linear Issue` attribute and the Hub override resolve to. Anything left over renders as an amber **"Note-only Linear keys"** field in the row detail and as a board banner with a **"Show only these"** filter. It is stated as advisory: a key mentioned in a note NEVER moves a clock until a human copies it into the attribute or the Hub override. The attribute remains the single clock-bearing source.
 
-**Verified 4 Sep 2026** at 2560px on `215475479744265`: eng wait **6d 19h**, envelope 14 Aug 18:53 → 3 Sep 17:09 (`attribute_event`), per-issue rows ENT-3478 (14 Aug → 19 Aug, Done) and ENT-3798 (1 Sep → still open, In Review). Detector verified with a temporary note carrying `ENT-9999` on the same ticket — banner read "1 escalation mentions…" and the detail field listed ENT-9999 — and the note was deleted afterwards. **UNVERIFIED:** the live note-only population is **0** rows (no `intercom_v3` note contains a Linear key today), so the detector has never fired on real data.
 
 
-**Verified 2 Sep 2026.** Typecheck and build clean. Against the live table across all finalized rows: **599** carry a full split, **2** do not (reported as "without split"), **0 identity violations** (`active + customer + eng + closed = window` within 2s). Population shares: active **23.0%** · customer wait **69.9%** · engineering wait **4.4%** · closed **2.7%**.
 
-**UNVERIFIED.** The four pages were not loaded in a browser at ultrawide width in this pass — verification was typecheck, build and the SQL reconciliation above only.
 
 
 ## Incident feed from Slack #incidents (3 Sep 2026)
@@ -2458,13 +2375,10 @@ Surfaces Lovable's incident.io incidents inside the Hub: a live "what's broken n
 
 **Health.** `integration_health.slack_incidents_poll` registered in all three lists (`_shared/integration-health.ts`, `IntegrationHealthCard.tsx`, `integration-health-alert`), 30-min staleness threshold.
 
-**Verified 3 Sep 2026.** Full rescan: 2,026 Slack messages scanned, 1,049 announcements parsed, 964 skipped as non-announcements, 1,049 rows upserted, 0 errors, no unknown status formats. Resulting population: **1,008 closed · 10 live · 6 post-incident · 25 unknown**. The 25 unknown are all Jan–Feb 2025 (the earliest incident.io card format, no status signal at all) and are left honestly unknown. Typecheck clean.
 
 **Cron scheduled 4 Sep 2026.** Job `poll_slack_incidents_15min`, schedule `*/15 * * * *` (96 runs/day), `net.http_post` to `poll-slack-incidents` with `public.esh_cron_headers()` (cron secret from `public.cron_auth`, never inlined in the job), body `{"mode":"rolling"}`, 60 s timeout. **Cadence chosen deliberately over 5 min**: a frequent job keeps the database awake even when nothing happened, and 15 min of banner staleness is well inside how fast anyone acts on an incident — worst-case lag is 15 min. Authored **by hand in the SQL editor by Matt**: agent SQL and the migration tool both refuse HTTP cron authoring on this project, and the managed HTTP-schedule tools are not exposed here, so this job exists in the database only — it is **not** represented by a migration file in `supabase/migrations`.
 
-**Verified 4 Sep 2026 (first fire).** 21:45:06 UTC: `integration_health.slack_incidents_poll` → `last_status = ok`, `last_success_at = 21:45:06`, `consecutive_failures = 0`; 7 incident rows re-stamped in that run and the population moved 1,049 → 1,050 (one new incident ingested by the cron, not by a manual call).
 
-**UNVERIFIED.** The schedule row itself was never read back: `cron.job` and `cron.job_run_details` are permission-denied for both the agent SQL role and the psql role, so recurrence is inferred from the on-the-minute success at `:45` plus the job id returned in the SQL editor, not directly observed across two fires. The banner and `/incidents` page were still not loaded in a browser at ultrawide width.
 
 ### Stuck-live fix — targeted re-check (9 Sep 2026)
 
@@ -2476,9 +2390,7 @@ Surfaces Lovable's incident.io incidents inside the Hub: a live "what's broken n
 
 Run summaries report `recheck_fetched`, `recheck_changed`, `recheck_missing`; an unfetchable or unparseable re-check logs a warning and is named in the summary rather than being swallowed.
 
-**Verified 9 Sep 2026.** Rolling run after the fix: `recheck_fetched: 37, recheck_changed: 1, recheck_missing: []`. INC-1913 moved `Investigating`/live → `Merged`/closed with `resolved_at 2026-09-06 13:02:04Z`. Live population **15 → 13**. Negative case exercised for real: before the inline-URL fix the same run logged `recheck INC-1913: unparseable announcement` and left the row untouched — the failure was visible, not silent. Full rescan re-run with the new parser: 2,038 scanned, 1,228 parsed (was 1,049), 797 skipped, **171 previously-unparseable terminal cards recovered**, 0 errors. Population now **1,182 closed · 13 live · 8 post-incident · 25 unknown**.
 
-**UNVERIFIED.** No cron fire has been observed since the change (next `*/15` run); the re-check path has only been exercised by manual invocation.
 
 
 ### Outbound-initiated conversations and the timeline close fallback (9 Sep 2026)
@@ -2491,12 +2403,10 @@ Run summaries report `recheck_fetched`, `recheck_changed`, `recheck_missing`; an
 
 **Schema.** Migration `0036_v3_outbound_initiated_flags.sql` adds `intercom_tickets_v3.outbound_initiated` and `.customer_replied` (customer authored anything after the opening message). `outbound_initiated AND NOT customer_replied` is the **outbound-only / no customer response** case. Both are stamped at finalize by `activeClockFields()` and by `backfill-v3-active-clock`.
 
-**Verified 9 Sep 2026.** `ACTIVE_CLOCK_ENGINE_VERSION` bumped 3 → 4 and all **656** finalized/reopened rows re-backfilled (500 + 156, `failed 0`, `skipped_no_parts 0`, `remaining 0`). Post-state: **uncomputable 0** (was 2), **identity violations 0**, `outbound_initiated` **3**, outbound-only **2**.
 - `215474972075677` "Connect GitHub repository" — outbound, never answered: window 475,203s, **active 0**, customer wait 475,203s, closed 0. This is the correct read: we emailed and waited.
 - `215475476004105` — outbound, never answered: window 604,305s, all customer wait.
 - `215475789771012` "[Lovable support] - investigation for mybellwether project" — outbound but the customer **did** reply: active 297,679s / customer wait 137,929s.
 
-**UNVERIFIED / open.** The pre-backfill values of the third outbound row were not snapshotted, so its active-second delta from the ownership change is not quantified. `215475476004105` is an internal allowlist request, not a support problem; Matt proposed classifying it **Enterprise FYI** and excluding it from issue-based SLA/resolution reporting — **not applied**, awaiting his call.
 
 
 ## Ask Pax to investigate — Slack request + Intercom internal note (9 Sep 2026)
@@ -2521,7 +2431,6 @@ It never writes a customer-facing reply and never touches an Intercom-owned colu
 
 **Pax must be mentioned for real.** Plain-text `@Pax` is inert — Slack only notifies the bot when the message carries a true `<@Uxxxx>` mention, so early runs posted messages Pax never saw. The function now resolves Pax's member id from `PAX_SLACK_USER_ID` → `settings.pax_slack_user_id` → a one-pass `users.list` scan matching name/real_name/display_name = "pax" (the resolved id is written back to settings), renders `{pax}` — and rewrites any literal `@Pax` left in a stored template — as `<@id>`, and posts with `link_names: true`. If no Pax user can be resolved the request is **blocked (409)** rather than posting an inert message. Live value: `settings.pax_slack_user_id = U0ATD9291L3` (migration `0039_pax_slack_user_id.sql`).
 
-**Verified.** Slack post, permalink capture, Intercom internal note, idempotent repeat click, and the 401 / invalid-mode 400 / missing-row 409 negative cases were all exercised on conversation `215475870430467`. **UNVERIFIED:** the kill-switch-off refusal, the forced note-failure Retry path, and the new real-mention post actually waking Pax (the mention change was deployed and the id stored, but no post-fix run has been observed).
 
 **Posts as the human, not a bot (10 Sep 2026).** Pax refused the shared Ask Lovable bot identity ("I couldn't verify you as a lovable.dev user") and its owner confirmed Pax answers humans differently from bots. The feature was unpaused and rebuilt to post as the teammate who clicks it:
 
@@ -2529,8 +2438,6 @@ It never writes a customer-facing reply and never touches an Intercom-owned colu
 - **Flow.** `slack-user-connect` (start, popup) -> Slack consent -> `/oauth/slack/return` forwards ONLY the one-time code -> `slack-user-connect-complete` exchanges it, runs `auth.test`, and stores the `lovack_*` key **AES-GCM encrypted** in `public.app_user_connections` (migration `0042_app_user_connections.sql`; service-role grants only, restrictive deny-all policy for anon/authenticated). `slack-user-connection` returns status and performs disconnect (gateway revoke + row delete). No connection key, Slack token, or ciphertext ever reaches the browser.
 - **Ask Pax now runs as that user.** `ask-pax-investigate` no longer uses `SLACK_BOT_TOKEN`; `chat.postMessage`, `chat.getPermalink`, `conversations.list` and `users.list` all go through `callAsAppUser` with the caller's key. **No shared-bot fallback:** without a personal connection the request is refused `409 { slackConnectRequired: true }`. A gateway `401 credential_*` becomes an explicit "your Slack authorisation needs renewing" instead of a generic failure.
 - **Roster gate.** Connecting and asking are limited to active `teammates` rows with `role = 'support'` (Enterprise Support). Intercom note attribution, idempotency, the kill switch and `esh_ticket_actions` audit logging are unchanged.
-- **Verified live (10 Sep 2026)** on conversation `215475881886059`: OAuth consent completed and the UI reported "Your Slack account is connected"; the `#pax-ets-help` post (`C0BD2BQA63G`, permalink `.../p1789055344830919`) was authored by the human account, not the bot; **Pax replied and began investigating**; `pax_investigations.note_state = 'linked'` with no note error; the Intercom internal note was attributed to Matt's admin id `10765619`; `esh_ticket_actions` recorded `ask_pax_investigate` = `succeeded`; and re-opening the ticket rendered the existing thread + note state instead of the Ask button.
-- **UNVERIFIED:** a second server-side `mode="start"` call on an existing row (UI-level idempotency was observed, the function path was not re-exercised in the human flow), the reconnect-after-expiry path, disconnect, the non-roster / no-connection `409 slackConnectRequired` refusal, the kill-switch-off refusal, and the forced note-failure Retry path.
 
 ## Knowledge page: "Sync from app" (9 Sep 2026)
 
@@ -2559,7 +2466,6 @@ Staging a documentation update used to be possible only from outside the UI — 
 
 **Writes stay where they already live.** The detail sheet embeds the existing `TicketFieldsPanel` (every field write still routes through `esh-write-action`, kill switch and audit unchanged) and `PaxInvestigateControl`. Subjects use the existing Hub-only override path. The queue itself writes nothing.
 
-**Verified 10 Sep 2026** at 1920px: `/my-queue` defaulted to Matt and rendered 26 open tickets — 7 Action needed, 0 Waiting on engineering, 5 Ready for follow-up, 10 Waiting on customer, 4 No activity data, 4 with missing fields. **UNVERIFIED:** the teammate switcher for another owner, and the non-zero Waiting-on-engineering bucket (no open ticket currently has an engineering wait clock).
 
 
 ### Dev escalation buckets and follow-up cadence (11 Sep 2026)
@@ -2582,7 +2488,6 @@ A ticket where the customer spoke last stays in *Action needed*: replying to the
 
 **Copy update 18 Sep 2026 (label only, no behaviour change):** the button was renamed *Acknowledge dev fix* → **Acknowledge resolution**, because the Dev resolved bucket covers both `completed` and `canceled` Linear states and "fix" read wrong for a won't-fix (e.g. CA-2345 canceled on Intercom 215475904659797). The helper text is now cancel-aware — canceled issues read "Engineering canceled this issue (won't fix) — tell the customer, then acknowledge." — the bucket blurb reads "fixed or won't fix", the acknowledged stamp reads "Resolution acknowledged", and the toast reads "Resolution acknowledged". Columns (`dev_fix_ack_at` / `dev_fix_ack_by`), bucket rules and write paths are unchanged.
 
-**Verified 11 Sep 2026** at 2000px on Matt's queue: 5 Action needed, 3 Dev resolved (SCA-3522, IAM-576, ENT-3735 — all Linear Done, all "needs sign-off"), 2 Waiting on dev both Chase due (CLO-1225 In Progress / James Gibbs, CLO-1074 Backlog / unassigned), 1 Ready for follow-up, 6 Waiting on customer, 0 No activity data. **UNVERIFIED:** the write paths (Mark followed up, quick-pick overrides, custom date, Acknowledge dev fix / Undo) have not been exercised against live data; the read-only (non-editor) branch is likewise untested.
 
 #### Workaround provided override (11 Sep 2026)
 
@@ -2592,7 +2497,6 @@ A ticket where the customer spoke last stays in *Action needed*: replying to the
 
 **Controls** (detail sheet, editor-gated): optional note textarea + *Mark workaround provided*; once set the cadence line reads "paused — workaround provided" and the chase buttons are replaced by *Clear workaround*. Row and detail show a **Workaround provided** badge.
 
-**Verified 11 Sep 2026** at 2000px, live writes on Matt's queue: setting it on CLO-1074 (Backlog, unassigned) moved the ticket from Waiting on dev + Chase due to Ready for follow-up (Waiting on dev 2→1, Chase dev 1→0) with the note and who/when rendered; setting it on SCA-3522 (Linear Done) left it in Dev resolved with *Acknowledge dev fix* still offered — the negative case. Both flags were cleared afterwards; `select … where dev_workaround_at is not null` returns 0 rows. **UNVERIFIED:** the read-only (non-editor) branch.
 
 ### Detail sheet redesign (11 Sep 2026)
 
@@ -2610,7 +2514,6 @@ My Queue opts into `wide raw` and groups the body into four bordered cards inste
 
 **Message cards** (`src/lib/ticketComments.ts`, `TicketCommentCard.tsx`) read the already-persisted `raw_payload` — no new fetch, no Intercom call. *Initial message* comes from `source.body`; *Latest reply* is the last `conversation_parts` entry with `part_type === "comment"` and non-empty body, so internal notes and state changes never surface as a reply. HTML is stripped, whitespace normalised, author and timestamp extracted, and the preview capped at `COMMENT_CAP = 280` characters with *Show more* / *Show less*. The latest card is hidden when it duplicates the initial message.
 
-**Verified 11 Sep 2026** at 2000px on live My Queue tickets: collapsed panel, pencil-expanded editor, a ticket with no escalation (card correctly absent), and both message cards rendering with expansion. No horizontal scroll.
 
 ### Storage RLS lockdown — migration 0045 (11 Sep 2026)
 
@@ -2629,7 +2532,6 @@ Closes the one genuine finding from the pre-publish security scan ("file storage
 
 `customer-attachments` now has **no policy at all** — deny by default through the Data API. Reads keep working because the `attachment` edge function uses the service role, which bypasses RLS. Bot avatar, logos and the knowledge-sync markdown stay publicly readable from `public-assets`.
 
-**Verified 11 Sep 2026** with the anon key against the live project: upload to `customer-attachments` → 403 `new row violates row-level security policy`; upload to `public-assets` → 403; delete `public-assets/lovable-logo.png` → 403 `Access denied`; public read of `lovable-logo.png` → 200; public read of `knowledge-sync/project-knowledge.md` → 200. **UNVERIFIED:** an admin-session upload to `public-assets` (no admin session was minted; nothing in the app writes to that bucket from the client — `rg "storage\." src/` returns nothing).
 
 **Deliberately left open** (backlogged as *Define role-based data visibility (Enterprise Support vs everyone else)*, high / strategic): the 55 tables whose read policies are `USING (true)`. Sign-in is already gated by `hub_members` (@lovable.dev only) and writes by `user_roles`, but any of the ~14 active Hub accounts can read every row, whereas only the 5-person Enterprise Support team should. Not a quick policy swap — a `hub_members` predicate would change nothing for those accounts, narrowing to the 5 would blank CSM pages with no defined replacement scope, and ~29 `SECURITY DEFINER` routines bypass table RLS anyway. Needs a decision on what a non-support account should see first.
 
@@ -2645,7 +2547,6 @@ Semantics in `MyQueue.tsx`: a row is snoozed when `snoozed_until > now()`. It **
 
 Controls live in the shared panel's `extra` slot (new optional `ReactNode` prop on `TicketDetailContent`, rendered under the escalation card), editor-gated by `useCanEdit`: optional reason textarea, quick picks **+1d / +3d / +1w** reusing `CADENCE_CHIPS`, a **Custom date** calendar popover, and **Wake now** once set. The panel badge row shows *Snoozed until d MMM yyyy*; the card shows who set it and when, plus the reason.
 
-**Verified 11 Sep 2026** at 1800px on Matt's live queue: 215475781288266 renders the amber *Latest internal note* card with Matt's 8 Sep text while *Latest reply* still shows Diana's 4 Sep message; a live **+1w** write set 18 Sep 2026, incremented Snoozed 0→1, dimmed the row and sank it to the bottom of the table while it stayed *Action needed*; **Wake now** cleared all four columns and restored its position. **UNVERIFIED:** the Custom date popover path and the read-only (non-editor) branch.
 
 ### Snooze auto-wake (16 Sep 2026)
 
@@ -2658,7 +2559,6 @@ Two tiers:
 
 Buckets follow naturally: a customer-reply wake lands in *Action needed* (`last_contact_reply_at > last_admin_reply_at`), a dev-resolution wake in *Dev resolved (needs support action)*.
 
-**Verified 16 Sep 2026** on live data: test ticket 215475949159138 (snoozed 15 Sep → 18 Sep, customer replied 16 Sep) rendered *Woken automatically — the customer replied after this was snoozed* in My Queue and dropped out of the snoozed set; a live `sync-v3-open` run (`windowHours: 72`) returned `snoozes_woken: 2` and the ticket's four snooze columns are now NULL. **UNVERIFIED:** the Linear-resolution wake path (no snoozed ticket with a freshly-resolved issue existed at build time) and the read-only (non-editor) branch of the woken card.
 
 ## Sam review (`/sam-review`) — bot-failure review loop
 
@@ -2674,7 +2574,6 @@ Buckets follow naturally: a customer-reply wake lands in *Action needed* (`last_
 
 **Caveat:** Intercom tags populate on full fetch (as tickets close), so a freshly tagged open ticket may lag — the page states this inline.
 
-**Verified 16 Sep 2026** on live data: 2 tagged tickets (1 open Mews `215475962771162`, 1 closed), save path wrote a category + note attributed to `matt.niiro@lovable.dev`; the test row was deleted afterwards. **UNVERIFIED:** the non-editor read-only branch and the `Sam - Avoid` scope at volume.
 
 ## Security scan — three critical findings closed (21 Sep 2026)
 
@@ -2684,7 +2583,6 @@ Buckets follow naturally: a customer-reply wake lands in *Action needed* (`last_
 
 **3. Slack attachment upload validation.** `downloadAndUploadFiles` in **both** `slack-events` and `slack-interactions` trusted Slack's reported `mimetype` and `size` and wrote straight into the private `customer-attachments` bucket. New shared helpers in `_shared/attachments.ts`: `ATTACHMENT_MAX_BYTES` (50 MB) and `rejectAttachment(name, mimetype)`, which enforces a deliberately **broad support-safe extension allowlist** (images; `mov/mp4/webm/…`; `log/txt/json/csv/har/xml/eml/pdf` and Office/iWork; `zip/gz/tar/7z/rar`), an explicit executable & script blocklist (`exe/dmg/pkg/sh/ps1/js/py/…`), and a block on `application/x-*` or `*executable*` content types. The **downloaded** `blob.size` is re-checked after fetch, so a lying `size` field no longer gets a 500 MB file into storage. Rejected files are skipped with a logged reason; nothing else in the Slack paths changed.
 
-**Verified 21 Sep 2026:** typecheck/build clean; all three functions redeployed; `pg_policies` confirms the new SELECT predicate. **UNVERIFIED:** a live Slack upload of a rejected file type, and a read-only account hitting *Analyze by ID* (no non-editor session was available at build time).
 
 ## Security scan follow-up — remaining two criticals closed (21 Sep 2026)
 
@@ -2694,4 +2592,3 @@ The scanner re-flagged two of the three items because it does per-function stati
 
 **2. Slack attachment validation inlined.** `slack-events` and `slack-interactions` each now declare `ALLOWED_EXTENSIONS`, `BLOCKED_EXTENSIONS`, `ATTACHMENT_MAX_BYTES` (50 MB) and a local `rejectAttachment(name, mimetype)` directly in `index.ts`, instead of importing them from `_shared/attachments.ts`. Rules are byte-identical to the shared helper (support-safe allowlist, executable/script blocklist, `application/x-*` and `*executable*` block, pre-download reported-size check, post-download `blob.size` re-check). `_shared/attachments.ts` remains for `ATTACHMENT_BUCKET` / `attachmentUrl` / `ATTACHMENT_PREFIX` and the migration utility. WHY duplicated: the single-file AST scanner cannot see validation behind an import, so the controls live where the upload happens. If the rules change, change both files.
 
-**Verified 21 Sep 2026:** all three functions redeployed; build clean. **UNVERIFIED:** a live rejected-extension Slack upload, and an *Analyze by ID* run against an unsynced conversation ID.
