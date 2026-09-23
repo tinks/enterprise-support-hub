@@ -2592,3 +2592,30 @@ The scanner re-flagged two of the three items because it does per-function stati
 
 **2. Slack attachment validation inlined.** `slack-events` and `slack-interactions` each now declare `ALLOWED_EXTENSIONS`, `BLOCKED_EXTENSIONS`, `ATTACHMENT_MAX_BYTES` (50 MB) and a local `rejectAttachment(name, mimetype)` directly in `index.ts`, instead of importing them from `_shared/attachments.ts`. Rules are byte-identical to the shared helper (support-safe allowlist, executable/script blocklist, `application/x-*` and `*executable*` block, pre-download reported-size check, post-download `blob.size` re-check). `_shared/attachments.ts` remains for `ATTACHMENT_BUCKET` / `attachmentUrl` / `ATTACHMENT_PREFIX` and the migration utility. WHY duplicated: the single-file AST scanner cannot see validation behind an import, so the controls live where the upload happens. If the rules change, change both files.
 
+
+---
+
+## Channels report (v3) — access points (23 Sep 2026)
+
+**Route.** `/channel-report` (`src/pages/ChannelReport.tsx`), nav under Reports as "Channels report (v3)". The legacy Insights ▸ Channels tab (`src/pages/insights/ChannelsTab.tsx`, legacy tables) is DELIBERATELY UNTOUCHED — standing rule: do not modify the legacy side unless forced. Two surfaces, two datasets, no shared code.
+
+**Server truth.** Read-only `STABLE SECURITY DEFINER` RPC `public.v3_channel_report(_from timestamptz, _to timestamptz)` (`drizzle/migrations/0051_v3_channel_report.sql`). `EXECUTE` granted to `authenticated` and `service_role`, REVOKED from `anon`/`PUBLIC`. Classification runs in SQL so the large `raw_payload` jsonb never ships to the browser; `_from` is clamped server-side to the June 1 2026 clean-data floor.
+
+**Classification (mutually exclusive, ordered).**
+1. `is_in_app_form = true` → `in_app_form`
+2. `slack_channel_id_detected IS NOT NULL` → `slack`
+3. `raw_payload->source->>'type' = 'email'` → `email`
+4. `raw_payload->source->>'type' = 'conversation'` → `messenger`
+5. anything else / missing source → `other`
+
+Every ticket is counted exactly once. `src/lib/channelReport.ts` owns only labels, ordering and colours, so the dimension reads identically wherever it is rendered.
+
+**Dimension fallbacks.** Product area: `custom_attributes->>'Affected Product Area'` → `'Product Area'` → legacy `product_area` column → `Unclassified`. Ticket type: `custom_attributes->>'Ticket type'` → `Unclassified`. Intercom attributes stay the source of truth; legacy columns are fallback only.
+
+**Shared rules reused, not re-implemented.** `excludeTestTickets` / `showTestDataNow`, `PlanScopeSelect` + `inPlanScope`, `src/lib/csat.ts` (`summarizeCsat`, `CsatFilterMenu`, exclusion note always rendered), `src/lib/durationStats.ts`, and the `resolutionDisplay` labels — "Resolution (active)" remains the only resolution headline.
+
+**Surface.** Range presets (30d / 90d / this month / last month / all v3 / custom, all clamped to the floor); a single-row intake mix bar; a stacked monthly trend chart plus a month × channel table with per-month share; per-channel cards (count, share, P50/P90 active resolution, median first human reply, still open, CSAT with n and exclusion note, top 5 accounts, top 3 product areas); CSV export of both tables.
+
+**VERIFIED 23 Sep 2026** in the authenticated app at 1600px over the live 90-day window (642 tickets): direct email 375 (58.4%), Slack relay 173 (26.9%), Intercom widget 75 (11.7%), in-app form 12 (1.9%), other 7 (1.1%). Monthly table Jun 15 / Jul 193 / Aug 241 / Sep 193. Typecheck and production build clean.
+
+**UNVERIFIED.** The custom date-range branch and the CSV export were not exercised in the browser. The RPC cannot be validated through the unauthenticated SQL tool — it returns `42501 permission denied`, which is the intended grant behaviour, not a fault.
