@@ -20,6 +20,7 @@ import {
   Bell,
   Search as SearchIcon,
   Siren,
+  Menu,
   LucideIcon,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -29,6 +30,7 @@ import { useCanEdit } from "@/hooks/useCanEdit";
 import { useDashboardTeammates } from "@/hooks/useDashboardTeammates";
 import { useActionSignals } from "@/lib/actionSignalsContext";
 import IncidentBanner from "@/components/IncidentBanner";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 type NavChild = { to: string; label: string; end?: boolean; adminOnly?: boolean; editorOnly?: boolean };
 type NavLinkItem = { kind: "link"; to: string; icon: LucideIcon; label: string; end?: boolean };
@@ -128,6 +130,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [flyoutTop, setFlyoutTop] = useState(0);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const location = useLocation();
   const navigate = useNavigate();
@@ -231,13 +234,79 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <div className="h-screen flex flex-row overflow-hidden bg-background">
+    <div className="h-screen flex flex-col md:flex-row overflow-hidden bg-background">
+      {/* Mobile top bar (below md) — desktop rail is hidden there */}
+      <header className="md:hidden sticky top-0 z-30 flex items-center gap-2 border-b border-border bg-card px-2 min-h-14">
+        <button
+          type="button"
+          aria-label="Open navigation"
+          onClick={() => setMobileNavOpen(true)}
+          className="relative flex h-11 w-11 items-center justify-center rounded-md hover:bg-accent"
+        >
+          <Menu className="h-5 w-5" />
+          {railBadge > 0 && (
+            <span className="absolute right-1 top-1 rounded-full bg-destructive text-destructive-foreground text-[10px] leading-none font-semibold px-1.5 py-1">
+              {railBadge}
+            </span>
+          )}
+        </button>
+        <img src="/lovable-logo.png" alt="Lovable" className="h-6 w-6" />
+        <span className="text-sm font-semibold truncate">Enterprise support hub</span>
+      </header>
+      <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+        <SheetContent side="left" className="w-[85vw] max-w-[320px] p-0 flex flex-col">
+          <SheetHeader className="px-4 py-3 border-b border-border">
+            <SheetTitle className="text-sm">Enterprise support hub</SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            {visibleEntries.map((entry) => {
+              const links = entry.kind === "link" ? [{ to: entry.to, label: entry.label, end: entry.end }] : entry.items;
+              if (links.length === 0) return null;
+              return (
+                <div key={entry.kind === "link" ? entry.to : entry.label}>
+                  {entry.kind === "group" && (
+                    <div className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">{entry.label}</div>
+                  )}
+                  {links.map((l) => (
+                    <button
+                      key={l.to}
+                      type="button"
+                      onClick={() => {
+                        setMobileNavOpen(false);
+                        navigate(l.to);
+                      }}
+                      className={`flex w-full items-center min-h-11 px-3 rounded-md text-sm text-left hover:bg-accent ${
+                        isPathActive(l.to, l.end) ? "bg-accent font-medium" : "text-muted-foreground"
+                      }`}
+                    >
+                      {l.label}
+                      {l.to === "/action-center" && railBadge > 0 && (
+                        <span className="ml-auto rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold px-1.5 py-0.5">{railBadge}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+          <div className="p-2 border-t border-border">
+            <button
+              type="button"
+              onClick={() => supabase.auth.signOut().then(() => navigate("/login"))}
+              className="flex w-full items-center gap-3 min-h-11 px-3 rounded-md text-sm text-muted-foreground hover:bg-accent"
+            >
+              <LogOut className="h-4 w-4" /> Sign out
+            </button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
       {/* Vertical gradient accent */}
-      <div className="w-0.5 bg-gradient-to-b from-[#FF6B6B] via-[#E66FD2] to-[#9B87F5] shrink-0" />
+      <div className="hidden md:block w-0.5 bg-gradient-to-b from-[#FF6B6B] via-[#E66FD2] to-[#9B87F5] shrink-0" />
 
       {/* Sidebar */}
       <aside
-        className="shrink-0 border-r border-border bg-card flex flex-col transition-all duration-200 ease-in-out relative z-20"
+        className="hidden md:flex shrink-0 border-r border-border bg-card flex-col transition-all duration-200 ease-in-out relative z-20"
         style={{ width: expanded ? 200 : 56 }}
         onMouseEnter={() => setSidebarHovered(true)}
         onMouseLeave={() => {

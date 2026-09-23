@@ -387,11 +387,11 @@ export default function Triage() {
 
   return (
     <AppLayout>
-      <div className="p-6 space-y-4">
+      <div className="p-3 sm:p-6 space-y-4">
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-semibold tracking-tight">Triage queue</h1>
+              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Triage queue</h1>
               {severityMode && (
                 <Badge variant="outline" className="text-[10px]">Severity writes enabled</Badge>
               )}
@@ -416,19 +416,19 @@ export default function Triage() {
             <span className="text-xs text-muted-foreground">
               {dataAsOf ? `Data as of ${format(new Date(dataAsOf), "HH:mm")} · syncs every 5 min` : "—"}
             </span>
-            <Button onClick={load} size="sm" variant="outline" disabled={loading}>
+            <Button onClick={load} size="sm" variant="outline" disabled={loading} className="min-h-11 min-w-11 md:min-h-0 md:min-w-0">
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             </Button>
           </div>
         </div>
 
-        <div className="inline-flex rounded-md border border-border p-0.5">
+        <div className="flex w-full sm:inline-flex sm:w-auto rounded-md border border-border p-0.5">
           {(["needs_severity", "unassigned", "either"] as TriageQueueMode[]).map((m) => (
             <button
               key={m}
               type="button"
               onClick={() => setMode(m)}
-              className={`rounded px-3 py-1.5 text-xs transition-colors ${
+              className={`flex-1 sm:flex-none min-h-11 md:min-h-0 rounded px-3 py-1.5 text-xs transition-colors ${
                 mode === m
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-muted"
@@ -471,17 +471,17 @@ export default function Triage() {
             placeholder="Search subject, contact, ID…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-9 w-[280px] text-xs"
+            className="h-11 md:h-9 w-full sm:w-[280px] text-base sm:text-xs"
           />
           <Select value={owner} onValueChange={setOwner}>
-            <SelectTrigger className="h-9 w-[150px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-11 md:h-9 flex-1 sm:flex-none sm:w-[150px] text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value={ANY}>Owner: any</SelectItem>
               {ownerOpts.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={customer} onValueChange={setCustomer}>
-            <SelectTrigger className="h-9 w-[200px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-11 md:h-9 flex-1 sm:flex-none sm:w-[200px] text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value={ANY}>Customer: any</SelectItem>
               {customerOpts.map((k) => <SelectItem key={k} value={k as string}>{accountLabel(k)}</SelectItem>)}
@@ -491,7 +491,7 @@ export default function Triage() {
             <Button
               size="sm"
               variant="outline"
-              className="h-9 text-xs"
+              className="h-11 md:h-9 w-full sm:w-auto text-xs"
               disabled={proposing || filtered.length === 0}
               onClick={proposeVisible}
             >
@@ -503,6 +503,51 @@ export default function Triage() {
         </div>
 
 
+        <div className="md:hidden space-y-2">
+          {loading || policyLoading ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">Loading…</div>
+          ) : filtered.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              {mode === "unassigned" ? "Everything is assigned." : "Nothing awaiting triage."}
+            </div>
+          ) : (
+            filtered.map((r) => {
+              const gap = assignmentGap(r);
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => setSelected(r)}
+                  className={`w-full text-left rounded-lg border border-border p-3 space-y-1.5 active:bg-muted ${severityMode ? BAND_META[r.band].row : "bg-card"}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium truncate">{accountLabel(r.customer_key)}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {severityMode && (
+                        <span className={`rounded-full border px-1.5 py-0.5 text-[10px] ${BAND_META[r.band].pill}`}>
+                          {BAND_META[r.band].label}
+                        </span>
+                      )}
+                      <span className="text-xs font-medium tabular-nums">
+                        {r.businessS == null ? "—" : formatDuration(r.businessS)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-sm leading-snug line-clamp-2">{displaySubject(r)}</div>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                    <span className="truncate max-w-[60%]">{r.contact_name ?? r.contact_email ?? "—"}</span>
+                    <span>·</span>
+                    <span className={gap ? "text-destructive" : ""}>{r.owner ?? "Unassigned"}</span>
+                    {r.planTier === "sse" && <span className="rounded-full border px-1.5 text-[10px]">SSE</span>}
+                    <span className="ml-auto font-mono text-[10px]">{r.intercom_conversation_id}</span>
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+
+        <div className="hidden md:block">
         <IssueTable<TriageRow>
           rows={filtered}
           columns={columns}
@@ -513,6 +558,7 @@ export default function Triage() {
 
           onRowClick={(r) => setSelected(r)}
         />
+        </div>
       </div>
 
       <IssueDetailSheet
@@ -545,7 +591,7 @@ export default function Triage() {
               label="Created"
               value={selected.intercom_created_at ? format(new Date(selected.intercom_created_at), "PPpp") : "—"}
             />
-            <div className="pt-2 border-t border-border space-y-3">
+            <div className="pt-2 border-t border-border space-y-3 max-md:[&_button]:min-h-11">
               <div>
                 <div className="text-xs text-muted-foreground mb-2">Investigation</div>
                 <PaxInvestigateControl conversationId={selected.intercom_conversation_id} />
@@ -563,7 +609,7 @@ export default function Triage() {
                   setSelected(null);
                 }}
               />
-              <div>
+              <div className="max-md:[&_button]:min-h-11 max-md:[&_[role=combobox]]:min-h-11 max-md:[&_input]:min-h-11">
                 <div className="text-xs text-muted-foreground mb-2">Update ticket fields</div>
                 <TicketFieldsPanel
                   conversationId={selected.intercom_conversation_id}

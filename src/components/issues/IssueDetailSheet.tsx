@@ -15,7 +15,7 @@ export function IssueField({
   mono?: boolean;
 }) {
   return (
-    <div className="grid grid-cols-[140px_1fr] gap-3 items-start">
+    <div className="grid grid-cols-[110px_1fr] sm:grid-cols-[140px_1fr] gap-3 items-start">
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className={`text-sm break-words ${mono ? "font-mono text-xs" : ""}`}>{value || "—"}</dd>
     </div>
@@ -81,8 +81,8 @@ export function IssueDetailSheet({
       <SheetContent
         className={
           wide
-            ? "w-full sm:max-w-[640px] lg:!max-w-[760px] xl:!max-w-[860px] overflow-auto"
-            : "w-[480px] sm:max-w-[480px] overflow-auto"
+            ? "w-full p-4 sm:p-6 sm:max-w-[640px] lg:!max-w-[760px] xl:!max-w-[860px] overflow-auto"
+            : "w-full sm:w-[480px] sm:max-w-[480px] overflow-auto p-4 sm:p-6"
         }
       >
         <SheetHeader>
