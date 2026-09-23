@@ -210,7 +210,7 @@ Deno.serve(async (req) => {
       action: mode === "retry_note" ? "pax_retry_note" : "ask_pax_investigate",
       actor_user_id: actorUserId,
       actor_email: actorEmail,
-      payload: { mode },
+      payload: { mode, human_info: !!humanInfoBlock },
     };
 
     // Kill switch — the same global switch that gates every other Hub write.
