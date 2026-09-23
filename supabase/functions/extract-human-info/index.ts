@@ -149,6 +149,7 @@ Engineers despise "AI slop", vague summaries, and ungrounded reproduction steps.
 ### Field extraction contracts
 
 1. SUMMARY: Format "[Area/Component]: [Concise failure behavior]". Under 120 characters, one sentence. Provenance "inferred".
+   - INSUFFICIENT DATA: if the thread does not name BOTH a concrete component/area AND a concrete failure behavior, set insufficient_data true and value "". Do NOT write a generic filler sentence (e.g. "User is experiencing an issue"). Otherwise insufficient_data false.
 
 2. CUSTOMER STATEMENT: Near-verbatim quote of the customer describing the primary break or symptom. 1-3 sentences, max 300 characters; use "[...]" when trimming. Provenance "direct_quote".
 
@@ -207,8 +208,12 @@ const SCHEMA = {
   ],
   properties: {
     summary: {
-      type: "object", additionalProperties: false, required: ["value", "provenance"],
-      properties: { value: { type: "string" }, provenance: { type: "string", enum: ["inferred"] } },
+      type: "object", additionalProperties: false, required: ["value", "provenance", "insufficient_data"],
+      properties: {
+        value: { type: "string" },
+        provenance: { type: "string", enum: ["inferred"] },
+        insufficient_data: { type: "boolean" },
+      },
     },
     customer_statement: {
       type: "object", additionalProperties: false, required: ["value", "provenance"],
@@ -394,6 +399,14 @@ Deno.serve(async (req) => {
   if (!st.value && built.slackUrls.length) st.value = built.slackUrls[built.slackUrls.length - 1];
   st.provenance = st.value ? "deterministic" : null;
   parsed.evidence_links.urls = [...new Set((parsed.evidence_links.urls ?? []).filter((u: string) => text.includes(u)))];
+  // Honest-empty: a flagged or blank summary is never passed through as filler.
+  parsed.summary.value = (parsed.summary.value ?? "").trim();
+  if (parsed.summary.insufficient_data === true || !parsed.summary.value) {
+    parsed.summary.insufficient_data = true;
+    parsed.summary.value = "";
+  } else {
+    parsed.summary.insufficient_data = false;
+  }
   if (parsed.summary.value.length > 120) parsed.summary.value = parsed.summary.value.slice(0, 117) + "...";
   if (parsed.customer_statement.value.length > 300) {
     parsed.customer_statement.value = parsed.customer_statement.value.slice(0, 294) + " [...]";

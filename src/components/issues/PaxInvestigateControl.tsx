@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Loader2, AlertTriangle, Check, ExternalLink, Bot } from "lucide-react";
+import { Loader2, AlertTriangle, Check, ExternalLink, Bot, FileEdit } from "lucide-react";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { SlackConnectControl, useSlackConnection } from "./SlackConnectControl";
 import { HumanInfoReviewPanel } from "./HumanInfoReviewPanel";
@@ -161,18 +161,23 @@ export function PaxInvestigateControl({ conversationId }: { conversationId: stri
         <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
+            onClick={() => void run("start")}
+            disabled={busy || extracting || slackLoading || !slackStatus?.connected}
+            title={!slackStatus?.connected ? "Connect your Slack account first" : "Starts a Pax investigation in #pax-ets-help"}
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Bot className="h-4 w-4 mr-1" />}
+            Ask Pax to investigate
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
             onClick={() => void prepare()}
             disabled={extracting || busy || slackLoading || !slackStatus?.connected}
-            title={!slackStatus?.connected ? "Connect your Slack account first" : undefined}
+            title={!slackStatus?.connected ? "Connect your Slack account first" : "AI drafts a Human Info block for you to review before it goes to Dev"}
           >
-            {extracting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Bot className="h-4 w-4 mr-1" />}
-            {extracting ? "Drafting Human Info…" : "Escalate to Dev (review, then ask Pax)"}
+            {extracting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileEdit className="h-4 w-4 mr-1" />}
+            {extracting ? "Drafting…" : "Draft Dev Escalation"}
           </Button>
-          {extractFailed ? (
-            <Button size="sm" variant="outline" onClick={() => run("start")} disabled={busy}>
-              Ask Pax without Human Info
-            </Button>
-          ) : null}
         </div>
       ) : (
         <div className="space-y-1.5">
