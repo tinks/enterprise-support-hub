@@ -542,6 +542,14 @@ WHY the fallback exists: `esh-write-action` re-reads the conversation from Inter
 
 ## 19. Navigation Layout
 
+### Mobile shell and mobile Triage (23 Sep 2026)
+- **Breakpoint:** 768px (`md`). At `md+` the desktop rail and every page are unchanged.
+- **Mobile shell (`AppLayout.tsx`):** below 768px the rail is hidden; a sticky top bar shows the logo, Action Center unread badge, and a 44px hamburger that opens a full navigation drawer (same nav groups) with sign-out. This is the reusable foundation for future mobile pages; only Triage is mobile-optimized today.
+- **Mobile default landing (`App.tsx`):** `/` on a phone-width viewport redirects to `/triage` (synchronous `window.innerWidth < 768` check, no Analytics flash). Desktop `/` still renders Analytics v3. Direct links are never rewritten on any device.
+- **Mobile Triage (`Triage.tsx`):** controls stack; the desktop 9-column table is replaced by tappable cards (customer, SLA band, age, Intercom ID, subject, contact, owner/unassigned, plan) that open the same `IssueDetailSheet`, full-width on mobile, with 44px touch targets for ticket fields and severity proposal actions.
+- **Scope fence:** layout only. Write paths, per-field Intercom writes, and editor gating are unchanged.
+- **Verification:** Playwright at 390px (no horizontal overflow, card opens sheet, drawer opens); user confirmed on a real phone. UNVERIFIED: field writes from a phone; read-only users on mobile.
+
 ### Collapsible sidebar
 - Left sidebar collapses to **56px** (icon rail) and expands to **200px** on hover
 - 2px vertical gradient accent on the left edge (primary → accent colors)
