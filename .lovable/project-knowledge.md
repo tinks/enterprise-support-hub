@@ -2635,5 +2635,11 @@ Every ticket is counted exactly once. `src/lib/channelReport.ts` owns only label
 - Null over guess, enforced server-side: IDs, Slack URL and evidence URLs not literally present in the source text are dropped.
 - No PII pre-scrubber in this phase; human review before submit is the mitigation.
 
-**Status.** Backend only; the review UI is not built. Verified on `215476053149547` (200, grounded IDs, unverified status, severity separate from urgency quote) and a bad-id 400. Unverified: 403, Intercom 404, AI 402/429 paths.
+**Status.** Verified on `215476053149547` (200, grounded IDs, unverified status, severity separate from urgency quote) and a bad-id 400. Unverified: 403, Intercom 404, AI 402/429 paths.
+
+**Review panel (23 Sep 2026).** The ticket sheet's Investigation card button is now "Escalate to Dev (review, then ask Pax)": it calls `extract-human-info` and opens `HumanInfoReviewPanel` inline. Fields are editable and each shows its provenance tag (🟢 Deterministic / 🟡 Direct Quote / 🔴 Inferred), which is carried into the posted text. Customer statement has a visible "Review for sensitive info" reminder. IDs show candidate pills when there is more than one. Impact badge sits beside the customer's urgency quote.
+
+**Submit gate.** `reviewBlockers()` in `src/lib/humanInfo.ts`: the reviewer must deliberately click a repro status (the pre-fill is only "suggested"); "Could not reproduce (infra limitation)" requires a reason; summary is required. `assembleHumanInfo()` re-validates and throws, so the gate is enforced in logic, not just the button.
+
+**Posting.** `ask-pax-investigate` accepts optional `humanInfoBlock` (1–3500 chars, must start `*Human Info`), prepended above the unchanged Pax request. Pax template, idempotency and the Intercom internal note are unchanged; the audit payload records `human_info`. If extraction fails, "Ask Pax without Human Info" keeps the old path.
 
