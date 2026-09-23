@@ -3020,6 +3020,30 @@ export type Database = {
           ticket_count: number
         }[]
       }
+      v3_channel_report: {
+        Args: { _from: string; _to: string }
+        Returns: {
+          channel: string
+          csat_rater_is_internal: boolean
+          csat_rating: number
+          customer_key: string
+          finalized_at: string
+          id: string
+          intercom_conversation_id: string
+          intercom_created_at: string
+          is_test_ticket: boolean
+          lifecycle_status: string
+          plan_tier: string
+          product_area: string
+          resolution_active_s: number
+          rsa_override: boolean
+          state: string
+          subject: string
+          tags: string[]
+          ticket_type: string
+          time_to_first_human_reply_s: number
+        }[]
+      }
       v3_channels_usage: {
         Args: never
         Returns: {

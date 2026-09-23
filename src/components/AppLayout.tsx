@@ -45,6 +45,7 @@ const navEntries: NavEntry[] = [
       { to: "/stats", label: "Analytics (legacy)" },
       { to: "/analytics-v3", label: "Analytics v3" },
       { to: "/trend-report", label: "Trend report (v3)" },
+      { to: "/channel-report", label: "Channels report (v3)" },
       { to: "/monthly-lookback", label: "Monthly lookback" },
       { to: "/csat-report", label: "CSAT report" },
       { to: "/resolution-anatomy", label: "Resolution anatomy" },
