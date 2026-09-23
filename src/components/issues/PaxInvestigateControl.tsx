@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Loader2, AlertTriangle, Check, ExternalLink, Bot } from "lucide-react";
 import { useCanEdit } from "@/hooks/useCanEdit";
 import { SlackConnectControl, useSlackConnection } from "./SlackConnectControl";
+import { HumanInfoReviewPanel } from "./HumanInfoReviewPanel";
+import { assembleHumanInfo, type Extraction, type ReviewState } from "@/lib/humanInfo";
 
 /**
  * "Ask Pax to investigate" — the one place the Hub starts a bot investigation.
@@ -49,6 +51,9 @@ export function PaxInvestigateControl({ conversationId }: { conversationId: stri
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [extraction, setExtraction] = useState<Extraction | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [extractFailed, setExtractFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,12 +73,12 @@ export function PaxInvestigateControl({ conversationId }: { conversationId: stri
     return () => { cancelled = true; };
   }, [conversationId]);
 
-  const run = async (mode: "start" | "retry_note") => {
+  const run = async (mode: "start" | "retry_note", humanInfoBlock?: string) => {
     setBusy(true);
     setError(null);
     try {
       const { data, error: fnError } = await supabase.functions.invoke("ask-pax-investigate", {
-        body: { conversationId, mode },
+        body: { conversationId, mode, ...(humanInfoBlock ? { humanInfoBlock } : {}) },
       });
       if (fnError) {
         const { message } = await readError(fnError);
@@ -89,9 +94,42 @@ export function PaxInvestigateControl({ conversationId }: { conversationId: stri
         return;
       }
       setInv(((data as any)?.investigation as Investigation) ?? null);
+      setExtraction(null);
     } finally {
       setBusy(false);
     }
+  };
+
+  const prepare = async () => {
+    setExtracting(true);
+    setError(null);
+    setExtractFailed(false);
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke("extract-human-info", {
+        body: { conversation_id: conversationId },
+      });
+      if (fnError) {
+        const { message } = await readError(fnError);
+        setError(`Human Info extraction failed: ${message}`);
+        setExtractFailed(true);
+        return;
+      }
+      setExtraction((data as any)?.extraction as Extraction);
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  const submitReviewed = async (s: ReviewState) => {
+    let block: string;
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      block = assembleHumanInfo(s, extraction!, u.user?.email ?? null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      return;
+    }
+    await run("start", block);
   };
 
   if (loading) {
@@ -112,16 +150,30 @@ export function PaxInvestigateControl({ conversationId }: { conversationId: stri
         <SlackConnectControl status={slackStatus} onChanged={refreshSlack} />
       ) : null}
 
-      {!inv ? (
-        <Button
-          size="sm"
-          onClick={() => run("start")}
-          disabled={busy || slackLoading || !slackStatus?.connected}
-          title={!slackStatus?.connected ? "Connect your Slack account first" : undefined}
-        >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Bot className="h-4 w-4 mr-1" />}
-          Ask Pax to investigate
-        </Button>
+      {!inv && extraction ? (
+        <HumanInfoReviewPanel
+          extraction={extraction}
+          busy={busy}
+          onCancel={() => setExtraction(null)}
+          onSubmit={(s) => void submitReviewed(s)}
+        />
+      ) : !inv ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() => void prepare()}
+            disabled={extracting || busy || slackLoading || !slackStatus?.connected}
+            title={!slackStatus?.connected ? "Connect your Slack account first" : undefined}
+          >
+            {extracting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Bot className="h-4 w-4 mr-1" />}
+            {extracting ? "Drafting Human Info…" : "Escalate to Dev (review, then ask Pax)"}
+          </Button>
+          {extractFailed ? (
+            <Button size="sm" variant="outline" onClick={() => run("start")} disabled={busy}>
+              Ask Pax without Human Info
+            </Button>
+          ) : null}
+        </div>
       ) : (
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-2 text-xs">
