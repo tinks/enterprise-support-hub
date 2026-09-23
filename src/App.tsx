@@ -64,7 +64,14 @@ const App = () => (
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/oauth/slack/return" element={<SlackReturn />} />
-          <Route path="/" element={<ProtectedRoute><AnalyticsV3 /></ProtectedRoute>} />
+          <Route
+            path="/"
+            element={
+              typeof window !== "undefined" && window.innerWidth < 768
+                ? <Navigate to="/triage" replace />
+                : <ProtectedRoute><AnalyticsV3 /></ProtectedRoute>
+            }
+          />
           <Route path="/stats" element={<ProtectedRoute><Stats /></ProtectedRoute>} />
           <Route path="/action-center" element={<ProtectedRoute><ActionCenter /></ProtectedRoute>} />
           <Route path="/conversations" element={<ProtectedRoute><Conversations /></ProtectedRoute>} />
