@@ -196,6 +196,14 @@ Deno.serve(async (req) => {
     if (mode !== "start" && mode !== "retry_note") {
       return json({ error: `Unknown mode '${mode}'`, blocked: true }, 400);
     }
+    // Optional human-reviewed block, prepended ABOVE the unchanged Pax request.
+    const humanInfoBlock = body.humanInfoBlock == null ? null : String(body.humanInfoBlock).trim();
+    if (humanInfoBlock !== null && (humanInfoBlock.length === 0 || humanInfoBlock.length > 3500)) {
+      return json({ error: "humanInfoBlock must be 1–3500 characters", blocked: true }, 400);
+    }
+    if (humanInfoBlock && !humanInfoBlock.startsWith("*Human Info")) {
+      return json({ error: "humanInfoBlock must come from the Hub review panel", blocked: true }, 400);
+    }
 
     audit = {
       intercom_conversation_id: conversationId,
@@ -311,12 +319,13 @@ Deno.serve(async (req) => {
       const mention = `<@${paxUserId}>`;
 
       const template = (settings.pax_request_template || DEFAULT_TEMPLATE) as string;
-      const text = template
+      const paxText = template
         .replaceAll("{pax}", mention)
         .replaceAll("@Pax", mention)
         .replaceAll("{url}", intercomUrl(conversationId))
         .replaceAll("{id}", conversationId)
         .replaceAll("{subject}", ticket?.subject ?? "(no subject)");
+      const text = humanInfoBlock ? `${humanInfoBlock}\n\n———\n${paxText}` : paxText;
 
       const posted = await slack(slackKey!, "chat.postMessage", {
         channel,
