@@ -27,6 +27,7 @@ import SlaWorkbench from "./pages/SlaWorkbench";
 import SlaDashboard from "./pages/SlaDashboard";
 import SlaReport from "./pages/SlaReport";
 import TrendReport from "./pages/TrendReport";
+import ChannelReport from "./pages/ChannelReport";
 import MonthlyLookback from "./pages/MonthlyLookback";
 import CsatReport from "./pages/CsatReport";
 import ResolutionAnatomy from "./pages/ResolutionAnatomy";
