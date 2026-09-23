@@ -1200,6 +1200,25 @@ function buildNodes(
       },
     },
     {
+      id: "channel-report-v3",
+      type: "flowNode",
+      position: { x: COL_W * -1.8, y: ROW_H * 4.4 },
+      data: {
+        label: "Channels report (v3) — access points",
+        desc: "Where enterprise tickets actually come in (direct email, Slack relay, Intercom widget, in-app support form, other) and how each access point performs, on the v3 dataset only.",
+        icon: ClipboardList,
+        details: [
+          "ROUTE: /channel-report (src/pages/ChannelReport.tsx, nav under Reports as 'Channels report (v3)'). Legacy Insights ▸ Channels (src/pages/insights/ChannelsTab.tsx, legacy tables) is DELIBERATELY UNTOUCHED — standing rule: do not modify the legacy side unless forced. Two surfaces, two datasets, no shared code.",
+          "SERVER TRUTH: read-only SECURITY DEFINER RPC public.v3_channel_report(_from, _to) (migration 0051_v3_channel_report.sql), EXECUTE granted to authenticated + service_role, REVOKED from anon/public. Classification happens in SQL so the large raw_payload jsonb never ships to the browser; _from is clamped to the June 1 2026 clean-data floor.",
+          "CLASSIFICATION (mutually exclusive, ordered): is_in_app_form -> in_app_form; slack_channel_id_detected NOT NULL -> slack; raw_payload.source.type='email' -> email; ='conversation' -> messenger; anything else -> other. Every ticket is counted exactly once. src/lib/channelReport.ts owns only labels, order and colours so the dimension reads the same wherever it is rendered.",
+          "DIMENSION FALLBACKS: product area reads custom_attributes 'Affected Product Area' then 'Product Area' then the legacy product_area column then 'Unclassified'; ticket type reads 'Ticket type' then 'Unclassified'. Intercom attributes stay the source of truth, legacy columns are fallback only.",
+          "SHARED RULES REUSED, NOT RE-IMPLEMENTED: excludeTestTickets/showTestDataNow, PlanScopeSelect + inPlanScope, src/lib/csat.ts (summarizeCsat + CsatFilterMenu, exclusion note always shown), src/lib/durationStats.ts and the resolutionDisplay labels — 'Resolution (active)' stays the only resolution headline.",
+          "SURFACE: range presets (30d / 90d / this month / last month / all v3 / custom, all clamped to the floor), a single-row intake mix bar, a stacked monthly trend chart plus a month x channel table with per-month share, per-channel operational cards (count, share, P50/P90 active, median first human reply, still open, CSAT with n, top 5 accounts, top 3 product areas) and CSV export of both tables.",
+          "VERIFIED 23 Sep 2026 in the authenticated app at 1600px over the live 90-day window (642 tickets): direct email 375 (58.4%), Slack relay 173 (26.9%), Intercom widget 75 (11.7%), in-app form 12 (1.9%), other 7 (1.1%); monthly table Jun 15 / Jul 193 / Aug 241 / Sep 193. Typecheck and build clean. UNVERIFIED: the custom date-range branch and the CSV export were not exercised in the browser, and the RPC cannot be checked from the unauthenticated SQL tool (permission denied by design).",
+        ],
+      },
+    },
+    {
       id: "active-clock-persisted",
       type: "flowNode",
       position: { x: COL_W * -1.8, y: ROW_H * 5.1 },
