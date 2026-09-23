@@ -931,6 +931,27 @@ function buildNodes(
       },
     },
     {
+      id: "extract-human-info",
+      type: "flowNode",
+      position: { x: COL_W * 1.6, y: ROW_H * 5.3 },
+      data: {
+        label: "Human Info extraction (23 Sep 2026)",
+        desc: "AI drafts the Human Info Block for a dev escalation from the LIVE Intercom thread. Read-only: returns a draft for human review, writes nothing anywhere.",
+        icon: ClipboardList,
+        edgeFunction: "extract-human-info",
+        details: [
+          "Editor-only (requireEditor). Input { conversation_id }. Fresh GET /conversations/{id} at call time — never Pax output, never the raw_payload mirror.",
+          "Filters automated notes (same rule as isAutomatedNote in ticketComments.ts) and bot parts; keeps customer messages, support replies and substantive human internal notes.",
+          "Model openai/gpt-6-astra on /v1/responses, streamed, strict json_schema. Locked schema: summary, customer_statement, identifiers {primary, candidates[]} per ID, two-dimensional impact (technical vs customer_stated_urgency quote), repro_steps, expected_vs_observed, evidence_links, extraction_metadata.",
+          "repro_steps.status is ALWAYS customer_reported_unverified: single-value enum in the schema AND re-forced server-side. support_verified / attempted_could_not_reproduce_infra_limitation are human-only UI states.",
+          "Server-side grounding: any ID, Slack URL or evidence URL that does not literally appear in the source text is dropped (null over guess). Summary clamped to 120 chars, customer statement to 300 with [...].",
+          "No PII pre-scrubber this phase — human review before submit is the mitigation (explicit decision).",
+          "VERIFIED (23 Sep 2026): 215476053149547 returned 200 with grounded user/project/workspace IDs, status customer_reported_unverified, severity workaround_available kept separate from the customer's 'showstopper' quote; bad id returned 400. UNVERIFIED: read-only 403, Intercom 404, AI 402/429 paths. Review UI not built yet.",
+        ],
+        accent: "blue",
+      },
+    },
+    {
       id: "my-queue",
       type: "flowNode",
       position: { x: COL_W * 2.6, y: ROW_H * 4.3 },

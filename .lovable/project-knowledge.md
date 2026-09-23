@@ -2619,3 +2619,21 @@ Every ticket is counted exactly once. `src/lib/channelReport.ts` owns only label
 **VERIFIED 23 Sep 2026** in the authenticated app at 1600px over the live 90-day window (642 tickets): direct email 375 (58.4%), Slack relay 173 (26.9%), Intercom widget 75 (11.7%), in-app form 12 (1.9%), other 7 (1.1%). Monthly table Jun 15 / Jul 193 / Aug 241 / Sep 193. Typecheck and production build clean.
 
 **UNVERIFIED.** The custom date-range branch and the CSV export were not exercised in the browser. The RPC cannot be validated through the unauthenticated SQL tool — it returns `42501 permission denied`, which is the intended grant behaviour, not a fault.
+
+## Human Info Block extraction (23 Sep 2026)
+
+**Function.** `supabase/functions/extract-human-info` — editor-only, strictly read-only. Input `{ conversation_id }`; returns `{ extraction, source_stats, model, ai_run_id }`. Writes nothing to Intercom, Slack, Linear or the database.
+
+**Source.** Fresh `GET /conversations/{id}` at call time (never Pax output, never the possibly-stale `raw_payload`). Automated notes (Lovable Support author or Slack archive links) and bot parts are dropped; customer messages, support replies and substantive human internal notes are kept.
+
+**Model.** `openai/gpt-6-astra` on `/v1/responses`, streamed, strict `json_schema`, reasoning medium.
+
+**Locked contract.**
+- `repro_steps.status` is always `customer_reported_unverified` (single-value enum plus server re-force). `support_verified` and `attempted_could_not_reproduce_infra_limitation` (with `infra_limitation_reason`) are human-only states set in the review UI.
+- Identifiers use `{ primary, candidates[{id, context}], provenance }` for user, project and workspace.
+- Impact is two-dimensional: `technical_severity/scope/description` (inferred) vs `customer_stated_urgency` (direct quote or null).
+- Null over guess, enforced server-side: IDs, Slack URL and evidence URLs not literally present in the source text are dropped.
+- No PII pre-scrubber in this phase; human review before submit is the mitigation.
+
+**Status.** Backend only; the review UI is not built. Verified on `215476053149547` (200, grounded IDs, unverified status, severity separate from urgency quote) and a bad-id 400. Unverified: 403, Intercom 404, AI 402/429 paths.
+
