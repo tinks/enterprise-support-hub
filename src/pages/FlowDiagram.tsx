@@ -1243,6 +1243,23 @@ function buildNodes(
       },
     },
     {
+      id: "mobile-triage-shell",
+      type: "flowNode",
+      position: { x: COL_W * -1.8, y: ROW_H * 4.75 },
+      data: {
+        label: "Mobile shell + mobile Triage (phones)",
+        desc: "Phones (< 768px) get a compact app shell and a card-based Triage queue; desktop is unchanged.",
+        icon: ClipboardList,
+        details: [
+          "SHELL (src/components/AppLayout.tsx): at md+ the collapsible desktop rail is unchanged. Below 768px the rail is hidden and replaced by a sticky top bar (logo, Action Center unread badge, 44px hamburger) that opens a full navigation drawer with sign-out. Reusable foundation for future mobile pages.",
+          "ROOT REDIRECT (src/App.tsx): '/' on a phone-width viewport (synchronous window.innerWidth < 768 check, so no Analytics flash) redirects to /triage. Desktop '/' still renders Analytics v3. Direct links to any route are never rewritten on any device.",
+          "TRIAGE (src/pages/Triage.tsx): filters/queue controls stack on mobile; the 9-column IssueTable stays desktop-only and phones get tappable cards (customer, SLA band, age, Intercom ID, subject, contact, owner/unassigned, plan). Tapping a card opens the same IssueDetailSheet.",
+          "DETAIL SHEET: full-width on mobile with vertical scroll; ticket field controls and severity proposal Accept/Propose buttons get 44px touch targets. Write semantics (per-field Intercom writes, editor gating) are UNCHANGED — this is layout only.",
+          "VERIFIED 23 Sep 2026: Playwright at 390px — no horizontal overflow (scrollWidth 390), card opens the sheet, drawer opens; user confirmed on a real phone that the layout fits and '/' lands on Triage (after a fresh browser). UNVERIFIED: field writes performed from a phone, read-only users on mobile.",
+        ],
+      },
+    },
+    {
       id: "active-clock-persisted",
       type: "flowNode",
       position: { x: COL_W * -1.8, y: ROW_H * 5.1 },
