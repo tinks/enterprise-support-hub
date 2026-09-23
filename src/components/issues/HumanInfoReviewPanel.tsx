@@ -97,8 +97,24 @@ export function HumanInfoReviewPanel({
     <div className="space-y-4 rounded-md border bg-muted/20 p-3">
       <div className="text-sm font-medium">Review Human Info before posting</div>
 
-      <Field label="Summary" p="inferred">
-        <Input value={s.summary} maxLength={160} onChange={(e) => set("summary", e.target.value)} className="h-8 text-sm" />
+      <Field
+        label="Summary"
+        p={extraction.summary.insufficient_data ? undefined : "inferred"}
+        hint={
+          extraction.summary.insufficient_data ? (
+            <p className="flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="h-3 w-3" /> Not enough detail in the thread to draft a summary — type the component and issue yourself.
+            </p>
+          ) : null
+        }
+      >
+        <Input
+          value={s.summary}
+          maxLength={160}
+          onChange={(e) => set("summary", e.target.value)}
+          placeholder="[Area/Component]: what is broken"
+          className="h-8 text-sm"
+        />
       </Field>
 
       <Field

@@ -29,7 +29,7 @@ export const REPRO_LABEL: Record<ReproStatus, string> = {
 export type IdField = { primary: string | null; candidates: { id: string; context: string }[] };
 
 export type Extraction = {
-  summary: { value: string; provenance: "inferred" };
+  summary: { value: string; provenance: "inferred"; insufficient_data?: boolean };
   customer_statement: { value: string; provenance: "direct_quote" };
   identifiers: {
     user_id: IdField;
