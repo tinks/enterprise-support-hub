@@ -107,6 +107,7 @@ const App = () => (
           <Route path="/sla-report" element={<ProtectedRoute><SlaReport /></ProtectedRoute>} />
           <Route path="/csat-report" element={<ProtectedRoute><CsatReport /></ProtectedRoute>} />
           <Route path="/trend-report" element={<ProtectedRoute><TrendReport /></ProtectedRoute>} />
+          <Route path="/channel-report" element={<ProtectedRoute><ChannelReport /></ProtectedRoute>} />
           <Route path="/monthly-lookback" element={<ProtectedRoute><MonthlyLookback /></ProtectedRoute>} />
           <Route path="/resolution-anatomy" element={<ProtectedRoute><ResolutionAnatomy /></ProtectedRoute>} />
 
